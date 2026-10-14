@@ -7,6 +7,7 @@
 import WebSocket from 'ws';
 import type { IResponseMessage, MossSessionAvailableSkill, MossWorkspaceFilePreview, MossWorkspaceNode } from '@sudowork/host-bridge/ipcBridge';
 import { BrowserSessionActionSchema, BrowserSessionReplySchema, type BrowserSessionAction, type BrowserSessionReply } from '@sudowork/contracts/browser-session';
+import { uploadBrowserFile, downloadBrowserFile } from '@sudowork/moss-client';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 import { getValidToken } from '@process/bridge/eeclawBridge';
 import { ProcessConfig } from '@process/initStorage';
@@ -30,13 +31,21 @@ export class MossSessionApi {
     this.serverUrl = serverUrl;
   }
 
+  async uploadBrowserFile(sessionId: string, input: { name: string; controlEpoch: number; targetEpoch: number; data: Uint8Array }) {
+    return uploadBrowserFile({ baseUrl: this.serverUrl, accessToken: await this.ensureAuthenticated() }, sessionId, input, input.data);
+  }
+
+  async downloadBrowserFile(sessionId: string, fileId: string) {
+    return downloadBrowserFile({ baseUrl: this.serverUrl, accessToken: await this.ensureAuthenticated() }, sessionId, fileId);
+  }
+
   async invokeBrowserSession(sessionId: string, action: BrowserSessionAction): Promise<BrowserSessionReply> {
     const token = await this.ensureAuthenticated();
     const response = await fetch(`${this.serverUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/browser`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(BrowserSessionActionSchema.parse(action)),
-      signal: AbortSignal.timeout(30_000),
+      signal: AbortSignal.timeout(action.kind === 'start' || action.kind === 'restart' ? 90_000 : 30_000),
     });
     if (!response.ok) throw new Error(`Browser session request failed (${response.status})`);
     return BrowserSessionReplySchema.parse(await response.json());

@@ -258,6 +258,40 @@ describe('conversation REST (real PostgreSQL + fake moss)', () => {
     expect((res.body.conversations as { id: string }[]).map((c) => c.id)).toEqual(['sess-b1'])
   })
 
+  test('browser file routes require authentication and reject another owner before transferring bytes', async () => {
+    const app = await buildApp()
+    const fileId = 'a'.repeat(32)
+    const upload = '/api/conversations/sess-b1/browser/files/upload'
+    const anonymous = await request(app)
+      .post(upload)
+      .set('Origin', testConfig.publicOrigin)
+      .set('Content-Type', 'application/octet-stream')
+      .send(Buffer.from('anonymous'))
+    expect(anonymous.status).toBe(401)
+    const foreign = await request(app)
+      .post(upload)
+      .set('Origin', testConfig.publicOrigin)
+      .set('Cookie', cookieA)
+      .set('Content-Type', 'application/octet-stream')
+      .set('X-Browser-File-Name', 'review.txt')
+      .set('X-Browser-Control-Epoch', '1')
+      .set('X-Browser-Target-Epoch', '0')
+      .send(Buffer.from('foreign'))
+    expect(foreign.status).toBe(403)
+    const read = await request(app)
+      .get(`/api/conversations/sess-b1/browser/files/${fileId}`)
+      .set('Cookie', cookieA)
+    expect(read.status).toBe(403)
+    const missingEpoch = await request(app)
+      .post('/api/conversations/sess-a1/browser/files/upload')
+      .set('Origin', testConfig.publicOrigin)
+      .set('Cookie', cookieA)
+      .set('Content-Type', 'application/octet-stream')
+      .set('X-Browser-File-Name', 'review.txt')
+      .send(Buffer.from('missing observation'))
+    expect(missingEpoch.status).toBe(400)
+  })
+
   test('a manager workbench uses a verified grant while retaining the Agent owner', async () => {
     const managed: MossSessionSummary = {
       sessionId: 'manager-owned-by-b',

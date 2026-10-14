@@ -62,13 +62,34 @@ async function ensureMossApiInitialized(): Promise<MossSessionApi | null> {
 }
 
 export function initMossBridge(): void {
+  async function browserSessionId(conversationId: string) {
+    const conversation = getDatabase().getConversation(conversationId);
+    const extra = conversation.success ? (conversation.data?.extra as { mossSessionId?: string } | undefined) : undefined;
+    return extra?.mossSessionId || conversationId;
+  }
+  ipcBridge.browserSession.uploadFile.provider(async (input) => {
+    try {
+      const api = await ensureMossApiInitialized();
+      if (!api) return { success: false, msg: 'unavailable' };
+      return { success: true, data: await api.uploadBrowserFile(await browserSessionId(input.conversationId), input) };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error ? error.message : 'unavailable' };
+    }
+  });
+  ipcBridge.browserSession.downloadFile.provider(async ({ conversationId, fileId }) => {
+    try {
+      const api = await ensureMossApiInitialized();
+      if (!api) return { success: false, msg: 'unavailable' };
+      return { success: true, data: await api.downloadBrowserFile(await browserSessionId(conversationId), fileId) };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error ? error.message : 'unavailable' };
+    }
+  });
   ipcBridge.browserSession.invoke.provider(async ({ conversationId, action }) => {
     try {
       const api = await ensureMossApiInitialized();
       if (!api) return { success: false, msg: 'Cloud browser connection is not configured' };
-      const conversation = getDatabase().getConversation(conversationId);
-      const extra = conversation.success ? (conversation.data?.extra as { mossSessionId?: string } | undefined) : undefined;
-      const sessionId = extra?.mossSessionId || conversationId;
+      const sessionId = await browserSessionId(conversationId);
       return { success: true, data: await api.invokeBrowserSession(sessionId, action) };
     } catch (error) {
       return { success: false, msg: error instanceof Error ? error.message : 'Browser connection failed' };

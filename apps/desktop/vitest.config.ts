@@ -147,6 +147,7 @@ export default defineConfig({
         '../../packages/common/src/personalAgents.ts',
         'src/process/services/mossPersonalAgents.ts',
         '../../packages/moss-client/src/MossAgentClient.ts',
+        '../../packages/moss-client/src/MossBrowserFiles.ts',
         '../../packages/common/src/mossExecution.ts',
         '../../packages/common/src/conversationTitle.ts',
         '../../packages/renderer/src/pages/conversation/grouped-history/utils/groupingHelpers.ts',

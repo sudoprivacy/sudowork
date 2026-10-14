@@ -6,7 +6,7 @@ import type { IMossCatalogPage, IMossCatalogItem, IMossCatalogInstallation, Moss
  */
 
 import { bridge } from '@office-ai/platform';
-import type { BrowserSessionAction, BrowserSessionReply } from '@sudowork/contracts/browser-session';
+import type { BrowserFile, BrowserSessionAction, BrowserSessionReply } from '@sudowork/contracts/browser-session';
 import type { IConfirmation, IResponseMessage } from '@sudowork/common/chatTypes';
 import type { IAssistantInfo, IAssistantMeta } from '@sudowork/common/assistantTypes';
 import type { IChannelPairingRequest, IChannelPluginStatus, IChannelSession, IChannelUser, IPluginCredentials } from '@sudowork/common/channelTypes';
@@ -1516,6 +1516,8 @@ export const logs = {
 // cache and (later) attach CDP-based agent tooling.
 export const browserSession = {
   invoke: bridge.buildProvider<IBridgeResponse<BrowserSessionReply>, { conversationId: string; action: BrowserSessionAction }>('browser-session:invoke'),
+  uploadFile: bridge.buildProvider<IBridgeResponse<BrowserFile>, { conversationId: string; name: string; controlEpoch: number; targetEpoch: number; data: Uint8Array }>('browser-session:upload-file'),
+  downloadFile: bridge.buildProvider<IBridgeResponse<Uint8Array>, { conversationId: string; fileId: string }>('browser-session:download-file'),
 };
 
 export const browserPanel = {

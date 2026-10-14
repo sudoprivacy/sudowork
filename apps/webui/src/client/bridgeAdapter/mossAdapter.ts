@@ -1332,6 +1332,43 @@ function ensureChannelEventsSocket(): void {
 }
 
 const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
+  'browser-session:upload-file': async (req) => {
+    try {
+      const result = await apiFetch<{ file: unknown }>(
+        `/api/conversations/${encodeURIComponent(String(req.conversationId || ''))}/browser/files/upload`,
+        {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/octet-stream',
+            'X-Browser-File-Name': encodeURIComponent(String(req.name || '')),
+            'X-Browser-Control-Epoch': String(req.controlEpoch),
+            'X-Browser-Target-Epoch': String(req.targetEpoch),
+          },
+          body: new Uint8Array(req.data as Uint8Array).buffer,
+          signal: AbortSignal.timeout(90_000),
+        },
+      )
+      return ok(result.file)
+    } catch (error) {
+      return fail(errMessage(error))
+    }
+  },
+  'browser-session:download-file': async (req) => {
+    try {
+      const response = await fetch(
+        `/api/conversations/${encodeURIComponent(String(req.conversationId || ''))}/browser/files/${encodeURIComponent(String(req.fileId || ''))}`,
+        {
+          credentials: 'include',
+          redirect: 'error',
+          signal: AbortSignal.timeout(90_000),
+        },
+      )
+      if (!response.ok) throw new Error('browser_file_not_found')
+      return ok(new Uint8Array(await response.arrayBuffer()))
+    } catch (error) {
+      return fail(errMessage(error))
+    }
+  },
   'browser-session:invoke': async (req) => {
     try {
       const data = await apiFetch(

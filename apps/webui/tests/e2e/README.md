@@ -99,3 +99,31 @@ Evidence includes five UI screenshots, profile/browser identities, a random
 assistant receipt, usage and page errors. Output directories must be new.
 Failures retain their screenshot; the test closes only its own viewing Chrome.
 The managed browser is left stopped for explicit fixture cleanup.
+
+## Browser file transfer
+
+`live_browser_files.py` drives a real model and the shared WebUI panel. Use a
+fresh conversation and a stopped managed worker with the file-transfer
+capability. Release any previous human lease and recover any worker restart
+through the supported human controls before running the journey.
+
+```sh
+python apps/webui/tests/e2e/live_browser_files.py \
+  --config /private/browser-live.json \
+  --locale en-US \
+  --fixture-origin http://worker-reachable-fixture:50181 \
+  --output /private/evidence/browser-files-001
+```
+
+The AI launches headful extension Chrome and opens a native file chooser. The
+user takes control and selects a generated local file through the actual
+viewer file picker. The website verifies its Unicode filename, exact contents,
+trusted change event and login cookie. Return to AI triggers fresh observation
+and a real download; the viewer saves and verifies its exact bytes and SHA-256.
+The same browser/profile identity must persist. Stale uploads return 409 and
+anonymous uploads return 401. The chat must settle after both real AI turns.
+
+The local fixture uses `/review`, `/submit` and `/receipts`; a private relay must
+forward those paths and cookies. Output includes two screenshots, synthetic
+receipts, identities and safe transfer/stream summaries. It closes only the
+test's viewing Chrome; explicitly stop the managed browser during cleanup.

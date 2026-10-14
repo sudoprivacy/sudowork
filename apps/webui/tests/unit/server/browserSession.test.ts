@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { MossSessionPort } from '@sudowork/moss-client'
 import type { Principal } from '../../../src/server/features/auth/principalRepository'
-import { invokeBrowserSession } from '../../../src/server/features/conversations/browserSessionService'
+import {
+  invokeBrowserSession,
+  receiveBrowserFile,
+  readBrowserFile,
+} from '../../../src/server/features/conversations/browserSessionService'
 
 const principal: Principal = {
   id: 'principal',
@@ -102,5 +106,30 @@ describe('authorized browser session proxy', () => {
       }),
     ).rejects.toThrow('connection lost after dispatch')
     expect(f.mossFetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects transfers after session ownership changes before dispatching bytes', async () => {
+    const f = fixture()
+    f.changeOwner()
+    const transfer = vi.spyOn(globalThis, 'fetch')
+    try {
+      await expect(
+        receiveBrowserFile(
+          f.deps,
+          principal,
+          'conversation',
+          ctx,
+          { name: 'review.txt', controlEpoch: 1, targetEpoch: 0 },
+          new Uint8Array([1, 2]),
+        ),
+      ).rejects.toThrow()
+      await expect(
+        readBrowserFile(f.deps, principal, 'conversation', ctx, 'a'.repeat(32)),
+      ).rejects.toThrow()
+      expect(transfer).not.toHaveBeenCalled()
+      expect(f.get).toHaveBeenCalledTimes(2)
+    } finally {
+      transfer.mockRestore()
+    }
   })
 })

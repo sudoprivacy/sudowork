@@ -1,4 +1,4 @@
-import { Router, type NextFunction, type Response } from 'express'
+import { Router, raw, type NextFunction, type Response } from 'express'
 import { z, ZodError } from 'zod'
 import { getMossContext } from '../auth/authService.js'
 import { findPrincipalById, type Principal } from '../auth/principalRepository.js'
@@ -34,7 +34,11 @@ import {
 } from './conversationService.js'
 import { getDeliverables } from './deliverablesService.js'
 import { BrowserSessionActionSchema } from '@sudowork/contracts/browser-session'
-import { invokeBrowserSession } from './browserSessionService.js'
+import {
+  invokeBrowserSession,
+  receiveBrowserFile,
+  readBrowserFile,
+} from './browserSessionService.js'
 
 /**
  * 会话 REST 路由（计划 Task 5）。
@@ -57,6 +61,17 @@ export function createConversationRouter(deps: ConversationDeps): Router {
     if (err instanceof ZodError) {
       res.status(400).json({ error: 'INVALID_REQUEST' })
       return
+    }
+    if (err instanceof MossHttpError && [400, 403, 409, 503].includes(err.status)) {
+      try {
+        const body = JSON.parse(err.bodyText) as { error?: unknown }
+        if (typeof body.error === 'string' && /^[a-z_]{1,80}$/.test(body.error)) {
+          res.status(err.status).json({ error: body.error })
+          return
+        }
+      } catch {
+        // Unknown upstream errors use the existing error handler.
+      }
     }
     if (err instanceof SessionNotFoundError) {
       res.status(404).json({ error: 'SESSION_NOT_FOUND' })
@@ -108,20 +123,66 @@ export function createConversationRouter(deps: ConversationDeps): Router {
       res
         .status(200)
         .json(await invokeBrowserSession(deps, principal, String(req.params.id), ctx, input))
-    })().catch((err: unknown) => {
-      if (err instanceof MossHttpError && [400, 403, 409, 503].includes(err.status)) {
-        try {
-          const body = JSON.parse(err.bodyText) as { error?: unknown }
-          if (typeof body.error === 'string' && /^[a-z_]{1,80}$/.test(body.error)) {
-            res.status(err.status).json({ error: body.error })
-            return
-          }
-        } catch {
-          /* Unknown upstream errors use the existing error handler. */
-        }
-      }
-      convErrorHandler(err, res, next)
-    })
+    })().catch((err: unknown) => convErrorHandler(err, res, next))
+  })
+
+  router.post(
+    '/:id/browser/files/upload',
+    requireSession,
+    raw({ type: 'application/octet-stream', limit: '16mb' }),
+    (req, res, next) => {
+      void (async () => {
+        const principal = await resolvePrincipal(req as AuthedRequest)
+        if (!principal) return void res.status(401).json({ error: 'SESSION_REQUIRED' })
+        const ctx = await resolveCtx(req as AuthedRequest)
+        const input = z
+          .object({
+            name: z.string().min(1).max(240),
+            controlEpoch: z.number().int().nonnegative(),
+            targetEpoch: z.number().int().nonnegative(),
+          })
+          .parse({
+            name: decodeURIComponent(req.get('X-Browser-File-Name') || ''),
+            controlEpoch:
+              req.get('X-Browser-Control-Epoch') === undefined
+                ? NaN
+                : Number(req.get('X-Browser-Control-Epoch')),
+            targetEpoch:
+              req.get('X-Browser-Target-Epoch') === undefined
+                ? NaN
+                : Number(req.get('X-Browser-Target-Epoch')),
+          })
+        if (!Buffer.isBuffer(req.body))
+          return void res.status(400).json({ error: 'INVALID_REQUEST' })
+        const file = await receiveBrowserFile(
+          deps,
+          principal,
+          String(req.params.id),
+          ctx,
+          input,
+          req.body,
+        )
+        res.set('Cache-Control', 'no-store').status(201).json({ file })
+      })().catch((err: unknown) => convErrorHandler(err, res, next))
+    },
+  )
+
+  router.get('/:id/browser/files/:fileId', requireSession, (req, res, next) => {
+    void (async () => {
+      const principal = await resolvePrincipal(req as AuthedRequest)
+      if (!principal) return void res.status(401).json({ error: 'SESSION_REQUIRED' })
+      const ctx = await resolveCtx(req as AuthedRequest)
+      const fileId = z
+        .string()
+        .regex(/^[a-f0-9]{32}$/)
+        .parse(req.params.fileId)
+      const data = await readBrowserFile(deps, principal, String(req.params.id), ctx, fileId)
+      res
+        .set('Content-Type', 'application/octet-stream')
+        .set('Cache-Control', 'no-store')
+        .status(200)
+        .send(Buffer.from(data))
+    })().catch((err: unknown) => convErrorHandler(err, res, next))
   })
 
   router.post('/', requireSession, (req, res, next) => {
