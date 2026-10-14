@@ -62,17 +62,22 @@ function normalize(p: string): string {
 const scodeBin = resolveScodeBinary();
 const describeMaybe = scodeBin ? describe : describe.skip;
 
-// node-pty is a native addon; load it defensively so an ABI mismatch on some CI
-// runner degrades to a skip instead of failing the whole suite.
-function loadPty(): typeof import('node-pty') | null {
+// Load the same portable native PTY package that the desktop host uses.
+// Optional local runs can skip it; the CI gate below requires it.
+function loadPty(): typeof import('@lydell/node-pty') | null {
   try {
     const require = createRequire(import.meta.url);
-    return require('node-pty');
+    return require('@lydell/node-pty');
   } catch {
     return null;
   }
 }
 const pty = loadPty();
+// CI is a real runtime gate: an unavailable binary or native addon must fail it.
+if (process.env.SUDOWORK_REQUIRE_SCODE_ISOLATION === '1') {
+  if (!scodeBin) throw new Error('Scode isolation requires the downloaded engine binary');
+  if (!pty) throw new Error('Scode isolation requires a working native node-pty addon');
+}
 /* eslint-disable no-control-regex -- stripping terminal control sequences is the point */
 const stripAnsi = (s: string): string =>
   s
