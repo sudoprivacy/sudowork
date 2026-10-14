@@ -33,7 +33,7 @@ const execAsync = promisify(exec);
 // Update this version constant when a new Python stable release is available.
 // Download page: https://www.python.org/downloads/
 const PYTHON_VERSION = '3.13.4';
-const BROWSER_WORKER_VERSION = '0.57.3';
+const BROWSER_WORKER_VERSION = '0.57.4';
 
 interface PythonStatus {
   installed: boolean;

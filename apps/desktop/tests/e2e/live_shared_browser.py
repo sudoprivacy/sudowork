@@ -3,7 +3,7 @@
 Start the built app with its normal model credentials and an isolated home, then:
   python tests/e2e/live_shared_browser.py --port <CDP port> --output <evidence dir>
 
-Requires ai-dev-browser[remote]==0.57.3 (aiohttp) and an actual model account.
+Requires ai-dev-browser[remote]==0.57.4 (aiohttp) and an actual model account.
 No browser control, agent output, takeover acknowledgement, or model is mocked.
 """
 
@@ -158,10 +158,17 @@ async def main():
             async with session.get(f'http://127.0.0.1:{args.port}/json/list') as response:
                 return await response.json()
 
-        target = next(t for t in await targets() if t.get('type') == 'page' and '/renderer/index.html' in t.get('url', '') and '#/browser-viewer/' not in t['url'])
+        async def main_target():
+            try:
+                return next((t for t in await targets() if t.get('type') == 'page' and '/renderer/index.html' in t.get('url', '') and '#/browser-viewer/' not in t['url']), None)
+            except aiohttp.ClientConnectorError:
+                return None
+
+        target = await wait_for(main_target, 60, 'The isolated Desktop instance did not expose its renderer')
         app = UI(session, target)
         viewer = None
         try:
+            await wait_for(lambda: app.read("[...document.querySelectorAll('body *')].some(e => ['New task', '\u65b0\u5efa\u4efb\u52a1'].includes(e.textContent.trim()) && e.getBoundingClientRect().height > 0)"), 30, 'The Desktop task controls did not finish loading')
             await app.click_text('新建任务', 'New task')
             await asyncio.sleep(.25)
             prompt = f'Use only sudowork-browser for this browser task. I need to see its Chrome window, so use headful mode. Open http://127.0.0.1:{fixture.server_port}, enter AI_BEFORE_{nonce} in Handoff value, and reply {ready}. Do not submit. Wait for explicit user handoff. After the user returns control, observe again and report the exact field value and page status without typing or submitting.'
