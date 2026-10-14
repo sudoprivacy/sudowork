@@ -1,0 +1,68 @@
+name: Desktop shared browser acceptance
+
+on:
+  pull_request:
+    branches: [dev, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-browser-live-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native-browser:
+    name: Real Chrome (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v6
+      - name: Checkout public browser SDK
+        run: git submodule update --init vendor/ai-dev-browser
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      - name: Install dependencies
+        run: bun install --no-frozen-lockfile
+      - name: Install the official public worker
+        run: python -m pip --isolated install --index-url https://pypi.org/simple "ai-dev-browser[remote]==0.57.3"
+      - name: Build the shared contracts and stdio transport
+        run: |
+          bun run --filter=@sudowork/contracts build
+          node apps/desktop/scripts/build-browser-mcp.js
+          bun build ./apps/desktop/tests/integration/localBrowserWorker.live.ts --target=node --format=esm --outfile=./desktop-browser-live.mjs
+      - name: Run actual browser journeys
+        shell: bash
+        run: |
+          set -euo pipefail
+          export SUDOWORK_BROWSER_LIVE_PYTHON="$(python -c 'import sys; print(sys.executable)')"
+          export SUDOWORK_BROWSER_LIVE_EVIDENCE="$RUNNER_TEMP"
+          for transport in --host --stdio; do
+            node ./desktop-browser-live.mjs "$transport"
+            if [[ "$RUNNER_OS" == "Linux" ]]; then
+              xvfb-run -a node ./desktop-browser-live.mjs "$transport" --headful
+            else
+              node ./desktop-browser-live.mjs "$transport" --headful
+            fi
+          done
+      - name: Preserve actual browser evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: desktop-browser-${{ matrix.os }}
+          path: |
+            ${{ runner.temp }}/desktop-browser-worker-*/evidence.json
+            ${{ runner.temp }}/desktop-browser-worker-*/**/worker.log
+          if-no-files-found: warn

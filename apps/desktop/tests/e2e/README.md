@@ -25,28 +25,31 @@ runner.py                           <- YAML test case executor
 ## Primitives (from spec)
 
 ### Input — Actions API (W3C §15)
-| Primitive | Core Params | Convenience Params |
-|---|---|---|
-| `key_down` | `value` | *(React fallback auto-detected)* |
-| `key_up` | `value` | |
-| `pointer_down` | `button` | |
-| `pointer_up` | `button` | |
-| `pointer_move` | `x`, `y`, `duration`, `origin` | |
-| `scroll` | `x`, `y`, `delta_x`, `delta_y` | |
-| `pause` | `duration` (ms) | |
+
+| Primitive      | Core Params                    | Convenience Params               |
+| -------------- | ------------------------------ | -------------------------------- |
+| `key_down`     | `value`                        | _(React fallback auto-detected)_ |
+| `key_up`       | `value`                        |                                  |
+| `pointer_down` | `button`                       |                                  |
+| `pointer_up`   | `button`                       |                                  |
+| `pointer_move` | `x`, `y`, `duration`, `origin` |                                  |
+| `scroll`       | `x`, `y`, `delta_x`, `delta_y` |                                  |
+| `pause`        | `duration` (ms)                |                                  |
 
 ### Input — Element Interaction (W3C §12.5)
-| Primitive | Core Params | Convenience Params |
-|---|---|---|
-| `click` | `x`, `y`, `button` | |
+
+| Primitive | Core Params        | Convenience Params |
+| --------- | ------------------ | ------------------ |
+| `click`   | `x`, `y`, `button` |                    |
 
 ### Observation
-| Primitive | Core Params | Convenience Params |
-|---|---|---|
-| `screenshot` | `path` | |
-| `get_text` | `element` | `shadow_dom` |
-| `get_attribute` | `element`, `name` | |
-| `is_displayed` | `element` | |
+
+| Primitive       | Core Params       | Convenience Params |
+| --------------- | ----------------- | ------------------ |
+| `screenshot`    | `path`            |                    |
+| `get_text`      | `element`         | `shadow_dom`       |
+| `get_attribute` | `element`, `name` |                    |
+| `is_displayed`  | `element`         |                    |
 
 ## Usage
 
@@ -77,7 +80,7 @@ python tests/e2e/runner.py --port 9230 --case model-command
 
 - **Native modules must match the app's Electron ABI.** When driving a local
   dev app, `better-sqlite3` (and other `.node` modules) must be built for the
-  *current* Electron — do NOT copy a binding from a sibling worktree on a
+  _current_ Electron — do NOT copy a binding from a sibling worktree on a
   different Electron version. A mismatched binding boots fine but **segfaults
   the main process** on some paths (e.g. creating an scode conversation), which
   reads as the app "crashing on send". Rebuild for the current version:
@@ -105,6 +108,38 @@ python tests/e2e/runner.py --port 9230 --case model-command
   view, so cases don't inherit each other's conversation state). All three are
   idempotent, so a case that also scripts one in its own `steps` just no-ops
   the repeat.
+
+## Shared browser: actual model and human handoff
+
+`live_shared_browser.py` drives a running Electron app through trusted CDP
+mouse and keyboard input. Configure a real Sudo Code model in the app first,
+and use a dedicated test profile with a working Python installation. The app
+must use a runtime with acknowledged tool pause support (Sudo Code 0.2.31+).
+
+```powershell
+python -m pip install aiohttp
+python apps/desktop/tests/e2e/live_shared_browser.py --port 9232 --output C:/Users/Public/desktop-browser-live
+```
+
+Run this command from the repository root. The output directory must be new.
+The test creates a real task and local HTTP page, asks the actual model to
+launch headful Chrome, takes control through BrowserPanel, opens the separate
+viewer, replaces an AI-populated field with Unicode text and submits once.
+After Return to AI, it waits for the finished model turn to report the exact
+human value and page status. It also checks the existing `/browser` commands
+against the same session. Screenshots and `evidence.json` retain the result.
+
+The app and its owned browser stay open for inspection. Close the app normally
+afterward so its shutdown lifecycle stops its own Chrome and worker. If a
+failed run left human control active, recover it through the original task's
+panel before starting another run; do not delete the control journal.
+
+The PR workflow `pr-desktop-browser-live.yml` separately runs real native Chrome
+through the host HTTP and stdio paths on Windows and Linux, both headless and
+headful. Those tests use the official published worker and no model credentials.
+They verify authenticated discovery without allocation, takeover fences,
+session identity, exact trusted input, cookies, file bytes and shutdown. They
+complement the actual model/UI test above.
 
 ## Rules
 

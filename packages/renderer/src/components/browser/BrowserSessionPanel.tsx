@@ -6,7 +6,7 @@ import { BrowserFileSchema, BrowserInputSchema, BrowserSessionReplySchema, isCur
 import { PageSurface } from '@ai-dev-browser/remote-page';
 
 /** Shared remote browser UI. The host authenticates and enforces every action. */
-export default function BrowserSessionPanel({ conversationId, isActive = true, isViewer = false }: IBrowserSessionPanelProps) {
+export default function BrowserSessionPanel({ conversationId, isActive = true, isViewer = false, initialTransport = 'extension' }: IBrowserSessionPanelProps) {
   const { t } = useTranslation();
   const [session, setSession] = useState<BrowserSessionState | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -18,7 +18,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
   const [dialogText, setDialogText] = useState('');
   const [isFrameReady, setIsFrameReady] = useState(false);
   const [isHeadless, setIsHeadless] = useState(true);
-  const [transport, setTransport] = useState<'extension' | 'cdp'>('extension');
+  const [transport, setTransport] = useState<'extension' | 'cdp'>(initialTransport);
   const [selectedSurface, setSelectedSurface] = useState<'page' | 'window' | null>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -59,6 +59,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
       setIsHeadless(next.isHeadless);
       if (next.transport !== 'electron') setTransport(next.transport);
     }
+    if (!previous && next.state === 'stopped' && next.transport !== 'electron') setTransport(next.transport);
     const target = next.tabs.find((tab) => tab.id === next.activeTargetId);
     if (!previous || previous.activeTargetId !== next.activeTargetId || previous.tabs.find((tab) => tab.id === previous.activeTargetId)?.url !== target?.url) setUrl(target?.url || '');
     setError(null);
@@ -72,6 +73,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     let timer: ReturnType<typeof setTimeout> | undefined;
     const viewerId = crypto.randomUUID();
     sessionRef.current = null;
+    setTransport(initialTransport);
     setSession(null);
     setError(null);
     setIsFrameReady(false);
@@ -117,7 +119,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
       // Detach only the view. The server retains the browser and human lease.
       void invoke({ kind: 'detach', viewerId }).catch(() => {});
     };
-  }, [conversationId, invoke, isActive, selectedSurface, t, update]);
+  }, [conversationId, initialTransport, invoke, isActive, selectedSurface, t, update]);
 
   const isController = session?.state === 'human' && session.isController && !isTransferring && !isFileTransferring && !error;
   const isStoppedController = session?.state === 'stopped' && session.isController && session.isHumanControlHeld && !isTransferring && !error;
@@ -342,7 +344,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
   };
 
   return (
-    <div className='h-full min-h-0 flex flex-col gap-2 p-2' data-testid='browser-session-panel'>
+    <div className='h-full min-h-0 flex flex-col gap-2 overflow-auto p-2' data-testid='browser-session-panel'>
       <div className='flex flex-wrap items-center gap-2'>
         <span role='status'>{isTransferring ? t('conversation.browserSession.transferring') : t(`conversation.browserSession.state.${session?.state || 'stopped'}`)}</span>
         {session ? <span className='text-xs text-t-secondary'>{t(`conversation.browserSession.${session.isHeadless ? 'headless' : 'headful'}`)}</span> : null}
@@ -511,4 +513,5 @@ interface IBrowserSessionPanelProps {
   conversationId: string;
   isActive?: boolean;
   isViewer?: boolean;
+  initialTransport?: 'extension' | 'cdp';
 }

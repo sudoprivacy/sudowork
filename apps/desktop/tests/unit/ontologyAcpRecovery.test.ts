@@ -3,6 +3,8 @@ import AcpAgent from '@process/task/AcpAgent';
 import { ProcessConfig } from '@process/initStorage';
 
 const runtime = vi.hoisted(() => ({ prepare: vi.fn() }));
+const browserMcp = vi.hoisted(() => ({ name: 'sudowork-browser', command: '/node', args: ['/shared-browser.js'], env: [] }));
+vi.mock('@process/services/browserPanel/localBrowserSessionHost', () => ({ getLocalBrowserMcpConfig: async () => browserMcp }));
 vi.mock('@/utils/configureChromium', () => ({ cdpPort: 9230 }));
 vi.mock('@process/i18n', () => ({ default: { t: (key: string) => key }, i18nReady: Promise.resolve() }));
 vi.mock('@process/services/ontology/ontologyConversationRuntime', () => ({ prepareOntologyConversationRuntime: runtime.prepare }));
@@ -28,7 +30,7 @@ describe('ontology ACP initialization recovery', () => {
     });
     vi.spyOn(agent, 'getModelInfo').mockReturnValue(null);
     await agent.initAgent();
-    expect(loadSession).toHaveBeenCalledWith('existing-history', '/existing-workspace', tools);
+    expect(loadSession).toHaveBeenCalledWith('existing-history', '/existing-workspace', [browserMcp, ...tools]);
     expect(harness.extra.acpSessionId).toBe('existing-history');
   });
 

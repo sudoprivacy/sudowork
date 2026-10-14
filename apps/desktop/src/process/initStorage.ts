@@ -547,7 +547,7 @@ export const getBundledBuiltinSkillDir = (skillName: string): string => {
  * requiring network access or running submodule init. Production builds
  * ignore the sibling path entirely.
  */
-const resolveAiDevBrowserPackageDir = (): string | null => {
+export const resolveAiDevBrowserPackageDir = (): string | null => {
   const candidates = app.isPackaged
     ? [path.join(app.getAppPath().replace('app.asar', 'app.asar.unpacked'), 'vendor/ai-dev-browser/ai_dev_browser'), path.join(process.resourcesPath, 'ai-dev-browser/ai_dev_browser')]
     : [

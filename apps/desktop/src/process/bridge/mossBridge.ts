@@ -10,6 +10,8 @@ import { isEnterpriseMode, getEnterpriseConfig } from '@/common/enterpriseDebugC
 import { mainLog, mainError } from '@process/utils/mainLogger';
 import { uuid } from '@/common/utils';
 import { getDatabase } from '@process/database/export';
+import { getLocalBrowserSessions } from '@process/services/browserPanel/localBrowserSessionHost';
+import { assertConversationAccount } from '@process/services/mossExecutionContext';
 import { initMossApi, getMossApi, getMossApiServerUrl, resetMossApi, type MossSessionApi } from '../remote/MossSessionApi';
 
 /**
@@ -62,6 +64,12 @@ async function ensureMossApiInitialized(): Promise<MossSessionApi | null> {
 }
 
 export function initMossBridge(): void {
+  function isLocalBrowserConversation(conversationId: string): boolean {
+    const conversation = getDatabase().getConversation(conversationId);
+    if (!conversation.success || conversation.data?.type !== 'acp') return false;
+    assertConversationAccount(conversation.data);
+    return true;
+  }
   async function browserSessionId(conversationId: string) {
     const conversation = getDatabase().getConversation(conversationId);
     const extra = conversation.success ? (conversation.data?.extra as { mossSessionId?: string } | undefined) : undefined;
@@ -69,6 +77,7 @@ export function initMossBridge(): void {
   }
   ipcBridge.browserSession.uploadFile.provider(async (input) => {
     try {
+      if (isLocalBrowserConversation(input.conversationId)) return { success: true, data: await getLocalBrowserSessions().upload(input.conversationId, input) };
       const api = await ensureMossApiInitialized();
       if (!api) return { success: false, msg: 'unavailable' };
       return { success: true, data: await api.uploadBrowserFile(await browserSessionId(input.conversationId), input) };
@@ -78,6 +87,7 @@ export function initMossBridge(): void {
   });
   ipcBridge.browserSession.downloadFile.provider(async ({ conversationId, fileId }) => {
     try {
+      if (isLocalBrowserConversation(conversationId)) return { success: true, data: await getLocalBrowserSessions().download(conversationId, fileId) };
       const api = await ensureMossApiInitialized();
       if (!api) return { success: false, msg: 'unavailable' };
       return { success: true, data: await api.downloadBrowserFile(await browserSessionId(conversationId), fileId) };
@@ -87,6 +97,7 @@ export function initMossBridge(): void {
   });
   ipcBridge.browserSession.invoke.provider(async ({ conversationId, action }) => {
     try {
+      if (isLocalBrowserConversation(conversationId)) return { success: true, data: await getLocalBrowserSessions().invoke(conversationId, action) };
       const api = await ensureMossApiInitialized();
       if (!api) return { success: false, msg: 'Cloud browser connection is not configured' };
       const sessionId = await browserSessionId(conversationId);

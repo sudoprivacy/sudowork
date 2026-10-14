@@ -6,7 +6,7 @@
 
 import React, { Suspense } from 'react';
 import { loginReturnPath } from '@sudowork/common/loginReturnPath';
-import { HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { HashRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import AppLoader from './components/AppLoader';
 import { useAuth } from './context/AuthContext';
 import { useAppMode, isModeResolved } from './hooks/useAppMode';
@@ -148,6 +148,12 @@ const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) =
     return <Navigate to='/guid' replace />;
   }
 
+  if (location.pathname.startsWith('/browser-viewer/'))
+    return (
+      <div className='app-shell relative size-full min-h-0 bg-2 text-1'>
+        <Outlet />
+      </div>
+    );
   return React.cloneElement(layout);
 };
 
