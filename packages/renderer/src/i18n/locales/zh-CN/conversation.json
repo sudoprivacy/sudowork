@@ -1,5 +1,6 @@
 {
   "browserSession": {
+    "controls": "浏览器控制",
     "viewMode": "浏览器视图",
     "windowView": "完整 Chrome 窗口",
     "pageView": "仅网页",

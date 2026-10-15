@@ -129,6 +129,15 @@ After Return to AI, it waits for the finished model turn to report the exact
 human value and page status. It also checks the existing `/browser` commands
 against the same session. Screenshots and `evidence.json` retain the result.
 
+Use `--controls-window` to hide BrowserPanel and perform the same handoff from
+the compact Browser controls window. The test opens the full viewer from that
+window, verifies its trusted desktop bridge, and requires the actual fixture to
+receive the human's trusted input before submitting. When the local Electron
+test launcher records native window metadata, pass
+`--windows-evidence <path-to-window-metadata.json>` to check the compact window
+is visible, always on top and sized independently of the full viewer. The
+compact window polls control state without attaching a pixel viewer.
+
 The app and its owned browser stay open for inspection. Close the app normally
 afterward so its shutdown lifecycle stops its own Chrome and worker. If a
 failed run left human control active, recover it through the original task's

@@ -345,6 +345,7 @@
     "messages": "Jump to message"
   },
   "browserSession": {
+    "controls": "Browser controls",
     "viewMode": "Browser view",
     "windowView": "Chrome window",
     "pageView": "Page only",

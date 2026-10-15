@@ -3,7 +3,7 @@
 Start the built app with its normal model credentials and an isolated home, then:
   python tests/e2e/live_shared_browser.py --port <CDP port> --output <evidence dir>
 
-Requires ai-dev-browser[remote]==0.57.4 (aiohttp) and an actual model account.
+Requires ai-dev-browser[remote]==0.57.5 (aiohttp) and an actual model account.
 No browser control, agent output, takeover acknowledgement, or model is mocked.
 """
 
@@ -90,6 +90,8 @@ class UI:
         await self.key('a', 'KeyA', 65, 2)
         await self.command('Input.insertText', {'text': text})
         await asyncio.sleep(.2)
+        actual = await self.read(f"[...document.querySelectorAll({json.dumps(selector)})].find(e=>e.getBoundingClientRect().height>10)?.value")
+        assert actual == text, f'The visible input did not accept the user text: {selector}'
 
     async def wheel(self, delta, x=500, y=400):
         await self.command('Input.dispatchMouseEvent', {'type': 'mouseWheel', 'x': x, 'y': y, 'deltaX': 0, 'deltaY': delta})
@@ -120,6 +122,8 @@ async def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--port', type=int, required=True)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--controls-window', action='store_true', help='Take and return control from the compact native window while BrowserPanel is hidden')
+    parser.add_argument('--windows-evidence', type=Path, help='Optional isolated Electron bootstrap window metadata')
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=False)
     nonce = uuid4().hex[:10]
@@ -127,6 +131,7 @@ async def main():
     ready = f'READY_{nonce}'
     status = f'SAVED_{nonce}'
     receipts = []
+    prefills = []
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_args):
@@ -134,6 +139,7 @@ async def main():
 
         def do_GET(self):
             html = f'''<!doctype html><meta charset="utf-8"><style>body{{font:22px sans-serif;margin:0}}h1{{position:absolute;left:40px;top:10px}}label{{position:absolute;left:40px;top:80px}}input{{position:absolute;left:40px;top:110px;width:300px;height:40px;font:22px sans-serif}}button{{position:absolute;left:40px;top:170px;width:300px;height:40px;font:22px sans-serif}}p{{position:absolute;left:40px;top:230px}}</style><h1>Browser handoff {nonce}</h1><label for="handoff">Handoff value</label><input id="handoff"><button id="submit">Submit once</button><p id="status">Awaiting user</p><script>submit.onclick=event=>fetch('/receipt',{{method:'POST',body:JSON.stringify({{value:handoff.value,trusted:event.isTrusted}})}}).then(()=>{{document.cookie='handoff={nonce}; Path=/';document.querySelector('#status').textContent='{status}'}});</script>'''
+            html += """<script>const field=document.querySelector('#handoff');field.addEventListener('input',event=>fetch('/prefill',{method:'POST',body:JSON.stringify({value:field.value,trusted:event.isTrusted})}));</script>"""
             body = html.encode()
             self.send_response(200)
             self.send_header('content-type', 'text/html; charset=utf-8')
@@ -142,8 +148,9 @@ async def main():
             self.wfile.write(body)
 
         def do_POST(self):
-            assert self.path == '/receipt'
-            receipts.append(json.loads(self.rfile.read(int(self.headers['content-length']))))
+            assert self.path in ('/receipt', '/prefill')
+            value = json.loads(self.rfile.read(int(self.headers['content-length'])))
+            (receipts if self.path == '/receipt' else prefills).append(value)
             self.send_response(200)
             self.send_header('content-length', '2')
             self.end_headers()
@@ -177,22 +184,43 @@ async def main():
             async def ready_reply():
                 await app.wheel(1000)
                 text = await app.text()
-                return ready in text and ('执行完成' in text or 'Completed' in text) and '正在处理中' not in text
+                has_prefilled = any(value == {'value': f'AI_BEFORE_{nonce}', 'trusted': True} for value in prefills)
+                # One marker is already in the user's prompt. The actual
+                # assistant reply and trusted website event must both exist.
+                return has_prefilled and text.count(ready) >= 2 and ('执行完成' in text or 'Completed' in text) and '正在处理中' not in text
             await wait_for(ready_reply, 240, 'The real model did not prepare the browser')
             print('Actual model prepared the shared browser', flush=True)
-            await app.click_text('浏览器', 'Browser')
+            controls = None
+            if args.controls_window:
+                await app.click_text('工作空间', 'Workspace')
+                await app.click_text('浏览器控制', 'Browser controls')
+                async def new_controls():
+                    return next((t for t in await targets() if '#/browser-controls/' in t.get('url', '')), None)
+                controls = UI(session, await wait_for(new_controls, 20, 'The compact control window did not open'))
+            else:
+                await app.click_text('浏览器', 'Browser')
+            control_ui = controls or app
             async def browser_ready():
-                text = await app.text()
+                text = await control_ui.text()
                 return 'AI 正在控制浏览器' in text or 'AI is controlling' in text
             await wait_for(browser_ready, 20, 'The panel did not connect to the AI browser')
-            await app.click_text('接管浏览器', 'Take control')
+            await control_ui.click_text('接管浏览器', 'Take control')
             async def held():
-                text = await app.text()
+                text = await control_ui.text()
                 return '你已接管' in text or 'Human control' in text
             await wait_for(held, 30, 'Agent tools did not acknowledge takeover')
             print('Agent tools acknowledged human takeover', flush=True)
+            if controls:
+                assert await controls.read("Boolean(window.electronAPI && document.querySelector('[data-testid=browser-session-controls]') && !document.querySelector('img'))"), 'The compact control window attached a pixel viewer'
+                await controls.screenshot(args.output/'human-controls.png')
+                if args.windows_evidence:
+                    async def compact_metadata():
+                        rows = json.loads(args.windows_evidence.read_text(encoding='utf-8'))
+                        return next((row for row in rows if row.get('route', '').startswith('/browser-controls/') and row.get('alwaysOnTop') is True), None)
+                    native = await wait_for(compact_metadata, 10, 'The native control window is not always on top')
+                    assert native['bounds']['width'] <= 500 and native['bounds']['height'] <= 300
             await app.screenshot(args.output/'human-panel.png')
-            await app.click_text('在新标签页查看', 'Open viewer tab')
+            await control_ui.click_text('在新标签页查看', 'Open viewer tab')
             async def new_viewer():
                 return next((t for t in await targets() if '#/browser-viewer/' in t.get('url', '')), None)
             viewer = UI(session, await wait_for(new_viewer, 20, 'The separate viewer did not open'))
@@ -203,11 +231,12 @@ async def main():
             await viewer.key('a', 'KeyA', 65, 2)
             await viewer.fill('input[maxlength="512"]', human)
             await viewer.click_text('输入文字', 'Insert text')
+            await wait_for(lambda: asyncio.sleep(0, result={'value': human, 'trusted': True} in prefills), 15, 'The shared viewer did not deliver the exact trusted human value')
             await viewer.page_click(100, 190)
             await wait_for(lambda: asyncio.sleep(0, result=len(receipts) > 0), 10, 'The trusted human submit did not reach the page')
             assert receipts == [{'value': human, 'trusted': True}], receipts
             await viewer.screenshot(args.output/'human-viewer.png')
-            await viewer.click_text('交回 AI', 'Return to AI')
+            await (control_ui if controls else viewer).click_text('交回 AI', 'Return to AI')
             async def model_readback():
                 # Follow the actual chat as a user, without changing app state.
                 await app.wheel(1000)
@@ -231,8 +260,12 @@ async def main():
             await app.screenshot(args.output/'shared-browser-commands.png')
             assert receipts == [{'value': human,'trusted':True}]
             evidence.update(passed=True, actualModel=True, headful=True, viewerBridge=True, sharedSession=True, humanValue=human, pageStatus=status, trustedSubmissions=receipts, noReplay=True, modelTurnFinished=True, slashCommands=True)
+            evidence['trustedAiPrefill'] = {'value': f'AI_BEFORE_{nonce}', 'trusted': True}
+            if controls:
+                evidence.update(compactControls=True, browserPanelHiddenDuringHandoff=True, noPixelViewerInControls=True, nativeAlwaysOnTop=bool(args.windows_evidence))
             print(json.dumps({'passed': True, 'evidence': str(args.output/'evidence.json')}), flush=True)
         finally:
+            evidence['trustedInputEvents'] = prefills
             (args.output/'evidence.json').write_text(json.dumps(evidence, ensure_ascii=False, indent=2), encoding='utf-8')
             if not evidence['passed']:
                 await app.screenshot(args.output/'failure.png')

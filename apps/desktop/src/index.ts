@@ -543,37 +543,43 @@ const createWindow = (): void => {
   setTimeout(showWindow, 5000);
 
   initMainAdapterWithWindow(mainWindow);
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (!isBrowserViewerUrl(url, mainWindow.webContents.getURL())) return { action: 'allow' };
-    return {
-      action: 'allow',
-      overrideBrowserWindowOptions: {
-        show: true,
-        frame: true,
-        autoHideMenuBar: true,
-        width: 1200,
-        height: 850,
-        webPreferences: { preload: path.join(__dirname, '../preload/index.js'), nodeIntegration: false, contextIsolation: true, sandbox: false },
-      },
-    };
-  });
-  mainWindow.webContents.on('did-create-window', (viewer, details) => {
-    if (!isBrowserViewerUrl(details.url, mainWindow.webContents.getURL())) return;
-    initMainAdapterWithWindow(viewer);
-    void applyZoomToWindow(viewer);
-    const showViewer = () => {
-      if (!viewer.isDestroyed()) {
-        viewer.show();
-        viewer.focus();
-      }
-    };
-    viewer.once('ready-to-show', showViewer);
-    viewer.webContents.once('did-finish-load', showViewer);
-    showViewer();
-    viewer.webContents.on('will-navigate', (event, url) => {
-      if (!isBrowserViewerUrl(url, mainWindow.webContents.getURL())) event.preventDefault();
+  const configureBrowserViewers = (parentWindow: BrowserWindow): void => {
+    parentWindow.webContents.setWindowOpenHandler(({ url }) => {
+      if (!isBrowserViewerUrl(url, mainWindow.webContents.getURL())) return { action: 'allow' };
+      const isBrowserControls = new URL(url).hash.startsWith('#/browser-controls/');
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          show: true,
+          frame: true,
+          autoHideMenuBar: true,
+          width: isBrowserControls ? 460 : 1200,
+          height: isBrowserControls ? 250 : 850,
+          alwaysOnTop: isBrowserControls,
+          webPreferences: { preload: path.join(__dirname, '../preload/index.js'), nodeIntegration: false, contextIsolation: true, sandbox: false },
+        },
+      };
     });
-  });
+    parentWindow.webContents.on('did-create-window', (viewer, details) => {
+      if (!isBrowserViewerUrl(details.url, mainWindow.webContents.getURL())) return;
+      initMainAdapterWithWindow(viewer);
+      configureBrowserViewers(viewer);
+      void applyZoomToWindow(viewer);
+      const showViewer = () => {
+        if (!viewer.isDestroyed()) {
+          viewer.show();
+          viewer.focus();
+        }
+      };
+      viewer.once('ready-to-show', showViewer);
+      viewer.webContents.once('did-finish-load', showViewer);
+      showViewer();
+      viewer.webContents.on('will-navigate', (event, url) => {
+        if (!isBrowserViewerUrl(url, mainWindow.webContents.getURL())) event.preventDefault();
+      });
+    });
+  };
+  configureBrowserViewers(mainWindow);
   setupApplicationMenu();
   void applyZoomToWindow(mainWindow);
   registerWindowMaximizeListeners(mainWindow);
