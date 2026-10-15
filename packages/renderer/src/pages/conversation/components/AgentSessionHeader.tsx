@@ -16,14 +16,7 @@ export default function AgentSessionHeader({ conversationId, title }: IAgentSess
   const { conversations, agents, isLoading, isLoadFailed, refresh } = useConversationHistory();
   const navigation = useMemo(() => {
     const current = conversations.find((conversation) => conversation.id === conversationId);
-    const reference =
-      current &&
-      (current.extra?.agentManagement
-        ? getConversationAgentRef(current, new Set())
-        : getSelectableConversationAgentRef(
-            current,
-            agents.filter((agent) => agent.kind !== 'template')
-          ));
+    const reference = current && (current.extra?.agentManagement ? getConversationAgentRef(current, new Set()) : getSelectableConversationAgentRef(current, agents));
     if (!current || !reference) return undefined;
     const sessions = getAgentConversations(conversations, reference);
     return { current, reference, sessions, options: sessions.map((session) => ({ value: session.id, label: session.name })), agentName: getConversationAgentName(current, agents, t('conversation.sidebar.myAgent')) };

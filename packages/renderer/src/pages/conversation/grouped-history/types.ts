@@ -5,6 +5,7 @@
  */
 
 import type { TChatConversation } from '@sudowork/common/storage';
+import type { IMyAgent } from '@sudowork/common/personalAgents';
 import type { CronJobStatusEnums } from '@renderer/utils/enum';
 
 /**
@@ -32,7 +33,7 @@ export type AgentGroup = {
   /** Stable identity from the server; display names are presentation only. */
   ref: string;
   displayName: string;
-  kind: 'default' | 'own' | 'managed';
+  kind: IMyAgent['kind'] | 'managed';
   conversations: ConversationItem[];
 };
 

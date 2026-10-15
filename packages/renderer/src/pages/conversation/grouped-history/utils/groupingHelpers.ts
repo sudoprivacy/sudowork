@@ -283,18 +283,12 @@ export const groupConversationsByAgent = (conversations: ConversationItem[], age
     else byRef.set(ref, [conversation]);
   }
 
-  const groups = agents.flatMap((agent): AgentGroup[] =>
-    agent.kind === 'template'
-      ? []
-      : [
-          {
-            ref: agent.ref,
-            displayName: agent.displayName,
-            kind: agent.kind,
-            conversations: (byRef.get(agent.ref) ?? []).sort(compareConversationsByLatestActivity),
-          },
-        ]
-  );
+  const groups: AgentGroup[] = agents.map((agent) => ({
+    ref: agent.ref,
+    displayName: agent.displayName,
+    kind: agent.kind,
+    conversations: (byRef.get(agent.ref) ?? []).sort(compareConversationsByLatestActivity),
+  }));
 
   for (const [ref, bucket] of byRef) {
     if (listedReferences.has(ref)) continue;

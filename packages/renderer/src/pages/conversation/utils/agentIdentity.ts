@@ -7,10 +7,10 @@ import type { IMyAgent } from '@sudowork/common/personalAgents';
 /** Resolve identity before display names, including unambiguous legacy templates. */
 export function getConversationAgentRef(conversation: TChatConversation, listedReferences: ReadonlySet<string>): string | undefined {
   const extra = conversation.extra;
-  if (extra?.agentManagement) return `moss-managed:${extra.agentManagement.ownerId}:${extra.agentManagement.agentName}`;
   for (const reference of [extra?.mossAssistantRef, extra?.presetAssistantId]) {
-    if (typeof reference === 'string' && (isPersonalAgentRef(reference) || listedReferences.has(reference))) return reference;
+    if (typeof reference === 'string' && (isPersonalAgentRef(reference) || (!extra?.agentManagement && listedReferences.has(reference)))) return reference;
   }
+  if (extra?.agentManagement) return `moss-managed:${extra.agentManagement.ownerId}:${extra.agentManagement.agentName}`;
   return typeof extra?.agentName === 'string' && extra.agentName ? extra.agentName : undefined;
 }
 
@@ -40,7 +40,7 @@ export function getConversationAgentName(conversation: TChatConversation, agents
   return typeof savedName === 'string' && savedName && !isPersonalAgentRef(savedName) ? savedName : fallback;
 }
 
-/** Only canonical personal identities or listed templates can start an Agent-scoped session. */
+/** Server-listed or canonical personal Agent references can start an Agent-scoped session. */
 export function getSelectableConversationAgentRef(conversation: TChatConversation, agents: IMyAgent[]): string | undefined {
   const references = new Set(agents.map((agent) => agent.ref));
   const reference = getConversationAgentRef(conversation, references);
