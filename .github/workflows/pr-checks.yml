@@ -428,7 +428,7 @@ jobs:
           echo "=========================================="
           echo "BUILD TEST: ${{ matrix.platform }}"
           echo "=========================================="
-          node scripts/build-with-builder.js auto ${{ matrix.build_args }}
+          node scripts/build-with-builder.js ${{ matrix.arch }} ${{ matrix.build_args }}
           echo "✓Build test passed for ${{ matrix.platform }}"
         env:
           NODE_OPTIONS: "--max-old-space-size=8192"
