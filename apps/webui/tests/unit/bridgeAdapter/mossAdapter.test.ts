@@ -24,6 +24,70 @@ import { resolveTenantConfig, type TenantConfigInput } from '@sudowork/common/ty
 type FetchMock = ReturnType<typeof vi.fn>
 type StatusRoute = { status: number; body: unknown }
 
+describe('mossAdapter: browser return from a separate viewer', () => {
+  class ViewerSocket extends EventTarget {
+    static instances: ViewerSocket[] = []
+    static readonly OPEN = 1
+    static readonly CLOSING = 2
+    static readonly CLOSED = 3
+    readonly readyState = 1
+    constructor(public url: string) {
+      super()
+      ViewerSocket.instances.push(this)
+    }
+    close() {
+      this.dispatchEvent(new Event('close'))
+    }
+    frame(value: unknown) {
+      this.dispatchEvent(new MessageEvent('message', { data: JSON.stringify(value) }))
+    }
+  }
+  let ipc: typeof import('@sudowork/host-bridge/ipcBridge')
+  beforeEach(async () => {
+    vi.resetModules()
+    ViewerSocket.instances = []
+    vi.stubGlobal('WebSocket', ViewerSocket)
+    await import('@client/bridgeAdapter/mossAdapter')
+    ipc = await import('@sudowork/host-bridge/ipcBridge')
+  })
+  afterEach(() => {
+    for (const socket of ViewerSocket.instances) socket.close()
+    vi.unstubAllGlobals()
+  })
+
+  it('waits for the authenticated subscription before triggering an automatic model turn', async () => {
+    const fetch = stubFetch({ '/browser': { session: {} } })
+    const response = ipc.browserSession.invoke.invoke({
+      conversationId: 'viewer-return',
+      action: { kind: 'return', controlEpoch: 1, targetEpoch: 1 },
+    })
+    await vi.waitFor(() => expect(ViewerSocket.instances).toHaveLength(1))
+    const socket = ViewerSocket.instances[0]!
+    expect(fetch).not.toHaveBeenCalled()
+    socket.frame({ kind: 'upstream', event: { type: 'hello' } })
+    await Promise.resolve()
+    expect(fetch).not.toHaveBeenCalled()
+    socket.frame({ kind: 'writer', isWriter: true })
+    expect(await response).toMatchObject({ success: true })
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps human control when the subscription closes before acknowledgement', async () => {
+    const fetch = stubFetch({ '/browser': { session: {} } })
+    const response = ipc.browserSession.invoke.invoke({
+      conversationId: 'viewer-disconnect',
+      action: { kind: 'return', controlEpoch: 1, targetEpoch: 1 },
+    })
+    await vi.waitFor(() => expect(ViewerSocket.instances).toHaveLength(1))
+    ViewerSocket.instances[0]!.close()
+    expect(await response).toMatchObject({
+      success: false,
+      msg: 'browser_return_stream_unavailable',
+    })
+    expect(fetch).not.toHaveBeenCalled()
+  })
+})
+
 describe('mossAdapter: user Vault capability', () => {
   beforeEach(async () => {
     vi.resetModules()

@@ -87,6 +87,7 @@ async def main(args):
     messages = []
     approvals = []
     approved_ids = set()
+    has_reconnected = False
     try:
         chrome = await driver.chromium.connect_over_cdp(
             f"http://127.0.0.1:{own['port']}"
@@ -113,14 +114,18 @@ async def main(args):
                 }
             )
 
-        page.on("response", record_transfer)
-        page.on("pageerror", lambda error: errors.append(str(error)))
-        page.on(
-            "websocket",
-            lambda socket: socket.on(
-                "framereceived", lambda frame: messages.append(frame)
-            ),
-        )
+        def observe_page(candidate, *, is_stream_source=True):
+            candidate.on("response", record_transfer)
+            candidate.on("pageerror", lambda error: errors.append(str(error)))
+            if is_stream_source:
+                candidate.on(
+                    "websocket",
+                    lambda socket: socket.on(
+                        "framereceived", lambda frame: messages.append(frame)
+                    ),
+                )
+
+        observe_page(page)
         await page.goto(config["origin"] + "/#/login")
         await page.get_by_text(login["passwordTab"], exact=True).click()
         await page.get_by_placeholder(login["pwdAccountPlaceholder"], exact=True).fill(
@@ -156,6 +161,7 @@ async def main(args):
                 await asyncio.sleep(0.25)
 
         async def wait_turn(start, marker):
+            nonlocal panel, has_reconnected
             deadline = time.monotonic() + args.turn_timeout
             while time.monotonic() < deadline:
                 text = ""
@@ -179,6 +185,30 @@ async def main(args):
                         request_id = event.get("request_id")
                         if request_id in approved_ids:
                             continue
+                        if (
+                            args.reconnect_approval
+                            and marker == done
+                            and not has_reconnected
+                        ):
+                            await page.reload()
+                            # A pending permission replaces the composer.
+                            await page.get_by_role(
+                                "tab",
+                                name=labels["rightPanel"]["tabs"]["browser"],
+                                exact=True,
+                            ).wait_for(state="visible", timeout=30000)
+                            await page.get_by_role(
+                                "tab",
+                                name=labels["rightPanel"]["tabs"]["browser"],
+                                exact=True,
+                            ).click()
+                            panel = page.get_by_test_id("browser-session-panel")
+                            has_reconnected = True
+                            print(
+                                "Reloaded the real chat while its single-use browser approval was pending",
+                                flush=True,
+                            )
+                            break
                         request = event.get("request", {})
                         tool = request.get("tool_name") or request.get(
                             "toolCall", {}
@@ -259,6 +289,62 @@ async def main(args):
             raise AssertionError("Real AI did not complete the current file journey")
 
         initial = await state()
+        if args.stop_existing:
+            profile = initial["profileId"]
+            assert not initial["isHumanControlHeld"] or initial["isController"], (
+                "The fixture belongs to another controller; do not take its lease"
+            )
+            if initial["error"] == "browser_restart_requires_observation":
+                assert initial["state"] == "stopped"
+                await panel.get_by_role(
+                    "button", name=browser["start"], exact=True
+                ).click()
+                initial = await wait_state(
+                    lambda value: (
+                        value["state"] == "human"
+                        and value["isController"]
+                        and value["error"] is None
+                    )
+                )
+                assert initial["profileId"] == profile
+            assert initial["error"] is None
+            if initial["state"] == "ai":
+                await panel.get_by_role(
+                    "button", name=browser["take"], exact=True
+                ).click()
+                initial = await wait_state(
+                    lambda value: value["state"] == "human" and value["isController"]
+                )
+            if initial["state"] == "human":
+                assert initial["isController"]
+                await panel.get_by_role(
+                    "button", name=browser["stop"], exact=True
+                ).click()
+                await (
+                    page.locator(".arco-modal")
+                    .get_by_role("button", name=browser["stop"], exact=True)
+                    .click()
+                )
+                initial = await wait_state(
+                    lambda value: value["state"] == "stopped" and value["isController"]
+                )
+            assert initial["state"] == "stopped" and initial["profileId"] == profile
+        if args.stop_existing and initial["isHumanControlHeld"]:
+            cleanup_marker = "BROWSER_STOPPED_" + unique
+            await panel.get_by_label(browser["note"], exact=True).fill(
+                "The preceding fixture has finished. Keep this browser stopped and reply exactly "
+                + cleanup_marker
+                + ". Do not perform other tasks."
+            )
+            cleanup_start = len(messages)
+            await panel.get_by_role(
+                "button", name=browser["return"], exact=True
+            ).click()
+            await wait_turn(cleanup_start, cleanup_marker)
+            await expect(
+                page.get_by_text(labels["chat"]["processing"], exact=True)
+            ).to_be_hidden(timeout=10000)
+            initial = await state()
         assert initial["state"] == "stopped" and initial["capabilities"]["fileTransfer"]
         assert not initial["isHumanControlHeld"], (
             "Release the owned fixture's previous human lease before running this journey"
@@ -340,15 +426,53 @@ async def main(args):
         finally:
             await anonymous.dispose()
         start = len(messages)
-        await panel.get_by_label(browser["note"], exact=True).fill(
+        return_panel = panel
+        if args.viewer_return:
+            async with chrome.contexts[0].expect_page() as popup:
+                await panel.get_by_role(
+                    "button", name=browser["openViewer"], exact=True
+                ).click()
+            viewer = await popup.value
+            await viewer.set_viewport_size({"width": 1365, "height": 900})
+            observe_page(viewer)
+            return_panel = viewer.get_by_test_id("browser-session-panel")
+            await return_panel.wait_for(state="visible")
+            assert "/#/browser-viewer/" + sid in viewer.url
+            await page.close()
+            print(
+                "Closed the original chat before returning from the independent viewer",
+                flush=True,
+            )
+        await return_panel.get_by_label(browser["note"], exact=True).fill(
             f"I uploaded {filename}. Observe the page and verify its receipt contains {unique}. Then click Download uploaded receipt using a trusted browser_action input; freshly observe until the completed download appears. Do not submit again or use shell. Reply exactly {done}."
         )
-        await panel.get_by_role("button", name=browser["return"], exact=True).click()
+        await return_panel.get_by_role(
+            "button", name=browser["return"], exact=True
+        ).click()
+        if args.viewer_return:
+            page = await chrome.contexts[0].new_page()
+            await page.set_viewport_size({"width": 1365, "height": 900})
+            # The viewer remains the single model event source. Recording both
+            # tabs would duplicate every streamed text delta in the observer.
+            observe_page(page, is_stream_source=False)
+            await page.goto(config["origin"] + "/#/conversation/" + sid)
+            # The replayed permission card can already hide the chat editor.
+            await page.get_by_role(
+                "tab", name=labels["rightPanel"]["tabs"]["browser"], exact=True
+            ).wait_for(state="visible", timeout=30000)
+            await page.get_by_role(
+                "tab", name=labels["rightPanel"]["tabs"]["browser"], exact=True
+            ).click()
+            panel = page.get_by_test_id("browser-session-panel")
         print(
             "Waiting for the real AI to observe the upload and download its receipt",
             flush=True,
         )
         await wait_turn(start, done)
+        if args.reconnect_approval:
+            assert has_reconnected, (
+                "No actual pending permission was available to exercise reconnect"
+            )
         await expect(
             page.get_by_text(labels["chat"]["processing"], exact=True)
         ).to_be_hidden(timeout=10000)
@@ -397,6 +521,8 @@ async def main(args):
                     "anonymousUploadStatus": unauthenticated.status,
                     "pageErrors": errors,
                     "visibleOneTimeApprovals": approvals,
+                    "returnFromIndependentViewer": args.viewer_return,
+                    "pendingApprovalRecoveredAfterReload": has_reconnected,
                 },
                 ensure_ascii=False,
                 indent=2,
@@ -449,4 +575,19 @@ if __name__ == "__main__":
     parser.add_argument("--fixture-origin", required=True)
     parser.add_argument("--fixture-port", type=int, default=50181)
     parser.add_argument("--turn-timeout", type=int, default=240)
+    parser.add_argument(
+        "--stop-existing",
+        action="store_true",
+        help="Stop the owned completed browser through actual UI controls before the journey",
+    )
+    parser.add_argument(
+        "--viewer-return",
+        action="store_true",
+        help="Close the original chat and return from the independent viewer",
+    )
+    parser.add_argument(
+        "--reconnect-approval",
+        action="store_true",
+        help="Reload the real chat while its return-turn permission is pending",
+    )
     asyncio.run(main(parser.parse_args()))

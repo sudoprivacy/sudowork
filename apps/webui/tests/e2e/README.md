@@ -127,3 +127,14 @@ The local fixture uses `/review`, `/submit` and `/receipts`; a private relay mus
 forward those paths and cookies. Output includes two screenshots, synthetic
 receipts, identities and safe transfer/stream summaries. It closes only the
 test's viewing Chrome; explicitly stop the managed browser during cleanup.
+
+Add `--viewer-return --reconnect-approval` to close the original chat before
+returning from the independent viewer, reopen the chat, and reload it while a
+real single-use browser permission is pending. The model must complete after
+the recovered visible permission is answered. The exact upload/download and
+single-submit checks still apply; the evidence records both boundaries.
+Use `--stop-existing` only for an owned, completed fixture. It takes control
+and stops a running browser through the real panel. A retained recovery error
+requires an explicit panel Start before Stop; another controller's lease is
+refused. A held lease is returned with a fresh stopped-state model turn before
+the file journey starts.

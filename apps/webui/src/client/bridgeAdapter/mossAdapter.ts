@@ -261,6 +261,7 @@ async function nameLegacyConversation(
 // ---------------------------------------------------------------------------
 
 const openStreams = new Map<string, WebSocket>()
+const subscribedStreams = new WeakSet<WebSocket>()
 const syncedHistory = new Map<string, string>()
 
 // Per-session interactive state (browser memory, mirrors the desktop main-process
@@ -302,6 +303,7 @@ function ensureSessionStream(sessionId: string): WebSocket | null {
     } catch {
       return
     }
+    if (frame.kind === 'lock' || frame.kind === 'writer') subscribedStreams.add(ws)
     // The server wraps the moss stream in { kind: 'upstream', event }, where
     // `event` is an anthropic-style moss message. The renderer expects
     // IResponseMessage, so translate (mirrors the desktop MossWsConnection).
@@ -401,6 +403,36 @@ function ensureSessionStream(sessionId: string): WebSocket | null {
     }
   })
   return ws
+}
+
+/** A transport open alone does not acknowledge the authenticated subscription. */
+async function waitForSessionSubscription(sessionId: string): Promise<void> {
+  const ws = ensureSessionStream(sessionId)
+  if (!ws) throw new Error('browser_return_stream_unavailable')
+  if (subscribedStreams.has(ws)) return
+  await new Promise<void>((resolve, reject) => {
+    const cleanup = () => {
+      clearTimeout(timer)
+      ws.removeEventListener('message', onMessage)
+      ws.removeEventListener('close', onFailure)
+      ws.removeEventListener('error', onFailure)
+    }
+    const onFailure = () => {
+      cleanup()
+      reject(new Error('browser_return_stream_unavailable'))
+    }
+    const onMessage = () => {
+      if (subscribedStreams.has(ws)) {
+        cleanup()
+        resolve()
+      }
+    }
+    const timer = setTimeout(onFailure, 15_000)
+    ws.addEventListener('message', onMessage)
+    ws.addEventListener('close', onFailure)
+    ws.addEventListener('error', onFailure)
+    if (ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) onFailure()
+  })
 }
 
 function sendOverStream(sessionId: string, payload: unknown): boolean {
@@ -1371,6 +1403,9 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
   },
   'browser-session:invoke': async (req) => {
     try {
+      if ((req.action as { kind?: string })?.kind === 'return') {
+        await waitForSessionSubscription(String(req.conversationId || ''))
+      }
       const data = await apiFetch(
         `/api/conversations/${encodeURIComponent(String(req.conversationId || ''))}/browser`,
         {
