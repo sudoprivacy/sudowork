@@ -128,6 +128,14 @@ forward those paths and cookies. Output includes two screenshots, synthetic
 receipts, identities and safe transfer/stream summaries. It closes only the
 test's viewing Chrome; explicitly stop the managed browser during cleanup.
 
+The default client uses an owned Chrome through ai-dev-browser. Add
+`--client-browser firefox` to use a real Firefox viewer against the same
+cloud-managed extension Chrome. Install that test client with
+`python -m playwright install firefox`. Use a test account whose application
+language matches `--locale`. Firefox receives its locale and viewport when its
+context is created; its popup inherits the size, avoiding the headless driver's
+popup resize stall observed during actual acceptance.
+
 Add `--viewer-return --reconnect-approval` to close the original chat before
 returning from the independent viewer, reopen the chat, and reload it while a
 real single-use browser permission is pending. The model must complete after
@@ -142,13 +150,29 @@ the explicit Return clears it after observing the stopped state. The test never
 clears that warning or restores AI admission directly.
 
 Add `--verify-text-edit` with a frontend and managed worker using public SDK
-v0.57.5 or later. The actual AI first fills Browser note. After the file upload,
+v0.57.5 or later. The actual AI first fills Browser note in a separate turn and
+confirms its trusted input before opening the chooser. The second turn keeps
+that same page and value. After the file upload,
 the human selects the page surface, clicks that field, sends Ctrl+A through
 `PageSurface`, and replaces the value with exact Unicode text. Return requires
 the model to report the edited value. The downloaded receipt is built from the
 actual uploaded bytes and the trusted note, so its exact bytes and SHA-256
 protect both changes. This flag can be combined with independent-viewer Return
 and pending-approval reconnect.
+
+The website records the value at the human's trusted pointer-down before
+Ctrl+A, so the test proves an actual AI-filled value was replaced. After the
+model finishes, it checks the complete persisted assistant reply and the
+visible chat bubble. Stream deltas and assistant snapshots are observed
+separately. Evidence includes the client engine/version, the value at human
+focus, completed reply source and visible readback.
+
+Keep the profile's download history when verifying viewport behavior. Before
+page input, the live test requires at least 95% of the page image to be visible.
+Its evidence records the retained download count. This protects the actual
+Firefox regression where a long, unbounded download list collapsed the page
+surface and intercepted trusted clicks. Download and tab lists scroll within
+their own bounds so the page keeps usable space.
 
 Add `--delay-first-page-click-ms 450` to exercise this workflow over a slow
 connection. It delays one actual human click request while keeping the model,

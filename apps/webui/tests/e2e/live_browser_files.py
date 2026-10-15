@@ -22,6 +22,7 @@ async def main(args):
     locale = source / "packages/renderer/src/i18n/locales" / args.locale
     login = json.loads((locale / "login.json").read_text(encoding="utf-8"))
     labels = json.loads((locale / "conversation.json").read_text(encoding="utf-8"))
+    message_labels = json.loads((locale / "messages.json").read_text(encoding="utf-8"))
     browser = labels["browserSession"]
     sid = config["sessionId"]
     unique = uuid.uuid4().hex[:12]
@@ -76,8 +77,8 @@ async def main(args):
             )
             note_script = (
                 """const noteField=document.querySelector('#browser-note');
-            noteField.oninput=event=>fetch('/note',{method:'POST',headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({text:noteField.value,trusted:event.isTrusted})});"""
+            for(const kind of ['input','pointerdown'])noteField.addEventListener(kind,event=>fetch('/note',{method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({text:noteField.value,kind:event.type,trusted:event.isTrusted})}));"""
                 if args.verify_text_edit
                 else ""
             )
@@ -104,8 +105,11 @@ async def main(args):
     site = ThreadingHTTPServer(("127.0.0.1", args.fixture_port), Site)
     threading.Thread(target=site.serve_forever, daemon=True).start()
     url = args.fixture_origin.rstrip("/") + "/review"
-    own = browser_start(headless=True, temp=True, reuse="none", silent_stderr=True)
-    assert "error" not in own, own
+    own = None
+    if args.client_browser == "chromium":
+        own = browser_start(headless=True, temp=True, reuse="none", silent_stderr=True)
+        assert "error" not in own, own
+    chrome = None
     page = None
     driver = await async_playwright().start()
     messages = []
@@ -114,10 +118,20 @@ async def main(args):
     approved_ids = set()
     has_reconnected = False
     try:
-        chrome = await driver.chromium.connect_over_cdp(
-            f"http://127.0.0.1:{own['port']}"
-        )
-        page = chrome.contexts[0].pages[0]
+        if own:
+            chrome = await driver.chromium.connect_over_cdp(
+                f"http://127.0.0.1:{own['port']}"
+            )
+            page = chrome.contexts[0].pages[0]
+            await page.set_viewport_size({"width": 1365, "height": 900})
+        else:
+            chrome = await driver.firefox.launch(headless=True)
+            context = await chrome.new_context(
+                accept_downloads=True,
+                locale=args.locale,
+                viewport={"width": 1365, "height": 900},
+            )
+            page = await context.new_page()
         if args.delay_first_page_click_ms:
             has_delayed_click = False
 
@@ -135,7 +149,6 @@ async def main(args):
                 await route.continue_()
 
             await page.route(f"**/api/conversations/{sid}/browser", delay_page_click)
-        await page.set_viewport_size({"width": 1365, "height": 900})
         errors = []
         transfers = []
 
@@ -230,6 +243,7 @@ async def main(args):
             deadline = time.monotonic() + args.turn_timeout
             while time.monotonic() < deadline:
                 text = ""
+                deltas = ""
                 last_tool = None
                 for raw in messages[start:]:
                     if not isinstance(raw, str):
@@ -346,10 +360,11 @@ async def main(args):
                     elif event.get("type") == "stream_event":
                         delta = event.get("event", {}).get("delta", {})
                         if delta.get("type") == "text_delta":
-                            text += delta.get("text", "")
-                    if event.get("type") == "result" and marker in text:
+                            deltas += delta.get("text", "")
+                    completed_text = text if marker in text else deltas
+                    if event.get("type") == "result" and marker in completed_text:
                         assert not event.get("is_error"), event
-                        return text
+                        return completed_text
                 await asyncio.sleep(0.25)
             raise AssertionError("Real AI did not complete the current file journey")
 
@@ -423,16 +438,37 @@ async def main(args):
         assert initial["error"] is None, (
             "Recover the stopped fixture through human Start/Stop/Return before running this journey"
         )
-        start = len(messages)
         editor = page.locator("textarea").first
         await page.bring_to_front()
-        preparation = (
-            f" First enter {ai_note} in Browser note using trusted browser_action input before opening the file chooser."
+        if args.verify_text_edit:
+            prefill_ready = "BROWSER_NOTE_READY_" + unique
+            prefill_start = len(messages)
+            await editor.fill(
+                f"Browser text preparation {unique}. Use only sudowork-browser MCP tools. Launch a headful managed extension browser, navigate to {url}, and freshly observe. Focus Browser note with trusted browser_action input, then send browser_action kind=input with input kind=text and text {ai_note}. Await each dependent action's result. Observe again to confirm the exact value. Do not open the Upload file chooser in this turn. Finish by replying {prefill_ready}."
+            )
+            await editor.press("Enter")
+            await wait_turn(prefill_start, prefill_ready)
+            await expect(
+                page.get_by_text(labels["chat"]["processing"], exact=True)
+            ).to_be_hidden(timeout=10000)
+            deadline = time.monotonic() + 10
+            while not any(
+                note["text"] == ai_note and note["trusted"] and note["kind"] == "input"
+                for note in notes
+            ):
+                assert time.monotonic() < deadline, (
+                    "The actual AI did not prepare the trusted field before the upload task"
+                )
+                await asyncio.sleep(0.1)
+            print("Actual AI prepared the trusted browser field", flush=True)
+        start = len(messages)
+        opening = (
+            "Use the same prepared browser page. Keep Browser note unchanged; do not relaunch or navigate."
             if args.verify_text_edit
-            else ""
+            else f"Launch a headful managed extension browser, navigate to {url}, observe the page."
         )
         await editor.fill(
-            f"File handoff acceptance {unique}. Use only sudowork-browser MCP tools. Launch a headful managed extension browser, navigate to {url}, observe the page.{preparation} Click the native Upload file input using browser_action input, not JavaScript click. Do not upload or download anything yet. Once fileChooser appears, finish this turn by replying exactly {ready}. The user will supply a local file through the shared viewer."
+            f"File handoff acceptance {unique}. Use only sudowork-browser MCP tools. {opening} Click the native Upload file input using browser_action input, not JavaScript click. Do not upload or download anything yet. Once fileChooser appears, finish this turn by replying exactly {ready}. The user will supply a local file through the shared viewer."
         )
         await editor.press("Enter")
         print("Waiting for the real AI to open the native file picker", flush=True)
@@ -491,16 +527,36 @@ async def main(args):
             await page.wait_for_function(
                 "()=>{const e=document.querySelector('[data-testid=browser-session-panel] img');return e?.naturalWidth>0&&e.naturalHeight>0&&e.naturalHeight<900}"
             )
+            await frame.scroll_into_view_if_needed()
+            await expect(frame).to_be_in_viewport(ratio=0.95, timeout=10000)
             dimensions = await frame.evaluate(
                 "e=>({width:e.naturalWidth,height:e.naturalHeight})"
             )
             box = await frame.bounding_box()
             assert box and dimensions["width"] and dimensions["height"]
+            edit_event_start = len(notes)
             await frame.click(
                 position={
                     "x": 140 * box["width"] / dimensions["width"],
                     "y": 264 * box["height"] / dimensions["height"],
                 }
+            )
+            deadline = time.monotonic() + 10
+            while not any(
+                note["kind"] == "pointerdown" and note["trusted"]
+                for note in notes[edit_event_start:]
+            ):
+                assert time.monotonic() < deadline, (
+                    "The human did not focus Browser note"
+                )
+                await asyncio.sleep(0.1)
+            before_edit = next(
+                note
+                for note in notes[edit_event_start:]
+                if note["kind"] == "pointerdown"
+            )
+            assert before_edit["text"] == ai_note, (
+                "The human must replace the actual AI-filled value in the same page"
             )
             await frame.press("Control+a")
             await panel.get_by_label(browser["text"], exact=True).fill(human_note)
@@ -543,12 +599,13 @@ async def main(args):
         start = len(messages)
         return_panel = panel
         if args.viewer_return:
-            async with chrome.contexts[0].expect_page() as popup:
+            async with chrome.contexts[0].expect_page(timeout=30000) as popup:
                 await panel.get_by_role(
                     "button", name=browser["openViewer"], exact=True
                 ).click()
             viewer = await popup.value
-            await viewer.set_viewport_size({"width": 1365, "height": 900})
+            if own:
+                await viewer.set_viewport_size({"width": 1365, "height": 900})
             observe_page(viewer)
             return_panel = viewer.get_by_test_id("browser-session-panel")
             await return_panel.wait_for(state="visible")
@@ -571,7 +628,8 @@ async def main(args):
         ).click()
         if args.viewer_return:
             page = await chrome.contexts[0].new_page()
-            await page.set_viewport_size({"width": 1365, "height": 900})
+            if own:
+                await page.set_viewport_size({"width": 1365, "height": 900})
             # The viewer remains the single model event source. Recording both
             # tabs would duplicate every streamed text delta in the observer.
             observe_page(page, is_stream_source=False)
@@ -588,11 +646,7 @@ async def main(args):
             "Waiting for the real AI to observe the upload and download its receipt",
             flush=True,
         )
-        completion_text = await wait_turn(start, done)
-        if args.verify_text_edit:
-            assert human_note in completion_text, (
-                "The actual AI did not read back the human-edited note"
-            )
+        stream_text = await wait_turn(start, done)
         if args.reconnect_approval:
             assert has_reconnected, (
                 "No actual pending permission was available to exercise reconnect"
@@ -600,6 +654,44 @@ async def main(args):
         await expect(
             page.get_by_text(labels["chat"]["processing"], exact=True)
         ).to_be_hidden(timeout=10000)
+        # Streams can contain both deltas and assistant snapshots. Check the
+        # complete persisted assistant reply after the actual UI turn finishes.
+        reply_deadline = time.monotonic() + 10
+        while True:
+            context_response = await page.request.get(
+                config["origin"] + f"/api/conversations/{sid}/context"
+            )
+            assert context_response.status == 200, await context_response.text()
+            replies = [
+                message["content"]["content"]
+                for message in (await context_response.json())["messages"]
+                if message.get("role") == "assistant"
+                and message.get("type") == "text"
+                and isinstance(message.get("content"), dict)
+                and done in message["content"].get("content", "")
+            ]
+            if replies:
+                completion_text = replies[-1]
+                break
+            assert time.monotonic() < reply_deadline, (
+                "The finished conversation did not retain its assistant reply"
+            )
+            await asyncio.sleep(0.1)
+        if args.verify_text_edit:
+            assert human_note in completion_text, (
+                "The actual AI did not read back the human-edited note"
+            )
+        scroll_to_bottom = page.get_by_title(
+            message_labels["scrollToBottom"], exact=True
+        )
+        if await scroll_to_bottom.is_visible():
+            await scroll_to_bottom.click()
+        visible_reply = (
+            page.locator(".message-item.text.justify-start").filter(has_text=done).last
+        )
+        await expect(visible_reply).to_be_visible(timeout=10000)
+        if args.verify_text_edit:
+            await expect(visible_reply).to_contain_text(human_note)
         downloaded = await wait_state(
             lambda value: any(
                 file["name"] == f"receipt_{unique}.txt"
@@ -635,17 +727,27 @@ async def main(args):
             json.dumps(
                 {
                     "sessionId": sid,
+                    "clientBrowser": {
+                        "engine": args.client_browser,
+                        "version": chrome.version,
+                    },
                     "modelReady": ready,
                     "modelCompleted": done,
                     "profileId": loaded["profileId"],
                     "browserSessionId": loaded["browserSessionId"],
+                    "retainedDownloadCount": len(loaded.get("downloads") or []),
                     "upload": received[0],
                     "download": file,
                     "textEdit": {
                         "aiValue": ai_note,
+                        "valueAtHumanFocus": before_edit["text"],
+                        "humanFocusTrusted": before_edit["trusted"],
                         "humanValue": human_note,
                         "trusted": notes[-1]["trusted"],
                         "modelReadback": True,
+                        "modelReplySource": "completed-assistant-history",
+                        "visibleModelReadback": True,
+                        "streamIncludedExactValue": human_note in stream_text,
                     }
                     if args.verify_text_edit
                     else None,
@@ -711,8 +813,11 @@ async def main(args):
             json.dumps({"notes": notes, "uploads": received}, indent=2),
             encoding="utf-8",
         )
+        if chrome and not own:
+            await chrome.close()
         await driver.stop()
-        await asyncio.to_thread(browser_stop, session_id=own["session_id"])
+        if own:
+            await asyncio.to_thread(browser_stop, session_id=own["session_id"])
         site.shutdown()
         site.server_close()
 
@@ -722,6 +827,9 @@ if __name__ == "__main__":
     parser.add_argument("--config", type=pathlib.Path, required=True)
     parser.add_argument("--output", type=pathlib.Path, required=True)
     parser.add_argument("--locale", default="zh-CN")
+    parser.add_argument(
+        "--client-browser", choices=("chromium", "firefox"), default="chromium"
+    )
     parser.add_argument("--fixture-origin", required=True)
     parser.add_argument("--fixture-port", type=int, default=50181)
     parser.add_argument("--turn-timeout", type=int, default=240)
