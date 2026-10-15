@@ -14,11 +14,12 @@ vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock('@renderer/pages/conversation/preview', () => ({ usePreviewContext: () => ({ closePreview: bridge.closePreview }) }));
 vi.mock('@renderer/pages/conversation/context/ConversationTabsContext', () => ({ useConversationTabs: () => ({ openTab: bridge.openTab }) }));
+vi.mock('@renderer/pages/conversation/context/ConversationHistoryContext', () => ({ useConversationHistory: () => ({ conversations: [] }) }));
 vi.mock('@renderer/hooks/useAppMode', () => ({ useAppMode: () => ({ isEnterprise: false }) }));
 vi.mock('@renderer/utils/platform', () => ({ isWebBridgeAvailable: () => true }));
 vi.mock('@renderer/utils/emitter', () => ({ addEventListener: () => () => {}, emitter: { emit: vi.fn() } }));
 vi.mock('@renderer/pages/conversation/ChatConversation', () => ({
-  default: ({ conversation }: { conversation?: { id: string } }) => <div>Conversation {conversation?.id}</div>,
+  default: ({ conversation, children }: React.PropsWithChildren<{ conversation?: { id: string } }>) => <div>{children ?? <>Conversation {conversation?.id}</>}</div>,
 }));
 
 function mount() {

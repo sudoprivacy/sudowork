@@ -334,6 +334,8 @@
   },
   "userCancelled": "Request cancelled by user",
   "sidebar": {
+    "agents": "Agents",
+    "sessions": "Sessions",
     "recent": "Recent",
     "myAgent": "My agent",
     "agentHasNoConversations": "No conversations yet"

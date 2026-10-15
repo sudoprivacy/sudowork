@@ -32,7 +32,7 @@ export type AgentGroup = {
   /** Stable identity from the server; display names are presentation only. */
   ref: string;
   displayName: string;
-  kind: 'default' | 'own' | 'template';
+  kind: 'default' | 'own' | 'managed';
   conversations: ConversationItem[];
 };
 
@@ -55,26 +55,15 @@ export type TimelineSection = {
   items: TimelineItem[];
 };
 
-export type SidebarTabKey = 'timeline' | 'scheduled';
+export type SidebarTabKey = 'agents' | 'timeline' | 'scheduled';
 
 export type GroupedHistoryResult = {
   pinnedTimeline: ConversationItem[];
   pinnedScheduled: ConversationItem[];
   timelineSections: TimelineSection[];
   scheduledGroups: ScheduledGroup[];
-  /**
-   * Grouped by the agent each conversation belongs to. Empty until the agent
-   * list has loaded, so the sidebar falls back to the timeline rather than
-   * flashing an ungrouped list.
-   */
+  /** Persistent Agents and their sessions, including pinned sessions. */
   agentGroups: AgentGroup[];
-  /**
-   * The most recent conversations across every agent, newest first.
-   *
-   * Grouping only by agent would make "find the one from last week" start with
-   * "remember whose it was". This keeps the by-time route open.
-   */
-  recent: ConversationItem[];
 };
 
 export type ExportZipFile = {

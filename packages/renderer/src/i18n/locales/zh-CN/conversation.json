@@ -405,6 +405,8 @@
   },
   "userCancelled": "请求已被用户终止",
   "sidebar": {
+    "agents": "智能体",
+    "sessions": "会话",
     "recent": "最近",
     "myAgent": "我的智能体",
     "agentHasNoConversations": "还没有对话"
