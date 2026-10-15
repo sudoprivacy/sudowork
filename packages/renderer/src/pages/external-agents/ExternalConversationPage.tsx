@@ -1,6 +1,6 @@
 import { Alert, Button, Input, Spin, Tag, Tooltip, Typography } from '@arco-design/web-react';
 import { ArrowUp, Copy, Plus } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import MarkdownView from '@renderer/components/Markdown';
@@ -14,6 +14,10 @@ import { emitter } from '@renderer/utils/emitter';
 import { copyText } from '@renderer/utils/clipboard';
 import { externalConversationPath, EXTERNAL_CONVERSATION_PREFIX, newExternalConversationPath } from './navigation';
 import { useExternalDirectory, useExternalIdentity } from './useExternalDirectory';
+
+const ExternalAnswer = memo(function ExternalAnswer({ text }: IExternalAnswerProps) {
+  return <MarkdownView isExternalContent>{text}</MarkdownView>;
+});
 
 const isFinished = (task: ExternalTask) => ['succeeded', 'failed', 'rejected', 'unknown'].includes(task.status);
 
@@ -102,7 +106,7 @@ function ExternalChat({ sessionId: routeSessionId, agentId }: IExternalChatProps
     let timer: ReturnType<typeof setTimeout>;
     setIsPollFailed(false);
     const onPoll = async () => {
-      if (isPolling || isStopped || isCancelled) return;
+      if (isPolling || isStopped || isCancelled || document.hidden) return;
       isPolling = true;
       try {
         const response = await externalProviders.events.invoke({ taskId: activeTaskId, cursor });
@@ -115,7 +119,7 @@ function ExternalChat({ sessionId: routeSessionId, agentId }: IExternalChatProps
         cursor = page.next_cursor;
         idlePolls = isChanged ? 0 : Math.min(idlePolls + 1, 3);
         const updatedTask = currentTask;
-        setTasks((current) => current.map((task) => (task.id === updatedTask.id ? updatedTask : task)));
+        if (isChanged || page.task) setTasks((current) => current.map((task) => (task.id === updatedTask.id ? updatedTask : task)));
         if (isFinished(updatedTask)) {
           isStopped = true;
           emitter.emit('chat.history.refresh');
@@ -133,8 +137,7 @@ function ExternalChat({ sessionId: routeSessionId, agentId }: IExternalChatProps
     const onVisibility = () => {
       if (isPolling || isStopped || isCancelled) return;
       clearTimeout(timer);
-      if (document.hidden) timer = setTimeout(() => void onPoll(), 15000);
-      else {
+      if (!document.hidden) {
         idlePolls = 0;
         void onPoll();
       }
@@ -233,7 +236,7 @@ function ExternalChat({ sessionId: routeSessionId, agentId }: IExternalChatProps
                 </div>
                 <div className='message-item min-w-0 break-words' aria-label={t('agent.external.chat.reply')}>
                   <div className='markdown-body'>
-                    <MarkdownView isExternalContent>{task.answer || (isFinished(task) ? t('agent.external.chat.noOutput') : t('agent.external.waiting'))}</MarkdownView>
+                    <ExternalAnswer text={task.answer || (isFinished(task) ? t('agent.external.chat.noOutput') : t('agent.external.waiting'))} />
                   </div>
                   <div className='flex gap-2 items-center mt-2 text-xs text-secondary' role='status'>
                     <span>{t(`agent.external.status.${task.status}`)}</span>
@@ -307,4 +310,7 @@ function ExternalChat({ sessionId: routeSessionId, agentId }: IExternalChatProps
 interface IExternalChatProps {
   sessionId: string;
   agentId: string;
+}
+interface IExternalAnswerProps {
+  text: string;
 }

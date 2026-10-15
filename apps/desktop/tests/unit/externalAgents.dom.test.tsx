@@ -235,7 +235,7 @@ it('does not poll directory or history when the host has no Moss context', async
   expect(mocks.sessions).not.toHaveBeenCalled();
 });
 
-it('backs off idle reads, reduces hidden-page polling, refreshes on focus and stops on terminal', async () => {
+it('backs off idle reads, pauses hidden-page polling, refreshes on focus and stops on terminal', async () => {
   const running = { ...task, status: 'running' };
   mocks.history.mockResolvedValue({ success: true, data: [running] });
   mocks.events.mockResolvedValue({ success: true, data: { api_version: task.api_version, kind: 'ExternalEventsPage', task: running, events: [], next_cursor: 4, snapshot_sequence: 4, has_more: false } });
@@ -265,17 +265,17 @@ it('backs off idle reads, reduces hidden-page polling, refreshes on focus and st
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1);
     });
-    expect(mocks.events).toHaveBeenCalledTimes(initial + 2);
+    expect(mocks.events).toHaveBeenCalledTimes(initial + 1);
     mocks.events.mockResolvedValue({ success: true, data: { api_version: task.api_version, kind: 'ExternalEventsPage', task, events: [], next_cursor: 5, snapshot_sequence: 5, has_more: false } });
     Object.defineProperty(document, 'hidden', { configurable: true, value: false });
     await act(async () => {
       fireEvent(document, new Event('visibilitychange'));
     });
-    expect(mocks.events).toHaveBeenCalledTimes(initial + 3);
+    expect(mocks.events).toHaveBeenCalledTimes(initial + 2);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(30000);
     });
-    expect(mocks.events).toHaveBeenCalledTimes(initial + 3);
+    expect(mocks.events).toHaveBeenCalledTimes(initial + 2);
     expect(mocks.create).not.toHaveBeenCalled();
   } finally {
     cleanup();

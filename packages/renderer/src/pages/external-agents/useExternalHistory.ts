@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { externalProviders } from '@sudowork/host-bridge/ipcBridge';
 import { addEventListener } from '@renderer/utils/emitter';
 import { externalSessionView, type ExternalConversationView } from './navigation';
+import { sharedExternalRead } from './pendingReads';
 import { useExternalIdentity } from './useExternalDirectory';
 
 export function useExternalHistory() {
@@ -10,9 +11,9 @@ export function useExternalHistory() {
   const generation = useRef(0);
   const onRefresh = useCallback(async () => {
     const current = ++generation.current;
-    if (!identity) return;
+    if (!identity || document.hidden) return;
     try {
-      const response = await externalProviders.sessions.invoke();
+      const response = await sharedExternalRead(identity, 'sessions', () => externalProviders.sessions.invoke());
       if (current !== generation.current) return;
       if (!response.success || !response.data) throw new Error('External history unavailable');
       setState({ identity, conversations: response.data.map(externalSessionView), isFailed: false });
@@ -25,10 +26,15 @@ export function useExternalHistory() {
     void onRefresh();
     const off = addEventListener('chat.history.refresh', () => void onRefresh());
     const timer = setInterval(() => void onRefresh(), 30_000);
+    const onVisibility = () => {
+      if (!document.hidden) void onRefresh();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
     return () => {
       generation.current++;
       off();
       clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [identity, onRefresh]);
   return { ...(identity && state.identity === identity ? state : { conversations: [], isFailed: false }), onRefresh };

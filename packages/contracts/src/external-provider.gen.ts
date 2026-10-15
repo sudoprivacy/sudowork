@@ -1,4 +1,4 @@
-// Derived from Moss dd0b29f36d574ad07e288870034f9ba18ba95cba:contracts/external-provider/v1/contract.ts. DO NOT EDIT.
+// Derived from Moss 4dc9f1edf7a14761a1a27436cdfd8447075a6e12:contracts/external-provider/v1/contract.ts. DO NOT EDIT.
 /** Moss-owned external-provider pilot wire contract. ADR-003/004 remain Proposed. */
 export const EXTERNAL_PROVIDER_API = 'external-provider.sudo.dev/v1alpha5' as const
 export type Capability = 'supported' | 'unsupported' | 'unknown'
@@ -158,3 +158,12 @@ export interface UpdateExternalAgent {
   review_note: string
 }
 export interface ExternalProviderMember { id: string; name: string }
+
+/** Optional paged directory reads: ?paged=1&after=<last scanned binding id>.
+ * A page can be empty after authorization/archive filtering and still have a cursor.
+ * Cursors only select within the authenticated organization; they grant no access.
+ */
+export interface ExternalAgentPage { items: ExternalAgent[]; next_cursor: string | null }
+export interface ExternalAgentAdminPage { items: ExternalAgentAdmin[]; next_cursor: string | null }
+/** GET /external-agents/admin/members-page?q=<name or email>&after=<member id>, 50 items/page. */
+export interface ExternalProviderMemberPage { items: ExternalProviderMember[]; next_cursor: string | null }
