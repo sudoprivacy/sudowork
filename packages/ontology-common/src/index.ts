@@ -2,7 +2,7 @@ export * from './studio.js';
 import type { IOntologySemanticDocument } from './studio.js';
 export * from './qualityRuleExpression.js';
 
-export const ONTOLOGY_SNAPSHOT_SCHEMA_VERSION = 3;
+export const ONTOLOGY_SNAPSHOT_SCHEMA_VERSION = 4;
 export const ONTOLOGY_QUALITY_RULE_SAMPLE_LIMIT = 100;
 
 export const ONTOLOGY_WORKFLOW_PHASES = ['scan', 'generate', 'review', 'publish', 'agent'] as const;
@@ -18,6 +18,7 @@ export type OntologyProfileStatus = 'not_profiled' | 'profiling' | 'ready' | 'fa
 export type OntologyTaskStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
 export type OntologyReviewDecision = 'pending' | 'approved' | 'changes_requested' | 'rejected';
 export type OntologyVersionStatus = 'draft' | 'submitted' | 'approved' | 'published' | 'rejected' | 'rolled_back';
+export type OntologySkillBlueprintStatus = 'draft' | 'published' | 'failed' | 'deleted';
 export type OntologyAgentBlueprintStatus = 'draft' | 'registering' | 'registered' | 'failed' | 'deleted' | 'published';
 export type OntologyArtifactStatus = 'draft' | 'active' | 'disabled';
 export type OntologyRiskLevel = 'low' | 'medium' | 'high';
@@ -53,7 +54,12 @@ export interface IOntologyAssetField {
   primaryKeyPosition?: number;
   defaultValue?: string;
   isGenerated?: boolean;
-  references?: Array<{ table: string; field: string; constraintId: number; position: number }>;
+  references?: Array<{
+    table: string;
+    field: string;
+    constraintId: number;
+    position: number;
+  }>;
   businessMeaning?: {
     text: string;
     isUncertain: boolean;
@@ -233,22 +239,45 @@ export interface IOntologyVersionDiff {
   summary: string;
 }
 
+export interface IOntologyToolManifestItem {
+  name: string;
+  description: string;
+  displayName: string;
+  displayDescription: string;
+  category: 'ontology' | 'relation' | 'logic' | 'action' | 'mcp';
+}
+
+export interface IOntologySkillBlueprint {
+  id: string;
+  name: string;
+  description: string;
+  status: OntologySkillBlueprintStatus;
+  ontologyVersionId: string;
+  version: string;
+  entityIds: string[];
+  toolManifest: IOntologyToolManifestItem[];
+  registeredSkillId?: string;
+  publishedAt?: number;
+  publicationError?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface IOntologyAgentBlueprint {
   id: string;
   name: string;
   status: OntologyAgentBlueprintStatus;
+  skillBlueprintId: string;
   ontologyVersionId: string;
   registeredAssistantId?: string;
   registeredAt?: number;
   registrationError?: string;
-  retiredRegistrations?: Array<{ id: string; registeredAssistantId?: string; registeredAt?: number }>;
-  entityIds: string[];
-  promptTemplate: string;
-  toolManifest: Array<{
-    name: string;
-    description: string;
-    category: 'ontology' | 'relation' | 'logic' | 'action' | 'mcp';
+  retiredRegistrations?: Array<{
+    id: string;
+    registeredAssistantId?: string;
+    registeredAt?: number;
   }>;
+  promptTemplate: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -322,6 +351,8 @@ export interface IOntologyLogicFunction {
   code: string;
   name: string;
   description: string;
+  displayName: string;
+  displayDescription: string;
   runtime: 'typescript' | 'python' | 'sql';
   objectIds: string[];
   signature: string;
@@ -352,6 +383,8 @@ export interface IOntologyActionDefinition {
   executor: 'function' | 'api' | 'sql' | 'notification' | 'custom_script';
   objectIds: string[];
   description: string;
+  displayName: string;
+  displayDescription: string;
   configuration: Record<string, OntologyJsonValue>;
   parameters: IOntologyFunctionParameter[];
   outputSchema: Array<{ name: string; type: string; description?: string }>;
@@ -413,6 +446,7 @@ export interface IOntologyWorkbenchStats {
   relationCount: number;
   pendingReviewCount: number;
   publishedVersionCount: number;
+  skillBlueprintCount: number;
   agentBlueprintCount: number;
   mappingCount: number;
   qualityRuleCount: number;
@@ -448,6 +482,7 @@ export interface IOntologyWorkbenchSnapshot {
   monitorEvents: IOntologyMonitorEvent[];
   reviewItems: IOntologyReviewItem[];
   publishedVersions: IOntologyPublishedVersion[];
+  skillBlueprints: IOntologySkillBlueprint[];
   agentBlueprints: IOntologyAgentBlueprint[];
   tasks: IOntologyTask[];
   updatedAt: number;
@@ -463,6 +498,7 @@ export interface IOntologyWorkbenchSummary {
   logicCount: number;
   actionCount: number;
   publishedVersionCount: number;
+  skillBlueprintCount: number;
   agentBlueprintCount: number;
   createdAt: number;
   updatedAt: number;
@@ -745,6 +781,8 @@ export interface IOntologyLogicFunctionInput {
   code?: string;
   name: string;
   description?: string;
+  displayName?: string;
+  displayDescription?: string;
   runtime: IOntologyLogicFunction['runtime'];
   objectIds?: string[];
   signature?: string;
@@ -763,6 +801,8 @@ export interface IOntologyActionDefinitionInput {
   executor: IOntologyActionDefinition['executor'];
   objectIds?: string[];
   description?: string;
+  displayName?: string;
+  displayDescription?: string;
   configuration?: Record<string, OntologyJsonValue>;
   parameters?: IOntologyFunctionParameter[];
   outputSchema?: IOntologyActionDefinition['outputSchema'];
@@ -846,8 +886,22 @@ export function ontologyBlockingIssues(check: Pick<IOntologyConsistencyCheckResu
 export interface IOntologyAgentBlueprintInput {
   workspaceId?: string;
   name: string;
-  ontologyVersionId: string;
+  skillBlueprintId: string;
   promptTemplate?: string;
+}
+
+export interface IOntologySkillBlueprintInput {
+  workspaceId?: string;
+  ontologyVersionId: string;
+  name?: string;
+  description?: string;
+}
+
+export interface IOntologyPublishSkillInput {
+  workspaceId?: string;
+  skillBlueprintId: string;
+  name?: string;
+  description?: string;
 }
 
 export interface IOntologyRegisterAgentInput {
@@ -906,6 +960,7 @@ export function createDefaultOntologyWorkbenchSnapshot(now = Date.now(), options
     relations: [],
     reviewItems: [],
     publishedVersions: [],
+    skillBlueprints: [],
     agentBlueprints: [],
     connections: [],
     mappings: [],
@@ -929,6 +984,7 @@ export function summarizeOntologyWorkbenchSnapshot(snapshot: IOntologyWorkbenchS
     ...snapshot.objects.map((item) => item.updatedAt),
     ...snapshot.relations.map((item) => item.updatedAt),
     ...snapshot.publishedVersions.map((item) => item.createdAt),
+    ...snapshot.skillBlueprints.map((item) => item.createdAt),
     ...snapshot.agentBlueprints.map((item) => item.createdAt),
   ].filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
 
@@ -942,6 +998,7 @@ export function summarizeOntologyWorkbenchSnapshot(snapshot: IOntologyWorkbenchS
     logicCount: snapshot.logicFunctions.length,
     actionCount: snapshot.actions.length,
     publishedVersionCount: snapshot.publishedVersions.filter((item) => item.status === 'published').length,
+    skillBlueprintCount: snapshot.skillBlueprints.length,
     agentBlueprintCount: snapshot.agentBlueprints.length,
     createdAt: Math.min(...timestamps),
     updatedAt: snapshot.updatedAt,
@@ -957,6 +1014,7 @@ export function createEmptyOntologyStats(): IOntologyWorkbenchStats {
     relationCount: 0,
     pendingReviewCount: 0,
     publishedVersionCount: 0,
+    skillBlueprintCount: 0,
     agentBlueprintCount: 0,
     mappingCount: 0,
     qualityRuleCount: 0,
@@ -975,6 +1033,7 @@ export function recalculateOntologyStats(snapshot: IOntologyWorkbenchSnapshot): 
     relationCount: snapshot.relations.length,
     pendingReviewCount: snapshot.objects.filter((item) => item.reviewDecision === 'pending').length + snapshot.relations.filter((item) => item.reviewDecision === 'pending').length,
     publishedVersionCount: snapshot.publishedVersions.filter((item) => item.status === 'published').length,
+    skillBlueprintCount: snapshot.skillBlueprints.length,
     agentBlueprintCount: snapshot.agentBlueprints.length,
     mappingCount: snapshot.mappings.length,
     qualityRuleCount: snapshot.qualityRules.length,

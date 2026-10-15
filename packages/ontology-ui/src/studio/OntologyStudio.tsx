@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
-import { Button, Dropdown, Empty, Form, Input, Menu, Message, Modal, Select, Space, Spin, Table, Tag, Tooltip, Typography } from '@arco-design/web-react';
+import { Button, Card, Dropdown, Empty, Form, Input, Menu, Message, Modal, Select, Space, Spin, Table, Tag, Tooltip, Typography } from '@arco-design/web-react';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, MessageSquare, Plus, Save, Upload } from 'lucide-react';
+import { ArrowLeft, Database, MessageSquare, Plus, Save, Upload, Workflow } from 'lucide-react';
 import type { IOntologyConsistencyCheckResult, IOntologyConsistencyIssue, IOntologyWorkbenchSnapshot, IOntologyWorkbenchSummary, IOntologyStudioModel, IOntologyStandardPreview, OntologyStudioPage } from '@sudowork/ontology-common';
 import { STUDIO_MAX_FILE_BYTES } from '@sudowork/ontology-common';
 import StudioModelEditor from './StudioModelEditor';
@@ -35,6 +35,7 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const isCreatingRef = useRef(false);
+  const [dataGuideWorkspaceId, setDataGuideWorkspaceId] = useState<string>();
   const [createMode, setCreateMode] = useState<'new' | 'rename'>('new');
   const [search, setSearch] = useState('');
   const [filePreview, setPreview] = useState<{ path: string; preview: IOntologyStandardPreview }>();
@@ -193,6 +194,7 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
       }
       const created = await api.createWorkbench({ name: values.name.trim(), code: `ontology_${crypto.randomUUID().slice(0, 8)}`, description: values.description });
       setIsCreateOpen(false);
+      setDataGuideWorkspaceId(created.snapshot.workspaceId);
       onNavigate(created.snapshot.workspaceId, 'model');
     } catch (error) {
       onError(error);
@@ -548,6 +550,72 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
             <Input.TextArea />
           </Form.Item>
         </Form>
+      </Modal>
+      <Modal visible={!!dataGuideWorkspaceId} footer={null} closable={false} maskClosable={false} escToExit={false} className={styles['ontology-data-guide-modal']} style={{ width: 'min(820px, 92vw)' }} onCancel={() => setDataGuideWorkspaceId(undefined)} unmountOnExit>
+        <div className={styles['ontology-data-guide-grid']}>
+          <Card
+            hoverable
+            role='button'
+            tabIndex={0}
+            aria-label={text('dataGuideConnectOption')}
+            className={`${styles['ontology-data-guide-option']} ${styles['is-recommended']}`}
+            onClick={() => {
+              const targetWorkspaceId = dataGuideWorkspaceId;
+              setDataGuideWorkspaceId(undefined);
+              if (targetWorkspaceId) onNavigate(targetWorkspaceId, 'data');
+            }}
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter' && event.key !== ' ') return;
+              event.preventDefault();
+              const targetWorkspaceId = dataGuideWorkspaceId;
+              setDataGuideWorkspaceId(undefined);
+              if (targetWorkspaceId) onNavigate(targetWorkspaceId, 'data');
+            }}
+          >
+            <div className={styles['ontology-data-guide-content']}>
+              <div className={styles['ontology-data-guide-header']}>
+                <span className={`${styles['ontology-data-guide-icon']} ${styles['is-primary']}`}>
+                  <Database size={22} />
+                </span>
+              </div>
+              <Typography.Text className={styles['ontology-data-guide-title']}>{text('dataGuideConnectOption')}</Typography.Text>
+              <Typography.Text type='secondary' className={styles['ontology-data-guide-summary']}>
+                {text('dataGuideConnectHint')}
+              </Typography.Text>
+            </div>
+          </Card>
+          <Card
+            hoverable
+            role='button'
+            tabIndex={0}
+            aria-label={text('dataGuideModelOption')}
+            className={`${styles['ontology-data-guide-option']} ${styles['is-model-first']}`}
+            onClick={() => {
+              const targetWorkspaceId = dataGuideWorkspaceId;
+              setDataGuideWorkspaceId(undefined);
+              if (targetWorkspaceId) onNavigate(targetWorkspaceId, 'model');
+            }}
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter' && event.key !== ' ') return;
+              event.preventDefault();
+              const targetWorkspaceId = dataGuideWorkspaceId;
+              setDataGuideWorkspaceId(undefined);
+              if (targetWorkspaceId) onNavigate(targetWorkspaceId, 'model');
+            }}
+          >
+            <div className={styles['ontology-data-guide-content']}>
+              <div className={styles['ontology-data-guide-header']}>
+                <span className={styles['ontology-data-guide-icon']}>
+                  <Workflow size={22} />
+                </span>
+              </div>
+              <Typography.Text className={styles['ontology-data-guide-title']}>{text('dataGuideModelOption')}</Typography.Text>
+              <Typography.Text type='secondary' className={styles['ontology-data-guide-summary']}>
+                {text('dataGuideModelHint')}
+              </Typography.Text>
+            </div>
+          </Card>
+        </div>
       </Modal>
       <Modal visible={!!filePreview} title={text('importPreview')} onCancel={() => setPreview(undefined)} onOk={onImport} confirmLoading={isSaving} okText={text('import')} style={{ width: 'min(780px, 90vw)' }}>
         {filePreview && (

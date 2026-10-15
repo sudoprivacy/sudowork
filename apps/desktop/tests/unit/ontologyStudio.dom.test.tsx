@@ -65,6 +65,31 @@ describe('ontology studio workspace', () => {
     fireEvent.click(within(modal).getByRole('button', { name: /确定|OK/ }));
     await waitFor(() => expect(onNavigate).toHaveBeenCalledWith('a', 'model'));
     expect(api.createWorkbench).toHaveBeenCalledWith(expect.objectContaining({ name: '订单模型' }));
+    const guide = (await screen.findByRole('button', { name: /先接入业务数据，再完成建模/ })).closest('.arco-modal') as HTMLElement;
+    expect(guide.querySelector('.arco-modal-close-icon')).not.toBeInTheDocument();
+    const connect = within(guide).getByRole('button', { name: /先接入业务数据，再完成建模/ });
+    const model = within(guide).getByRole('button', { name: '先完成建模' });
+    expect(connect).toBeInTheDocument();
+    expect(model).toBeInTheDocument();
+    expect(within(guide).getByText('先到“数据”页连接数据库或添加业务文件。本体将基于真实字段和表关系识别业务对象、推断关系并建立字段映射，让后续建模更完整、更准确。')).toBeInTheDocument();
+    expect(within(guide).getByText('直接完成标准建模，建模完成后再接入业务数据进行调整。')).toBeInTheDocument();
+    expect(within(guide).queryByLabelText('查看说明')).not.toBeInTheDocument();
+    fireEvent.click(connect);
+    await waitFor(() => expect(onNavigate).toHaveBeenCalledWith('a', 'data'));
+  });
+
+  it('enters the model page when direct modeling is selected', async () => {
+    const { api } = fixture();
+    const { onNavigate } = mount(api);
+    await screen.findByText('还没有本体，可以新建或导入 RDF/OWL 文件');
+    fireEvent.click(screen.getByRole('button', { name: '新建本体' }));
+    const create = await screen.findByRole('dialog', { name: '新建本体' });
+    fireEvent.change(within(create).getByRole('textbox', { name: '名称' }), { target: { value: '订单模型' } });
+    fireEvent.click(within(create).getByRole('button', { name: /确定|OK/ }));
+    const guide = (await screen.findByRole('button', { name: /先接入业务数据，再完成建模/ })).closest('.arco-modal') as HTMLElement;
+    fireEvent.click(within(guide).getByRole('button', { name: '先完成建模' }));
+    await waitFor(() => expect(onNavigate).toHaveBeenLastCalledWith('a', 'model'));
+    expect(onNavigate).toHaveBeenCalledTimes(2);
   });
 
   it('keeps graph edits local until an explicit scoped save', async () => {

@@ -97,6 +97,8 @@ export default function OntologyPage() {
       approvePublishedVersion: async (input) => unwrap(await ipcBridge.ontology.approvePublishedVersion.invoke(input), t('ontology.errors.publishFailed')),
       rejectPublishedVersion: async (input) => unwrap(await ipcBridge.ontology.rejectPublishedVersion.invoke(input), t('ontology.errors.publishFailed')),
       rollbackToVersion: async (input) => unwrap(await ipcBridge.ontology.rollbackToVersion.invoke(input), t('ontology.errors.publishFailed')),
+      createSkillBlueprint: async (input) => unwrap(await ipcBridge.ontology.createSkillBlueprint.invoke(input), t('ontology.errors.skillFailed')),
+      publishSkillBlueprint: async (input) => unwrap(await ipcBridge.ontology.publishSkillBlueprint.invoke(input), t('ontology.errors.skillFailed')),
       createAgentBlueprint: async (input) => unwrap(await ipcBridge.ontology.createAgentBlueprint.invoke(input), t('ontology.errors.agentFailed')),
       registerAgentBlueprint: async (input) => unwrap(await ipcBridge.ontology.registerAgentBlueprint.invoke(input), t('ontology.errors.agentFailed')),
       deleteAgentBlueprint: async (input) => unwrap(await ipcBridge.ontology.deleteAgentBlueprint.invoke(input), t('ontology.errors.agentFailed')),

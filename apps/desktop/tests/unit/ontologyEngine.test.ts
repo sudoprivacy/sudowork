@@ -250,7 +250,7 @@ describe('OntologyEngine document extraction', () => {
 
     const normalized = await new OntologyEngine(repository).getWorkbench();
 
-    expect(normalized.schemaVersion).toBe(3);
+    expect(normalized.schemaVersion).toBe(4);
     expect(normalized.relations[0].dataBinding).toMatchObject({
       mode: 'direct',
       origin: 'inferred',
@@ -261,7 +261,7 @@ describe('OntologyEngine document extraction', () => {
         },
       ],
     });
-    expect(repository.getSnapshot('default')?.schemaVersion).toBe(3);
+    expect(repository.getSnapshot('default')?.schemaVersion).toBe(4);
   });
 
   it('uses different extracted models for the same assets without filename-based fields or relations', async () => {
@@ -674,6 +674,18 @@ describe('OntologyEngine', () => {
     expect(generated.qualityRules.length).toBeGreaterThan(0);
     expect(generated.logicFunctions).toHaveLength(2);
     expect(generated.actions).toHaveLength(4);
+    expect(generated.logicFunctions[0]).toMatchObject({
+      name: 'Customer Lookup',
+      description: 'Lookup approved Customer records through ontology mappings.',
+      displayName: '查询“Customer”',
+      displayDescription: '通过本体映射查询已审批的“Customer”记录。',
+    });
+    expect(generated.actions[1]).toMatchObject({
+      name: 'Notify Customer Owner',
+      description: 'Notify the owner of Customer.',
+      displayName: '通知“Customer”负责人',
+      displayDescription: '通知“Customer”记录的负责人。',
+    });
     expect(generated.serviceEndpoints).toHaveLength(3);
     expect(generated.businessDocuments).toHaveLength(1);
     expect(generated.impactAnalyses).toHaveLength(1);
@@ -753,6 +765,15 @@ describe('OntologyEngine', () => {
 
     const approvedVersion = await engine.approvePublishedVersion({ versionId: published.version.id, reviewerId: 'test-reviewer' });
     expect(approvedVersion.publishedVersions[0]).toMatchObject({ status: 'published', isActive: true, approvedBy: 'test-reviewer' });
+    expect(approvedVersion.skillBlueprints[0]).toMatchObject({ status: 'draft', ontologyVersionId: published.version.id });
+    expect(approvedVersion.skillBlueprints[0].toolManifest[0]).toEqual({
+      name: 'ontology.lookup',
+      description: 'Lookup ontology objects, attributes, and relations.',
+      displayName: '本体综合查询',
+      displayDescription: '查询本体中的业务对象、属性和关系。',
+      category: 'ontology',
+    });
+    expect(approvedVersion.skillBlueprints[0].toolManifest.every((tool) => tool.displayName && tool.displayDescription)).toBe(true);
     expect(summarizeOntologyWorkbenchSnapshot(approvedVersion).publishedVersionCount).toBe(1);
 
     const changed = await engine.upsertObject({ name: 'Temporary Object' });
@@ -760,11 +781,12 @@ describe('OntologyEngine', () => {
     const rolledBack = await engine.rollbackToVersion({ versionId: published.version.id });
     expect(rolledBack.objects.some((item) => item.name === 'Temporary Object')).toBe(false);
 
+    const publishedSkill = await engine.publishSkillBlueprint({ skillBlueprintId: approvedVersion.skillBlueprints[0].id, registeredSkillId: 'ontology-skill-customer', name: 'Customer skill', description: 'Customer operations' });
     const agent = await engine.createAgentBlueprint({
       name: 'Customer Service Agent',
-      ontologyVersionId: published.version.id,
+      skillBlueprintId: publishedSkill.blueprint.id,
     });
-    expect(agent.blueprint.entityIds.length).toBeGreaterThan(0);
+    expect(publishedSkill.blueprint.entityIds.length).toBeGreaterThan(0);
     expect(agent.snapshot.agentBlueprints).toHaveLength(1);
     const registered = await engine.registerAgentBlueprint({
       blueprintId: agent.blueprint.id,
@@ -776,7 +798,7 @@ describe('OntologyEngine', () => {
     const withoutAgent = await engine.deleteAgentBlueprint({ id: registered.blueprint.id });
     expect(withoutAgent.agentBlueprints).toHaveLength(1);
     expect(withoutAgent.agentBlueprints[0]).toMatchObject({ id: registered.blueprint.id, status: 'deleted', registeredAssistantId: 'ontology-customer-agent' });
-    const restored = await engine.createAgentBlueprint({ name: 'Customer Service Agent', ontologyVersionId: published.version.id });
+    const restored = await engine.createAgentBlueprint({ name: 'Customer Service Agent', skillBlueprintId: publishedSkill.blueprint.id });
     expect(restored.blueprint.id).toBe(registered.blueprint.id);
   });
 
@@ -915,9 +937,9 @@ describe('OntologyEngine', () => {
     await expect(
       engine.createAgentBlueprint({
         name: 'Too Early',
-        ontologyVersionId: submitted.version.id,
+        skillBlueprintId: 'unpublished-skill',
       })
-    ).rejects.toThrow(/published ontology version/i);
+    ).rejects.toThrow(/published ontology skill/i);
     const rejected = await engine.rejectPublishedVersion({ versionId: submitted.version.id, reason: 'Missing owner metadata.' });
     expect(rejected.publishedVersions[0]).toMatchObject({ status: 'rejected', isActive: false });
     await expect(engine.approvePublishedVersion({ versionId: submitted.version.id })).rejects.toThrow(/submitted/i);

@@ -451,6 +451,27 @@ export function initOntologyBridge(): void {
     }
   });
 
+  ipcBridge.ontology.createSkillBlueprint.provider(async (input) => {
+    try {
+      const result = await ontologyService.createSkillBlueprint(input);
+      emitWorkbenchChanged(result.snapshot);
+      return ok(result);
+    } catch (err) {
+      return fail(err);
+    }
+  });
+
+  ipcBridge.ontology.publishSkillBlueprint.provider(async (input) => {
+    try {
+      const result = await ontologyService.publishSkillBlueprint(input);
+      emitWorkbenchChanged(result.snapshot);
+      ipcBridge.skillHub.changed.emit({ skillName: result.blueprint.registeredSkillId, source: 'import' });
+      return ok(result);
+    } catch (err) {
+      return fail(err);
+    }
+  });
+
   ipcBridge.ontology.createAgentBlueprint.provider(async (input) => {
     try {
       const result = await ontologyService.createAgentBlueprint(input);

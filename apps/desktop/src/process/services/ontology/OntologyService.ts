@@ -40,6 +40,7 @@ import type {
   IOntologyPreviewAssetResult,
   IOntologyDescribeAssetFieldsInput,
   IOntologyPublishApprovalInput,
+  IOntologyPublishSkillInput,
   IOntologyQualityRuleInput,
   IOntologyQualityRuleRunResult,
   IOntologyRejectVersionInput,
@@ -50,6 +51,8 @@ import type {
   IOntologyRollbackInput,
   IOntologyRuntimeExecutionResult,
   IOntologySelectWorkbenchInput,
+  IOntologySkillBlueprint,
+  IOntologySkillBlueprintInput,
   IOntologySyncAssetSchemaInput,
   IOntologyVersionSnapshot,
   IOntologyWorkbenchDraftInput,
@@ -82,6 +85,7 @@ import { GetObjectCommand, HeadBucketCommand, ListObjectsV2Command, S3Client } f
 import { parse as parseCsv } from 'csv-parse/sync';
 import { DEFAULT_PRESET_AGENT_TYPE } from '@sudowork/common/acpTypes';
 import { assistantManager } from '@process/AssistantManager';
+import { getCustomSkillsDir } from '@process/initStorage';
 import { pythonRuntimeService } from '@process/services/python/PythonRuntimeService';
 import { mainError } from '@process/utils/mainLogger';
 import { acpDetector } from '@/agent/acp/AcpDetector';
@@ -119,7 +123,6 @@ export class OntologyService {
           const result = await assistantManager.disableAssistant(blueprint.registeredAssistantId!, 'custom');
           if (!result.success) throw new Error(result.msg);
         }
-        await removeOntologyMcpServer(blueprint.id);
       },
       retire: async (blueprint) => {
         if (blueprint.registeredAssistantId) {
@@ -129,7 +132,6 @@ export class OntologyService {
             if (!result.success) throw new Error(result.msg);
           }
         }
-        await removeOntologyMcpServer(blueprint.id);
       },
       remove: (blueprint) => this.uninstallRegisteredAgent(blueprint),
       refresh: () => acpDetector.refreshCustomAgents(),
@@ -241,6 +243,7 @@ export class OntologyService {
       for (const blueprint of snapshot.agentBlueprints.flatMap((item) => [item, ...(item.retiredRegistrations || [])])) {
         await this.uninstallRegisteredAgent(blueprint);
       }
+      for (const skill of snapshot.skillBlueprints) await this.uninstallOntologySkill(skill);
       const result = await this.engine.deleteWorkbench(input, activeWorkspaceId);
       this.database.setActiveWorkspaceId(result.activeWorkspaceId);
       return result;
@@ -570,6 +573,44 @@ export class OntologyService {
     return this.agentRegistry.create(input, input.workspaceId || (await this.getActiveWorkspaceId()));
   }
 
+  async createSkillBlueprint(input: IOntologySkillBlueprintInput) {
+    const workspaceId = input.workspaceId || (await this.getActiveWorkspaceId());
+    return this.agentRegistry.withLock(workspaceId, () => this.engine.createSkillBlueprint(input, workspaceId));
+  }
+
+  async publishSkillBlueprint(input: IOntologyPublishSkillInput) {
+    const name = z.string().trim().min(1).max(100).safeParse(input.name);
+    const description = z.string().trim().min(1).max(500).safeParse(input.description);
+    if (!name.success) throw new Error('ontology.studio.skillErrors.invalidName');
+    if (!description.success) throw new Error('ontology.studio.skillErrors.invalidDescription');
+    const workspaceId = input.workspaceId || (await this.getActiveWorkspaceId());
+    return this.agentRegistry.withLock(workspaceId, async () => {
+      const snapshot = await this.engine.getWorkbench(workspaceId);
+      const blueprint = snapshot.skillBlueprints.find((item) => item.id === input.skillBlueprintId);
+      if (!blueprint) throw new Error('ontology.studio.skillErrors.notFound');
+      const registeredSkillId = blueprint.registeredSkillId || `ontology-skill-${blueprint.id}`;
+      try {
+        await this.installOntologySkill({ ...blueprint, name: name.data, description: description.data, registeredSkillId }, snapshot);
+        await installOntologyMcpServer({ blueprintId: blueprint.id, workspaceId: snapshot.workspaceId, versionId: blueprint.ontologyVersionId, exportFile: this.database.getMcpExportPath(snapshot.workspaceId) });
+        return this.engine.publishSkillBlueprint({ ...input, name: name.data, description: description.data, registeredSkillId }, workspaceId);
+      } catch (error) {
+        await fs.rm(path.join(getCustomSkillsDir(), registeredSkillId), { recursive: true, force: true });
+        await removeOntologyMcpServer(blueprint.id).catch(() => {});
+        const before = this.database.getSnapshot(workspaceId);
+        if (before) {
+          const failed = structuredClone(before);
+          failed.skillBlueprints = failed.skillBlueprints.map((item) => (item.id === blueprint.id ? { ...item, status: 'failed', publicationError: (error instanceof Error ? error.message : String(error)).slice(0, 1000), updatedAt: Date.now() } : item));
+          try {
+            this.database.saveSnapshot(failed, before);
+          } catch {
+            // Preserve the original publication error; a later refresh can retry.
+          }
+        }
+        throw error;
+      }
+    });
+  }
+
   async registerAgentBlueprint(input: IOntologyRegisterAgentInput) {
     return this.agentRegistry.register(input, input.workspaceId || (await this.getActiveWorkspaceId()));
   }
@@ -586,10 +627,11 @@ export class OntologyService {
     const snapshot = this.database.listSnapshots().find((item) => item.agentBlueprints.some((agent) => agent.registeredAssistantId === assistantId));
     if (!snapshot) return undefined;
     const blueprint = snapshot.agentBlueprints.find((item) => item.registeredAssistantId === assistantId);
+    const skill = snapshot.skillBlueprints.find((item) => item.id === blueprint?.skillBlueprintId && item.status === 'published' && item.registeredSkillId);
     const version = snapshot.publishedVersions.find((item) => item.id === blueprint?.ontologyVersionId && item.status === 'published');
     const installed = await assistantManager.getAssistantMetaWithDir(assistantId);
-    if (!blueprint || blueprint.status !== 'registered' || !version || !installed || installed.category !== 'custom' || !installed.meta.enabled) throw new Error('ontology.studio.agentErrors.notFound');
-    const ownership = { workspaceId: snapshot.workspaceId, versionId: version.id, blueprintId: blueprint.id };
+    if (!blueprint || !skill || blueprint.status !== 'registered' || !version || !installed || installed.category !== 'custom' || !installed.meta.enabled) throw new Error('ontology.studio.agentErrors.notFound');
+    const ownership = { workspaceId: snapshot.workspaceId, versionId: version.id, skillBlueprintId: skill.id, blueprintId: blueprint.id };
     if (!isDeepStrictEqual(installed.meta.ontologyBinding, ownership)) throw new Error('ontology.studio.agentErrors.identityConflict');
     const directory = await fs.realpath(installed.dir);
     const rulePath = await fs.realpath(path.resolve(directory, installed.meta.ruleFile || 'AGENT.md'));
@@ -599,11 +641,55 @@ export class OntologyService {
     return { meta: installed.meta, directory, presetContext: `${rules}\n\nAssistant resources: ${directory}`, mcpRegistration: { ...ownership, exportFile: this.database.getMcpExportPath(snapshot.workspaceId) }, toolNameAliases: ontologyRuntimeToolAliases(version.snapshot) };
   }
 
+  private async installOntologySkill(blueprint: IOntologySkillBlueprint & { registeredSkillId: string }, snapshot: IOntologyWorkbenchSnapshot): Promise<void> {
+    const version = snapshot.publishedVersions.find((item) => item.id === blueprint.ontologyVersionId && item.status === 'published');
+    if (!version) throw new Error('ontology.studio.skillErrors.versionUnavailable');
+    const root = getCustomSkillsDir();
+    const target = path.join(root, blueprint.registeredSkillId);
+    const temporary = `${target}.tmp-${randomUUID()}`;
+    await fs.mkdir(root, { recursive: true });
+    await fs.rm(temporary, { recursive: true, force: true });
+    try {
+      await fs.mkdir(temporary, { recursive: true });
+      await fs.writeFile(path.join(temporary, 'SKILL.md'), createOntologySkillContent(blueprint, snapshot.draft.title, version), 'utf8');
+      await fs.writeFile(path.join(temporary, 'version.txt'), blueprint.version, 'utf8');
+      await fs.writeFile(
+        path.join(temporary, '_sudowork_meta.json'),
+        JSON.stringify(
+          {
+            id: blueprint.registeredSkillId,
+            name: blueprint.registeredSkillId,
+            display_name: blueprint.name,
+            description: blueprint.description,
+            category: 'ontology',
+            categories: ['本体技能'],
+            applicable_scenarios: snapshot.draft.businessGoal || snapshot.draft.description || null,
+            core_features: JSON.stringify(blueprint.toolManifest.map((tool) => tool.name)),
+            source_type: 'custom',
+            enabled: true,
+            installed_version: blueprint.version,
+            installed_at: new Date().toISOString(),
+            ontologyBinding: { workspaceId: snapshot.workspaceId, versionId: version.id, skillBlueprintId: blueprint.id },
+          },
+          null,
+          2
+        ),
+        'utf8'
+      );
+      await fs.rm(target, { recursive: true, force: true });
+      await fs.rename(temporary, target);
+    } finally {
+      await fs.rm(temporary, { recursive: true, force: true });
+    }
+  }
+
   private async installRegisteredAgent(blueprint: IOntologyAgentBlueprint, snapshot: IOntologyWorkbenchSnapshot): Promise<void> {
     const assistantId = blueprint.registeredAssistantId!;
     const version = snapshot.publishedVersions.find((item) => item.id === blueprint.ontologyVersionId && item.status === 'published');
     if (!version) throw new Error('ontology.studio.agentErrors.versionUnavailable');
-    const ownership = { workspaceId: snapshot.workspaceId, versionId: version.id, blueprintId: blueprint.id };
+    const skill = snapshot.skillBlueprints.find((item) => item.id === blueprint.skillBlueprintId && item.status === 'published' && item.registeredSkillId);
+    if (!skill) throw new Error('ontology.studio.agentErrors.skillUnavailable');
+    const ownership = { workspaceId: snapshot.workspaceId, versionId: version.id, skillBlueprintId: skill.id, blueprintId: blueprint.id };
     const installed = await assistantManager.getAssistantMetaWithDir(assistantId);
     if (installed && (installed.category !== 'custom' || !isDeepStrictEqual(installed.meta.ontologyBinding, ownership))) throw new Error('ontology.studio.agentErrors.identityConflict');
     const meta = {
@@ -615,15 +701,15 @@ export class OntologyService {
       enabled: false,
       source_type: 'custom' as const,
       ontologyBinding: ownership,
+      enabledSkills: [skill.registeredSkillId],
     };
     if (!installed) {
-      const result = await assistantManager.createAssistant(meta, createAssistantRuleContent(blueprint, version.snapshot));
+      const result = await assistantManager.createAssistant(meta, createAssistantRuleContent(blueprint, skill));
       if (!result.success) {
         if (!result.msg?.includes('already exists')) await assistantManager.uninstallAssistant(assistantId, 'custom');
         throw new Error(result.msg || 'ontology.studio.agentErrors.registrationFailed');
       }
     }
-    await installOntologyMcpServer({ blueprintId: blueprint.id, workspaceId: snapshot.workspaceId, versionId: version.id, exportFile: this.database.getMcpExportPath(snapshot.workspaceId) });
     const enabled = await assistantManager.enableAssistant(assistantId, 'custom');
     if (!enabled.success) throw new Error(enabled.msg || 'ontology.studio.agentErrors.registrationFailed');
   }
@@ -634,18 +720,12 @@ export class OntologyService {
       await this.agentRegistry.refresh(await this.engine.getWorkbench(workbench.workspaceId));
       await this.agentRegistry.withLock(workbench.workspaceId, async () => {
         const snapshot = await this.engine.getWorkbench(workbench.workspaceId);
-        for (const blueprint of snapshot.agentBlueprints.filter((item) => item.status === 'registered' && item.registeredAssistantId)) {
-          const version = snapshot.publishedVersions.find((item) => item.id === blueprint.ontologyVersionId && item.status === 'published');
-          if (!version) continue;
+        for (const skill of snapshot.skillBlueprints.filter((item) => item.status === 'published' && item.registeredSkillId)) {
           try {
-            await installOntologyMcpServer({
-              blueprintId: blueprint.id,
-              workspaceId: snapshot.workspaceId,
-              versionId: version.id,
-              exportFile: this.database.getMcpExportPath(snapshot.workspaceId),
-            });
+            await this.installOntologySkill(skill as IOntologySkillBlueprint & { registeredSkillId: string }, snapshot);
+            await installOntologyMcpServer({ blueprintId: skill.id, workspaceId: snapshot.workspaceId, versionId: skill.ontologyVersionId, exportFile: this.database.getMcpExportPath(snapshot.workspaceId) });
           } catch (error) {
-            mainError('OntologyService', `Failed to restore runtime MCP for ${blueprint.id}`, error);
+            mainError('OntologyService', `Failed to restore ontology skill ${skill.id}`, error);
           }
         }
       });
@@ -663,6 +743,7 @@ export class OntologyService {
       for (const blueprint of currentSnapshot.agentBlueprints.flatMap((item) => [item, ...(item.retiredRegistrations || [])])) {
         await this.uninstallRegisteredAgent(blueprint);
       }
+      for (const skill of currentSnapshot.skillBlueprints) await this.uninstallOntologySkill(skill);
       const snapshot = await this.engine.resetWorkbench(workspaceId);
       await acpDetector.refreshCustomAgents();
       this.database.setActiveWorkspaceId(snapshot.workspaceId);
@@ -716,13 +797,17 @@ export class OntologyService {
 
   private async uninstallRegisteredAgent(blueprint: Pick<IOntologyAgentBlueprint, 'id' | 'registeredAssistantId' | 'registeredAt'>): Promise<void> {
     if (!blueprint.registeredAssistantId) return;
-    await removeOntologyMcpServer(blueprint.id);
     const installed = await assistantManager.getAssistantMetaWithDir(blueprint.registeredAssistantId);
     if (installed && (installed.category !== 'custom' || (installed.meta.ontologyBinding ? installed.meta.ontologyBinding.blueprintId !== blueprint.id : blueprint.registeredAt === undefined))) return;
     const result = await assistantManager.uninstallAssistant(blueprint.registeredAssistantId, 'custom');
     if (!result.success && result.msg !== 'Assistant not found') {
       throw new Error(result.msg || 'Failed to uninstall registered ontology Agent.');
     }
+  }
+
+  private async uninstallOntologySkill(skill: Pick<IOntologySkillBlueprint, 'id' | 'registeredSkillId'>): Promise<void> {
+    await removeOntologyMcpServer(skill.id).catch(() => {});
+    if (skill.registeredSkillId) await fs.rm(path.join(getCustomSkillsDir(), skill.registeredSkillId), { recursive: true, force: true });
   }
 }
 
@@ -2437,7 +2522,8 @@ function describeRuntimeRelationBinding(snapshot: IOntologyVersionSnapshot, rela
     .join(' AND ');
 }
 
-function createAssistantRuleContent(blueprint: IOntologyAgentBlueprint, snapshot: IOntologyVersionSnapshot): string {
+function createOntologySkillContent(blueprint: IOntologySkillBlueprint, ontologyName: string, version: { version: string; id: string; snapshot: IOntologyVersionSnapshot }): string {
+  const snapshot = version.snapshot;
   const objectLines = snapshot.objects.map((object) => `- ${object.name} (${object.code}): ${object.description}\n  Attributes: ${object.attributes.map((attribute) => `${attribute.name}:${attribute.dataType}${attribute.required ? ' required' : ''}`).join(', ') || 'none'}`).join('\n');
   const objectNameById = new Map(snapshot.objects.map((object) => [object.id, object.name]));
   const relationLines = snapshot.relations
@@ -2452,15 +2538,19 @@ function createAssistantRuleContent(blueprint: IOntologyAgentBlueprint, snapshot
   const actionLines = snapshot.actions.map((action) => `- ${action.code} (${action.executor}): ${action.description}`).join('\n');
   const toolLines = blueprint.toolManifest.map((tool) => `- ${tool.name}: ${tool.description}`).join('\n');
   return [
-    '# Ontology Agent',
+    '---',
+    `name: ${blueprint.registeredSkillId || blueprint.id}`,
+    `description: ${blueprint.description.replace(/\n/g, ' ')}`,
+    `version: ${blueprint.version}`,
+    '---',
     '',
-    blueprint.promptTemplate,
+    `# ${blueprint.name}`,
     '',
-    '## Published Ontology',
+    `Use this skill for questions and operations grounded in ${ontologyName} ${version.version}.`,
+    `The skill is pinned to ontology version ID ${version.id}. Do not silently switch to another version.`,
+    'This skill includes the published business actions. Ask for confirmation before invoking an action tool with side effects.',
     '',
-    `Version ID: ${blueprint.ontologyVersionId}`,
-    '',
-    '## Objects',
+    '## Business objects',
     '',
     objectLines || '- No objects.',
     '',
@@ -2468,15 +2558,15 @@ function createAssistantRuleContent(blueprint: IOntologyAgentBlueprint, snapshot
     '',
     relationLines || '- No relations.',
     '',
-    '## Data Mappings',
+    '## Data mappings',
     '',
     mappingLines || '- No mappings.',
     '',
-    '## Quality and Business Rules',
+    '## Quality and business rules',
     '',
     ruleLines || '- No rules.',
     '',
-    '## Logic Functions',
+    '## Logic functions',
     '',
     functionLines || '- No logic functions.',
     '',
@@ -2484,12 +2574,23 @@ function createAssistantRuleContent(blueprint: IOntologyAgentBlueprint, snapshot
     '',
     actionLines || '- No actions.',
     '',
-    '## Tools',
+    '## Available tools',
     '',
     toolLines || '- No tools.',
     '',
-    'Invoke the published logic_* tools for calculations and lookups, and action_* tools only when the user requests the corresponding side effect.',
+    'Invoke the published ontology, relation_* and logic_* tools for grounded answers. Invoke action_* tools only when the user explicitly requests the corresponding side effect.',
     'When answering, cite the ontology object, relation, mapping, rule, function, or action that supports the answer.',
+  ].join('\n');
+}
+
+function createAssistantRuleContent(blueprint: IOntologyAgentBlueprint, skill: IOntologySkillBlueprint): string {
+  return [
+    '# Ontology Agent',
+    '',
+    blueprint.promptTemplate,
+    '',
+    `Use the installed skill "${skill.name}" (${skill.registeredSkillId}) as the source of ontology semantics, tools, permissions and operating instructions.`,
+    'Do not answer domain questions from assumptions when the linked skill can query or calculate the result.',
   ].join('\n');
 }
 

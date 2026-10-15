@@ -1557,9 +1557,20 @@ export default function OntologyWorkbench({
   ): Promise<boolean> => {
     setIsCreatingAgent(true);
     try {
+      const sourceSnapshot =
+        workspaceId === snapshot?.workspaceId
+          ? snapshot
+          : workspaceSnapshots.find((item) => item.workspaceId === workspaceId);
+      const skill = sourceSnapshot?.skillBlueprints.find(
+        (item) =>
+          item.ontologyVersionId === ontologyVersionId &&
+          item.status === "published",
+      );
+      if (!skill)
+        throw new Error("ontology.studio.agentErrors.skillUnavailable");
       const result = await api.createAgentBlueprint({
         name: agentNameValue,
-        ontologyVersionId,
+        skillBlueprintId: skill.id,
         workspaceId,
         promptTemplate: t("ontology.agent.defaultPrompt"),
       });
@@ -6574,8 +6585,8 @@ function PublishPage({
               title={t("ontology.publishConsole.logic")}
               items={selectedLogic.map((logic) => ({
                 id: logic.id,
-                name: logic.name,
-                description: logic.description,
+                name: logic.displayName,
+                description: logic.displayDescription,
                 meta: logic.runtime,
               }))}
               emptyText={t("ontology.publishConsole.emptyLogic")}
@@ -6584,8 +6595,8 @@ function PublishPage({
               title={t("ontology.publishConsole.actions")}
               items={selectedActions.map((action) => ({
                 id: action.id,
-                name: action.name,
-                description: action.executor,
+                name: action.displayName,
+                description: action.displayDescription,
                 meta: action.status,
               }))}
               emptyText={t("ontology.publishConsole.emptyActions")}
@@ -6781,6 +6792,11 @@ function AgentPage({
         (version) => version.id === currentDetailAgent.ontologyVersionId,
       ) ?? null)
     : null;
+  const currentDetailSkill = currentDetailAgent
+    ? (currentDetailSnapshot?.skillBlueprints.find(
+        (skill) => skill.id === currentDetailAgent.skillBlueprintId,
+      ) ?? null)
+    : null;
   const hasPublishedVersion = publishedServices.length > 0;
   const filteredAgents = useMemo(() => {
     const keyword = agentSearchValue.trim().toLowerCase();
@@ -6856,6 +6872,9 @@ function AgentPage({
         <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
           {filteredAgents.map(({ agent, workspaceSnapshot }) => {
             const status = agentManageStatus(agent);
+            const boundSkill = workspaceSnapshot.skillBlueprints.find(
+              (skill) => skill.id === agent.skillBlueprintId,
+            );
             const boundVersion = workspaceSnapshot.publishedVersions.find(
               (version) => version.id === agent.ontologyVersionId,
             );
@@ -6906,13 +6925,15 @@ function AgentPage({
                   · {boundVersion?.version ?? "-"}
                 </Typography.Text>
 
-                {agent.toolManifest.length > 0 && (
+                {!!boundSkill?.toolManifest.length && (
                   <div className="flex flex-wrap gap-1">
-                    {agent.toolManifest.slice(0, 3).map((tool) => (
-                      <Tag key={`${agent.id}-${tool.name}`}>{tool.name}</Tag>
+                    {boundSkill.toolManifest.slice(0, 3).map((tool) => (
+                      <Tag key={`${agent.id}-${tool.name}`}>
+                        {tool.displayName}
+                      </Tag>
                     ))}
-                    {agent.toolManifest.length > 3 && (
-                      <Tag>+{agent.toolManifest.length - 3}</Tag>
+                    {boundSkill.toolManifest.length > 3 && (
+                      <Tag>+{boundSkill.toolManifest.length - 3}</Tag>
                     )}
                   </div>
                 )}
@@ -6959,11 +6980,11 @@ function AgentPage({
               />
               <MiniMetric
                 label={t("ontology.console.columns.tools")}
-                value={currentDetailAgent.toolManifest.length}
+                value={currentDetailSkill?.toolManifest.length ?? 0}
               />
               <MiniMetric
                 label={t("ontology.stats.objects")}
-                value={currentDetailAgent.entityIds.length}
+                value={currentDetailSkill?.entityIds.length ?? 0}
               />
               <MiniMetric
                 label={t("ontology.agentManage.ontologyService")}
@@ -8769,7 +8790,7 @@ function RuntimeArtifacts({
     Modal.confirm({
       title: t("ontology.runtime.deleteFunctionTitle"),
       content: t("ontology.runtime.deleteFunctionContent", {
-        name: logicFunction.name,
+        name: logicFunction.displayName,
       }),
       okText: t("ontology.editor.delete"),
       cancelText: t("ontology.reset.cancel"),
@@ -8781,7 +8802,9 @@ function RuntimeArtifacts({
   const onConfirmDeleteAction = (action: IOntologyActionDefinition) => {
     Modal.confirm({
       title: t("ontology.runtime.deleteActionTitle"),
-      content: t("ontology.runtime.deleteActionContent", { name: action.name }),
+      content: t("ontology.runtime.deleteActionContent", {
+        name: action.displayName,
+      }),
       okText: t("ontology.editor.delete"),
       cancelText: t("ontology.reset.cancel"),
       okButtonProps: { status: "danger" },
@@ -8895,7 +8918,7 @@ function RuntimeArtifacts({
               >
                 <div className="min-w-0">
                   <Typography.Text className="block truncate">
-                    {logicFunction.name}
+                    {logicFunction.displayName}
                   </Typography.Text>
                   <Typography.Text
                     className="block truncate text-xs"
@@ -8980,7 +9003,7 @@ function RuntimeArtifacts({
               >
                 <div className="min-w-0">
                   <Typography.Text className="block truncate">
-                    {action.name}
+                    {action.displayName}
                   </Typography.Text>
                   <Typography.Text
                     className="block truncate text-xs"
@@ -9694,6 +9717,8 @@ function buildRuntimeEndpointConfig(
 
 function runtimeArtifactName(detail: RuntimeArtifactDetail): string {
   if (detail.kind === "document") return detail.item.title;
+  if (detail.kind === "function" || detail.kind === "action")
+    return detail.item.displayName;
   return detail.item.name;
 }
 

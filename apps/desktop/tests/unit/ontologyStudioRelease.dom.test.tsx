@@ -6,7 +6,7 @@ import { Message } from '@arco-design/web-react';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { createDefaultOntologyWorkbenchSnapshot } from '@sudowork/ontology-common';
-import type { IOntologyAgentBlueprint, IOntologyPublishedVersion } from '@sudowork/ontology-common';
+import type { IOntologyAgentBlueprint, IOntologyPublishedVersion, IOntologySkillBlueprint } from '@sudowork/ontology-common';
 import type { IOntologyStudioApi } from '@sudowork/ontology-ui';
 import StudioReleasePage from '@sudowork/ontology-ui/studio/StudioReleasePage';
 import locale from '../../../../packages/renderer/src/i18n/locales/zh-CN/ontology.json';
@@ -22,165 +22,130 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function fixture(status?: IOntologyAgentBlueprint['status'], title = 'Orders') {
-  const snapshot = createDefaultOntologyWorkbenchSnapshot(1, { workspaceId: 'workspace', title });
-  snapshot.publishedVersions = [
-    {
-      id: 'version',
-      version: 'v2',
-      status: 'published',
-      isActive: true,
-      objectCount: 0,
-      relationCount: 0,
-      summary: '',
-      createdAt: 1,
-      diff: { addedObjectIds: [], changedObjectIds: [], removedObjectIds: [], addedRelationIds: [], removedRelationIds: [], summary: '', riskLevel: 'low' },
-      snapshot: { objects: [], relations: [], mappings: [], qualityRules: [], logicFunctions: [], actions: [], serviceEndpoints: [], businessDocuments: [] },
-    } satisfies IOntologyPublishedVersion,
-  ];
-  const blueprint: IOntologyAgentBlueprint = {
-    id: 'blueprint',
-    name: 'Orders · v2',
-    status: status || 'draft',
-    ontologyVersionId: 'version',
-    entityIds: [],
-    promptTemplate: '',
-    toolManifest: [{ name: 'ontology.lookup', description: 'Lookup orders', category: 'ontology' }],
+function fixture(skillStatus: IOntologySkillBlueprint['status'] = 'draft', agentStatus?: IOntologyAgentBlueprint['status']) {
+  const snapshot = createDefaultOntologyWorkbenchSnapshot(1, { workspaceId: 'workspace', title: 'Orders' });
+  const version = {
+    id: 'version',
+    version: 'v2',
+    status: 'published',
+    isActive: true,
+    objectCount: 2,
+    relationCount: 1,
+    summary: '',
+    createdAt: 1,
+    diff: { addedObjectIds: [], changedObjectIds: [], removedObjectIds: [], addedRelationIds: [], removedRelationIds: [], summary: '', riskLevel: 'low' },
+    snapshot: { objects: [], relations: [], mappings: [], qualityRules: [], logicFunctions: [], actions: [], serviceEndpoints: [], businessDocuments: [] },
+  } satisfies IOntologyPublishedVersion;
+  const skill: IOntologySkillBlueprint = {
+    id: 'skill',
+    name: '订单管理技能',
+    description: '查询订单与履约状态',
+    status: skillStatus,
+    ontologyVersionId: version.id,
+    version: '1.0.0',
+    entityIds: ['order', 'shipment'],
+    toolManifest: [
+      {
+        name: 'ontology.lookup',
+        description: 'Lookup orders',
+        displayName: '订单综合查询',
+        displayDescription: '查询订单对象、属性和关系。',
+        category: 'ontology',
+      },
+    ],
     createdAt: 1,
     updatedAt: 1,
-    ...(status === 'registered' ? { registeredAssistantId: 'agent-id', registeredAt: 2 } : {}),
+    ...(skillStatus === 'published' ? { registeredSkillId: 'ontology-skill-skill', publishedAt: 2 } : {}),
   };
-  if (status) snapshot.agentBlueprints = [blueprint];
-  const api = { createAgentBlueprint: vi.fn().mockResolvedValue({ snapshot, blueprint }), registerAgentBlueprint: vi.fn().mockResolvedValue({ snapshot }) } as unknown as IOntologyStudioApi;
+  const agent: IOntologyAgentBlueprint = {
+    id: 'agent',
+    name: '订单智能体',
+    status: agentStatus || 'draft',
+    skillBlueprintId: skill.id,
+    ontologyVersionId: version.id,
+    promptTemplate: '',
+    createdAt: 1,
+    updatedAt: 1,
+    ...(agentStatus === 'registered' ? { registeredAssistantId: 'agent-id', registeredAt: 3 } : {}),
+  };
+  snapshot.publishedVersions = [version];
+  snapshot.skillBlueprints = [skill];
+  if (agentStatus) snapshot.agentBlueprints = [agent];
+  const api = {
+    createSkillBlueprint: vi.fn(),
+    publishSkillBlueprint: vi.fn().mockResolvedValue({ snapshot, blueprint: { ...skill, status: 'published' } }),
+    createAgentBlueprint: vi.fn().mockResolvedValue({ snapshot, blueprint: agent }),
+    registerAgentBlueprint: vi.fn().mockResolvedValue({ snapshot, blueprint: agent }),
+  } as unknown as IOntologyStudioApi;
   const props = { snapshot, api, onRefresh: vi.fn().mockResolvedValue(undefined), onError: vi.fn(), onExport: vi.fn(), onStartAgentConversation: vi.fn().mockResolvedValue(undefined) };
   render(
     <I18nextProvider i18n={i18n}>
       <StudioReleasePage {...props} />
     </I18nextProvider>
   );
-  return { ...props, blueprint };
+  return { ...props, skill, agent };
 }
 
-describe('ontology version registration UI', () => {
-  it('starts a new conversation using the registered identity rather than the display name', async () => {
-    const props = fixture('registered', 'Same display name');
-    const list = screen.getByRole('region', { name: locale.studio.registeredAssistants });
-    fireEvent.click(within(list).getByRole('button', { name: '新会话' }));
-    await waitFor(() => expect(props.onStartAgentConversation).toHaveBeenCalledExactlyOnceWith('agent-id'));
-    expect(props.api.createAgentBlueprint).not.toHaveBeenCalled();
-    expect(props.api.registerAgentBlueprint).not.toHaveBeenCalled();
+describe('ontology version → skill → agent publishing UI', () => {
+  it('publishes a generated skill draft before offering agent creation', async () => {
+    const props = fixture('draft');
+    expect(screen.queryByRole('button', { name: '创建并注册智能体' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole('button', { name: '发布技能' })[0]);
+    const modal = await screen.findByRole('dialog', { name: '发布技能' });
+    expect(within(modal).getByRole('textbox', { name: '技能名称' })).toHaveValue('订单管理技能');
+    fireEvent.change(within(modal).getByRole('textbox', { name: '技能名称' }), { target: { value: '订单履约技能' } });
+    fireEvent.click(within(modal).getByRole('button', { name: '发布技能' }));
+    await waitFor(() => expect(props.api.publishSkillBlueprint).toHaveBeenCalledWith({ workspaceId: 'workspace', skillBlueprintId: 'skill', name: '订单履约技能', description: '查询订单与履约状态' }));
   });
 
-  it.each(['draft', 'registering', 'failed', 'deleted'] as const)('does not offer a new conversation for %s agents', (status) => {
-    fixture(status);
+  it('creates an agent from the published skill rather than the ontology version', async () => {
+    const props = fixture('published');
+    fireEvent.click(screen.getByRole('button', { name: '创建并注册智能体' }));
+    const modal = await screen.findByRole('dialog', { name: '创建并注册智能体' });
+    fireEvent.change(within(modal).getByRole('textbox', { name: '智能体名称' }), { target: { value: '订单查询智能体' } });
+    fireEvent.click(within(modal).getByRole('button', { name: '创建并注册智能体' }));
+    await waitFor(() => expect(props.api.createAgentBlueprint).toHaveBeenCalledExactlyOnceWith({ workspaceId: 'workspace', skillBlueprintId: 'skill', name: '订单查询智能体' }));
+    await waitFor(() => expect(props.api.registerAgentBlueprint).toHaveBeenCalledExactlyOnceWith({ workspaceId: 'workspace', blueprintId: 'agent' }));
+  });
+
+  it('shows skill provenance and concrete capabilities as an independent asset', async () => {
+    fixture('published');
+    const skills = within(screen.getByRole('region', { name: '本体技能' }));
+    expect(skills.getByText('订单管理技能')).toBeInTheDocument();
+    expect(skills.getByText('Orders')).toBeInTheDocument();
+    expect(skills.getByText('v2')).toBeInTheDocument();
+    expect(skills.queryByText('包含能力')).not.toBeInTheDocument();
+    expect(skills.queryByText('ontology.lookup')).not.toBeInTheDocument();
+    expect(skills.getByText('已发布')).toBeInTheDocument();
+    fireEvent.click(skills.getByRole('button', { name: '查看技能' }));
+    const modal = await screen.findByRole('dialog', { name: '查看技能' });
+    expect(within(modal).getByText('包含能力（1）')).toBeInTheDocument();
+    expect(within(modal).getByText('本体查询')).toBeInTheDocument();
+    expect(within(modal).getByText('订单综合查询')).toBeInTheDocument();
+    expect(within(modal).getByText('查询订单对象、属性和关系。')).toBeInTheDocument();
+    expect(within(modal).queryByText('ontology.lookup')).not.toBeInTheDocument();
+    expect(within(modal).queryByText('Lookup orders')).not.toBeInTheDocument();
+    expect(within(modal).queryByText('权限等级')).not.toBeInTheDocument();
+  });
+
+  it('starts a conversation using the registered agent identity', async () => {
+    const props = fixture('published', 'registered');
+    const agents = within(screen.getByRole('region', { name: '本体智能体' }));
+    expect(agents.getByText('订单管理技能')).toBeInTheDocument();
+    fireEvent.click(agents.getByRole('button', { name: '新会话' }));
+    await waitFor(() => expect(props.onStartAgentConversation).toHaveBeenCalledExactlyOnceWith('agent-id'));
+  });
+
+  it('keeps failed agents unavailable for new conversations', () => {
+    fixture('published', 'failed');
     expect(screen.queryByRole('button', { name: '新会话' })).not.toBeInTheDocument();
   });
 
-  it('creates with the confirmed user name only once and registers the returned blueprint', async () => {
-    const props = fixture(undefined, '项目管理本体');
-    let finish!: () => void;
-    vi.mocked(props.api.registerAgentBlueprint).mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          finish = () => resolve({ snapshot: props.snapshot });
-        })
-    );
-    vi.mocked(props.api.createAgentBlueprint).mockResolvedValue({ snapshot: { ...props.snapshot, agentBlueprints: [props.blueprint, { ...props.blueprint, id: 'unrelated', ontologyVersionId: 'older' }] }, blueprint: props.blueprint });
-    expect(screen.getByText('未注册')).toBeInTheDocument();
-    const button = screen.getByRole('button', { name: '创建并注册智能体' });
-    fireEvent.click(button);
-    fireEvent.click(button);
-    const modal = await screen.findByRole('dialog', { name: '创建并注册智能体' });
-    const name = within(modal).getByRole('textbox', { name: '智能体名称' });
-    expect(name).toHaveValue('项目管理本体智能体');
+  it('retries a failed agent registration without recreating its skill or blueprint', async () => {
+    const props = fixture('published', 'failed');
+    fireEvent.click(screen.getByRole('button', { name: '重试注册' }));
+    await waitFor(() => expect(props.api.registerAgentBlueprint).toHaveBeenCalledExactlyOnceWith({ workspaceId: 'workspace', blueprintId: 'agent' }));
+    expect(props.api.publishSkillBlueprint).not.toHaveBeenCalled();
     expect(props.api.createAgentBlueprint).not.toHaveBeenCalled();
-    expect(props.api.registerAgentBlueprint).not.toHaveBeenCalled();
-    fireEvent.change(name, { target: { value: '  采购管理智能体  ' } });
-    const confirm = within(modal).getByRole('button', { name: '创建并注册智能体' });
-    fireEvent.click(confirm);
-    fireEvent.click(confirm);
-    await waitFor(() => expect(props.api.registerAgentBlueprint).toHaveBeenCalledExactlyOnceWith({ workspaceId: 'workspace', blueprintId: 'blueprint' }));
-    expect(props.api.createAgentBlueprint).toHaveBeenCalledExactlyOnceWith({ workspaceId: 'workspace', ontologyVersionId: 'version', name: '采购管理智能体' });
-    expect(screen.getByRole('button', { name: '注册中…' })).toBeDisabled();
-    finish();
-    await waitFor(() => expect(Message.success).toHaveBeenCalled());
-  });
-
-  it('shows the registered agent and version details without another create action', async () => {
-    const props = fixture('registered');
-    expect(screen.queryByRole('button', { name: '创建并注册智能体' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '查看智能体' }));
-    const modal = await screen.findByRole('dialog', { name: 'Orders · v2' });
-    expect(within(modal).getByText('v2')).toBeInTheDocument();
-    expect(within(modal).getByText('Orders')).toBeInTheDocument();
-    expect(within(modal).getByText('注册时间')).toBeInTheDocument();
-    expect(within(modal).queryByText('本体能力')).not.toBeInTheDocument();
-    expect(within(modal).queryByText('Lookup orders')).not.toBeInTheDocument();
-    expect(within(modal).queryByText('ontology.lookup')).not.toBeInTheDocument();
-    expect(props.api.createAgentBlueprint).not.toHaveBeenCalled();
-    expect(props.api.registerAgentBlueprint).not.toHaveBeenCalled();
-  });
-
-  it('does not create or register an agent when the naming dialog is cancelled', async () => {
-    const props = fixture();
-    fireEvent.click(screen.getByRole('button', { name: '创建并注册智能体' }));
-    const modal = await screen.findByRole('dialog', { name: '创建并注册智能体' });
-    fireEvent.change(within(modal).getByRole('textbox', { name: '智能体名称' }), { target: { value: '未确认的名称' } });
-    fireEvent.click(within(modal).getByRole('button', { name: /取消|Cancel/ }));
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    expect(props.api.createAgentBlueprint).not.toHaveBeenCalled();
-    expect(props.api.registerAgentBlueprint).not.toHaveBeenCalled();
-  });
-
-  it('rejects a whitespace-only agent name before creating a blueprint', async () => {
-    const props = fixture();
-    fireEvent.click(screen.getByRole('button', { name: '创建并注册智能体' }));
-    const modal = await screen.findByRole('dialog', { name: '创建并注册智能体' });
-    fireEvent.change(within(modal).getByRole('textbox', { name: '智能体名称' }), { target: { value: '   ' } });
-    fireEvent.click(within(modal).getByRole('button', { name: '创建并注册智能体' }));
-    await within(modal).findByText('请输入 1～100 个字符的智能体名称，不能仅包含空格');
-    expect(props.api.createAgentBlueprint).not.toHaveBeenCalled();
-    expect(props.api.registerAgentBlueprint).not.toHaveBeenCalled();
-  });
-
-  it('submits the chosen name for a draft that has not yet been registered', async () => {
-    const props = fixture('draft');
-    fireEvent.click(screen.getByRole('button', { name: '创建并注册智能体' }));
-    const modal = await screen.findByRole('dialog', { name: '创建并注册智能体' });
-    expect(within(modal).getByRole('textbox', { name: '智能体名称' })).toHaveValue('Orders智能体');
-    fireEvent.change(within(modal).getByRole('textbox', { name: '智能体名称' }), { target: { value: '订单查询智能体' } });
-    fireEvent.click(within(modal).getByRole('button', { name: '创建并注册智能体' }));
-    await waitFor(() => expect(props.api.createAgentBlueprint).toHaveBeenCalledWith({ workspaceId: 'workspace', ontologyVersionId: 'version', name: '订单查询智能体' }));
-    await waitFor(() => expect(props.api.registerAgentBlueprint).toHaveBeenCalledExactlyOnceWith({ workspaceId: 'workspace', blueprintId: 'blueprint' }));
-  });
-
-  it('shows the related ontology and version in the agent list instead of an internal ID', () => {
-    fixture('registered');
-    const list = within(screen.getByRole('region', { name: '本体智能体' }));
-    expect(list.getByText('智能体名称')).toBeInTheDocument();
-    expect(list.getByText('关联本体')).toBeInTheDocument();
-    expect(list.getByText('对应版本')).toBeInTheDocument();
-    expect(list.getByText('Orders · v2')).toBeInTheDocument();
-    expect(list.getByText('Orders')).toBeInTheDocument();
-    expect(list.getByText('v2')).toBeInTheDocument();
-    expect(list.queryByText('agent-id')).not.toBeInTheDocument();
-  });
-
-  it.each([
-    ['failed', '重试注册'],
-    ['deleted', '重新注册'],
-  ] as const)('reuses the existing binding for %s', async (status, label) => {
-    const props = fixture(status);
-    fireEvent.click(screen.getByRole('button', { name: label }));
-    await waitFor(() => expect(props.api.registerAgentBlueprint).toHaveBeenCalledExactlyOnceWith({ workspaceId: 'workspace', blueprintId: 'blueprint' }));
-    expect(props.api.createAgentBlueprint).not.toHaveBeenCalled();
-  });
-
-  it('retains the registering state across a page mount and blocks another submission', () => {
-    const props = fixture('registering');
-    const button = screen.getByRole('button', { name: '注册中…' });
-    expect(button).toBeDisabled();
-    fireEvent.click(button);
-    expect(props.api.registerAgentBlueprint).not.toHaveBeenCalled();
   });
 });
