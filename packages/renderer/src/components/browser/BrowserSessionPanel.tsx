@@ -2,7 +2,7 @@ import { Button, Empty, Input, Message, Modal, Select, Spin } from '@arco-design
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
-import { BrowserFileSchema, BrowserInputSchema, BrowserSessionReplySchema, isCurrentBrowserFrame, type BrowserFile, type BrowserSessionAction, type BrowserSessionReply, type BrowserSessionState } from '@sudowork/contracts/browser-session';
+import { BrowserFileSchema, BrowserInputSchema, BrowserSessionReplySchema, isCurrentBrowserFrame, type BrowserFile, type BrowserInput, type BrowserSessionAction, type BrowserSessionReply, type BrowserSessionState } from '@sudowork/contracts/browser-session';
 import { PageSurface } from '@ai-dev-browser/remote-page';
 
 /** Shared remote browser UI. The host authenticates and enforces every action. */
@@ -29,6 +29,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
   const isInteractiveRef = useRef(false);
   const surfaceModeRef = useRef<'page' | 'window'>('page');
   const generationRef = useRef(0);
+  const pendingInputsRef = useRef<Promise<void>>(Promise.resolve());
 
   const invoke = useCallback(
     async (action: BrowserSessionAction) => {
@@ -123,15 +124,51 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
   const isReturnAvailable = !!(isController || isStoppedController);
   isInteractiveRef.current = !!isController;
 
+  const queueInput = useCallback(
+    (input: BrowserInput) => {
+      const observed = sessionRef.current;
+      const generation = generationRef.current;
+      const surface = surfaceModeRef.current;
+      const operation = pendingInputsRef.current.then(() => {
+        const current = sessionRef.current;
+        if (
+          !observed ||
+          !current ||
+          generationRef.current !== generation ||
+          current.browserSessionId !== observed.browserSessionId ||
+          current.profileId !== observed.profileId ||
+          current.controlEpoch !== observed.controlEpoch ||
+          current.targetEpoch !== observed.targetEpoch ||
+          current.state !== 'human' ||
+          !current.isController ||
+          !invokeRef.current
+        )
+          throw new Error(t('conversation.browserSession.unavailable'));
+        return invokeRef.current({ kind: 'input', input, surface, controlEpoch: observed.controlEpoch, targetEpoch: observed.targetEpoch });
+      });
+      // Mouse, keyboard and the Unicode input box share one acknowledged order.
+      // A failed operation still releases the queue; each caller reports its error.
+      pendingInputsRef.current = operation.then(
+        () => {},
+        () => {}
+      );
+      return operation;
+    },
+    [t]
+  );
+
   const onAction = useCallback(
     async (kind: 'take' | 'return' | 'navigate' | 'back' | 'forward' | 'reload' | 'new-tab' | 'select-tab' | 'close-tab', targetId?: string) => {
-      const current = sessionRef.current;
-      if (!current) return;
       const generation = generationRef.current;
-      const epochs = { controlEpoch: current.controlEpoch, targetEpoch: current.targetEpoch };
-      const action: BrowserSessionAction = kind === 'navigate' ? { kind, url, ...epochs } : kind === 'return' ? { kind, note, ...epochs } : kind === 'select-tab' || kind === 'close-tab' ? { kind, targetId: targetId!, ...epochs } : { kind, ...epochs };
       if (kind === 'take' || kind === 'return') setIsTransferring(true);
+      if (kind === 'return') isInteractiveRef.current = false;
       try {
+        if (kind !== 'take') await pendingInputsRef.current;
+        if (generationRef.current !== generation) return;
+        const current = sessionRef.current;
+        if (!current) return;
+        const epochs = { controlEpoch: current.controlEpoch, targetEpoch: current.targetEpoch };
+        const action: BrowserSessionAction = kind === 'navigate' ? { kind, url, ...epochs } : kind === 'return' ? { kind, note, ...epochs } : kind === 'select-tab' || kind === 'close-tab' ? { kind, targetId: targetId!, ...epochs } : { kind, ...epochs };
         const reply = await invoke(action);
         if (generationRef.current !== generation) return;
         update(reply.session);
@@ -153,8 +190,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
       const input = BrowserInputSchema.safeParse(value);
       if (!input.success) return;
       const generation = generationRef.current;
-      void invokeRef
-        .current?.({ kind: 'input', input: input.data, surface: surfaceModeRef.current, controlEpoch: current.controlEpoch, targetEpoch: current.targetEpoch })
+      void queueInput(input.data)
         .then((reply) => {
           if (generationRef.current === generation) updateRef.current(reply.session);
         })
@@ -167,15 +203,18 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
       surface.dispose();
       surfaceRef.current = null;
     };
-  }, [t]);
+  }, [queueInput, t]);
 
   const onInsertText = async () => {
     const current = sessionRef.current;
     if (!current || !isController || !text) return;
+    const generation = generationRef.current;
+    const submitted = text;
     try {
-      const reply = await invoke({ kind: 'input', input: { kind: 'text', text }, surface: surfaceModeRef.current, controlEpoch: current.controlEpoch, targetEpoch: current.targetEpoch });
+      const reply = await queueInput({ kind: 'text', text: submitted });
+      if (generationRef.current !== generation) return;
       update(reply.session);
-      setText('');
+      setText((value) => (value === submitted ? '' : value));
     } catch (failure) {
       Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
     }

@@ -142,13 +142,20 @@ the explicit Return clears it after observing the stopped state. The test never
 clears that warning or restores AI admission directly.
 
 Add `--verify-text-edit` with a frontend and managed worker using public SDK
-v0.57.4 or later. The actual AI first fills Browser note. After the file upload,
+v0.57.5 or later. The actual AI first fills Browser note. After the file upload,
 the human selects the page surface, clicks that field, sends Ctrl+A through
 `PageSurface`, and replaces the value with exact Unicode text. Return requires
 the model to report the edited value. The downloaded receipt is built from the
 actual uploaded bytes and the trusted note, so its exact bytes and SHA-256
 protect both changes. This flag can be combined with independent-viewer Return
 and pending-approval reconnect.
+
+Add `--delay-first-page-click-ms 450` to exercise this workflow over a slow
+connection. It delays one actual human click request while keeping the model,
+Chrome, trusted input and file transport real. Click, SelectAll, text insertion
+and Return must retain their order; the former concurrent implementation fails
+this journey. `interaction-diagnostics.json` retains local focus/keyboard events
+and browser input requests so a failure can be investigated without replaying it.
 
 If the fixture origin uses a reverse proxy or tunnel, forward `/note` together
 with `/review`, `/submit` and `/receipts`. `fixture-summary.json` records the

@@ -337,6 +337,25 @@ browser/profile identity, stale/anonymous rejection and exact download bytes.
   barrier. Real API/live PTY checks covered foreground tools and a parent/child
   tool tree; cancelled work stays cancelled after admission reopens.
 
+### Shared input delivery
+
+Desktop and WebUI use one acknowledged input queue in BrowserSessionPanel.
+Clicks, selection shortcuts and Unicode insertion reach the browser in their
+original order even when an HTTP request is delayed. Navigation and Return
+wait for queued inputs. Each queued input retains its observed browser,
+profile, generation and control/target epochs; a changed observation cannot
+silently redirect an old action to a new tab or browser.
+
+The real managed Chrome/model regression reproduces the former failure by
+delaying the first human page click by 450 ms. The old implementation allowed
+selection and typing to overtake the click. A matching component regression
+also failed before the repair and protects ordered input before Return in CI.
+After the repair, the entire real model journey passed with this delay on
+production Moss 0.1.59 and SDK 0.57.5: trusted Unicode replacement and upload,
+independent-viewer Return, restored single-use permission after reload, exact
+model readback and the downloaded receipt's bytes/SHA-256. The owned completed
+test conversation was terminated through its normal owner API.
+
 ### Desktop acceptance and remaining scope
 
 The Desktop integration uses the public v0.57.5 worker behind authenticated

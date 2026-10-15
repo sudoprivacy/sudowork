@@ -109,6 +109,7 @@ async def main(args):
     page = None
     driver = await async_playwright().start()
     messages = []
+    browser_inputs = []
     approvals = []
     approved_ids = set()
     has_reconnected = False
@@ -117,6 +118,23 @@ async def main(args):
             f"http://127.0.0.1:{own['port']}"
         )
         page = chrome.contexts[0].pages[0]
+        if args.delay_first_page_click_ms:
+            has_delayed_click = False
+
+            async def delay_page_click(route):
+                nonlocal has_delayed_click
+                value = route.request.post_data_json
+                if (
+                    not has_delayed_click
+                    and value.get("kind") == "input"
+                    and value.get("surface") == "page"
+                    and value.get("input", {}).get("kind") == "click"
+                ):
+                    has_delayed_click = True
+                    await asyncio.sleep(args.delay_first_page_click_ms / 1000)
+                await route.continue_()
+
+            await page.route(f"**/api/conversations/{sid}/browser", delay_page_click)
         await page.set_viewport_size({"width": 1365, "height": 900})
         errors = []
         transfers = []
@@ -150,6 +168,17 @@ async def main(args):
                 )
 
         observe_page(page)
+
+        def record_input(request):
+            if (
+                request.url.endswith(f"/api/conversations/{sid}/browser")
+                and request.method == "POST"
+            ):
+                value = request.post_data_json
+                if value.get("kind") == "input":
+                    browser_inputs.append(value)
+
+        page.on("request", record_input)
         await page.goto(config["origin"] + "/#/login")
         await page.get_by_text(login["passwordTab"], exact=True).click()
         await page.get_by_placeholder(login["pwdAccountPlaceholder"], exact=True).fill(
@@ -159,6 +188,18 @@ async def main(args):
         await page.get_by_role("button", name=login["pwdLoginTab"], exact=True).click()
         await page.wait_for_url(lambda value: "/login" not in value, timeout=20000)
         await page.goto(config["origin"] + "/#/conversation/" + sid)
+        await page.evaluate("""() => {
+            window.browserAcceptanceEvents = [];
+            for (const type of ['pointerdown', 'pointerup', 'keydown', 'focusin', 'focusout']) {
+                document.addEventListener(type, event => {
+                    const entry = {type, time: performance.now(), target: event.target.tagName,
+                        active: document.activeElement.tagName, key: event.key,
+                        ctrl: event.ctrlKey, trusted: event.isTrusted};
+                    window.browserAcceptanceEvents.push(entry);
+                    queueMicrotask(() => {entry.prevented = event.defaultPrevented;});
+                }, true);
+            }
+        }""")
         await page.locator("textarea").first.wait_for(state="visible", timeout=30000)
         await page.get_by_role(
             "tab", name=labels["rightPanel"]["tabs"]["browser"], exact=True
@@ -611,6 +652,7 @@ async def main(args):
                     "staleUploadStatus": stale.status,
                     "anonymousUploadStatus": unauthenticated.status,
                     "pageErrors": errors,
+                    "delayedFirstPageClickMs": args.delay_first_page_click_ms,
                     "visibleOneTimeApprovals": approvals,
                     "returnFromIndependentViewer": args.viewer_return,
                     "pendingApprovalRecoveredAfterReload": has_reconnected,
@@ -625,6 +667,19 @@ async def main(args):
             flush=True,
         )
     finally:
+        if page and not page.is_closed():
+            diagnostics = await page.evaluate("""() => ({
+                events: window.browserAcceptanceEvents || [],
+                selection: getSelection().toString().slice(0, 150),
+                active: document.activeElement.tagName,
+                images: [...document.querySelectorAll('[data-testid=browser-session-panel] img')].map(e => ({
+                    width: e.naturalWidth, height: e.naturalHeight, tabIndex: e.tabIndex, connected: e.isConnected
+                }))
+            })""")
+            diagnostics["browserInputs"] = browser_inputs
+            (output / "interaction-diagnostics.json").write_text(
+                json.dumps(diagnostics, indent=2, ensure_ascii=False), encoding="utf-8"
+            )
         if (
             page
             and page.is_closed() is False
@@ -670,6 +725,12 @@ if __name__ == "__main__":
     parser.add_argument("--fixture-origin", required=True)
     parser.add_argument("--fixture-port", type=int, default=50181)
     parser.add_argument("--turn-timeout", type=int, default=240)
+    parser.add_argument(
+        "--delay-first-page-click-ms",
+        type=int,
+        default=0,
+        help="Delay one real human click request to verify click, selection and typing retain their order over a slow connection",
+    )
     parser.add_argument(
         "--stop-existing",
         action="store_true",
