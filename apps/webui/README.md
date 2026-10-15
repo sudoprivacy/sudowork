@@ -58,7 +58,7 @@ trustProxy/moss/session/upload 段；环境变量优先。
 前置条件：Docker 20.10+、Docker Compose v2，以及已经启用的 Moss Server。生产环境需要
 一个由 Nginx/Caddy 等反向代理提供 HTTPS 的 WebUI 域名。
 
-在 Linux amd64 服务器上执行，不需要下载源码：
+在 Linux amd64 或 arm64 服务器上执行（ARM64 需要包含对应产物的新版本 Release），不需要下载源码：
 
 ```bash
 curl -fsSL https://sudowork-release-1309794936.cos.accelerate.myqcloud.com/sudowork/webui/latest/install.sh | sudo bash
@@ -109,7 +109,7 @@ sudo ./sudowork-webui-offline/install.sh --offline
 ```
 
 CI 在版本发布时生成 `install.sh`、`SHA256SUMS` 和
-`sudowork-webui-<version>-linux-amd64.tar.gz`，同时附加到 GitHub Release；稳定版还会同步到
+`sudowork-webui-<version>-linux-<amd64|arm64>.tar.gz`，同时附加到 GitHub Release；稳定版还会同步到
 COS 的不可变版本目录，并在校验通过后更新上述 `latest/install.sh`。
 
 从源码部署仍可在仓库中执行 `cd apps/webui && bun run deploy`。该模式使用当前源码构建镜像，
@@ -188,3 +188,5 @@ Local 会话/终端/浏览器面板/本地知识库/频道/团队/安全中心/�
 ## License
 
 Apache-2.0（含自 Sudowork 摘取的样式与组件，保留原始版权头）。
+
+安装器按主机架构选择离线包，并验证 WebUI/PostgreSQL 镜像架构。预下载其他架构时可用 `WEBUI_ARCH=arm64 bash install.sh --download ./offline-arm64`；安装时架构必须与主机一致。发布 CI 在两种原生 runner 上加载 PTY 扩展后才导出镜像。

@@ -28,7 +28,7 @@ COPY patches/ patches/
 # --ignore-scripts: this build only produces the webui, so skip every workspace
 # member's install lifecycle — most importantly the desktop app's postinstall,
 # whose script isn't in the context (manifest-only copy). No webui runtime dep
-# compiles: node-pty ships a prebuilt @lydell/node-pty-linux-x64 package, and the
+# compiles: node-pty ships prebuilt @lydell/node-pty packages for x64/arm64, and the
 # desktop-only natives (better-sqlite3 etc.) are never loaded by the webui server.
 # The env vars keep transitive electron/playwright binary downloads out of resolve.
 ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1 \

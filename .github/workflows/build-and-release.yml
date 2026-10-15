@@ -97,11 +97,19 @@ jobs:
       skip_code_quality: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_code_quality || startsWith(github.ref, 'refs/tags/') }}
     secrets: inherit
 
-  # WebUI is released as an amd64 Docker image bundle. The archive includes
+  # WebUI is released as native amd64 and arm64 bundles. Each archive includes
   # PostgreSQL so the same assets can be used for an offline installation.
   webui-release-build:
-    name: Build WebUI Release
-    runs-on: ubuntu-latest
+    name: Build WebUI Release (${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            os: ubuntu-24.04
+          - arch: arm64
+            os: ubuntu-24.04-arm
     timeout-minutes: 45
     needs: prepare-matrix
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
@@ -131,12 +139,12 @@ jobs:
         shell: bash
         run: |
           bash apps/webui/deploy/package-release.sh \
-            "${{ steps.release.outputs.release_tag }}" amd64 webui-release
+            "${{ steps.release.outputs.release_tag }}" '${{ matrix.arch }}' webui-release
 
       - name: Upload WebUI release package
         uses: actions/upload-artifact@v7
         with:
-          name: webui-release-amd64
+          name: webui-release-${{ matrix.arch }}
           path: webui-release/*
           if-no-files-found: error
           retention-days: 7
@@ -306,7 +314,10 @@ jobs:
         run: |
           bash apps/desktop/scripts/prepare-release-assets.sh build-artifacts release-assets
           mkdir -p release-assets/webui
-          cp -f build-artifacts/webui-release-amd64/* release-assets/webui/
+          cmp build-artifacts/webui-release-amd64/install.sh build-artifacts/webui-release-arm64/install.sh
+          cp build-artifacts/webui-release-amd64/install.sh release-assets/webui/
+          cp build-artifacts/webui-release-*/*.tar.gz release-assets/webui/
+          cat build-artifacts/webui-release-*/SHA256SUMS | sort -k2 > release-assets/webui/SHA256SUMS
           chmod 755 release-assets/webui/install.sh
           (cd release-assets/webui && sha256sum -c SHA256SUMS)
 

@@ -23,6 +23,9 @@ on:
       ref:
         description: "Ref to build (defaults to the triggering ref)"
         required: false
+      candidate_version:
+        description: "Optional v-prefixed WebUI candidate version; uploads CI artifacts only"
+        required: false
 
 concurrency:
   group: build-webui-image-${{ github.ref }}
@@ -37,8 +40,16 @@ env:
 
 jobs:
   build:
-    name: build-and-publish
-    runs-on: ubuntu-latest
+    name: build-and-publish-${{ matrix.arch }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            os: ubuntu-24.04
+          - arch: arm64
+            os: ubuntu-24.04-arm
     timeout-minutes: 60
 
     steps:
@@ -54,7 +65,7 @@ jobs:
           set -euo pipefail
           SHA="$(git rev-parse --short=8 HEAD)"
           echo "sha=$SHA" >> "$GITHUB_OUTPUT"
-          echo "tarball=${IMAGE_NAME}-${SHA}-linux-amd64.tar" >> "$GITHUB_OUTPUT"
+          echo "tarball=${IMAGE_NAME}-${SHA}-linux-${{ matrix.arch }}.tar" >> "$GITHUB_OUTPUT"
           echo "Building ${IMAGE_NAME}:${SHA}"
 
       - name: Check the Dockerfile covers every workspace member
@@ -88,15 +99,39 @@ jobs:
           fi
           echo "All workspace members are covered in both stages."
 
+      - name: Set up Docker Buildx
+        if: inputs.candidate_version != ''
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build candidate offline package
+        if: inputs.candidate_version != ''
+        env:
+          RELEASE_TAG: ${{ inputs.candidate_version }}
+          ARCH: ${{ matrix.arch }}
+        run: bash apps/webui/deploy/package-release.sh "$RELEASE_TAG" "$ARCH" webui-release
+
+      - name: Upload candidate offline package
+        if: inputs.candidate_version != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: webui-release-${{ matrix.arch }}
+          path: webui-release/*
+          if-no-files-found: error
+          compression-level: 0
+
       - name: Build image
+        if: inputs.candidate_version == ''
         shell: bash
         run: |
           set -euo pipefail
           # Context is the repo root: the webui is a workspace member that
           # consumes the @sudowork/* packages.
-          docker build -f apps/webui/Dockerfile -t "${IMAGE_NAME}:${{ steps.tag.outputs.sha }}" .
+          docker build --platform 'linux/${{ matrix.arch }}' -f apps/webui/Dockerfile -t "${IMAGE_NAME}:${{ steps.tag.outputs.sha }}" .
+          test "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "${IMAGE_NAME}:${{ steps.tag.outputs.sha }}")" = 'linux/${{ matrix.arch }}'
+          docker run --rm --entrypoint node "${IMAGE_NAME}:${{ steps.tag.outputs.sha }}" -e 'require("@lydell/node-pty")'
 
       - name: Save and checksum
+        if: inputs.candidate_version == ''
         shell: bash
         run: |
           set -euo pipefail
@@ -105,6 +140,7 @@ jobs:
           ls -lh "${{ steps.tag.outputs.tarball }}"
 
       - name: Upload to COS
+        if: inputs.candidate_version == ''
         env:
           TENCENT_SECRET_ID: ${{ secrets.TENCENT_SECRET_ID }}
           TENCENT_SECRET_KEY: ${{ secrets.TENCENT_SECRET_KEY }}
