@@ -527,6 +527,8 @@ async def main(args):
             await page.wait_for_function(
                 "()=>{const e=document.querySelector('[data-testid=browser-session-panel] img');return e?.naturalWidth>0&&e.naturalHeight>0&&e.naturalHeight<900}"
             )
+            await frame.scroll_into_view_if_needed()
+            await expect(frame).to_be_in_viewport(ratio=0.95, timeout=10000)
             dimensions = await frame.evaluate(
                 "e=>({width:e.naturalWidth,height:e.naturalHeight})"
             )
@@ -733,6 +735,7 @@ async def main(args):
                     "modelCompleted": done,
                     "profileId": loaded["profileId"],
                     "browserSessionId": loaded["browserSessionId"],
+                    "retainedDownloadCount": len(loaded.get("downloads") or []),
                     "upload": received[0],
                     "download": file,
                     "textEdit": {

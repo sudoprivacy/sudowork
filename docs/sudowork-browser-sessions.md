@@ -1,6 +1,6 @@
 # Shared browser sessions for Desktop and WebUI
 
-Status: cloud browser control and the shared WebUI panel are merged. Production Moss 0.1.59 uses the public browser SDK v0.57.5 and user-runtime SDK v0.1.2. Desktop shared-panel integration and compact takeover controls have passed a real model and native Chrome journey and remain under review. Public frontend deployment, the local extension relay and actual phone/browser compatibility remain open. This document is the source for [the shared design page](https://s.shareone.vip/md/sudowork-browser-sessions).
+Status: cloud browser control, the shared panel, Desktop integration and compact takeover controls are merged. The public WebUI is deployed with production Moss 0.1.59, public browser SDK v0.57.5 and user-runtime SDK v0.1.2. Actual Electron, Chromium and Firefox clients passed real model/browser journeys; the public frontend's complete Chromium journey also passed after deployment. Existing personal Chrome attachment, the optional local extension relay and actual phone/Safari acceptance remain open. This document is the source for [the shared design page](https://s.shareone.vip/md/sudowork-browser-sessions).
 
 ## 1. Decisions
 
@@ -27,6 +27,17 @@ Browser location, automation transport and display surface are separate choices.
 | WebUI, user's local Chrome       | Authorized outbound relay to extension   | Same panel/viewer and native Chrome      | Explicitly paired local browser                    |
 
 An Electron `<webview>` is a Chromium guest, not a DOM component available in ordinary browsers. The remote surface adapts this difference without duplicating tab, navigation or handoff UX.
+
+### Implementation and acceptance coverage
+
+| Browser path                     | Delivery and evidence                                                                                                                                                                                       |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Desktop local standalone CDP     | Implemented in [SudoWork #1250](https://github.com/sudoprivacy/sudowork/pull/1250); actual Electron/model takeover, compact controls and same-session commands passed.                                      |
+| Desktop app-managed extension    | Implemented; actual signed/native Chrome HTTP and stdio lifecycle journeys cover the public worker.                                                                                                         |
+| Desktop existing personal Chrome | Explicit attachment and its profile UX remain planned. Managed extension acceptance does not establish personal-profile attachment.                                                                         |
+| Shared cloud extension and CDP   | Implemented in the public worker, Moss and shared panel. Real model/file/reconnect and explicit transport-switch journeys passed against the production backend; public frontend rollout is recorded below. |
+| WebUI local extension relay      | Optional planned capability with explicit pairing and revocation.                                                                                                                                           |
+| Viewing clients                  | Real Chromium and Firefox 155 on Windows passed. Physical phone and Safari acceptance remain open; desktop testing does not establish either result.                                                        |
 
 ## 3. Architecture
 
@@ -323,7 +334,8 @@ browser/profile identity, stale/anonymous rejection and exact download bytes.
   Its restored visible approval allowed the AI to finish the trusted download
   without another submission. [SudoWork #1251](https://github.com/sudoprivacy/sudowork/pull/1251)
   contains the subscription barrier, writer retention, permission replay and
-  the locally executed live test. Public frontend deployment remains open.
+  the locally executed live test. The subsequent public frontend deployment
+  and its actual acceptance are recorded below.
 - The extended production-backend journey also passed the actual shared page
   keyboard path: AI prefilled a field, the user replaced it through Ctrl+A and
   trusted Unicode input, and the returning model reported the exact new value.
@@ -356,6 +368,15 @@ independent-viewer Return, restored single-use permission after reload, exact
 model readback and the downloaded receipt's bytes/SHA-256. The owned completed
 test conversation was terminated through its normal owner API.
 
+Download history and tab lists have bounded, independently scrollable areas.
+The page surface retains a minimum usable height. A real Firefox journey
+previously failed when a retained download list consumed the panel and clipped
+trusted page clicks. After the layout repair, the entire model/file/reconnect
+journey passed with the same profile and 14 retained downloads; Chromium also
+passed with 15 retained downloads. The live test
+requires at least 95% of the page image to be visible before page input and
+records the retained history count.
+
 The same full journey also passed with a real Firefox 155 client on Windows.
 Firefox displayed and controlled the VM's managed extension Chrome through
 the shared panel. Trusted field preparation, the value at human focus,
@@ -381,6 +402,15 @@ through an explicit return. These application checks complement the Windows
 and Linux real-Chrome host/stdio CI workflow; the model journey remains an
 explicit local test with actual credentials.
 
+Packaged Desktop includes both browser MCP adapters. The packaging hook rejects
+a missing or empty adapter before signing or publishing on every platform.
+The actual pre-fix Windows installation failed with a missing `shared.js` when
+started through its Electron executable in Node mode. The repaired installation
+passed real headless and headful Chrome/stdio journeys through that same
+packaged path, including authenticated discovery without allocation, takeover,
+trusted input, exact file bytes and shutdown. The reusable native live journey
+accepts `--packaged-resources` and `--electron-executable` for this verification.
+
 The shared panel also supports a compact control surface without pixel
 streaming. Desktop opens it as an always-on-top window, allowing Take control,
 a handoff note and Return to AI while BrowserPanel is hidden. Open viewer uses
@@ -390,6 +420,34 @@ trusted Unicode replacement, one submission and exact model readback.
 
 Desktop managed profiles currently persist per conversation; cloud profiles
 persist per user with exclusive ownership. Desktop connection to an existing
-user Chrome profile, the authorized local extension relay, public WebUI
-frontend deployment and actual phone/Safari acceptance remain open. These capabilities must each have their own
+user Chrome profile, the authorized local extension relay and actual
+phone/Safari acceptance remain open. These capabilities must each have their own
 implementation and evidence before this design is considered fully delivered.
+
+### Public WebUI deployment and acceptance
+
+On October 15, 2026, [the official image build](https://github.com/sudoprivacy/sudowork/actions/runs/38678395905)
+published source `41cae42566a984d13cc5798c5b6a23900d5d7c25`, whose Git tree is
+identical to the merged #1250 source. The deployed image is
+`sha256:31a996ff6addc9a5ca8267c30ae1b6815f65c8827693267e5cb5040758933efd`.
+The application replacement retained the PostgreSQL container/volume, gateway,
+TLS files, encryption keys, original conversation lock states and 579 old
+hashed assets. Its previous image and a consistent database backup remain
+available for rollback. No database backup was restored during the upgrade.
+
+An original browser window reloaded the new public application without logging
+in again: the user and cookie were unchanged, and its old JavaScript asset
+returned the original bytes and SHA-256. The check waits for visible application
+readiness and verifies identity explicitly; background polling makes network
+idleness unsuitable as the completion condition.
+
+The complete live file journey then passed at
+[the public WebUI](https://webui.sudoprivacy.com) with real gpt-6-luna and the
+production managed extension Chrome. It verified actual AI prefill at human
+focus, trusted Unicode replacement with a 450 ms delayed click, native file
+selection/upload, independent-viewer Return, recovery of a pending single-use
+permission after chat reload, completed and visible model readback, one
+submission and the exact 80-byte downloaded receipt/SHA-256. Anonymous and stale
+uploads returned their expected 401/409 responses, with no page errors. The
+completed owned conversation was terminated through its normal owner API;
+persistent profile data was retained.

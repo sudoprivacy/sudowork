@@ -46,6 +46,12 @@ const address = server.address();
 assert(address && typeof address !== 'string');
 const binding = { orgId: 'local', userId: 'fixture-owner', sessionId: randomUUID() };
 const isStdio = process.argv.includes('--stdio');
+const packagedResourcesArg = process.argv.indexOf('--packaged-resources');
+const packagedResources = packagedResourcesArg === -1 ? undefined : process.argv[packagedResourcesArg + 1];
+if (packagedResourcesArg !== -1) assert(isStdio && packagedResources && !packagedResources.startsWith('--'), '--packaged-resources requires --stdio and an actual resources directory');
+const electronArg = process.argv.indexOf('--electron-executable');
+const electronExecutable = electronArg === -1 ? undefined : process.argv[electronArg + 1];
+if (electronArg !== -1) assert(packagedResources && electronExecutable && !electronExecutable.startsWith('--'), '--electron-executable requires --packaged-resources and an actual executable');
 const isHost = process.argv.includes('--host') || isStdio;
 let runtimePreparations = 0;
 const returns: string[] = [];
@@ -89,7 +95,15 @@ let stdio: Client | undefined;
 if (isStdio) {
   assert(config);
   stdio = new Client({ name: 'native-browser-live', version: '1.0.0' }, { capabilities: {} });
-  await stdio.connect(new StdioClientTransport({ command: process.execPath, args: [path.resolve('apps/desktop/resources/browser-panel-mcp/shared.js')], env: { SUDOWORK_BROWSER_MCP_URL: config.url, SUDOWORK_BROWSER_MCP_TOKEN: config.headers[0].value.slice('Bearer '.length) }, stderr: 'pipe' }));
+  const script = packagedResources ? path.join(packagedResources, 'browser-panel-mcp', 'shared.js') : path.resolve('apps/desktop/resources/browser-panel-mcp/shared.js');
+  await stdio.connect(
+    new StdioClientTransport({
+      command: electronExecutable || process.execPath,
+      args: [script],
+      env: { SUDOWORK_BROWSER_MCP_URL: config.url, SUDOWORK_BROWSER_MCP_TOKEN: config.headers[0].value.slice('Bearer '.length), ...(electronExecutable ? { ELECTRON_RUN_AS_NODE: '1' } : {}) },
+      stderr: 'inherit',
+    })
+  );
   assert.equal((await stdio.listTools()).tools.length, 5);
   assert.equal(runtimePreparations, 0);
 }

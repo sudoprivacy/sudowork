@@ -167,6 +167,13 @@ visible chat bubble. Stream deltas and assistant snapshots are observed
 separately. Evidence includes the client engine/version, the value at human
 focus, completed reply source and visible readback.
 
+Keep the profile's download history when verifying viewport behavior. Before
+page input, the live test requires at least 95% of the page image to be visible.
+Its evidence records the retained download count. This protects the actual
+Firefox regression where a long, unbounded download list collapsed the page
+surface and intercepted trusted clicks. Download and tab lists scroll within
+their own bounds so the page keeps usable space.
+
 Add `--delay-first-page-click-ms 450` to exercise this workflow over a slow
 connection. It delays one actual human click request while keeping the model,
 Chrome, trusted input and file transport real. Click, SelectAll, text insertion
