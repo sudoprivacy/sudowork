@@ -492,6 +492,18 @@ function buildTeamMcp() {
   console.log('✅ team-mcp MCP server built successfully');
 }
 
+/** A clean checkout has no generated browser adapters; every package needs both. */
+function buildBrowserMcp() {
+  const projectRoot = path.resolve(__dirname, '..');
+  console.log('🔨 Building browser MCP transports...');
+  execSync('node scripts/build-browser-mcp.js', {
+    cwd: projectRoot,
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+  });
+  require('./afterPack').verifyBrowserMcpResources(path.join(projectRoot, 'resources'));
+}
+
 try {
   // 0. Build safety hook first (required for Sudoclaw gateway interception)
   const hookBuilt = buildSafetyHook();
@@ -501,6 +513,9 @@ try {
 
   // 0b. Build team-mcp MCP server (mandatory — missing bundle breaks team creation).
   buildTeamMcp();
+
+  // 0c. Build and validate both browser transports before any cached Vite output.
+  buildBrowserMcp();
 
   // 1. Ensure package.json main entry is correct for electron-vite
   const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));

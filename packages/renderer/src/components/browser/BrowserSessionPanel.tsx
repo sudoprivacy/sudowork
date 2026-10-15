@@ -448,7 +448,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
         </div>
       ) : null}
       {session?.capabilities.fileTransfer && session.downloads?.length ? (
-        <div aria-label={t('conversation.browserSession.downloads')} className='flex flex-wrap gap-2' data-testid='browser-downloads'>
+        <div aria-label={t('conversation.browserSession.downloads')} className='max-h-24 shrink-0 overflow-y-auto flex flex-wrap gap-2' data-testid='browser-downloads'>
           {session.downloads.map((file) => (
             <Button key={file.id} size='mini' disabled={isFileTransferring} onClick={() => void onDownloadFile(file)}>
               {t('conversation.browserSession.downloadFile', { name: file.name })}
@@ -469,7 +469,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
         </div>
       ) : null}
       {session?.tabs.length ? (
-        <div role='tablist' className='flex flex-wrap gap-1'>
+        <div role='tablist' className='max-h-24 shrink-0 overflow-y-auto flex flex-wrap gap-1'>
           {session.tabs.map((tab) => (
             <div key={tab.id} className='flex items-center'>
               <Button size='mini' role='tab' aria-selected={tab.id === session.activeTargetId} disabled={!isController} onClick={() => void onAction('select-tab', tab.id)}>
@@ -497,7 +497,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
         </Button>
         <Input aria-label={t('conversation.browserSession.address')} value={url} disabled={!isController} onChange={setUrl} onPressEnter={() => void onAction('navigate')} />
       </div>
-      <div className='relative flex-1 min-h-0 overflow-auto flex items-start justify-center'>
+      <div className='relative flex-1 min-h-32 overflow-auto flex items-start justify-center'>
         <img
           ref={imageRef}
           alt={t('conversation.browserSession.page')}

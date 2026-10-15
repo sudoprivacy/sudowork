@@ -150,6 +150,15 @@ They verify authenticated discovery without allocation, takeover fences,
 session identity, exact trusted input, cookies, file bytes and shutdown. They
 complement the actual model/UI test above.
 
+The native journey can also exercise the adapter from an actual unpacked
+installation. Build `localBrowserWorker.live.ts` as in the PR workflow, then run
+it with `--stdio --packaged-resources <installation/resources>` and optionally
+`--electron-executable <installation/Sudowork.exe>`. The latter uses Electron's
+Node mode, matching the application's fallback when a standalone Node runtime
+is unavailable. Set `SUDOWORK_BROWSER_LIVE_PYTHON` to the official public worker
+environment. This verifies packaged resources instead of the repository copy.
+The packaging hook rejects a missing or empty browser adapter on every platform.
+
 ## Rules
 
 1. `primitives/` and `ops/` are AUTO-GENERATED. Never hand-edit.

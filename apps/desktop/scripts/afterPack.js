@@ -722,6 +722,17 @@ async function signBinariesInArchive(archivePath, identity, isNested = false, en
   }
 }
 
+/** Reject incomplete browser transports before signing or publishing. */
+function verifyBrowserMcpResources(resourcesDir) {
+  for (const entry of ['index.js', 'shared.js']) {
+    const filename = path.join(resourcesDir, 'browser-panel-mcp', entry);
+    const stat = fs.statSync(filename, { throwIfNoEntry: false });
+    if (!stat?.isFile() || stat.size === 0) {
+      throw new Error(`Required browser MCP resource missing or empty: ${filename}`);
+    }
+  }
+}
+
 async function afterPack(context) {
   const { arch, electronPlatformName, appOutDir, packager } = context;
   const targetArch = normalizeArch(typeof arch === 'string' ? arch : Arch[arch] || process.arch);
@@ -740,6 +751,8 @@ async function afterPack(context) {
   } else {
     resourcesDir = path.join(appOutDir, 'resources');
   }
+
+  verifyBrowserMcpResources(resourcesDir);
 
   // Sign binaries inside bundled .tgz files (for macOS notarization)
   // This must run BEFORE the early return, as signing is always needed on macOS
@@ -991,3 +1004,4 @@ async function afterPackWithInstallerManifest(context) {
 
 module.exports = afterPackWithInstallerManifest;
 module.exports.writeInstallerManifest = writeInstallerManifest;
+module.exports.verifyBrowserMcpResources = verifyBrowserMcpResources;

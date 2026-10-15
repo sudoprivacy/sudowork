@@ -1,7 +1,7 @@
 # Published ACP tunnel tests
 
 `acpTunnelLive.integration.test.ts` boots an isolated published daemon and runs
-the real `GrpcAcpTransport` against the published scode from
+the real `ScodeAcpTransport` against the published scode from
 `src/shared/runtime-versions.json`. Binaries with another version fail the test.
 It never connects to an existing daemon or writes to the user's workspace/config.
 
@@ -9,8 +9,8 @@ It never connects to an existing daemon or writes to the user's workspace/config
 
 From `apps/desktop`, run `node scripts/dev/download-acp-test-runtime.mjs` (requires
 GitHub CLI). It verifies the release SHA256 manifests and the pinned daemon hash,
-extracts into a new temporary directory, and prints `SCODE_BIN` and
-`NEXUS_CLUSTER_BIN`. Export those two paths in your shell.
+extracts into a new temporary directory, and prints `SCODE_BIN`. Export that
+path in your shell. The scode capability service owns daemon installation.
 
 For the protocol/process lifecycle tests, set `SUDOWORK_ACP_TUNNEL_E2E=1`.
 For real model calls, set:
@@ -41,7 +41,7 @@ Run `bunx vitest run tests/integration/acpTunnelLive.integration.test.ts --repor
 
 ## Acceptance workflows
 
-1. Initialize scode over gRPC -> create an ACP session -> cancel idle work ->
+1. Initialize scode over the session mailbox -> create an ACP session -> cancel idle work ->
    create another session -> close transport -> verify the OS child was reaped.
    Separately, crash scode -> observe the tunnel disconnect -> start a replacement
    session through the same daemon.
@@ -62,6 +62,35 @@ An explicit workflow dispatch with `live=true` additionally uses the repository
 secret `ACP_LIVE_CONFIG_JSON` (a sudocode config with a `sudorouter` proxy profile).
 If the secret is absent the job fails. Local live runs are required before
 committing changes to this path; ordinary CI never substitutes a mock model.
+
+### Runtime retirement during cleanup
+
+Cancellation acknowledges the signal before the daemon finishes retiring the
+runtime. The suite observes `files.list` for `/proc/` until the owned runtime
+list is empty before issuing `service.shutdown`. The service's shutdown guard
+checks this same list. A retained runtime fails cleanup with a bounded timeout;
+the test preserves the protected shutdown behavior.
+
+When running these process-tree checks in Docker, use `docker run --init` so
+orphaned descendants are reaped as they are on the Linux CI VM. The cancellation
+assertion requires the child PID to disappear. A container whose PID 1 does not
+reap children can retain a killed child as a zombie, for which `kill(pid, 0)`
+still succeeds. Keep that strict assertion and configure the container lifecycle.
+
+## Live validation (2026-10-15)
+
+The published scode 0.2.31 passed all three workflows with real gpt-6-luna calls
+on Windows and Docker Desktop Linux with init. Each run verified exact file
+contents, continuation after long-poll expiry, cancellation of a running tool,
+descendant reaping and a successful recovery turn. Linux also passed 20
+consecutive protocol runs, covering 40 lifecycle cases with no model calls.
+
+The original Linux CI failure occurred after both protocol cases passed: the
+shutdown guard still saw a retiring runtime. Waiting for the real `/proc/`
+list to clear fixed that cleanup race. An initial local container without init
+separately failed the strict descendant-exit check. A real process-group probe
+retained a zombie with Node as PID 1 and reaped it with docker-init; the full
+API workflow then passed with init and the unchanged exit assertion.
 
 ## Live validation (2026-10-02)
 
