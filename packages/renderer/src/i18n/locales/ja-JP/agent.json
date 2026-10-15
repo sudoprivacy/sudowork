@@ -91,5 +91,21 @@
   "external.chat.noOutput": "このタスクには出力がありません。",
   "external.chat.policyRejected": "リクエストが拒否されました：{{reason}}",
   "external.chat.hosted": "外部ホスト",
-  "external.sourceIdentityUnverified": "アプリの提供元は管理者の申告に基づき、サービス認証情報との対応は未検証です。"
+  "external.sourceIdentityUnverified": "アプリの提供元は管理者の申告に基づき、サービス認証情報との対応は未検証です。",
+  "external.versions.choose": "エージェントのバージョン",
+  "external.versions.more": "他のバージョン",
+  "external.versions.retry": "バージョンを再読み込み",
+  "external.versions.empty": "承認済みのバージョンがありません。",
+  "external.versions.evidence": "バージョンの証跡",
+  "external.versions.task": "タスク：{{id}}",
+  "external.versions.selected": "選択したバージョン：{{version}}",
+  "external.versions.channel": "チャネル：{{channel}} · 更新 {{revision}}",
+  "external.versions.source": "審査済みソース：{{digest}}",
+  "external.versions.noSelection": "受理されたバージョン選択の記録はありません。",
+  "external.versions.run": "外部実行：{{id}}",
+  "external.versions.executed": "確認済み実行リビジョン：{{revision}}",
+  "external.versions.snapshotOnly": "このプロバイダーは審査済みソースのスナップショットのみを提供し、変更されない実行バージョンを保証しません。",
+  "external.versions.awaitingEvidence": "確認済みの外部実行の証跡はまだありません。",
+  "external.versions.sessionPinned": "この会話は元のバージョンを維持します。変更するには新しい会話を開始してください。",
+  "external.versions.durableCapabilities": "会話の開始時にバージョンを選択します。確認済みの実行情報は「バージョンの根拠」で確認できます。テキストのみ対応し、リモート実行のキャンセルはできません。"
 }

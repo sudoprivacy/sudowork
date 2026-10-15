@@ -6,6 +6,8 @@ import { readArtifact } from './check-external-contract.mjs'
 const root = new URL('../', import.meta.url)
 const digest = value => `sha256:${createHash('sha256').update(value).digest('hex')}`
 const paths = {
+  'contracts/agent-federation/v1alpha1/contract.ts': ['contract.gen.ts', 'packages/contracts/src/agent-federation.gen.ts'],
+  'contracts/agent-federation/v1alpha1/schema.json': ['schema.gen.json', 'packages/contracts/agent-federation.schema.json'],
   'contracts/task/v1alpha1/contract.ts': ['task.contract.gen.ts', 'packages/contracts/src/task.gen.ts'],
   'contracts/task/v1alpha1/schema.json': ['task.schema.gen.json', 'packages/contracts/task.schema.json'],
 }

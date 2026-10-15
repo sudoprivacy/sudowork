@@ -1,4 +1,4 @@
-// Derived from Moss 4dc9f1edf7a14761a1a27436cdfd8447075a6e12:contracts/task/v1alpha1/contract.ts. DO NOT EDIT.
+// Derived from Moss 9f6456de38de159821fdbac415d6ea51a7a60768:contracts/task/v1alpha1/contract.ts. DO NOT EDIT.
 import type { ResourceRef } from '@sudo/contracts/common/v1/resource-ref'
 
 /** Product Task ingress implementation; ADR-003/004 remain Proposed. */
@@ -48,7 +48,7 @@ export type TaskExecutionResolution = ResolutionBase & (
     resolved_runtime: 'external_provider'
     resolution_mode: 'default'
     governance_org_id: string
-    agent: { principal: AgentPrincipalRef; version: string; source_digest: string; version_evidence: 'source_snapshot_only'; source_identity_evidence?: 'unverified'; claimed_app_id?: string; claimed_workspace_id?: string }
+    agent: { principal: AgentPrincipalRef; version: string; source_digest: string; version_evidence: 'source_snapshot_only' | 'provider_revision_fenced'; release_digest?: string; execution_revision?: string; resolved_from_channel?: string; channel_revision?: number; source_identity_evidence?: 'unverified'; claimed_app_id?: string; claimed_workspace_id?: string }
     binding_id: string
     configuration_revision: number
     provider_kind: 'dify' | 'custom_http'

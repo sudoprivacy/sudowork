@@ -1,3 +1,5 @@
+import type { AgentReleaseOptions } from '@sudowork/contracts/agent-federation';
+import type { ExternalTaskEvidence } from '@sudowork/contracts/external-provider';
 import type { ExternalProviderAccess, ExternalPilotPolicy, ExternalAgentAdmin, ExternalProviderMember, ExternalConnectionInspection, InspectExternalConnection, OnboardExternalAgent, UpdateExternalAgent , CreateExternalTask, ExternalAgent, ExternalEventsPage, ExternalSession, ExternalTask } from '@sudowork/contracts/external-provider';
 import type { IMossCatalogPage, IMossCatalogItem, IMossCatalogInstallation, MossCatalogKind, MossCatalogSource } from '@sudowork/common/mossCatalog';
 /**
@@ -3582,6 +3584,8 @@ export const mossCatalog = {
 };
 
 export const externalProviders = {
+  versions: bridge.buildProvider<IBridgeResponse<AgentReleaseOptions>, { agentId: string; after?: string }>('external-providers.versions'),
+  evidence: bridge.buildProvider<IBridgeResponse<ExternalTaskEvidence>, { taskId: string }>('external-providers.evidence'),
   context: bridge.buildProvider<IBridgeResponse<{ isAvailable: boolean; identity: string }>, void>('external-providers.context'),
   access: bridge.buildProvider<IBridgeResponse<ExternalProviderAccess>, void>('external-providers.access'),
   policy: bridge.buildProvider<IBridgeResponse<ExternalPilotPolicy>, void>('external-providers.policy'),

@@ -91,5 +91,21 @@
   "external.chat.noOutput": "本次任務未產生輸出。",
   "external.chat.policyRejected": "請求被拒絕：{{reason}}",
   "external.chat.hosted": "外部託管",
-  "external.sourceIdentityUnverified": "應用來源由管理員聲明，尚未驗證與服務憑證的綁定。"
+  "external.sourceIdentityUnverified": "應用來源由管理員聲明，尚未驗證與服務憑證的綁定。",
+  "external.versions.choose": "智慧體版本",
+  "external.versions.more": "更多版本",
+  "external.versions.retry": "重新載入版本",
+  "external.versions.empty": "暫無可用的已核准版本。",
+  "external.versions.evidence": "版本依據",
+  "external.versions.task": "任務：{{id}}",
+  "external.versions.selected": "選定版本：{{version}}",
+  "external.versions.channel": "頻道：{{channel}} · 第 {{revision}} 次更新",
+  "external.versions.source": "審核來源：{{digest}}",
+  "external.versions.noSelection": "沒有已接受的版本選擇紀錄。",
+  "external.versions.run": "遠端執行：{{id}}",
+  "external.versions.executed": "已確認執行版本：{{revision}}",
+  "external.versions.snapshotOnly": "此平台僅提供審核來源快照，不能保證遠端執行不可變版本。",
+  "external.versions.awaitingEvidence": "尚未收到已確認的遠端執行依據。",
+  "external.versions.sessionPinned": "目前對話維持原版本；切換版本請建立新對話。",
+  "external.versions.durableCapabilities": "版本於建立對話時確定；已確認的執行版本可在「版本依據」中查看。僅限文字，不支援取消遠端執行。"
 }

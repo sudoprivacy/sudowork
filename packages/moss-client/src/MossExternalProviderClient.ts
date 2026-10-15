@@ -1,5 +1,9 @@
 import { TASK_API, type SubmitTask } from "@sudowork/contracts/task";
 import {
+  AGENT_FEDERATION_API,
+  type AgentReleaseOptions,
+} from "@sudowork/contracts/agent-federation";
+import {
   type ExternalAgentAdmin,
   type ExternalPilotPolicy,
   type ExternalProviderAccess,
@@ -14,6 +18,7 @@ import {
   type ExternalEventsPage,
   type ExternalSession,
   type ExternalTask,
+  type ExternalTaskEvidence,
 } from "@sudowork/contracts/external-provider";
 import { z } from "zod";
 import type { MossAgentFetch } from "./MossAgentClient.js";
@@ -46,11 +51,20 @@ const id = z.string().regex(/^[\w-]{1,100}$/);
 const taskInput = z
   .object({
     agent_id: id,
+    requested_version: z
+      .string()
+      .regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/)
+      .optional(),
+    requested_channel: z.enum(["stable", "canary"]).optional(),
     session_id: id.optional(),
     query: z.string().min(1).max(8000),
     idempotency_key: z.string().regex(/^[\w-]{8,128}$/),
   })
-  .strict();
+  .strict()
+  .refine(
+    (value) => !(value.requested_version && value.requested_channel),
+    "Ambiguous version selector",
+  );
 const status = z.enum([
   "accepted",
   "dispatching",
@@ -185,6 +199,105 @@ const events = z.object({
   ),
 });
 
+const releaseVersion = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/);
+const releaseDigest = z.string().regex(/^sha256:[a-f0-9]{64}$/);
+const releaseOptionsSchema = z
+  .object({
+    api_version: z.literal(AGENT_FEDERATION_API),
+    kind: z.literal("AgentReleaseOptions"),
+    catalog_id: id,
+    principal: z
+      .object({
+        trust_domain: z.string().min(1).max(200),
+        agent_name: z.string().min(1).max(200),
+      })
+      .strict(),
+    items: z
+      .array(
+        z
+          .object({
+            version: releaseVersion,
+            source_digest: releaseDigest,
+            spec_digest: releaseDigest,
+            execution_revision: releaseDigest.optional(),
+            approval_expires_at: z.number().int().nonnegative(),
+          })
+          .strict(),
+      )
+      .max(50),
+    channels: z
+      .array(
+        z
+          .object({
+            name: z.enum(["stable", "canary"]),
+            version: releaseVersion,
+            revision: z.number().int().positive(),
+            updated_at: z.number().int().nonnegative(),
+            enabled: z.boolean(),
+          })
+          .strict(),
+      )
+      .max(2),
+    next_cursor: releaseVersion.nullable(),
+  })
+  .strict();
+const versionEvidence = z.enum([
+  "source_snapshot_only",
+  "provider_revision_fenced",
+]);
+const evidenceSchema = z
+  .object({
+    api_version: z.literal(EXTERNAL_PROVIDER_API),
+    kind: z.literal("ExternalTaskEvidence"),
+    task_id: id,
+    session_id: id,
+    attempt_id: id.nullable(),
+    status,
+    selection: z
+      .object({
+        version: releaseVersion,
+        source_digest: releaseDigest,
+        release_digest: releaseDigest.optional(),
+        resolved_from_channel: z.string().optional(),
+        channel_revision: z.number().int().positive().optional(),
+        execution_revision: releaseDigest.optional(),
+        version_evidence: versionEvidence,
+      })
+      .strict()
+      .optional(),
+    execution: z
+      .object({
+        provider_run_id: z.string().min(1).max(200),
+        execution_revision: releaseDigest.optional(),
+        version_evidence: versionEvidence,
+        resume: z.enum(["unsupported", "query_only"]),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    for (const item of [value.selection, value.execution]) {
+      if (
+        item &&
+        (item.version_evidence === "provider_revision_fenced") !==
+          Boolean(item.execution_revision)
+      )
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Execution revision evidence mismatch",
+        });
+    }
+    if (
+      value.execution?.execution_revision &&
+      value.execution.execution_revision !== value.selection?.execution_revision
+    )
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Executed revision differs from resolution",
+      });
+  });
+
 const policySchema = z.object({
   enabled: z.boolean(),
   endpoints: z.array(z.string()),
@@ -245,6 +358,8 @@ export interface MossExternalProviderPort {
   ): Promise<ExternalAgentAdmin>;
 
   agents(): Promise<ExternalAgent[]>;
+  versions(agentId: string, after?: string): Promise<AgentReleaseOptions>;
+  evidence(taskId: string): Promise<ExternalTaskEvidence>;
   sessions(): Promise<ExternalSession[]>;
   history(sessionId: string): Promise<ExternalTask[]>;
   create(input: CreateExternalTask): Promise<ExternalTask>;
@@ -317,6 +432,24 @@ export function createMossExternalProviderPort(
         input,
       ),
     agents: () => read(z.array(agent), "/api/v1/external-agents"),
+    versions: async (agentId, after = "") => {
+      const data = await read(
+        releaseOptionsSchema,
+        `/api/v1/external-agents/${id.parse(agentId)}/versions${after ? `?after=${encodeURIComponent(releaseVersion.parse(after))}` : ""}`,
+      );
+      if (data.catalog_id !== agentId)
+        throw new Error("EXTERNAL_RELEASE_IDENTITY_MISMATCH");
+      return data;
+    },
+    evidence: async (taskId) => {
+      const data = await read(
+        evidenceSchema,
+        `/api/v1/tasks/${id.parse(taskId)}/evidence`,
+      );
+      if (data.task_id !== taskId)
+        throw new Error("EXTERNAL_TASK_IDENTITY_MISMATCH");
+      return data;
+    },
     sessions: () => read(z.array(session), "/api/v1/external-sessions"),
     history: (sessionId) =>
       read(
@@ -328,7 +461,15 @@ export function createMossExternalProviderPort(
       const submission: SubmitTask = {
         api_version: TASK_API,
         kind: "SubmitTask",
-        agent: { catalog_id: legacy.agent_id },
+        agent: {
+          catalog_id: legacy.agent_id,
+          ...(legacy.requested_version
+            ? { requested_version: legacy.requested_version }
+            : {}),
+          ...(legacy.requested_channel
+            ? { requested_channel: legacy.requested_channel }
+            : {}),
+        },
         ...(legacy.session_id ? { session_id: legacy.session_id } : {}),
         request_source: "interactive",
         input: { instruction: legacy.query, resource_refs: [] },

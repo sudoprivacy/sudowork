@@ -91,5 +91,21 @@
   "external.chat.noOutput": "Bu görev çıktı üretmedi.",
   "external.chat.policyRejected": "İstek reddedildi: {{reason}}",
   "external.chat.hosted": "Harici barındırma",
-  "external.sourceIdentityUnverified": "Uygulama kaynağı yönetici tarafından beyan edilmiştir; hizmet kimlik bilgileriyle bağlantısı doğrulanmamıştır."
+  "external.sourceIdentityUnverified": "Uygulama kaynağı yönetici tarafından beyan edilmiştir; hizmet kimlik bilgileriyle bağlantısı doğrulanmamıştır.",
+  "external.versions.choose": "Ajan sürümü",
+  "external.versions.more": "Diğer sürümler",
+  "external.versions.retry": "Sürümleri yeniden yükle",
+  "external.versions.empty": "Kullanılabilir onaylı sürüm yok.",
+  "external.versions.evidence": "Sürüm kanıtı",
+  "external.versions.task": "Görev: {{id}}",
+  "external.versions.selected": "Seçilen sürüm: {{version}}",
+  "external.versions.channel": "Kanal: {{channel}} · revizyon {{revision}}",
+  "external.versions.source": "İncelenen kaynak: {{digest}}",
+  "external.versions.noSelection": "Kabul edilmiş bir sürüm seçimi kaydı yok.",
+  "external.versions.run": "Sağlayıcı çalıştırması: {{id}}",
+  "external.versions.executed": "Doğrulanan yürütme revizyonu: {{revision}}",
+  "external.versions.snapshotOnly": "Bu sağlayıcı yalnızca incelenen kaynak anlık görüntüsünü sunar; değişmez yürütme sürümünü garanti etmez.",
+  "external.versions.awaitingEvidence": "Henüz doğrulanmış uzak yürütme kanıtı alınmadı.",
+  "external.versions.sessionPinned": "Bu konuşma özgün sürümünü korur. Sürümü değiştirmek için yeni bir konuşma başlatın.",
+  "external.versions.durableCapabilities": "Sürüm, konuşma başladığında seçilir. Doğrulanmış yürütme ayrıntılarını Sürüm kanıtı bölümünde görebilirsiniz. Yalnızca metin desteklenir; uzak yürütme iptal edilemez."
 }

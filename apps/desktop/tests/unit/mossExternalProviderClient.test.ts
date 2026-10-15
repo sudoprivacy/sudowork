@@ -67,6 +67,50 @@ const task: ExternalTask = {
   deadline_at: 1000,
 };
 
+it('maps explicit version selection into TaskSpec and rejects ambiguous selectors before sending', async () => {
+  const request = vi.fn().mockResolvedValue({ success: true, data: task });
+  const port = createMossExternalProviderPort(request);
+  await port.create({ agent_id: 'agent-1', query: 'synthetic', idempotency_key: 'request-123', requested_version: '1.2.0' });
+  expect(request).toHaveBeenLastCalledWith(expect.objectContaining({ body: expect.objectContaining({ agent: { catalog_id: 'agent-1', requested_version: '1.2.0' } }) }));
+  expect(() => port.create({ agent_id: 'agent-1', query: 'synthetic', idempotency_key: 'request-456', requested_version: '1.2.0', requested_channel: 'stable' })).toThrow();
+  expect(request).toHaveBeenCalledTimes(1);
+});
+
+it('checks release identity, page bounds and execution evidence correlation', async () => {
+  const digest = `sha256:${'a'.repeat(64)}`;
+  const options = {
+    api_version: 'agent-federation.sudo.dev/v1alpha1',
+    kind: 'AgentReleaseOptions',
+    catalog_id: 'agent-1',
+    principal: { trust_domain: 'moss.local', agent_name: 'external-agent-1' },
+    items: [{ version: '1.0.0', source_digest: digest, spec_digest: digest, approval_expires_at: 9000 }],
+    channels: [],
+    next_cursor: null,
+  };
+  const request = vi.fn().mockResolvedValue({ success: true, data: options });
+  const port = createMossExternalProviderPort(request);
+  expect((await port.versions('agent-1', '1.0.0')).items).toHaveLength(1);
+  expect(request).toHaveBeenLastCalledWith({ method: 'GET', path: '/api/v1/external-agents/agent-1/versions?after=1.0.0' });
+  request.mockResolvedValue({ success: true, data: { ...options, catalog_id: 'foreign' } });
+  await expect(port.versions('agent-1')).rejects.toThrow('IDENTITY_MISMATCH');
+  request.mockResolvedValue({ success: true, data: { ...options, endpoint: 'private-admin-config' } });
+  await expect(port.versions('agent-1')).rejects.toThrow();
+  const evidence = {
+    api_version: EXTERNAL_PROVIDER_API,
+    kind: 'ExternalTaskEvidence',
+    task_id: 'task-1',
+    session_id: 'session-1',
+    attempt_id: 'attempt-1',
+    status: 'succeeded',
+    selection: { version: '1.0.0', source_digest: digest, execution_revision: digest, version_evidence: 'provider_revision_fenced' },
+    execution: { provider_run_id: 'run-1', execution_revision: digest, version_evidence: 'provider_revision_fenced', resume: 'query_only' },
+  };
+  request.mockResolvedValue({ success: true, data: evidence });
+  expect((await port.evidence('task-1')).execution?.execution_revision).toBe(digest);
+  request.mockResolvedValue({ success: true, data: { ...evidence, execution: { ...evidence.execution, execution_revision: `sha256:${'b'.repeat(64)}` } } });
+  await expect(port.evidence('task-1')).rejects.toThrow();
+});
+
 it('retains server creation sequence and source evidence in history', async () => {
   const value = { ...task, session_sequence: 2, source_identity_evidence: 'unverified' };
   const port = createMossExternalProviderPort(vi.fn().mockResolvedValue({ success: true, data: [value] }));

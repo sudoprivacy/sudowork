@@ -504,7 +504,10 @@
                   "pattern": "^sha256:[a-f0-9]{64}$"
                 },
                 "version_evidence": {
-                  "const": "source_snapshot_only"
+                  "enum": [
+                    "source_snapshot_only",
+                    "provider_revision_fenced"
+                  ]
                 },
                 "source_identity_evidence": {
                   "const": "unverified"
@@ -518,6 +521,24 @@
                   "type": "string",
                   "minLength": 1,
                   "maxLength": 200
+                },
+                "release_digest": {
+                  "type": "string",
+                  "pattern": "^sha256:[a-f0-9]{64}$"
+                },
+                "execution_revision": {
+                  "type": "string",
+                  "pattern": "^sha256:[a-f0-9]{64}$"
+                },
+                "resolved_from_channel": {
+                  "enum": [
+                    "stable",
+                    "canary"
+                  ]
+                },
+                "channel_revision": {
+                  "type": "integer",
+                  "minimum": 1
                 }
               },
               "required": [

@@ -28,6 +28,11 @@
       "bun": "./src/task.gen.ts",
       "types": "./dist/task.gen.d.ts",
       "default": "./dist/task.gen.js"
+    },
+    "./agent-federation": {
+      "bun": "./src/agent-federation.gen.ts",
+      "types": "./dist/agent-federation.gen.d.ts",
+      "default": "./dist/agent-federation.gen.js"
     }
   },
   "files": [

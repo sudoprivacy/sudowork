@@ -41,6 +41,27 @@ it('requires a session and leaves admin registration out of the WebUI proxy', as
   expect((await request(app()).get('/api/v1/external-agents')).status).toBe(401)
   expect((await request(app('u')).post('/api/v1/external-agents').send({})).status).toBe(404)
 })
+
+it('forwards version pagination and evidence reads using the authenticated caller', async () => {
+  expect((await request(app()).get('/api/v1/external-agents/agent-1/versions')).status).toBe(401)
+  await request(app('member')).get('/api/v1/external-agents/agent-1/versions?after=1.0.0')
+  expect(upstream).toHaveBeenLastCalledWith(
+    'http://moss.test',
+    {
+      method: 'GET',
+      path: '/api/v1/external-agents/agent-1/versions',
+      accessToken: 'member',
+      searchParams: { after: '1.0.0' },
+    },
+    expect.any(Number),
+  )
+  await request(app('member')).get('/api/v1/tasks/task-1/evidence')
+  expect(upstream).toHaveBeenLastCalledWith(
+    'http://moss.test',
+    { method: 'GET', path: '/api/v1/tasks/task-1/evidence', accessToken: 'member' },
+    expect.any(Number),
+  )
+})
 it('forwards each session token, request key and cursor independently', async () => {
   await request(app('u1')).get('/api/v1/tasks/task-1/events?cursor=8')
   expect(upstream).toHaveBeenLastCalledWith(

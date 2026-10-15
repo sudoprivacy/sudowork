@@ -91,5 +91,21 @@
   "external.chat.noOutput": "本次任务未产生输出。",
   "external.chat.policyRejected": "请求被拒绝：{{reason}}",
   "external.chat.hosted": "外部托管",
-  "external.sourceIdentityUnverified": "应用来源由管理员声明，尚未验证与服务凭据的绑定。"
+  "external.sourceIdentityUnverified": "应用来源由管理员声明，尚未验证与服务凭据的绑定。",
+  "external.versions.choose": "智能体版本",
+  "external.versions.more": "更多版本",
+  "external.versions.retry": "重新加载版本",
+  "external.versions.empty": "暂无可用的已批准版本。",
+  "external.versions.evidence": "版本依据",
+  "external.versions.task": "任务：{{id}}",
+  "external.versions.selected": "选定版本：{{version}}",
+  "external.versions.channel": "频道：{{channel}} · 第 {{revision}} 次更新",
+  "external.versions.source": "审核来源：{{digest}}",
+  "external.versions.noSelection": "没有已接受的版本选择记录。",
+  "external.versions.run": "远端运行：{{id}}",
+  "external.versions.executed": "已确认执行版本：{{revision}}",
+  "external.versions.snapshotOnly": "此平台仅提供审核来源快照，不能保证远端执行不可变版本。",
+  "external.versions.awaitingEvidence": "尚未收到已确认的远端执行依据。",
+  "external.versions.sessionPinned": "当前对话保持原版本；切换版本请新建对话。",
+  "external.versions.durableCapabilities": "版本在创建会话时确定；已确认的执行版本可在“版本依据”中查看。仅限文本，不支持取消远端执行。"
 }

@@ -4,8 +4,8 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({ context: vi.fn(), access: vi.fn(), agents: vi.fn(), sessions: vi.fn(), history: vi.fn(), create: vi.fn(), events: vi.fn(), emit: vi.fn(), close: vi.fn(), user: { id: 'user-a', enterprise_code: 'org-a' } }));
-vi.mock('@sudowork/host-bridge/ipcBridge', () => ({ externalProviders: Object.fromEntries(['context', 'access', 'agents', 'sessions', 'history', 'create', 'events'].map((key) => [key, { invoke: mocks[key as 'access'] }])) }));
+const mocks = vi.hoisted(() => ({ context: vi.fn(), access: vi.fn(), versions: vi.fn(), evidence: vi.fn(), agents: vi.fn(), sessions: vi.fn(), history: vi.fn(), create: vi.fn(), events: vi.fn(), emit: vi.fn(), close: vi.fn(), user: { id: 'user-a', enterprise_code: 'org-a' } }));
+vi.mock('@sudowork/host-bridge/ipcBridge', () => ({ externalProviders: Object.fromEntries(['context', 'access', 'versions', 'evidence', 'agents', 'sessions', 'history', 'create', 'events'].map((key) => [key, { invoke: mocks[key as 'access'] }])) }));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock('@renderer/context/AuthContext', () => ({ useAuth: () => ({ user: mocks.user, isGuest: false }) }));
 vi.mock('@renderer/utils/emitter', () => ({ emitter: { emit: mocks.emit }, addEventListener: () => () => {} }));
@@ -55,6 +55,8 @@ beforeEach(() => {
   mocks.user = { id: 'user-a', enterprise_code: 'org-a' };
   mocks.context.mockResolvedValue({ success: true, data: { isAvailable: true, identity: 'moss-account-a' } });
   mocks.access.mockResolvedValue({ success: true, data: { can_manage: false, can_manage_policy: false, credential_storage_available: true } });
+  mocks.versions.mockResolvedValue({ success: true, data: { items: [{ version: '1.0.0' }], channels: [{ name: 'stable', version: '1.0.0', enabled: true }], next_cursor: null } });
+  mocks.evidence.mockResolvedValue({ success: true, data: { task_id: 'task-1', selection: { version: '1.0.0', source_digest: 'source' } } });
   mocks.agents.mockResolvedValue({ success: true, data: [agent] });
   mocks.sessions.mockResolvedValue({ success: true, data: [session] });
   mocks.history.mockResolvedValue({ success: true, data: [task] });
@@ -108,9 +110,34 @@ it('sends the selected agent, refreshes shared history and restores the acknowle
   fireEvent.change(screen.getByRole('textbox', { name: 'agent.external.query' }), { target: { value: '6 * 7' } });
   fireEvent.click(screen.getByRole('button', { name: 'agent.external.send' }));
   await screen.findByText('42');
-  expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ agent_id: 'agent-1', query: '6 * 7', idempotency_key: expect.any(String) }));
+  expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ agent_id: 'agent-1', query: '6 * 7', requested_channel: 'stable', idempotency_key: expect.any(String) }));
   await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/conversation/external%3Asession-1'));
   expect(mocks.emit).toHaveBeenCalledWith('chat.history.refresh');
+});
+
+it('blocks new dispatch when versions cannot load and retries without sending a task', async () => {
+  mocks.versions.mockResolvedValueOnce({ success: false });
+  page();
+  await screen.findByRole('button', { name: 'agent.external.versions.retry' });
+  fireEvent.change(screen.getByRole('textbox', { name: 'agent.external.query' }), { target: { value: '6 * 7' } });
+  expect(screen.getByRole('button', { name: 'agent.external.send' })).toBeDisabled();
+  fireEvent.keyDown(screen.getByRole('textbox', { name: 'agent.external.query' }), { key: 'Enter' });
+  expect(mocks.create).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'agent.external.versions.retry' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'agent.external.send' })).not.toBeDisabled());
+  expect(mocks.versions).toHaveBeenCalledTimes(2);
+});
+
+it('keeps existing sessions pinned and only fetches execution evidence on demand', async () => {
+  page('/conversation/external:session-1');
+  await screen.findByText('42');
+  expect(mocks.versions).not.toHaveBeenCalled();
+  expect(mocks.evidence).not.toHaveBeenCalled();
+  expect(screen.queryByRole('combobox')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'agent.external.versions.evidence' }));
+  await screen.findByText('agent.external.versions.awaitingEvidence');
+  expect(mocks.evidence).toHaveBeenCalledWith({ taskId: 'task-1' });
+  expect(mocks.create).not.toHaveBeenCalled();
 });
 
 it('continues using the same session and Enter, but not Shift+Enter or IME composition', async () => {

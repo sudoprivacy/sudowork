@@ -1709,6 +1709,12 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
   },
   'external-providers.agents': async () => ok(await externalProviderPort.agents()),
   'external-providers.sessions': async () => ok(await externalProviderPort.sessions()),
+  'external-providers.versions': async (req) => {
+    const input = req as { agentId: string; after?: string }
+    return ok(await externalProviderPort.versions(input.agentId, input.after))
+  },
+  'external-providers.evidence': async (req) =>
+    ok(await externalProviderPort.evidence((req as { taskId: string }).taskId)),
   'external-providers.history': async (req) =>
     ok(await externalProviderPort.history((req as { sessionId: string }).sessionId)),
   'external-providers.create': async (req) =>

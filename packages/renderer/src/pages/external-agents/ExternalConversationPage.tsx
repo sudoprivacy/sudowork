@@ -1,3 +1,5 @@
+import ExternalVersionSelector from './ExternalVersionSelector';
+import ExternalTaskEvidence from './ExternalTaskEvidence';
 import { Alert, Button, Input, Spin, Tag, Tooltip, Typography } from '@arco-design/web-react';
 import { ArrowUp, Copy, Plus } from 'lucide-react';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
@@ -36,6 +38,8 @@ function ExternalChat({ sessionId: routeSessionId, agentId }: IExternalChatProps
   const [session, setSession] = useState<ExternalSession | null>(null);
   const [tasks, setTasks] = useState<ExternalTask[]>([]);
   const [query, setQuery] = useState('');
+  const [release, setRelease] = useState('');
+  const [evidenceTaskId, setEvidenceTaskId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(Boolean(sessionId));
   const [isLoadFailed, setIsLoadFailed] = useState(false);
   const [isSending, setIsSending] = useState(false);
@@ -92,6 +96,7 @@ function ExternalChat({ sessionId: routeSessionId, agentId }: IExternalChatProps
   activeTaskRef.current = activeTask;
   const isUnknown = tasks.some((item) => item.status === 'unknown');
   const isBusy = isSending || isLoading || Boolean(activeTask) || isUnknown;
+  const isVersionMissing = !sessionId && !release;
   const isReadOnly = !isDirectoryLoading && !agent;
   const title = agent?.name || t('agent.external.published.fallbackName');
 
@@ -156,8 +161,13 @@ function ExternalChat({ sessionId: routeSessionId, agentId }: IExternalChatProps
   }, [tasks, pending]);
 
   async function onSend() {
-    if (isSending || (!pending && (isBusy || isReadOnly || isDirectoryLoading || !query.trim()))) return;
-    const request = pending ?? { agent_id: selectedAgentId, ...(sessionId ? { session_id: sessionId } : {}), query: query.trim(), idempotency_key: crypto.randomUUID() };
+    if (isSending || (!pending && (isBusy || isReadOnly || isDirectoryLoading || isLoadFailed || isVersionMissing || !query.trim()))) return;
+    const request = pending ?? {
+      agent_id: selectedAgentId,
+      ...(sessionId ? { session_id: sessionId } : release.startsWith('version:') ? { requested_version: release.slice(8) } : { requested_channel: release.slice(8) as 'stable' | 'canary' }),
+      query: query.trim(),
+      idempotency_key: crypto.randomUUID(),
+    };
     setPending(request);
     setIsSending(true);
     try {
@@ -240,6 +250,9 @@ function ExternalChat({ sessionId: routeSessionId, agentId }: IExternalChatProps
                   </div>
                   <div className='flex gap-2 items-center mt-2 text-xs text-secondary' role='status'>
                     <span>{t(`agent.external.status.${task.status}`)}</span>
+                    <Button type='text' size='mini' onClick={() => setEvidenceTaskId(task.id)}>
+                      {t('agent.external.versions.evidence')}
+                    </Button>
                     {task.answer && (
                       <Tooltip content={t('common.copy')}>
                         <Button
@@ -272,6 +285,12 @@ function ExternalChat({ sessionId: routeSessionId, agentId }: IExternalChatProps
                 {copyStatus}
               </div>
             )}
+            {!sessionId && agent && <ExternalVersionSelector key={selectedAgentId} agentId={selectedAgentId} value={release} isDisabled={isBusy || Boolean(pending)} onChange={setRelease} />}
+            {sessionId && (
+              <Typography.Paragraph type='secondary' className='text-xs'>
+                {t('agent.external.versions.sessionPinned')}
+              </Typography.Paragraph>
+            )}
             {pending && !isSending && <Alert type='warning' content={t('agent.external.sendUnconfirmed')} className='mb-3' />}
             <div className='border border-solid border-[var(--color-border-2)] rounded-2xl p-3 bg-1'>
               <Input.TextArea
@@ -293,17 +312,18 @@ function ExternalChat({ sessionId: routeSessionId, agentId }: IExternalChatProps
                 <Typography.Text type='secondary' className='text-xs'>
                   {t('agent.external.chat.inputHint')}
                 </Typography.Text>
-                <Button type='primary' shape='round' icon={<ArrowUp size={16} />} loading={isSending} disabled={isSending || (!pending && (isBusy || isReadOnly || isDirectoryLoading || isLoadFailed || !query.trim()))} onClick={() => void onSend()}>
+                <Button type='primary' shape='round' icon={<ArrowUp size={16} />} loading={isSending} disabled={isSending || (!pending && (isBusy || isReadOnly || isDirectoryLoading || isLoadFailed || isVersionMissing || !query.trim()))} onClick={() => void onSend()}>
                   {t(pending ? 'agent.external.retrySameRequest' : 'agent.external.send')}
                 </Button>
               </div>
             </div>
             <Typography.Paragraph type='secondary' className='text-xs mt-2 mb-0'>
-              {t('agent.external.chat.capabilities')}
+              {t(agent?.capabilities?.version_pin === 'supported' ? 'agent.external.versions.durableCapabilities' : 'agent.external.chat.capabilities')}
             </Typography.Paragraph>
           </div>
         </div>
       </div>
+      {evidenceTaskId && <ExternalTaskEvidence key={evidenceTaskId} taskId={evidenceTaskId} onClose={() => setEvidenceTaskId(null)} />}
     </ChatLayout>
   );
 }

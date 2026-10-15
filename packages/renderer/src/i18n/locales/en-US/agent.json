@@ -91,5 +91,21 @@
   "external.chat.noOutput": "No output was produced.",
   "external.chat.policyRejected": "Request rejected: {{reason}}",
   "external.chat.hosted": "Externally hosted",
-  "external.sourceIdentityUnverified": "The application source is declared by an administrator; its binding to the service credentials is unverified."
+  "external.sourceIdentityUnverified": "The application source is declared by an administrator; its binding to the service credentials is unverified.",
+  "external.versions.choose": "Agent version",
+  "external.versions.more": "More versions",
+  "external.versions.retry": "Retry loading versions",
+  "external.versions.empty": "No approved version is available.",
+  "external.versions.evidence": "Version evidence",
+  "external.versions.task": "Task: {{id}}",
+  "external.versions.selected": "Selected version: {{version}}",
+  "external.versions.channel": "Channel: {{channel}} · revision {{revision}}",
+  "external.versions.source": "Reviewed source: {{digest}}",
+  "external.versions.noSelection": "No accepted version selection is recorded.",
+  "external.versions.run": "Provider run: {{id}}",
+  "external.versions.executed": "Confirmed execution revision: {{revision}}",
+  "external.versions.snapshotOnly": "This provider confirms a reviewed source snapshot, without an immutable execution guarantee.",
+  "external.versions.awaitingEvidence": "No confirmed remote execution evidence has been received.",
+  "external.versions.sessionPinned": "This conversation keeps its original version. Start a new conversation to switch versions.",
+  "external.versions.durableCapabilities": "The version is selected when a conversation starts. View confirmed execution details in Version evidence. Text only; remote cancellation is unavailable."
 }

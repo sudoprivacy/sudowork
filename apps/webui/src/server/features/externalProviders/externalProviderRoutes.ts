@@ -40,6 +40,8 @@ export function createExternalProviderRouter(deps: { auth: AuthDeps; request: Mo
     { method: 'get', path: '/external-sessions' },
     { method: 'get', path: '/external-sessions/:id/tasks' },
     { method: 'get', path: '/tasks/:id/events' },
+    { method: 'get', path: '/tasks/:id/evidence' },
+    { method: 'get', path: '/external-agents/:id/versions' },
     { method: 'post', path: '/tasks' },
   ]
   for (const route of routes)
@@ -74,9 +76,15 @@ export function createExternalProviderRouter(deps: { auth: AuthDeps; request: Mo
               path: `/api/v1${req.path}`,
               accessToken: context.accessToken,
               ...(route.method === 'post' ? { body: req.body } : {}),
-              ...(req.query.cursor === undefined
+              ...(req.query.cursor === undefined && req.query.after === undefined
                 ? {}
-                : { searchParams: { cursor: String(req.query.cursor) } }),
+                : {
+                    searchParams: Object.fromEntries(
+                      ['cursor', 'after']
+                        .filter((key) => req.query[key] !== undefined)
+                        .map((key) => [key, String(req.query[key])]),
+                    ),
+                  }),
             },
             Math.max(1, deadline - Date.now()),
           )

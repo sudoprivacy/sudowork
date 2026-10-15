@@ -638,6 +638,20 @@ export function initEeclawBridge(): void {
       return { success: false, msg: 'EXTERNAL_TASK_REQUEST_FAILED' };
     }
   });
+  ipcBridge.externalProviders.versions.provider(async (input) => {
+    try {
+      return { success: true, data: await externalProviderPort.versions(input.agentId, input.after) };
+    } catch {
+      return { success: false, msg: 'EXTERNAL_TASK_REQUEST_FAILED' };
+    }
+  });
+  ipcBridge.externalProviders.evidence.provider(async (input) => {
+    try {
+      return { success: true, data: await externalProviderPort.evidence(input.taskId) };
+    } catch {
+      return { success: false, msg: 'EXTERNAL_TASK_REQUEST_FAILED' };
+    }
+  });
   ipcBridge.externalProviders.history.provider(async (input) => {
     try {
       return { success: true, data: await externalProviderPort.history(input.sessionId) };

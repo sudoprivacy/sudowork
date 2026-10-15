@@ -1,4 +1,4 @@
-// Derived from Moss 4dc9f1edf7a14761a1a27436cdfd8447075a6e12:contracts/external-provider/v1/contract.ts. DO NOT EDIT.
+// Derived from Moss 9f6456de38de159821fdbac415d6ea51a7a60768:contracts/external-provider/v1/contract.ts. DO NOT EDIT.
 /** Moss-owned external-provider pilot wire contract. ADR-003/004 remain Proposed. */
 export const EXTERNAL_PROVIDER_API = 'external-provider.sudo.dev/v1alpha5' as const
 export type Capability = 'supported' | 'unsupported' | 'unknown'
@@ -20,9 +20,11 @@ export interface ExternalAgent {
   capabilities: { streaming: Capability; cancel: Capability; resume: Capability; version_pin: Capability }
 }
 
-/** Historical/storage shape only. HTTP submissions must use SubmitTask. */
+/** Client command mapped to SubmitTask by the transport. Never accepted directly by HTTP ingress. */
 export interface CreateExternalTask {
   agent_id: string
+  requested_version?: string
+  requested_channel?: 'stable' | 'canary'
   session_id?: string
   query: string
   idempotency_key: string
@@ -36,6 +38,31 @@ export interface ExternalSession {
   active_task_id: string | null
   created_at: number
   updated_at: number
+}
+
+/** Read projection of the immutable Task Resolution and the independently observed remote run. */
+export interface ExternalTaskEvidence {
+  api_version: typeof EXTERNAL_PROVIDER_API
+  kind: 'ExternalTaskEvidence'
+  task_id: string
+  session_id: string
+  attempt_id: string | null
+  status: ExternalTaskStatus
+  selection?: {
+    version: string
+    source_digest: string
+    release_digest?: string
+    resolved_from_channel?: string
+    channel_revision?: number
+    execution_revision?: string
+    version_evidence: 'source_snapshot_only' | 'provider_revision_fenced'
+  }
+  execution?: {
+    provider_run_id: string
+    execution_revision?: string
+    version_evidence: 'source_snapshot_only' | 'provider_revision_fenced'
+    resume: 'unsupported' | 'query_only'
+  }
 }
 
 export interface ExternalTask {

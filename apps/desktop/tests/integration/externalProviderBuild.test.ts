@@ -37,5 +37,5 @@ it.each(['main', 'renderer'] as const)('bundles the external provider client in 
     if (!('output' in output)) throw new Error('Expected a completed build');
     return output.output.flatMap((chunk) => (chunk.type === 'chunk' ? Object.keys(chunk.modules) : []));
   });
-  for (const file of ['external-provider.gen.ts', 'task.gen.ts']) expect(modules.map((id) => id.replace(/\\/g, '/'))).toContain(path.resolve('../../packages/contracts/src', file).replace(/\\/g, '/'));
+  for (const file of ['external-provider.gen.ts', 'task.gen.ts', 'agent-federation.gen.ts']) expect(modules.map((id) => id.replace(/\\/g, '/'))).toContain(path.resolve('../../packages/contracts/src', file).replace(/\\/g, '/'));
 });

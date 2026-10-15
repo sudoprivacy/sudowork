@@ -91,5 +91,21 @@
   "external.chat.noOutput": "이 작업에서 출력이 생성되지 않았습니다.",
   "external.chat.policyRejected": "요청이 거부되었습니다: {{reason}}",
   "external.chat.hosted": "외부 호스팅",
-  "external.sourceIdentityUnverified": "앱 출처는 관리자가 지정했으며 서비스 자격 증명과의 연결은 검증되지 않았습니다."
+  "external.sourceIdentityUnverified": "앱 출처는 관리자가 지정했으며 서비스 자격 증명과의 연결은 검증되지 않았습니다.",
+  "external.versions.choose": "에이전트 버전",
+  "external.versions.more": "추가 버전",
+  "external.versions.retry": "버전 다시 불러오기",
+  "external.versions.empty": "사용 가능한 승인된 버전이 없습니다.",
+  "external.versions.evidence": "버전 근거",
+  "external.versions.task": "작업: {{id}}",
+  "external.versions.selected": "선택한 버전: {{version}}",
+  "external.versions.channel": "채널: {{channel}} · 변경 {{revision}}",
+  "external.versions.source": "검토한 소스: {{digest}}",
+  "external.versions.noSelection": "수락된 버전 선택 기록이 없습니다.",
+  "external.versions.run": "원격 실행: {{id}}",
+  "external.versions.executed": "확인된 실행 리비전: {{revision}}",
+  "external.versions.snapshotOnly": "이 공급자는 검토한 소스 스냅샷만 제공하며 변경 불가능한 실행 버전을 보장하지 않습니다.",
+  "external.versions.awaitingEvidence": "확인된 원격 실행 근거가 아직 없습니다.",
+  "external.versions.sessionPinned": "현재 대화는 원래 버전을 유지합니다. 버전을 바꾸려면 새 대화를 시작하세요.",
+  "external.versions.durableCapabilities": "대화를 시작할 때 버전을 선택합니다. 확인된 실행 정보는 버전 근거에서 볼 수 있습니다. 텍스트만 지원하며 원격 실행을 취소할 수 없습니다."
 }
