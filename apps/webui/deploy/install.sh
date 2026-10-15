@@ -76,6 +76,8 @@ Examples:
     sudo PUBLIC_ORIGIN=https://webui.example.com \
          MOSS_BASE_URL=http://10.0.1.206:43127 \
          bash -s -- --non-interactive
+WEBUI_ARCH=amd64|arm64 selects offline downloads; installation must match the host.
+
 EOF
 }
 
@@ -174,7 +176,14 @@ case "$VERSION" in
   ''|*[!0-9A-Za-z._+-]*) die "invalid WebUI version: $VERSION" ;;
 esac
 
-ARCH=amd64
+case "$(uname -m)" in
+  x86_64|amd64) HOST_ARCH=amd64 ;;
+  aarch64|arm64) HOST_ARCH=arm64 ;;
+  *) die "unsupported architecture: $(uname -m)" ;;
+esac
+ARCH="${WEBUI_ARCH:-$HOST_ARCH}"
+case "$ARCH" in amd64|arm64) ;; *) die "unsupported WEBUI_ARCH: $ARCH" ;; esac
+[ "$DOWNLOAD_ONLY" = 1 ] || [ "$ARCH" = "$HOST_ARCH" ] || die "release architecture $ARCH does not match host $HOST_ARCH"
 ARCHIVE="sudowork-webui-$VERSION-linux-$ARCH.tar.gz"
 DEFAULT_DOWNLOAD_BASE="$DEFAULT_COS_ROOT/releases/$RELEASE_TAG"
 GITHUB_DOWNLOAD_BASE="$DEFAULT_GITHUB_ROOT/download/$RELEASE_TAG"
@@ -289,10 +298,6 @@ if [ "$DRY_RUN" != 1 ]; then
   if [ "$SOURCE_MODE" = 0 ]; then
     [ "$(id -u)" -eq 0 ] || die 'run as root (for example: curl ... | sudo bash)'
     [ "$(uname -s)" = Linux ] || die 'only Linux is supported by release packages'
-    case "$(uname -m)" in
-      x86_64|amd64) ;;
-      *) die 'only x86_64/amd64 is supported by this release package' ;;
-    esac
     command -v gzip >/dev/null 2>&1 || die 'gzip is required'
     command -v install >/dev/null 2>&1 || die 'install is required'
   fi
@@ -648,10 +653,10 @@ if [ "$SOURCE_MODE" = 0 ]; then
 
   log "Loading WebUI and PostgreSQL images from $ARCHIVE"
   gzip -dc "$SOURCE_DIR/$ARCHIVE" | docker load
-  docker image inspect "sudowork-webui:$IMAGE_VERSION" >/dev/null \
-    || die "release archive does not contain sudowork-webui:$IMAGE_VERSION"
-  docker image inspect postgres:16-alpine >/dev/null \
-    || die 'release archive does not contain postgres:16-alpine'
+  for image in "sudowork-webui:$IMAGE_VERSION" postgres:16-alpine; do
+    [ "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$image")" = "linux/$ARCH" ] \
+      || die "release archive is missing the linux/$ARCH image $image"
+  done
 
   write_release_compose
 fi

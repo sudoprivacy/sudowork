@@ -38,8 +38,12 @@ case "$MODE" in
   *) echo "FAIL: invalid mode: $MODE" >&2; exit 1 ;;
 esac
 
-ARCHIVE="sudowork-webui-$VERSION-linux-amd64.tar.gz"
-EXPECTED_FILES=(install.sh SHA256SUMS "$ARCHIVE")
+EXPECTED_FILES=(install.sh SHA256SUMS)
+for arch in amd64 arm64; do
+  archive="sudowork-webui-$VERSION-linux-$arch.tar.gz"
+  [ ! -f "$ASSETS_DIR/$archive" ] || EXPECTED_FILES+=("$archive")
+done
+[ "${#EXPECTED_FILES[@]}" -gt 2 ] || { echo 'FAIL: no amd64 or arm64 release archive' >&2; exit 1; }
 [ -d "$ASSETS_DIR" ] || { echo "FAIL: asset directory does not exist: $ASSETS_DIR" >&2; exit 1; }
 command -v coscmd >/dev/null 2>&1 || { echo 'FAIL: coscmd is required' >&2; exit 1; }
 for file_name in "${EXPECTED_FILES[@]}"; do

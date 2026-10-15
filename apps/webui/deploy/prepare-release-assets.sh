@@ -16,7 +16,7 @@ case "$VERSION" in
   ''|*[!0-9A-Za-z._+-]*) echo "Invalid WebUI version: $VERSION" >&2; exit 1 ;;
 esac
 case "$ARCH" in
-  amd64) ;;
+  amd64|arm64) ;;
   *) echo "Unsupported WebUI architecture: $ARCH" >&2; exit 1 ;;
 esac
 [ -f "$IMAGE_ARCHIVE" ] || { echo "Image archive not found: $IMAGE_ARCHIVE" >&2; exit 1; }
@@ -37,9 +37,9 @@ grep -Fq "$EXPECTED_RELEASE_LINE" "$OUTPUT_DIR/install.sh" \
   || { echo 'Failed to stamp install.sh' >&2; exit 1; }
 
 if command -v sha256sum >/dev/null 2>&1; then
-  (cd "$OUTPUT_DIR" && sha256sum "$ARCHIVE_NAME" > SHA256SUMS)
+  (cd "$OUTPUT_DIR" && sha256sum "sudowork-webui-$VERSION-linux-"*.tar.gz > SHA256SUMS)
 else
-  (cd "$OUTPUT_DIR" && shasum -a 256 "$ARCHIVE_NAME" > SHA256SUMS)
+  (cd "$OUTPUT_DIR" && shasum -a 256 "sudowork-webui-$VERSION-linux-"*.tar.gz > SHA256SUMS)
 fi
 
 printf '%s\n' "$OUTPUT_DIR/install.sh" "$OUTPUT_DIR/SHA256SUMS" "$ARCHIVE_PATH"
