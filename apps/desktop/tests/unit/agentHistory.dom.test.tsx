@@ -57,21 +57,23 @@ describe('Agent history compatibility', () => {
     expect(screen.queryByText(myAgent.displayName)).toBeNull();
   });
 
-  it('separates persistent Agents from the complete session timeline and template references', () => {
+  it('lists the server-resolved Agent instances separately from the complete session timeline', () => {
     const conversations = legacyConversations();
     const owned = { ...conversations[0], id: 'owned', name: 'Owned conversation', extra: { presetAssistantId: myAgent.ref, pinned: true } } as ConversationItem;
-    const template = { ...conversations[1], id: 'template', name: 'Template conversation', extra: { presetAssistantId: 'template-a', agentName: 'Template A' } } as ConversationItem;
-    state.history = buildGroupedHistory([...conversations, owned, template], t, [], [myAgent, { ref: 'template-a', displayName: 'Template A', kind: 'template' }]);
+    const instance = { ...conversations[1], id: 'instance', name: 'Recruiting conversation', extra: { presetAssistantId: 'template-a', agentName: 'Recruiting Agent' } } as ConversationItem;
+    state.history = buildGroupedHistory([...conversations, owned, instance], t, [], [myAgent, { ref: 'template-a', displayName: 'Recruiting Agent', kind: 'template' }]);
     const { rerender } = render(<WorkspaceGroupedHistory activeTab='agents' />);
-    expect(screen.queryByText('Template A')).toBeNull();
-    expect(screen.queryByRole('button', { name: template.name })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Recruiting Agent', exact: true })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: instance.name })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'common.expandMore Recruiting Agent' }));
+    expect(screen.getAllByRole('button', { name: instance.name })).toHaveLength(1);
     expect(screen.queryByRole('button', { name: conversations[0].name })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: `common.expandMore ${myAgent.displayName}` }));
     expect(screen.getAllByRole('button', { name: owned.name })).toHaveLength(1);
 
     rerender(<WorkspaceGroupedHistory activeTab='timeline' />);
     expect(screen.queryByText(myAgent.displayName)).toBeNull();
-    expect(screen.getAllByRole('button', { name: template.name })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: instance.name })).toHaveLength(1);
     for (const conversation of conversations) expect(screen.getAllByRole('button', { name: conversation.name })).toHaveLength(1);
     expect(screen.getByText(owned.name)).toBeInTheDocument();
   });

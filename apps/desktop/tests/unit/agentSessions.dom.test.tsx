@@ -89,14 +89,25 @@ afterEach(() => {
 });
 
 describe('Agent session navigation', () => {
-  it('keeps template-only history as a conversation without presenting a persistent Agent', async () => {
-    state.agents.mockResolvedValue({ success: true, data: [...agents, { ref: 'template-a', displayName: 'Template A', kind: 'template' }] });
+  it('keeps unclassified history readable without inventing an Agent identity', async () => {
     state.history.mockResolvedValue([conversation('current', 'template-a')]);
     renderPage();
     await screen.findByText('Fallback title');
     await waitFor(() => expect(screen.getByRole('button', { name: 'conversation.welcome.newConversation' })).toBeEnabled());
     expect(screen.queryByRole('combobox', { name: 'conversation.agentSessions.select' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'conversation.agentSessions.new' })).toBeNull();
+  });
+
+  it('offers sessions of the user Agent instantiated from a template in the server catalog', async () => {
+    state.agents.mockResolvedValue({ success: true, data: [...agents, { ref: 'template-a', displayName: 'Recruiting Agent', kind: 'template' }] });
+    state.history.mockResolvedValue([conversation('current', 'template-a'), conversation('older', 'template-a'), conversation('other', 'template-b')]);
+    renderPage();
+    await screen.findByText('Recruiting Agent');
+    fireEvent.click(screen.getByRole('combobox', { name: 'conversation.agentSessions.select' }));
+    await screen.findByText('Session older');
+    expect(screen.queryByText('Session other')).toBeNull();
+    fireEvent.click(screen.getByText('Session older'));
+    await waitFor(() => expect(screen.getByLabelText('route')).toHaveTextContent('/conversation/older'));
   });
 
   it('shows the managed Agent and billing owner while keeping same-named owners apart', async () => {
@@ -113,6 +124,20 @@ describe('Agent session navigation', () => {
     fireEvent.click(screen.getByRole('combobox', { name: 'conversation.agentSessions.select' }));
     await screen.findByText('Session pinned');
     expect(screen.queryByText('Session other')).toBeNull();
+  });
+
+  it('switches between managed and personal sessions of the same canonical Agent', async () => {
+    const personal = 'moss-agent:user:user-a';
+    state.history.mockResolvedValue([conversation('current', personal, { agentManagement: { ownerId: 'user-a', ownerName: 'Alice', agentName: 'user-user-a', displayName: 'Alice' } }), conversation('pinned', personal), conversation('other', 'moss-agent:user:user-b')]);
+    renderPage();
+    await screen.findByText('Alice');
+    fireEvent.click(screen.getByRole('combobox', { name: 'conversation.agentSessions.select' }));
+    await screen.findByText('Session pinned');
+    expect(screen.queryByText('Session other')).toBeNull();
+    fireEvent.click(screen.getByText('Session pinned'));
+    await waitFor(() => expect(screen.getByLabelText('route')).toHaveTextContent('/conversation/pinned'));
+    fireEvent.click(await screen.findByRole('button', { name: 'conversation.agentSessions.new' }));
+    expect(screen.getByLabelText('route')).toHaveTextContent(`/guid?assistant=${encodeURIComponent(personal)}`);
   });
   it('uses the personal default Agent for global New instead of retaining the current Agent', async () => {
     setGuidDraft({ input: 'Previous Agent draft' });
