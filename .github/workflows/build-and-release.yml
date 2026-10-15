@@ -367,17 +367,22 @@ jobs:
           bash scripts/publish-release-to-cos.sh ../../release-assets
 
       - name: Publish WebUI installer to Tencent COS
-        # Immutable assets and latest/install.sh are published only for stable releases.
-        if: steps.version.outputs.is_dev == 'false' && steps.version.outputs.is_rc == 'false' && env.TENCENT_SECRET_ID != '' && env.TENCENT_SECRET_KEY != ''
+        # RC tags publish immutable assets; only stable releases advance latest/install.sh.
+        if: steps.version.outputs.is_dev == 'false' && env.TENCENT_SECRET_ID != '' && env.TENCENT_SECRET_KEY != ''
         env:
           TENCENT_SECRET_ID: ${{ secrets.TENCENT_SECRET_ID }}
           TENCENT_SECRET_KEY: ${{ secrets.TENCENT_SECRET_KEY }}
           COS_BUCKET: sudowork-release-1309794936
           COS_ROOT_PATH: sudowork/webui
           COS_PUBLIC_BASE_URL: https://sudowork-release-1309794936.cos.accelerate.myqcloud.com
+          IS_RC: ${{ steps.version.outputs.is_rc }}
         run: |
+          pip install coscmd
+          coscmd config -a "$TENCENT_SECRET_ID" -s "$TENCENT_SECRET_KEY" -b "$COS_BUCKET" -e cos.accelerate.myqcloud.com
+          MODE=--all
+          if [ "$IS_RC" = true ]; then MODE=--release-only; fi
           bash apps/webui/scripts/publish-release-to-cos.sh \
-            release-assets/webui "${{ steps.version.outputs.tag_name }}" --all
+            release-assets/webui "${{ steps.version.outputs.tag_name }}" "$MODE"
 
       - name: Cleanup Old Releases on Public Repo
         if: steps.version.outputs.is_rc == 'false'

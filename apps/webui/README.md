@@ -109,8 +109,8 @@ sudo ./sudowork-webui-offline/install.sh --offline
 ```
 
 CI 在版本发布时生成 `install.sh`、`SHA256SUMS` 和
-`sudowork-webui-<version>-linux-<amd64|arm64>.tar.gz`，同时附加到 GitHub Release；稳定版还会同步到
-COS 的不可变版本目录，并在校验通过后更新上述 `latest/install.sh`。
+`sudowork-webui-<version>-linux-<amd64|arm64>.tar.gz`，同时附加到 GitHub Release。版本标签发布的
+稳定版和 RC 版都会同步到 COS 的不可变版本目录；只有稳定版在校验通过后更新上述 `latest/install.sh`。
 
 安装器按主机架构选择离线包，并验证 WebUI/PostgreSQL 镜像架构。预下载其他架构时可用
 `WEBUI_ARCH=arm64 bash install.sh --download ./offline-arm64`；安装时架构必须与主机一致。
