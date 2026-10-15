@@ -89,6 +89,16 @@ afterEach(() => {
 });
 
 describe('Agent session navigation', () => {
+  it('keeps template-only history as a conversation without presenting a persistent Agent', async () => {
+    state.agents.mockResolvedValue({ success: true, data: [...agents, { ref: 'template-a', displayName: 'Template A', kind: 'template' }] });
+    state.history.mockResolvedValue([conversation('current', 'template-a')]);
+    renderPage();
+    await screen.findByText('Fallback title');
+    await waitFor(() => expect(screen.getByRole('button', { name: 'conversation.welcome.newConversation' })).toBeEnabled());
+    expect(screen.queryByRole('combobox', { name: 'conversation.agentSessions.select' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'conversation.agentSessions.new' })).toBeNull();
+  });
+
   it('shows the managed Agent and billing owner while keeping same-named owners apart', async () => {
     const context = { ownerId: 'alice', ownerName: 'Alice', agentName: 'research', displayName: 'Research Agent' };
     state.history.mockResolvedValue([
