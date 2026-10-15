@@ -405,8 +405,8 @@ explicit local test with actual credentials.
 Packaged Desktop includes both browser MCP adapters. The packaging hook rejects
 a missing or empty adapter before signing or publishing on every platform.
 The production build compiles and validates both adapters before using any
-cached application output. A clean-output regression reproduced the former
-successful build with neither adapter generated; the repaired build generated
+cached application output. With both generated files absent, the former build
+still exited successfully without creating them; the repaired build generated
 the same adapter bytes as the installation used by the actual Chrome journeys.
 The actual pre-fix Windows installation failed with a missing `shared.js` when
 started through its Electron executable in Node mode. The repaired installation

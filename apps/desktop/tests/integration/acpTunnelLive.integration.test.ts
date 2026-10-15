@@ -124,7 +124,9 @@ suite('published scode over the real ACP tunnel', () => {
   let workspace: string;
   let configHome: string;
   let scode: string;
-  let originalServiceRoot: string | undefined;
+  let originalServiceRoot = process.env.SCODE_SERVICE_ROOT;
+  let isServiceConfigured = false;
+  let isServiceStarted = false;
   const clients: TunnelClient[] = [];
 
   beforeAll(async () => {
@@ -157,8 +159,10 @@ suite('published scode over the real ACP tunnel', () => {
     originalServiceRoot = process.env.SCODE_SERVICE_ROOT;
     process.env.SCODE_SERVICE_ROOT = path.join(root, 'service');
     configureScodeService(() => scode);
+    isServiceConfigured = true;
     await getScodeServiceClient().request('service.install', {}, 600_000);
     const status = await getScodeServiceClient().request<{ running: boolean; zone_id: string }>('service.start');
+    isServiceStarted = status.running;
     expect(status.running).toBe(true);
     expect(status.zone_id).toEqual(expect.any(String));
   }, 660_000);
@@ -180,11 +184,15 @@ suite('published scode over the real ACP tunnel', () => {
       }
       for (const client of clients) await client.close();
     } finally {
-      if (root) {
+      if (root && isServiceStarted) {
+        // Cancellation acknowledges the signal before the daemon reaps /proc.
+        // Observe actual retirement before requesting its protected shutdown.
+        await waitFor(async () => (await getScodeServiceClient().request<unknown[]>('files.list', { path: '/proc/' })).length === 0, 'managed agent runtimes retired', 15_000);
         await getScodeServiceClient().request('service.shutdown');
         getScodeServiceClient().close();
         await waitFor(() => !fs.existsSync(path.join(root, 'service', 'run', 'service.json')), 'service stopped');
       }
+      if (isServiceConfigured) getScodeServiceClient().close();
       if (originalServiceRoot === undefined) delete process.env.SCODE_SERVICE_ROOT;
       else process.env.SCODE_SERVICE_ROOT = originalServiceRoot;
       if (root) fs.rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
