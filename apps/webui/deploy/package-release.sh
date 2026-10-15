@@ -15,7 +15,7 @@ case "$VERSION" in
   ''|*[!0-9A-Za-z._+-]*) echo "Invalid WebUI version: $VERSION" >&2; exit 1 ;;
 esac
 case "$ARCH" in
-  amd64) ;;
+  amd64|arm64) ;;
   *) echo "Unsupported WebUI architecture: $ARCH" >&2; exit 1 ;;
 esac
 command -v docker >/dev/null 2>&1 || { echo 'Docker is required' >&2; exit 1; }
@@ -34,8 +34,12 @@ docker buildx build \
   --file "$ROOT_DIR/apps/webui/Dockerfile" \
   "$ROOT_DIR"
 docker pull --platform "linux/$ARCH" postgres:16-alpine
-docker image inspect "$IMAGE_NAME" >/dev/null
-docker image inspect postgres:16-alpine >/dev/null
+for image in "$IMAGE_NAME" postgres:16-alpine; do
+  [ "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$image")" = "linux/$ARCH" ] \
+    || { echo "Image architecture differs from linux/$ARCH: $image" >&2; exit 1; }
+done
+# Loading the addon exercises the native PTY dependency on each release runner.
+docker run --rm --entrypoint node "$IMAGE_NAME" -e 'require("@lydell/node-pty")'
 docker save "$IMAGE_NAME" postgres:16-alpine | gzip -1 > "$RAW_ARCHIVE"
 gzip -t "$RAW_ARCHIVE"
 
