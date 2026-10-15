@@ -157,6 +157,8 @@ export default defineConfig({
         '../../packages/common/src/mossExecution.ts',
         '../../packages/common/src/conversationTitle.ts',
         '../../packages/renderer/src/pages/conversation/grouped-history/utils/groupingHelpers.ts',
+        '../../packages/renderer/src/pages/conversation/index.tsx',
+        '../../packages/renderer/src/pages/conversation/ChatConversation.tsx',
         'src/process/services/mossLocalRuntime.ts',
         'src/process/bridge/eeclawBridge.ts',
         'src/process/bridge/sudoworkServerBridge.ts',

@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { getRecentConversations, groupConversationsByAgent } from '@renderer/pages/conversation/grouped-history/utils/groupingHelpers';
+import { buildGroupedHistory, groupConversationsByAgent } from '@renderer/pages/conversation/grouped-history/utils/groupingHelpers';
 import { getLatestAgentConversation } from '@renderer/pages/conversation/utils/agentIdentity';
 import type { ConversationItem } from '@renderer/pages/conversation/grouped-history/types';
 
@@ -38,16 +38,13 @@ describe('groupConversationsByAgent', () => {
   });
   it('groups a conversation under the agent it belongs to, not the template it came from', () => {
     const groups = groupConversationsByAgent([conversation('a', 'tpl-recruit', 2), conversation('b', 'moss-agent:user:u1', 1)], [agent('moss-agent:user:u1', '宋一民', 'default'), agent('tpl-recruit', '招聘专家', 'template')]);
-    expect(groups.map((g) => [g.displayName, g.conversations.map((c) => c.id)])).toEqual([
-      ['宋一民', ['b']],
-      ['招聘专家', ['a']],
-    ]);
+    expect(groups.map((g) => [g.displayName, g.conversations.map((c) => c.id)])).toEqual([['宋一民', ['b']]]);
   });
 
   it('keeps the order the server gave, so the sidebar does not reshuffle', () => {
     // Newest activity is in the last agent; the list must not reorder around it.
     const groups = groupConversationsByAgent([conversation('a', 'tpl-recruit', 99)], [agent('moss-agent:user:u1', '宋一民', 'default'), agent('moss-agent:own:p1', '项目 A', 'own'), agent('tpl-recruit', '招聘专家', 'template')]);
-    expect(groups.map((g) => g.displayName)).toEqual(['宋一民', '项目 A', '招聘专家']);
+    expect(groups.map((g) => g.displayName)).toEqual(['宋一民', '项目 A']);
   });
 
   it('lists an agent with no conversations, because it is somewhere to start one', () => {
@@ -57,16 +54,15 @@ describe('groupConversationsByAgent', () => {
     expect(groups[0]?.conversations).toEqual([]);
   });
 
-  it('still shows a conversation whose agent the server did not list', () => {
+  it('keeps unclassified references in the session view', () => {
     const groups = groupConversationsByAgent([conversation('a', 'gone-template', 1)], [agent('moss-agent:user:u1', '宋一民', 'default')]);
-    // Dropping it would hide a conversation the user can open from the only
-    // place they can find it.
-    expect(groups.map((g) => g.ref)).toContain('gone-template');
-    expect(groups.find((g) => g.ref === 'gone-template')?.conversations.map((c) => c.id)).toEqual(['a']);
+    expect(groups.map((g) => g.ref)).not.toContain('gone-template');
+    const history = buildGroupedHistory([conversation('a', 'gone-template', 1)], (key) => key);
+    expect(history.timelineSections.flatMap((section) => section.items.map((item) => item.conversation?.id))).toEqual(['a']);
   });
 
   it('sorts within a group by latest activity', () => {
-    const groups = groupConversationsByAgent([conversation('old', 'x', 1), conversation('new', 'x', 5), conversation('mid', 'x', 3)], [agent('x', 'X', 'template')]);
+    const groups = groupConversationsByAgent([conversation('old', 'x', 1), conversation('new', 'x', 5), conversation('mid', 'x', 3)], [agent('x', 'X', 'own')]);
     expect(groups[0]?.conversations.map((c) => c.id)).toEqual(['new', 'mid', 'old']);
   });
 
@@ -75,6 +71,21 @@ describe('groupConversationsByAgent', () => {
     const saved = { ...conversation('saved', reference, 1), extra: { mossAssistantRef: reference, agentName: 'Saved name' } } as ConversationItem;
     expect(groupConversationsByAgent([saved], [])[0]).toMatchObject({ ref: reference, displayName: 'Saved name' });
     expect(groupConversationsByAgent([conversation('unnamed', reference, 1)], [])[0]).toMatchObject({ ref: reference, displayName: '' });
+  });
+
+  it('uses managed identity and separates same-named Agents owned by different users', () => {
+    const sessions = ['alice', 'bob'].map(
+      (ownerId) =>
+        ({
+          ...conversation(ownerId, 'research', 1),
+          extra: { agentManagement: { ownerId, ownerName: ownerId, agentName: 'research', displayName: 'Research Agent' } },
+        }) as ConversationItem
+    );
+    const groups = groupConversationsByAgent(sessions, []);
+    expect(groups.map((group) => [group.ref, group.kind, group.conversations[0].id])).toEqual([
+      ['moss-managed:alice:research', 'managed', 'alice'],
+      ['moss-managed:bob:research', 'managed', 'bob'],
+    ]);
   });
 });
 
@@ -94,21 +105,5 @@ describe('getLatestAgentConversation', () => {
 
   it('returns no conversation for an unused Agent', () => {
     expect(getLatestAgentConversation([conversation('other', 'other', 1)], 'unused')).toBeUndefined();
-  });
-});
-
-describe('getRecentConversations', () => {
-  it('crosses agents and is newest first', () => {
-    // Grouping only by agent would make "find the one from last week" start
-    // with "remember whose it was".
-    const recent = getRecentConversations([conversation('a', 'agent-1', 1), conversation('b', 'agent-2', 9), conversation('c', 'agent-1', 5)]);
-    expect(recent.map((c) => c.id)).toEqual(['b', 'c', 'a']);
-  });
-
-  it('caps the list and leaves the input untouched', () => {
-    const input = Array.from({ length: 20 }, (_, i) => conversation(`c${i}`, 'x', i));
-    const recent = getRecentConversations(input, 3);
-    expect(recent.map((c) => c.id)).toEqual(['c19', 'c18', 'c17']);
-    expect(input[0]?.id).toBe('c0');
   });
 });

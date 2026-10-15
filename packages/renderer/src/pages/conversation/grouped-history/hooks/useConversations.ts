@@ -64,7 +64,7 @@ export const useConversations = () => {
     return result;
   }, [conversations, t, cronJobs, myAgents]);
 
-  const { pinnedTimeline, pinnedScheduled, timelineSections, scheduledGroups, agentGroups, recent } = groupedHistory;
+  const { pinnedTimeline, pinnedScheduled, timelineSections, scheduledGroups, agentGroups } = groupedHistory;
 
   // Auto-expand all workspaces on first load only (#1156)
   useEffect(() => {
@@ -121,7 +121,6 @@ export const useConversations = () => {
     timelineSections,
     scheduledGroups,
     agentGroups,
-    recent,
     handleToggleWorkspace,
   };
 };

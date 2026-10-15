@@ -97,9 +97,7 @@ const _AddNewConversation: React.FC<{ conversation: TChatConversation }> = ({ co
   );
 };
 
-const ChatConversation: React.FC<{
-  conversation?: TChatConversation;
-}> = ({ conversation }) => {
+function ChatConversation({ conversation, conversationId = conversation?.id, children }: IChatConversationProps) {
   // Remote-agent workspaces are loaded from Moss Server, so they may not have a
   // local workspace path in conversation.extra.
   const workspaceEnabled = Boolean(conversation && (conversation.type === 'remote-agent' || conversation.extra?.workspace));
@@ -159,11 +157,17 @@ const ChatConversation: React.FC<{
 
   return (
     <TaskPanelHeaderProvider>
-      <ChatLayout title={conversation?.name} {...chatLayoutProps} headerLeft={modelSelector} headerExtra={headerExtraNode} sider={<ChatSider conversation={conversation} />} workspaceEnabled={workspaceEnabled} conversationId={conversation?.id}>
-        {conversationNode}
+      <ChatLayout title={conversation?.name} {...chatLayoutProps} headerLeft={modelSelector} headerExtra={headerExtraNode} sider={<ChatSider conversation={conversation} />} workspaceEnabled={workspaceEnabled} conversationId={conversationId}>
+        {children ?? conversationNode}
       </ChatLayout>
     </TaskPanelHeaderProvider>
   );
-};
+}
+
+interface IChatConversationProps {
+  conversation?: TChatConversation;
+  conversationId?: string;
+  children?: React.ReactNode;
+}
 
 export default ChatConversation;
