@@ -356,6 +356,13 @@ independent-viewer Return, restored single-use permission after reload, exact
 model readback and the downloaded receipt's bytes/SHA-256. The owned completed
 test conversation was terminated through its normal owner API.
 
+The same full journey also passed with a real Firefox 155 client on Windows.
+Firefox displayed and controlled the VM's managed extension Chrome through
+the shared panel. Trusted field preparation, the value at human focus,
+Unicode replacement, independent-viewer Return, recovered permission, visible
+model readback and exact file bytes were verified with a 450 ms delayed click.
+The reusable live test selects the client with `--client-browser`.
+
 ### Desktop acceptance and remaining scope
 
 The Desktop integration uses the public v0.57.5 worker behind authenticated
@@ -384,6 +391,5 @@ trusted Unicode replacement, one submission and exact model readback.
 Desktop managed profiles currently persist per conversation; cloud profiles
 persist per user with exclusive ownership. Desktop connection to an existing
 user Chrome profile, the authorized local extension relay, public WebUI
-frontend deployment and actual phone/Safari/
-Firefox acceptance remain open. These capabilities must each have their own
+frontend deployment and actual phone/Safari acceptance remain open. These capabilities must each have their own
 implementation and evidence before this design is considered fully delivered.
