@@ -1,6 +1,6 @@
 # Shared browser sessions for Desktop and WebUI
 
-Status: cloud browser control and the shared WebUI panel are merged. Production Moss 0.1.59 uses the public browser SDK v0.57.4 and user-runtime SDK v0.1.2. Desktop shared-panel integration has passed a real model and native Chrome journey and remains under review. The local extension relay and actual phone/browser compatibility remain open. This document is the source for [the shared design page](https://s.shareone.vip/md/sudowork-browser-sessions).
+Status: cloud browser control and the shared WebUI panel are merged. Production Moss 0.1.59 uses the public browser SDK v0.57.5 and user-runtime SDK v0.1.2. Desktop shared-panel integration and compact takeover controls have passed a real model and native Chrome journey and remain under review. Public frontend deployment, the local extension relay and actual phone/browser compatibility remain open. This document is the source for [the shared design page](https://s.shareone.vip/md/sudowork-browser-sessions).
 
 ## 1. Decisions
 
@@ -280,6 +280,16 @@ browser/profile identity, stale/anonymous rejection and exact download bytes.
   or replaying any action. Native Windows headless/headful journeys, eight
   signed managed Chrome VM journeys and all ten CI jobs passed. The Moss
   consumer's six actual Chrome journeys also passed with the official wheel.
+- [ai-dev-browser #26](https://github.com/sudoprivacy/ai-dev-browser/pull/26)
+  is published as v0.57.5. Concurrent status readers retain human control and
+  page capabilities; only actual browser start, stop and rebind operations
+  report a lifecycle transition. Two real regressions failed before this fix.
+  Native Windows headless/headful, eight signed managed Chrome journeys and
+  all ten PR checks passed. Six Moss consumer journeys also passed with the
+  official PyPI wheel, including eight concurrent status reads during human
+  control. The production component upgrade retained Moss 0.1.59, its runtime
+  pin, all 116 user configurations and the existing profile volume. Readiness
+  and actual Nexus VFS/Vault persistence checks passed.
 - [Moss #381](https://github.com/sudoprivacy/moss/pull/381) is released as
   server-v0.1.58 and deployed to the production VM. Its configured managed
   browser image uses public SDK v0.57.2. The server upgrade preserved all 116
@@ -289,7 +299,7 @@ browser/profile identity, stale/anonymous rejection and exact download bytes.
   separate check from this deployment receipt.
 - The managed browser component was subsequently upgraded independently to
   public SDK v0.57.4, retaining Moss 0.1.58 and its runtime pin. The browser
-  client and adapter sources are unchanged in the pending Moss 0.1.59 release.
+  client and adapter sources are unchanged in the subsequent Moss 0.1.59 release.
   The upgrade retained the existing profile volume, all 116 user configurations
   and CA/master key/plugin identities. Readiness and actual VFS/Vault
   persistence verification passed. The new worker reports the official wheel
@@ -329,7 +339,7 @@ browser/profile identity, stale/anonymous rejection and exact download bytes.
 
 ### Desktop acceptance and remaining scope
 
-The Desktop integration uses the public v0.57.4 worker behind authenticated
+The Desktop integration uses the public v0.57.5 worker behind authenticated
 HTTP MCP, with a stdio adapter for engines without HTTP MCP support. Tool
 discovery and an idle panel allocate neither Python nor Chrome. The first
 browser operation prepares an app-owned Python environment. Desktop defaults
@@ -345,9 +355,16 @@ through an explicit return. These application checks complement the Windows
 and Linux real-Chrome host/stdio CI workflow; the model journey remains an
 explicit local test with actual credentials.
 
+The shared panel also supports a compact control surface without pixel
+streaming. Desktop opens it as an always-on-top window, allowing Take control,
+a handoff note and Return to AI while BrowserPanel is hidden. Open viewer uses
+the same session and trusted desktop bridge. The real Electron/model journey
+passed with official SDK 0.57.5: native window metadata, hidden BrowserPanel,
+trusted Unicode replacement, one submission and exact model readback.
+
 Desktop managed profiles currently persist per conversation; cloud profiles
 persist per user with exclusive ownership. Desktop connection to an existing
-user Chrome profile, the authorized local extension relay, compact takeover
-outside the panel, public WebUI frontend deployment and actual phone/Safari/
+user Chrome profile, the authorized local extension relay, public WebUI
+frontend deployment and actual phone/Safari/
 Firefox acceptance remain open. These capabilities must each have their own
 implementation and evidence before this design is considered fully delivered.
