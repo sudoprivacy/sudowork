@@ -173,16 +173,15 @@ E2E_TEST_PREFIX=webui-e2e-<unique>
 - 当前上游 WS 协议不发射 thinking 事件、不支持 turn 级 interrupt：WebUI 保留协议兼容位，
   不伪造这两类交互；终止会话走 REST terminate。
 - 登录限流为进程内存存储（单实例约束）。
-- 会话右侧面板仅工作区（只读树 + 文本/图片预览）与交付物；浏览器 tab（Electron `<webview>` 专属）
-  与终端 tab（产品决策隐藏）在 Web 端不出现。工作区上传子功能与 html/pdf/office/媒体预览不支持
-  （依赖本地磁盘，与 console 现状一致）。
+- The shared browser panel and independent authenticated viewer operate the same cloud Chrome session and persistent profile. They support explicit launch modes, human handoff and session-bound file transfer. See [the browser session design](../../docs/sudowork-browser-sessions.md) for deployment and acceptance status.
+- The terminal tab is hidden in WebUI. Workspace upload and HTML/PDF/Office/media previews still depend on local filesystem integration.
 - 助手编辑入口在 Web 端隐藏（Moss meta 端点无法回写 renderer 的 I18n/prompt 字段）；创建仍可用。
 - Agent 启停开关在 Web 端隐藏（Moss 无对应端点）；Agent/Skill 的创建/卸载、Skill 启停对非
   `admin:settings` 用户隐藏控件（服务端强制）。
 
 ## 范围外（首版明确不做）
 
-Local 会话/终端/浏览器面板/本地知识库/频道/团队/安全中心/充值/成员管理/企业管理/扩展设置；
+Local conversations and terminals, local extension relay, local knowledge base, channels, teams, security center, billing, member/enterprise management and extension settings;
 多实例、Redis、分布式锁、审计平台、outbox、MCP SSE relay、性能压测平台。
 
 ## License

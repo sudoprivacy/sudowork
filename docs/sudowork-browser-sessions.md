@@ -1,6 +1,6 @@
 # Shared browser sessions for Desktop and WebUI
 
-Status: implementation in progress. The shared ai-dev-browser viewer primitives are merged; the complete SudoWork panel, managed deployment, handoff and local relay still require acceptance. This document is the source for [the shared design page](https://s.shareone.vip/md/sudowork-browser-sessions).
+Status: cloud browser control and the shared WebUI panel are merged. Production Moss 0.1.59 uses the public browser SDK v0.57.4 and user-runtime SDK v0.1.2. Desktop shared-panel integration has passed a real model and native Chrome journey and remains under review. The local extension relay and actual phone/browser compatibility remain open. This document is the source for [the shared design page](https://s.shareone.vip/md/sudowork-browser-sessions).
 
 ## 1. Decisions
 
@@ -17,15 +17,14 @@ Status: implementation in progress. The shared ai-dev-browser viewer primitives 
 
 Browser location, automation transport and display surface are separate choices. Headless is a launch attribute, not another transport.
 
-| Host and browser location        | Automation                               | User display                             | Handoff scope                                              |
-| -------------------------------- | ---------------------------------------- | ---------------------------------------- | ---------------------------------------------------------- |
-| Desktop, local standalone Chrome | CDP                                      | Shared panel, native Chrome when headful | Main and child agents using that browser                   |
-| Desktop, existing local Chrome   | Extension                                | Shared panel and native Chrome           | Main and child agents; launch mode stays unchanged         |
-| Desktop, cloud Chrome            | Managed extension, explicit CDP fallback | Shared panel or remote viewer tab        | Cloud execution session                                    |
-| WebUI, cloud Chrome              | Managed extension by default             | Shared panel or remote viewer tab        | Cloud execution session                                    |
-| WebUI, cloud standalone Chrome   | Explicit CDP selection                   | Same shared panel/viewer                 | Cloud execution session                                    |
-| WebUI, user's local Chrome       | Authorized outbound relay to extension   | Same panel/viewer and native Chrome      | Explicitly paired local browser                            |
-| Existing Electron guest          | Electron debugger                        | Embedded guest through the shared panel  | All affected Desktop agent tools until isolation is proven |
+| Host and browser location        | Automation                               | User display                             | Handoff scope                                      |
+| -------------------------------- | ---------------------------------------- | ---------------------------------------- | -------------------------------------------------- |
+| Desktop, local standalone Chrome | CDP                                      | Shared panel, native Chrome when headful | Main and child agents using that browser           |
+| Desktop, existing local Chrome   | Extension                                | Shared panel and native Chrome           | Main and child agents; launch mode stays unchanged |
+| Desktop, cloud Chrome            | Managed extension, explicit CDP fallback | Shared panel or remote viewer tab        | Cloud execution session                            |
+| WebUI, cloud Chrome              | Managed extension by default             | Shared panel or remote viewer tab        | Cloud execution session                            |
+| WebUI, cloud standalone Chrome   | Explicit CDP selection                   | Same shared panel/viewer                 | Cloud execution session                            |
+| WebUI, user's local Chrome       | Authorized outbound relay to extension   | Same panel/viewer and native Chrome      | Explicitly paired local browser                    |
 
 An Electron `<webview>` is a Chromium guest, not a DOM component available in ordinary browsers. The remote surface adapts this difference without duplicating tab, navigation or handoff UX.
 
@@ -40,7 +39,7 @@ flowchart LR
   Session --> Lease[Control lease and execution barrier]
   Lease --> Core[Public ai-dev-browser core]
   Core --> Cloud[Isolated cloud Chrome and profile]
-  Core --> Local[Local Chrome or Electron guest]
+  Core --> Local[Local Chrome and profile]
   Cloud --> Page[Page view on demand]
   Cloud --> Window[Headful window view on demand]
   Page --> Panel
@@ -168,7 +167,7 @@ Agent shell access must not expose an unrestricted browser endpoint or the human
 ## 9. Shared panel and viewer behavior
 
 - Tabs, title, URL, back/forward/reload, transport/profile status, handoff, reconnect and error UX are shared components.
-- Electron can embed its guest; remote Chrome uses the public page surface. Headful window view exposes Chrome UI when needed, including profile sign-in and extension management.
+- Desktop standalone Chrome and cloud Chrome use the same public page surface. The native Desktop Chrome window remains available when headful. Cloud headful window view exposes Chrome UI when needed, including profile sign-in and extension management.
 - Opening a viewer tab uses the existing authenticated session. Credentials are not placed in the URL. A copied link requires login and current session permission.
 - Target changes advance `targetEpoch`; stale frames and input are rejected. Coordinates are calculated from the actual remote viewport, including resizing and mobile touch input.
 - Reconnection verifies browser identity. It never attaches silently to another user's browser or starts a replacement because a transient connection failed.
@@ -261,9 +260,94 @@ server receipt, automatic return, AI download and local save. It verifies
 Unicode filename/content, login cookie, trusted upload event, unchanged
 browser/profile identity, stale/anonymous rejection and exact download bytes.
 
-Production rollout and acceptance remain. Local Desktop toolbar/control parity,
-the runtime barrier for main and child agents, local extension relay and actual
-phone/browser compatibility also require their remaining implementation or
-live journeys. Session files are validated and awaiting consumer delivery.
-Each remaining journey must have its own evidence before this design is
-considered fully delivered.
+### Public worker and production delivery
+
+- [ai-dev-browser #23](https://github.com/sudoprivacy/ai-dev-browser/pull/23)
+  is published as v0.57.2. The public worker CLI owns browser lifecycle,
+  profile locking, files and control journals. Moss consumes this worker rather
+  than maintaining a private copy. Real native Chrome and signed managed
+  extension journeys passed, including an existing profile and human lease
+  surviving the consumer upgrade.
+- [ai-dev-browser #24](https://github.com/sudoprivacy/ai-dev-browser/pull/24)
+  is published as v0.57.3. The shared viewer preserves selection modifiers and
+  maps Ctrl+A/Cmd+A to SelectAll. Actual viewer keyboard input replaces an
+  AI-populated field with Unicode text and submits exactly once. Extension CI
+  uses its configured startup budget and retains connection timing diagnostics.
+- [ai-dev-browser #25](https://github.com/sudoprivacy/ai-dev-browser/pull/25)
+  is published as v0.57.4. Status reports `pausing` while a browser starts,
+  stops or rebinds, preserves the human lease, and disables page/window input
+  until completion. It avoids querying a retiring driver without reconnecting
+  or replaying any action. Native Windows headless/headful journeys, eight
+  signed managed Chrome VM journeys and all ten CI jobs passed. The Moss
+  consumer's six actual Chrome journeys also passed with the official wheel.
+- [Moss #381](https://github.com/sudoprivacy/moss/pull/381) is released as
+  server-v0.1.58 and deployed to the production VM. Its configured managed
+  browser image uses public SDK v0.57.2. The server upgrade preserved all 116
+  user configurations, the owned browser profile volume, CA/master key/plugin
+  identities and existing runtime pods. Readiness and an actual Nexus VFS/Vault
+  persistence check passed. Browser acceptance through the public service is a
+  separate check from this deployment receipt.
+- The managed browser component was subsequently upgraded independently to
+  public SDK v0.57.4, retaining Moss 0.1.58 and its runtime pin. The browser
+  client and adapter sources are unchanged in the pending Moss 0.1.59 release.
+  The upgrade retained the existing profile volume, all 116 user configurations
+  and CA/master key/plugin identities. Readiness and actual VFS/Vault
+  persistence verification passed. The new worker reports the official wheel
+  version and its verified image digest; headless startup runs no display
+  processes.
+- [Moss #382](https://github.com/sudoprivacy/moss/pull/382) is released as
+  server-v0.1.59 and deployed. It consumes the public browser worker and
+  [user-runtime SDK v0.1.2](https://github.com/sudoprivacy/sudostack/pull/48).
+  The latter renews credentials through the runtime account's existing patch
+  permission with UID, resourceVersion and owner checks. A real large-history
+  Secret test passed without update permission or RBAC changes. All four
+  previously failing active-owner upgrades then succeeded; every retained PVC
+  kept its UID. The server cutover preserved 116 user configurations and actual
+  Nexus VFS/Vault contents, with Moss 0.1.58 retained for rollback.
+- A complete file handoff passed through the public production Moss backend
+  with the locally built WebUI and real gpt-6-luna: native Unicode file
+  selection, trusted upload, exact downloaded bytes, retained login cookie,
+  stale upload 409, anonymous upload 401 and no page errors. The extended
+  journey closed the original chat, returned from the independent viewer,
+  and reloaded the reopened chat with an actual single-use approval pending.
+  Its restored visible approval allowed the AI to finish the trusted download
+  without another submission. [SudoWork #1251](https://github.com/sudoprivacy/sudowork/pull/1251)
+  contains the subscription barrier, writer retention, permission replay and
+  the locally executed live test. Public frontend deployment remains open.
+- The extended production-backend journey also passed the actual shared page
+  keyboard path: AI prefilled a field, the user replaced it through Ctrl+A and
+  trusted Unicode input, and the returning model reported the exact new value.
+  The downloaded receipt contained the real uploaded bytes and edited text,
+  matching all 80 bytes and SHA-256. Independent-viewer Return and recovery of
+  the pending single-use approval remained enabled in that same journey.
+- [SudoWork #1249](https://github.com/sudoprivacy/sudowork/pull/1249) fixes the
+  WebUI release container's shared browser adapters. A real container with
+  PostgreSQL, migrations, authentication and viewer assets passed locally.
+- Sudo Code stable and co-host v0.2.31 provide the acknowledged execution
+  barrier. Real API/live PTY checks covered foreground tools and a parent/child
+  tool tree; cancelled work stays cancelled after admission reopens.
+
+### Desktop acceptance and remaining scope
+
+The Desktop integration uses the public v0.57.4 worker behind authenticated
+HTTP MCP, with a stdio adapter for engines without HTTP MCP support. Tool
+discovery and an idle panel allocate neither Python nor Chrome. The first
+browser operation prepares an app-owned Python environment. Desktop defaults
+to standalone CDP and lets the model choose headless/headful.
+
+A real gpt-6-luna conversation in the built Electron app passed headful launch,
+shared panel and separate native viewer, acknowledged human takeover, exact
+Unicode input and a trusted submission. Return triggered a new model turn that
+observed the human value and page status, without replaying the submission.
+The existing `/browser status` and `/browser eval` commands used that same
+session. A separate real restart journey recovered persisted human control
+through an explicit return. These application checks complement the Windows
+and Linux real-Chrome host/stdio CI workflow; the model journey remains an
+explicit local test with actual credentials.
+
+Desktop managed profiles currently persist per conversation; cloud profiles
+persist per user with exclusive ownership. Desktop connection to an existing
+user Chrome profile, the authorized local extension relay, compact takeover
+outside the panel, public WebUI frontend deployment and actual phone/Safari/
+Firefox acceptance remain open. These capabilities must each have their own
+implementation and evidence before this design is considered fully delivered.

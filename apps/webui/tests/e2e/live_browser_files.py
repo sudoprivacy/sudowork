@@ -27,6 +27,14 @@ async def main(args):
     unique = uuid.uuid4().hex[:12]
     filename = "报告_" + unique + ".txt"
     payload = ("Human-selected browser file " + unique).encode()
+    ai_note = "AI_BEFORE_" + unique
+    human_note = "HUMAN_" + unique + " 中文"
+    download_payload = (
+        payload + ("\nBrowser note: " + human_note).encode()
+        if args.verify_text_edit
+        else payload
+    )
+    notes = []
     received = []
     visits = []
     ready = "FILE_PICKER_READY_" + unique
@@ -47,7 +55,11 @@ async def main(args):
             self.send_header("Cache-Control", "no-store")
             if self.path == "/receipts":
                 assert received, "Download must follow an actual upload"
+                if args.verify_text_edit:
+                    assert notes[-1]["text"] == human_note and notes[-1]["trusted"]
                 data = received[0]["text"].encode()
+                if args.verify_text_edit:
+                    data += ("\nBrowser note: " + notes[-1]["text"]).encode()
                 self.send_header("Content-Type", "application/octet-stream")
                 self.end_headers()
                 self.wfile.write(data)
@@ -57,21 +69,33 @@ async def main(args):
                 "Set-Cookie", f"files_{unique}=present; Path=/; Max-Age=3600"
             )
             self.end_headers()
+            note_html = (
+                '<input id="browser-note" aria-label="Browser note" style="position:absolute;left:24px;top:240px;margin:0">'
+                if args.verify_text_edit
+                else ""
+            )
+            note_script = (
+                """const noteField=document.querySelector('#browser-note');
+            noteField.oninput=event=>fetch('/note',{method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({text:noteField.value,trusted:event.isTrusted})});"""
+                if args.verify_text_edit
+                else ""
+            )
             self.wfile.write(
                 f"""<!doctype html><meta charset="utf-8"><title>Browser files {unique}</title>
             <style>body{{margin:0;font:20px sans-serif}}input,a{{display:block;margin:24px;width:320px;height:48px}}</style>
             <input id="upload" type="file"><a id="download" href="/receipts" download="receipt_{unique}.txt">Download uploaded receipt</a>
-            <pre id="result">Waiting for user upload</pre><script>
+            {note_html}<pre id="result">Waiting for user upload</pre><script>{note_script}
             upload.onchange=async event=>{{const file=upload.files[0];const r=await fetch('/submit',{{method:'POST',headers:{{'Content-Type':'application/json'}},
             body:JSON.stringify({{name:file.name,text:await file.text(),trusted:event.isTrusted}})}});
             result.textContent=JSON.stringify(await r.json());}};</script>""".encode()
             )
 
         def do_POST(self):
-            assert self.path == "/submit"
+            assert self.path in ("/submit", "/note")
             value = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
             value["cookie"] = self.headers.get("Cookie", "")
-            received.append(value)
+            (notes if self.path == "/note" else received).append(value)
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
@@ -284,30 +308,36 @@ async def main(args):
                             text += delta.get("text", "")
                     if event.get("type") == "result" and marker in text:
                         assert not event.get("is_error"), event
-                        return
+                        return text
                 await asyncio.sleep(0.25)
             raise AssertionError("Real AI did not complete the current file journey")
 
-        initial = await state()
+        initial = await wait_state(lambda value: value["state"] != "pausing")
         if args.stop_existing:
             profile = initial["profileId"]
             assert not initial["isHumanControlHeld"] or initial["isController"], (
                 "The fixture belongs to another controller; do not take its lease"
             )
             if initial["error"] == "browser_restart_requires_observation":
-                assert initial["state"] == "stopped"
-                await panel.get_by_role(
-                    "button", name=browser["start"], exact=True
-                ).click()
-                initial = await wait_state(
-                    lambda value: (
-                        value["state"] == "human"
-                        and value["isController"]
-                        and value["error"] is None
+                if initial["state"] == "stopped":
+                    await panel.get_by_role(
+                        "button", name=browser["start"], exact=True
+                    ).click()
+                    initial = await wait_state(
+                        lambda value: (
+                            value["state"] == "human" and value["isController"]
+                        )
                     )
-                )
+                assert initial["state"] == "human" and initial["isController"]
                 assert initial["profileId"] == profile
-            assert initial["error"] is None
+                # Recovery retains its observation warning until explicit
+                # Return; starting Chrome does not restore AI admission.
+                assert initial["error"] in (
+                    None,
+                    "browser_restart_requires_observation",
+                )
+            else:
+                assert initial["error"] is None
             if initial["state"] == "ai":
                 await panel.get_by_role(
                     "button", name=browser["take"], exact=True
@@ -355,8 +385,13 @@ async def main(args):
         start = len(messages)
         editor = page.locator("textarea").first
         await page.bring_to_front()
+        preparation = (
+            f" First enter {ai_note} in Browser note using trusted browser_action input before opening the file chooser."
+            if args.verify_text_edit
+            else ""
+        )
         await editor.fill(
-            f"File handoff acceptance {unique}. Use only sudowork-browser MCP tools. Launch a headful managed extension browser, navigate to {url}, observe the page and click the native Upload file input using browser_action input, not JavaScript click. Do not upload or download anything yet. Once fileChooser appears, finish this turn by replying exactly {ready}. The user will supply a local file through the shared viewer."
+            f"File handoff acceptance {unique}. Use only sudowork-browser MCP tools. Launch a headful managed extension browser, navigate to {url}, observe the page.{preparation} Click the native Upload file input using browser_action input, not JavaScript click. Do not upload or download anything yet. Once fileChooser appears, finish this turn by replying exactly {ready}. The user will supply a local file through the shared viewer."
         )
         await editor.press("Enter")
         print("Waiting for the real AI to open the native file picker", flush=True)
@@ -404,6 +439,45 @@ async def main(args):
         )
         after_upload = await wait_state(lambda value: value["fileChooser"] is None)
         assert after_upload["browserSessionId"] == loaded["browserSessionId"]
+        if args.verify_text_edit:
+            assert any(note["text"] == ai_note and note["trusted"] for note in notes), (
+                "The actual AI did not prefill Browser note"
+            )
+            await panel.get_by_label(browser["viewMode"], exact=True).click()
+            await page.get_by_text(browser["pageView"], exact=True).last.click()
+            frame = panel.get_by_role("img", name=browser["page"], exact=True)
+            await expect(frame).to_be_visible()
+            await page.wait_for_function(
+                "()=>{const e=document.querySelector('[data-testid=browser-session-panel] img');return e?.naturalWidth>0&&e.naturalHeight>0&&e.naturalHeight<900}"
+            )
+            dimensions = await frame.evaluate(
+                "e=>({width:e.naturalWidth,height:e.naturalHeight})"
+            )
+            box = await frame.bounding_box()
+            assert box and dimensions["width"] and dimensions["height"]
+            await frame.click(
+                position={
+                    "x": 140 * box["width"] / dimensions["width"],
+                    "y": 264 * box["height"] / dimensions["height"],
+                }
+            )
+            await frame.press("Control+a")
+            await panel.get_by_label(browser["text"], exact=True).fill(human_note)
+            await panel.get_by_role(
+                "button", name=browser["insert"], exact=True
+            ).click()
+            deadline = time.monotonic() + 20
+            while not notes or notes[-1]["text"] != human_note:
+                assert time.monotonic() < deadline, (
+                    "Select-all and Unicode insertion did not replace the actual AI value"
+                )
+                await asyncio.sleep(0.1)
+            assert notes[-1]["trusted"]
+            await page.screenshot(path=str(output / "text-edit.png"))
+            print(
+                "PageSurface Ctrl+A replaced the AI value with exact trusted Unicode input",
+                flush=True,
+            )
         # Missing authentication and a changed control epoch must not stage bytes.
         upload_path = (
             config["origin"] + f"/api/conversations/{sid}/browser/files/upload"
@@ -443,8 +517,13 @@ async def main(args):
                 "Closed the original chat before returning from the independent viewer",
                 flush=True,
             )
+        readback = (
+            " Also report the exact Browser note value after the completion marker, without changing it."
+            if args.verify_text_edit
+            else ""
+        )
         await return_panel.get_by_label(browser["note"], exact=True).fill(
-            f"I uploaded {filename}. Observe the page and verify its receipt contains {unique}. Then click Download uploaded receipt using a trusted browser_action input; freshly observe until the completed download appears. Do not submit again or use shell. Reply exactly {done}."
+            f"I uploaded {filename}. Observe the page and verify its receipt contains {unique}. Then click Download uploaded receipt using a trusted browser_action input; freshly observe until the completed download appears. Do not submit again or use shell. Reply with {done}.{readback}"
         )
         await return_panel.get_by_role(
             "button", name=browser["return"], exact=True
@@ -468,7 +547,11 @@ async def main(args):
             "Waiting for the real AI to observe the upload and download its receipt",
             flush=True,
         )
-        await wait_turn(start, done)
+        completion_text = await wait_turn(start, done)
+        if args.verify_text_edit:
+            assert human_note in completion_text, (
+                "The actual AI did not read back the human-edited note"
+            )
         if args.reconnect_approval:
             assert has_reconnected, (
                 "No actual pending permission was available to exercise reconnect"
@@ -488,8 +571,8 @@ async def main(args):
             if file["name"] == f"receipt_{unique}.txt"
         )
         assert (
-            file["bytes"] == len(payload)
-            and file["sha256"] == hashlib.sha256(payload).hexdigest()
+            file["bytes"] == len(download_payload)
+            and file["sha256"] == hashlib.sha256(download_payload).hexdigest()
         )
         await expect(panel.get_by_test_id("browser-downloads")).to_be_visible()
         async with page.expect_download() as download_event:
@@ -500,7 +583,7 @@ async def main(args):
             ).click()
         result = await download_event.value
         await result.save_as(output / result.suggested_filename)
-        assert (output / file["name"]).read_bytes() == payload
+        assert (output / file["name"]).read_bytes() == download_payload
         await page.screenshot(path=str(output / "file-download.png"))
         assert (
             downloaded["profileId"] == loaded["profileId"]
@@ -517,6 +600,14 @@ async def main(args):
                     "browserSessionId": loaded["browserSessionId"],
                     "upload": received[0],
                     "download": file,
+                    "textEdit": {
+                        "aiValue": ai_note,
+                        "humanValue": human_note,
+                        "trusted": notes[-1]["trusted"],
+                        "modelReadback": True,
+                    }
+                    if args.verify_text_edit
+                    else None,
                     "staleUploadStatus": stale.status,
                     "anonymousUploadStatus": unauthenticated.status,
                     "pageErrors": errors,
@@ -561,6 +652,10 @@ async def main(args):
         (output / "transfer-summary.json").write_text(
             json.dumps(transfers, indent=2), encoding="utf-8"
         )
+        (output / "fixture-summary.json").write_text(
+            json.dumps({"notes": notes, "uploads": received}, indent=2),
+            encoding="utf-8",
+        )
         await driver.stop()
         await asyncio.to_thread(browser_stop, session_id=own["session_id"])
         site.shutdown()
@@ -579,6 +674,11 @@ if __name__ == "__main__":
         "--stop-existing",
         action="store_true",
         help="Stop the owned completed browser through actual UI controls before the journey",
+    )
+    parser.add_argument(
+        "--verify-text-edit",
+        action="store_true",
+        help="Replace a real AI-prefilled field through PageSurface Ctrl+A, then require model readback and matching download bytes",
     )
     parser.add_argument(
         "--viewer-return",

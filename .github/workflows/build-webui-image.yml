@@ -16,6 +16,9 @@ on:
       - "packages/**"
       - "package.json"
       - "bun.lock"
+      - "vendor/ai-dev-browser"
+      - ".gitmodules"
+      - "scripts/browser-view-alias.mjs"
       - "apps/webui/Dockerfile"
       - ".github/workflows/build-webui-image.yml"
   workflow_dispatch:
@@ -46,6 +49,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.inputs.ref || github.ref }}
+          submodules: true
 
       - name: Resolve tag
         id: tag
