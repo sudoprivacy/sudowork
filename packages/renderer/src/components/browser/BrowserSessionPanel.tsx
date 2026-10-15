@@ -2,11 +2,11 @@ import { Button, Empty, Input, Message, Modal, Select, Spin } from '@arco-design
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
-import { BrowserFileSchema, BrowserInputSchema, BrowserSessionReplySchema, isCurrentBrowserFrame, type BrowserFile, type BrowserSessionAction, type BrowserSessionReply, type BrowserSessionState } from '@sudowork/contracts/browser-session';
+import { BrowserFileSchema, BrowserInputSchema, BrowserSessionReplySchema, isCurrentBrowserFrame, type BrowserFile, type BrowserInput, type BrowserSessionAction, type BrowserSessionReply, type BrowserSessionState } from '@sudowork/contracts/browser-session';
 import { PageSurface } from '@ai-dev-browser/remote-page';
 
 /** Shared remote browser UI. The host authenticates and enforces every action. */
-export default function BrowserSessionPanel({ conversationId, isActive = true, isViewer = false }: IBrowserSessionPanelProps) {
+export default function BrowserSessionPanel({ conversationId, isActive = true, isViewer = false, isControlsOnly = false, initialTransport = 'extension' }: IBrowserSessionPanelProps) {
   const { t } = useTranslation();
   const [session, setSession] = useState<BrowserSessionState | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -18,7 +18,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
   const [dialogText, setDialogText] = useState('');
   const [isFrameReady, setIsFrameReady] = useState(false);
   const [isHeadless, setIsHeadless] = useState(true);
-  const [transport, setTransport] = useState<'extension' | 'cdp'>('extension');
+  const [transport, setTransport] = useState<'extension' | 'cdp'>(initialTransport);
   const [selectedSurface, setSelectedSurface] = useState<'page' | 'window' | null>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -29,6 +29,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
   const isInteractiveRef = useRef(false);
   const surfaceModeRef = useRef<'page' | 'window'>('page');
   const generationRef = useRef(0);
+  const pendingInputsRef = useRef<Promise<void>>(Promise.resolve());
 
   const invoke = useCallback(
     async (action: BrowserSessionAction) => {
@@ -58,6 +59,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
       setIsHeadless(next.isHeadless);
       if (next.transport !== 'electron') setTransport(next.transport);
     }
+    if (!previous && next.state === 'stopped' && next.transport !== 'electron') setTransport(next.transport);
     const target = next.tabs.find((tab) => tab.id === next.activeTargetId);
     if (!previous || previous.activeTargetId !== next.activeTargetId || previous.tabs.find((tab) => tab.id === previous.activeTargetId)?.url !== target?.url) setUrl(target?.url || '');
     setError(null);
@@ -71,6 +73,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     let timer: ReturnType<typeof setTimeout> | undefined;
     const viewerId = crypto.randomUUID();
     sessionRef.current = null;
+    setTransport(initialTransport);
     setSession(null);
     setError(null);
     setIsFrameReady(false);
@@ -85,7 +88,9 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
         update(stateReply.session);
         const viewMode = selectedSurface === 'page' || !stateReply.session.capabilities.windowView ? 'page' : 'window';
         surfaceModeRef.current = viewMode;
-        if (document.visibilityState === 'visible' && stateReply.session.state !== 'stopped' && stateReply.session.capabilities.pageView && stateReply.session.activeTargetId) {
+        if (isControlsOnly) {
+          // This window observes the lease without attaching a pixel viewer.
+        } else if (document.visibilityState === 'visible' && stateReply.session.state !== 'stopped' && stateReply.session.capabilities.pageView && stateReply.session.activeTargetId) {
           await invoke({ kind: 'attach', viewerId, surface: viewMode });
           if (isClosed) return;
           const state = sessionRef.current!;
@@ -105,7 +110,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
           setIsFrameReady(false);
         }
       }
-      if (!isClosed) timer = setTimeout(() => void poll(), document.visibilityState === 'visible' ? 350 : 2000);
+      if (!isClosed) timer = setTimeout(() => void poll(), isControlsOnly || document.visibilityState !== 'visible' ? 2000 : 350);
     }
     void poll();
     return () => {
@@ -116,22 +121,58 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
       // Detach only the view. The server retains the browser and human lease.
       void invoke({ kind: 'detach', viewerId }).catch(() => {});
     };
-  }, [conversationId, invoke, isActive, selectedSurface, t, update]);
+  }, [conversationId, initialTransport, invoke, isActive, isControlsOnly, selectedSurface, t, update]);
 
   const isController = session?.state === 'human' && session.isController && !isTransferring && !isFileTransferring && !error;
   const isStoppedController = session?.state === 'stopped' && session.isController && session.isHumanControlHeld && !isTransferring && !error;
   const isReturnAvailable = !!(isController || isStoppedController);
   isInteractiveRef.current = !!isController;
 
+  const queueInput = useCallback(
+    (input: BrowserInput) => {
+      const observed = sessionRef.current;
+      const generation = generationRef.current;
+      const surface = surfaceModeRef.current;
+      const operation = pendingInputsRef.current.then(() => {
+        const current = sessionRef.current;
+        if (
+          !observed ||
+          !current ||
+          generationRef.current !== generation ||
+          current.browserSessionId !== observed.browserSessionId ||
+          current.profileId !== observed.profileId ||
+          current.controlEpoch !== observed.controlEpoch ||
+          current.targetEpoch !== observed.targetEpoch ||
+          current.state !== 'human' ||
+          !current.isController ||
+          !invokeRef.current
+        )
+          throw new Error(t('conversation.browserSession.unavailable'));
+        return invokeRef.current({ kind: 'input', input, surface, controlEpoch: observed.controlEpoch, targetEpoch: observed.targetEpoch });
+      });
+      // Mouse, keyboard and the Unicode input box share one acknowledged order.
+      // A failed operation still releases the queue; each caller reports its error.
+      pendingInputsRef.current = operation.then(
+        () => {},
+        () => {}
+      );
+      return operation;
+    },
+    [t]
+  );
+
   const onAction = useCallback(
     async (kind: 'take' | 'return' | 'navigate' | 'back' | 'forward' | 'reload' | 'new-tab' | 'select-tab' | 'close-tab', targetId?: string) => {
-      const current = sessionRef.current;
-      if (!current) return;
       const generation = generationRef.current;
-      const epochs = { controlEpoch: current.controlEpoch, targetEpoch: current.targetEpoch };
-      const action: BrowserSessionAction = kind === 'navigate' ? { kind, url, ...epochs } : kind === 'return' ? { kind, note, ...epochs } : kind === 'select-tab' || kind === 'close-tab' ? { kind, targetId: targetId!, ...epochs } : { kind, ...epochs };
       if (kind === 'take' || kind === 'return') setIsTransferring(true);
+      if (kind === 'return') isInteractiveRef.current = false;
       try {
+        if (kind !== 'take') await pendingInputsRef.current;
+        if (generationRef.current !== generation) return;
+        const current = sessionRef.current;
+        if (!current) return;
+        const epochs = { controlEpoch: current.controlEpoch, targetEpoch: current.targetEpoch };
+        const action: BrowserSessionAction = kind === 'navigate' ? { kind, url, ...epochs } : kind === 'return' ? { kind, note, ...epochs } : kind === 'select-tab' || kind === 'close-tab' ? { kind, targetId: targetId!, ...epochs } : { kind, ...epochs };
         const reply = await invoke(action);
         if (generationRef.current !== generation) return;
         update(reply.session);
@@ -153,8 +194,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
       const input = BrowserInputSchema.safeParse(value);
       if (!input.success) return;
       const generation = generationRef.current;
-      void invokeRef
-        .current?.({ kind: 'input', input: input.data, surface: surfaceModeRef.current, controlEpoch: current.controlEpoch, targetEpoch: current.targetEpoch })
+      void queueInput(input.data)
         .then((reply) => {
           if (generationRef.current === generation) updateRef.current(reply.session);
         })
@@ -167,15 +207,18 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
       surface.dispose();
       surfaceRef.current = null;
     };
-  }, [t]);
+  }, [queueInput, t, isControlsOnly]);
 
   const onInsertText = async () => {
     const current = sessionRef.current;
     if (!current || !isController || !text) return;
+    const generation = generationRef.current;
+    const submitted = text;
     try {
-      const reply = await invoke({ kind: 'input', input: { kind: 'text', text }, surface: surfaceModeRef.current, controlEpoch: current.controlEpoch, targetEpoch: current.targetEpoch });
+      const reply = await queueInput({ kind: 'text', text: submitted });
+      if (generationRef.current !== generation) return;
       update(reply.session);
-      setText('');
+      setText((value) => (value === submitted ? '' : value));
     } catch (failure) {
       Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
     }
@@ -302,35 +345,48 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     }
   };
 
-  return (
-    <div className='h-full min-h-0 flex flex-col gap-2 p-2' data-testid='browser-session-panel'>
-      <div className='flex flex-wrap items-center gap-2'>
-        <span role='status'>{isTransferring ? t('conversation.browserSession.transferring') : t(`conversation.browserSession.state.${session?.state || 'stopped'}`)}</span>
-        {session ? <span className='text-xs text-t-secondary'>{t(`conversation.browserSession.${session.isHeadless ? 'headless' : 'headful'}`)}</span> : null}
-        <Button size='mini' disabled={!session || session.state !== 'ai' || isTransferring || !!error} onClick={() => void onAction('take')}>
-          {t('conversation.browserSession.take')}
+  const handoffNote = isReturnAvailable ? <Input aria-label={t('conversation.browserSession.note')} placeholder={t('conversation.browserSession.note')} value={note} maxLength={2000} onChange={setNote} /> : null;
+  const controls = (
+    <div className='flex flex-wrap items-center gap-2'>
+      <span role='status'>{isTransferring ? t('conversation.browserSession.transferring') : t(`conversation.browserSession.state.${session?.state || 'stopped'}`)}</span>
+      {session ? <span className='text-xs text-t-secondary'>{t(`conversation.browserSession.${session.isHeadless ? 'headless' : 'headful'}`)}</span> : null}
+      <Button size='mini' disabled={!session || session.state !== 'ai' || isTransferring || !!error} onClick={() => void onAction('take')}>
+        {t('conversation.browserSession.take')}
+      </Button>
+      <Button size='mini' disabled={!isReturnAvailable} onClick={() => void onAction('return')}>
+        {t('conversation.browserSession.return')}
+      </Button>
+      {!isViewer || isControlsOnly ? (
+        <Button size='mini' onClick={() => openBrowserSessionWindow(conversationId)}>
+          {t('conversation.browserSession.openViewer')}
         </Button>
-        <Button size='mini' disabled={!isReturnAvailable} onClick={() => void onAction('return')}>
-          {t('conversation.browserSession.return')}
-        </Button>
-        {!isViewer ? (
-          <Button size='mini' onClick={() => window.open(`${location.pathname}${location.search}#/browser-viewer/${encodeURIComponent(conversationId)}`, '_blank', 'noopener')}>
-            {t('conversation.browserSession.openViewer')}
-          </Button>
-        ) : null}
-        {session?.capabilities.windowView ? (
-          <Select
-            aria-label={t('conversation.browserSession.viewMode')}
-            value={selectedSurface || 'window'}
-            onChange={setSelectedSurface}
-            style={{ width: 180 }}
-            options={[
-              { value: 'window', label: t('conversation.browserSession.windowView') },
-              { value: 'page', label: t('conversation.browserSession.pageView') },
-            ]}
-          />
-        ) : null}
+      ) : null}
+      {!isControlsOnly && session?.capabilities.windowView ? (
+        <Select
+          aria-label={t('conversation.browserSession.viewMode')}
+          value={selectedSurface || 'window'}
+          onChange={setSelectedSurface}
+          style={{ width: 180 }}
+          options={[
+            { value: 'window', label: t('conversation.browserSession.windowView') },
+            { value: 'page', label: t('conversation.browserSession.pageView') },
+          ]}
+        />
+      ) : null}
+    </div>
+  );
+  if (isControlsOnly)
+    return (
+      <div className='h-full min-h-0 flex flex-col gap-2 overflow-auto p-2' data-testid='browser-session-controls'>
+        {controls}
+        {handoffNote}
+        {error ? <div role='alert'>{error}</div> : null}
       </div>
+    );
+
+  return (
+    <div className='h-full min-h-0 flex flex-col gap-2 overflow-auto p-2' data-testid='browser-session-panel'>
+      {controls}
       {session?.state === 'stopped' || (isController && session?.capabilities.lifecycle) ? (
         <div className='flex flex-wrap items-center gap-2'>
           <Select
@@ -462,7 +518,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
           </div>
         </>
       ) : null}
-      {isReturnAvailable ? <Input aria-label={t('conversation.browserSession.note')} placeholder={t('conversation.browserSession.note')} value={note} maxLength={2000} onChange={setNote} /> : null}
+      {handoffNote}
       {session?.state === 'human' && error ? <div role='alert'>{t('conversation.browserSession.disconnected')}</div> : null}
     </div>
   );
@@ -472,4 +528,12 @@ interface IBrowserSessionPanelProps {
   conversationId: string;
   isActive?: boolean;
   isViewer?: boolean;
+  isControlsOnly?: boolean;
+  initialTransport?: 'extension' | 'cdp';
+}
+
+/** User gestures open either view of the same authenticated browser lease. */
+export function openBrowserSessionWindow(conversationId: string, isControlsOnly = false): void {
+  const route = isControlsOnly ? 'browser-controls' : 'browser-viewer';
+  window.open(`${location.pathname}${location.search}#/${route}/${encodeURIComponent(conversationId)}`, '_blank', isControlsOnly ? 'noopener,popup,width=460,height=250' : 'noopener');
 }

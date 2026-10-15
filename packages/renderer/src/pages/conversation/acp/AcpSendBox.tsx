@@ -8,6 +8,7 @@ import type { AcpQuestionItem, IMessageAcpQuestion, TMessage } from '@sudowork/c
 import { uuid } from '@sudowork/common/utils';
 import { ConfigStorage } from '@sudowork/common/storage';
 import SendBox from '@renderer/components/Sendbox';
+import { openBrowserSessionWindow } from '@renderer/components/browser/BrowserSessionPanel';
 import ThoughtDisplay from '@renderer/components/ThoughtDisplay';
 import { getSendBoxDraftHook, type FileOrFolderItem } from '@renderer/hooks/useSendBoxDraft';
 import { createSetUploadFile, useSendBoxFiles } from '@renderer/hooks/useSendBoxFiles';
@@ -633,6 +634,9 @@ const AcpSendBox: React.FC<{
               compactLabelPrefix={t('agentMode.permission')}
             />
             <AcpConfigSelector conversationId={conversation_id} backend={backend} />
+            <Button size='mini' type='text' onClick={() => openBrowserSessionWindow(conversation_id, true)}>
+              {t('conversation.browserSession.controls')}
+            </Button>
           </div>
         }
         prefix={

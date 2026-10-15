@@ -1012,11 +1012,37 @@ export class AcpConnection {
     return this.models;
   }
 
+  get isToolPauseSupported(): boolean {
+    const initialized = this.initializeResponse as unknown as { _meta?: { sudocode?: { toolPause?: { version?: unknown } } } } | null;
+    return initialized?._meta?.sudocode?.toolPause?.version === 1;
+  }
+
+  get isHttpMcpSupported(): boolean {
+    const initialized = this.initializeResponse as unknown as { agentCapabilities?: { mcpCapabilities?: { http?: boolean } } } | null;
+    return initialized?.agentCapabilities?.mcpCapabilities?.http === true;
+  }
+
+  /** Acknowledge takeover only after the engine's main and child workers drain. */
+  async pauseTools(): Promise<{ sessionId: string; pauseEpoch: number }> {
+    const sessionId = this.sessionId;
+    if (!sessionId || !this.isToolPauseSupported) throw new Error('This agent does not support tool takeover');
+    const response = await this.sendRequest<{ pauseEpoch?: unknown; isQuiescent?: unknown }>('_sudocode/session/pause_tools', { sessionId });
+    if (this.sessionId !== sessionId || !this.isConnected) throw new Error('The agent connection changed while tools were stopping');
+    if (response.isQuiescent !== true || typeof response.pauseEpoch !== 'number' || !Number.isSafeInteger(response.pauseEpoch) || response.pauseEpoch < 1) throw new Error('The agent has not confirmed that its tools stopped');
+    return { sessionId, pauseEpoch: response.pauseEpoch };
+  }
+
+  /** Returning permits a fresh prompt; it never restarts the cancelled turn. */
+  async resumeTools(control: { sessionId: string; pauseEpoch: number }): Promise<void> {
+    if (!Number.isSafeInteger(control.pauseEpoch) || control.pauseEpoch < 1) throw new Error('Invalid tool control epoch');
+    if (!this.isToolPauseSupported || !this.isConnected || this.sessionId !== control.sessionId) throw new Error('The agent connection changed; tool control must be recovered');
+    await this.sendRequest('_sudocode/session/resume_tools', control);
+    if (this.sessionId !== control.sessionId || !this.isConnected) throw new Error('The agent connection changed while returning tool control');
+  }
+
   /**
-   * Cancel the current turn via ACP session/cancel.
-   * Sends the cancel notification and waits for the backend to confirm
-   * by responding to the pending session/prompt with stopReason: 'cancelled'.
-   * Falls back to disconnect() if the backend doesn't respond within timeout.
+   * Cancel the current turn and await its response within the caller's budget.
+   * This does not establish the main/child tool barrier used for takeover.
    */
   async cancel(timeoutMs: number = 3000): Promise<'cancelled' | 'abandoned' | 'disconnected'> {
     if (!this.transport || !this.sessionId) {

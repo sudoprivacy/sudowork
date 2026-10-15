@@ -6,7 +6,7 @@
 
 import React, { Suspense } from 'react';
 import { loginReturnPath } from '@sudowork/common/loginReturnPath';
-import { HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { HashRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import AppLoader from './components/AppLoader';
 import { useAuth } from './context/AuthContext';
 import { useAppMode, isModeResolved } from './hooks/useAppMode';
@@ -70,6 +70,7 @@ const PROTECTED_ROUTE_CONFIGS = [
   { path: '/guid', component: Guid },
   { path: '/conversation/:id', component: Conversation },
   { path: '/browser-viewer/:conversationId', component: BrowserViewerPage },
+  { path: '/browser-controls/:conversationId', component: BrowserViewerPage },
   { path: '/moss-session/:sessionId', component: MossSessionPage },
   { path: '/settings/gemini', component: GeminiSettings },
   { path: '/settings/model', component: SudocodeModelSettings },
@@ -148,6 +149,12 @@ const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) =
     return <Navigate to='/guid' replace />;
   }
 
+  if (location.pathname.startsWith('/browser-viewer/') || location.pathname.startsWith('/browser-controls/'))
+    return (
+      <div className='app-shell relative size-full min-h-0 bg-2 text-1'>
+        <Outlet />
+      </div>
+    );
   return React.cloneElement(layout);
 };
 

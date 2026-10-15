@@ -24,6 +24,7 @@ import fixPath from 'fix-path';
 import * as fs from 'fs';
 import * as path from 'path';
 import { initMainAdapterWithWindow } from './adapter/main';
+import { isBrowserViewerUrl } from './process/services/browserPanel/browserViewerUrl';
 import { createAvatarWindow } from './process/avatarWindow';
 import { ipcBridge } from './common';
 import { AION_ASSET_PROTOCOL, createAssetProtocolResponse } from './extensions/assetProtocol';
@@ -542,6 +543,43 @@ const createWindow = (): void => {
   setTimeout(showWindow, 5000);
 
   initMainAdapterWithWindow(mainWindow);
+  const configureBrowserViewers = (parentWindow: BrowserWindow): void => {
+    parentWindow.webContents.setWindowOpenHandler(({ url }) => {
+      if (!isBrowserViewerUrl(url, mainWindow.webContents.getURL())) return { action: 'allow' };
+      const isBrowserControls = new URL(url).hash.startsWith('#/browser-controls/');
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          show: true,
+          frame: true,
+          autoHideMenuBar: true,
+          width: isBrowserControls ? 460 : 1200,
+          height: isBrowserControls ? 250 : 850,
+          alwaysOnTop: isBrowserControls,
+          webPreferences: { preload: path.join(__dirname, '../preload/index.js'), nodeIntegration: false, contextIsolation: true, sandbox: false },
+        },
+      };
+    });
+    parentWindow.webContents.on('did-create-window', (viewer, details) => {
+      if (!isBrowserViewerUrl(details.url, mainWindow.webContents.getURL())) return;
+      initMainAdapterWithWindow(viewer);
+      configureBrowserViewers(viewer);
+      void applyZoomToWindow(viewer);
+      const showViewer = () => {
+        if (!viewer.isDestroyed()) {
+          viewer.show();
+          viewer.focus();
+        }
+      };
+      viewer.once('ready-to-show', showViewer);
+      viewer.webContents.once('did-finish-load', showViewer);
+      showViewer();
+      viewer.webContents.on('will-navigate', (event, url) => {
+        if (!isBrowserViewerUrl(url, mainWindow.webContents.getURL())) event.preventDefault();
+      });
+    });
+  };
+  configureBrowserViewers(mainWindow);
   setupApplicationMenu();
   void applyZoomToWindow(mainWindow);
   registerWindowMaximizeListeners(mainWindow);
@@ -989,6 +1027,13 @@ app.on('before-quit', (event) => {
       await WorkerManage.clear();
     } catch (error) {
       console.error('[App] Failed to clear work processes:', error);
+    }
+
+    try {
+      const { closeLocalBrowserSessions } = await import('./process/services/browserPanel/localBrowserSessionHost');
+      await closeLocalBrowserSessions();
+    } catch (error) {
+      console.error('[App] Local browser shutdown requires recovery:', error);
     }
 
     // Stop all managed services (Nexus, Sudoclaw gateway)

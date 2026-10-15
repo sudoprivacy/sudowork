@@ -101,6 +101,12 @@ export default defineConfig({
       // 新增功能时，将对应的源文件路径添加到此数组
       // 例如: 'src/process/services/newService.ts'
       include: [
+        'src/process/services/browserPanel/LocalBrowserWorker.ts',
+        'src/process/services/browserPanel/LocalBrowserSessions.ts',
+        'src/process/services/browserPanel/browserViewerUrl.ts',
+        'src/process/services/browserPanel/localBrowserSessionHost.ts',
+        'src/process/services/browserPanel/LocalAgentToolControl.ts',
+        'src/process/services/browserPanel/localToolControl.ts',
         '../../packages/contracts/src/browserSession.ts',
         '../../packages/renderer/src/components/browser/BrowserSessionPanel.tsx',
         '../../packages/common/src/loginReturnPath.ts',
