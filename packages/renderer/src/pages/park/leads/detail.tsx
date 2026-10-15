@@ -14,6 +14,7 @@ import PageWrapper from '@renderer/components/base/PageWrapper';
 interface ILeadDetail {
   lead_id: string;
   enterprise_org_id: string;
+  enterprise_name?: string | null;
   source: string;
   score: number | null;
   score_explanation: string | null;
@@ -21,6 +22,7 @@ interface ILeadDetail {
   industry_tags: string[];
   status: string;
   owner_id: string | null;
+  owner_name?: string | null;
   inquiry_summary: {
     inquiry_id: string;
     redacted_question: string | null;
@@ -41,7 +43,7 @@ export default function ParkLeadDetailPage() {
   const [rejectReason, setRejectReason] = useState('');
   const [isAssignOpen, setIsAssignOpen] = useState(false);
   const [assignOwnerId, setAssignOwnerId] = useState('');
-  const members = useParkQuery<{ items: Array<{ user_id: string; park_role: string }> }>(role === 'park_leader' && parkOrgId ? 'listMembers' : null, parkOrgId ? { parkOrgId } : undefined);
+  const members = useParkQuery<{ items: Array<{ user_id: string; user_name: string | null; park_role: string }> }>(role === 'park_leader' && parkOrgId ? 'listMembers' : null, parkOrgId ? { parkOrgId } : undefined);
 
   async function update(updates: Record<string, unknown>): Promise<boolean> {
     if (!parkOrgId || !leadId) return false;
@@ -80,14 +82,20 @@ export default function ParkLeadDetailPage() {
             <Descriptions
               column={2}
               data={[
-                { label: t('park.common.enterprise', '企业'), value: data?.enterprise_org_id ?? '-' },
+                {
+                  label: t('park.common.enterprise', '企业'),
+                  value: data ? data.enterprise_name || data.enterprise_org_id : '-',
+                },
                 {
                   label: t('park.common.status', '状态'),
                   value: status ? <Tag>{t(`park.status.${status}`, status)}</Tag> : '-',
                 },
                 { label: t('park.leads.source', '来源'), value: data ? t(`park.leads.${data.source}`, data.source) : '-' },
                 { label: t('park.common.score', '评分'), value: data?.score ?? '-' },
-                { label: t('park.leads.owner', '负责人'), value: data?.owner_id ?? t('park.leads.noOwner', '未认领') },
+                {
+                  label: t('park.leads.owner', '负责人'),
+                  value: data?.owner_id ? data.owner_name || data.owner_id : t('park.leads.noOwner', '未认领'),
+                },
                 { label: t('park.leads.industryTags', '行业标签'), value: (data?.industry_tags ?? []).join(', ') || '-' },
               ]}
             />
@@ -208,7 +216,7 @@ export default function ParkLeadDetailPage() {
             .filter((member) => member.park_role === 'park_ops')
             .map((member) => (
               <Select.Option key={member.user_id} value={member.user_id}>
-                {member.user_id}
+                {member.user_name || member.user_id}
               </Select.Option>
             ))}
         </Select>

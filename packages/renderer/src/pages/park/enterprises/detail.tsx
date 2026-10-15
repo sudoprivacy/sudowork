@@ -19,6 +19,7 @@ interface IEnterpriseDetail {
   contact_name: string | null;
   contact_phone: string | null;
   assigned_owner_id: string | null;
+  assigned_owner_name?: string | null;
   tags: string[];
   lifecycle: string;
   lead_summary: { total: number; by_status: Record<string, number> };
@@ -29,10 +30,7 @@ export default function ParkEnterpriseDetailPage() {
   const navigate = useNavigate();
   const { enterpriseOrgId } = useParams<{ enterpriseOrgId: string }>();
   const { parkOrgId, role } = useParkOrgId();
-  const { data, loading, error, reload } = useParkQuery<IEnterpriseDetail>(
-    'getEnterpriseDetail',
-    parkOrgId && enterpriseOrgId ? { parkOrgId, enterpriseOrgId } : undefined,
-  );
+  const { data, loading, error, reload } = useParkQuery<IEnterpriseDetail>('getEnterpriseDetail', parkOrgId && enterpriseOrgId ? { parkOrgId, enterpriseOrgId } : undefined);
   const [tagInput, setTagInput] = useState('');
 
   async function saveFollowUp() {
@@ -41,19 +39,28 @@ export default function ParkEnterpriseDetailPage() {
       await invokePark('updateEnterpriseFollowUp', {
         parkOrgId,
         enterpriseOrgId,
-        updates: tagInput.trim() ? { tags: tagInput.split(',').map(s => s.trim()).filter(Boolean) } : {},
+        updates: tagInput.trim()
+          ? {
+              tags: tagInput
+                .split(',')
+                .map((s) => s.trim())
+                .filter(Boolean),
+            }
+          : {},
       });
-      Message.success(t('park.common.save', '保存'))
-      reload()
+      Message.success(t('park.common.save', '保存'));
+      reload();
     } catch (err) {
-      Message.error(err instanceof Error ? err.message : t('park.leads.updateFailed', '操作失败'))
+      Message.error(err instanceof Error ? err.message : t('park.leads.updateFailed', '操作失败'));
     }
   }
 
   return (
     <PageWrapper title={t('park.nav.enterpriseDetail', '企业画像')} back={{ onClick: () => navigate('/park/enterprises') }}>
       {error ? (
-        <Typography.Text type='error'>{t('park.common.loadFailed', '加载失败')}: {error}</Typography.Text>
+        <Typography.Text type='error'>
+          {t('park.common.loadFailed', '加载失败')}: {error}
+        </Typography.Text>
       ) : (
         <Card loading={loading}>
           <Descriptions
@@ -68,7 +75,10 @@ export default function ParkEnterpriseDetailPage() {
               { label: t('park.enterprises.scale', '规模'), value: data?.scale ?? '-' },
               { label: t('park.enterprises.contactName', '联系人姓名'), value: data?.contact_name ?? '-' },
               { label: t('park.enterprises.contactPhone', '联系电话'), value: data?.contact_phone ?? '-' },
-              { label: t('park.enterprises.assignedOwner', '负责运营'), value: data?.assigned_owner_id ?? '-' },
+              {
+                label: t('park.enterprises.assignedOwner', '负责运营'),
+                value: data?.assigned_owner_id ? data.assigned_owner_name || data.assigned_owner_id : '-',
+              },
               { label: t('park.enterprises.tags', '标签'), value: (data?.tags ?? []).join(', ') || '-' },
               {
                 label: t('park.enterprises.leadSummary', '线索汇总'),
@@ -82,12 +92,7 @@ export default function ParkEnterpriseDetailPage() {
           />
           {role === 'park_ops' ? (
             <Space className='pt-4'>
-              <Input
-                className='w-64'
-                placeholder={`${t('park.enterprises.followUp', '跟进信息')} (tags, comma-separated)`}
-                value={tagInput}
-                onChange={setTagInput}
-              />
+              <Input className='w-64' placeholder={`${t('park.enterprises.followUp', '跟进信息')} (tags, comma-separated)`} value={tagInput} onChange={setTagInput} />
               <Button type='primary' size='small' onClick={() => void saveFollowUp()}>
                 {t('park.common.save', '保存')}
               </Button>

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Button, Card, Input, Message, Modal, Table } from '@arco-design/web-react';
+import { Button, Card, Message, Modal, Select, Table, Tooltip } from '@arco-design/web-react';
 import { IconPlus } from '@arco-design/web-react/icon';
 import { useTranslation } from 'react-i18next';
 import { useState } from 'react';
@@ -15,7 +15,15 @@ import PageWrapper from '@renderer/components/base/PageWrapper';
 
 interface IAssignmentRow {
   assistant_id: string;
+  assistant_name: string | null;
   enterprise_org_id: string;
+  enterprise_name: string | null;
+}
+
+interface IAssistantCandidate {
+  assistant_id: string;
+  name: string;
+  display_name: string;
 }
 
 export default function ParkAdminAssistantPage() {
@@ -25,10 +33,9 @@ export default function ParkAdminAssistantPage() {
   const [assignAssistantId, setAssignAssistantId] = useState('');
   const [assignEntId, setAssignEntId] = useState('');
 
-  const assignments = useParkQuery<{ items: IAssignmentRow[] }>(
-    'listAssignments',
-    parkOrgId ? { parkOrgId } : undefined,
-  );
+  const assignments = useParkQuery<{ items: IAssignmentRow[] }>('listAssignments', parkOrgId ? { parkOrgId } : undefined);
+  const assistantCandidates = useParkQuery<{ items: IAssistantCandidate[] }>('listAssistantCandidates', parkOrgId ? { parkOrgId } : undefined);
+  const enterpriseCandidates = useParkQuery<{ items: Array<{ enterprise_org_id: string; enterprise_name: string }> }>('listEnterprises', parkOrgId ? { parkOrgId } : undefined);
 
   async function run(action: () => Promise<unknown>, successMsg: string) {
     try {
@@ -50,13 +57,29 @@ export default function ParkAdminAssistantPage() {
         }
       >
         <Table
-          rowKey={row => `${(row as IAssignmentRow).assistant_id}:${(row as IAssignmentRow).enterprise_org_id}`}
+          rowKey={(row) => `${(row as IAssignmentRow).assistant_id}:${(row as IAssignmentRow).enterprise_org_id}`}
           data={(assignments.data?.items ?? []) as never}
           pagination={false}
           loading={assignments.loading}
           columns={[
-            { title: t('park.admin.assistant.assistantId', 'Assistant ID'), dataIndex: 'assistant_id' },
-            { title: t('park.admin.assistant.enterpriseOrgId', '企业组织 ID'), dataIndex: 'enterprise_org_id' },
+            {
+              title: t('park.admin.assistant.assistantName', '助手名称'),
+              dataIndex: 'assistant_name',
+              render: (v: string | null, record: IAssignmentRow) => (
+                <Tooltip content={record.assistant_id}>
+                  <span>{v || record.assistant_id}</span>
+                </Tooltip>
+              ),
+            },
+            {
+              title: t('park.admin.assistant.enterpriseName', '企业名称'),
+              dataIndex: 'enterprise_name',
+              render: (v: string | null, record: IAssignmentRow) => (
+                <Tooltip content={record.enterprise_org_id}>
+                  <span>{v || record.enterprise_org_id}</span>
+                </Tooltip>
+              ),
+            },
             {
               title: t('park.common.actions', '操作'),
               render: (_: unknown, record: IAssignmentRow) => (
@@ -71,7 +94,7 @@ export default function ParkAdminAssistantPage() {
                           assistantId: record.assistant_id,
                           enterpriseOrgId: record.enterprise_org_id,
                         }),
-                      t('park.admin.assistant.unassigned', '已取消分配'),
+                      t('park.admin.assistant.unassigned', '已取消分配')
                     ).then(assignments.reload)
                   }
                 >
@@ -94,7 +117,7 @@ export default function ParkAdminAssistantPage() {
                 assistantId: assignAssistantId,
                 enterpriseOrgId: assignEntId,
               }),
-            t('park.admin.assistant.assigned', '已分配'),
+            t('park.admin.assistant.assigned', '已分配')
           ).then(() => {
             setAssignOpen(false);
             setAssignAssistantId('');
@@ -105,15 +128,35 @@ export default function ParkAdminAssistantPage() {
         onCancel={() => setAssignOpen(false)}
       >
         <div className='space-y-3'>
-          <Input
-            placeholder={t('park.admin.assistant.assistantId', 'Assistant ID')}
-            value={assignAssistantId}
-            onChange={setAssignAssistantId}
+          <Select
+            showSearch
+            placeholder={t('park.admin.assistant.selectAssistant', '搜索并选择助手')}
+            value={assignAssistantId || undefined}
+            onChange={(value) => setAssignAssistantId(value ? String(value) : '')}
+            filterOption={(inputValue, option) =>
+              String((option.props as { children?: string }).children ?? '')
+                .toLowerCase()
+                .includes(inputValue.toLowerCase())
+            }
+            options={(assistantCandidates.data?.items ?? []).map((candidate) => ({
+              value: candidate.assistant_id,
+              label: candidate.display_name || candidate.name,
+            }))}
           />
-          <Input
-            placeholder={t('park.admin.assistant.enterpriseOrgId', '企业组织 ID')}
-            value={assignEntId}
-            onChange={setAssignEntId}
+          <Select
+            showSearch
+            placeholder={t('park.admin.assistant.selectEnterprise', '搜索并选择企业')}
+            value={assignEntId || undefined}
+            onChange={(value) => setAssignEntId(value ? String(value) : '')}
+            filterOption={(inputValue, option) =>
+              String((option.props as { children?: string }).children ?? '')
+                .toLowerCase()
+                .includes(inputValue.toLowerCase())
+            }
+            options={(enterpriseCandidates.data?.items ?? []).map((candidate) => ({
+              value: candidate.enterprise_org_id,
+              label: candidate.enterprise_name,
+            }))}
           />
         </div>
       </Modal>

@@ -2310,6 +2310,14 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
         }),
       },
     ),
+  'park.list-assistant-candidates': async (req) =>
+    apiFetch(`/api/parks/${encodeURIComponent(String(req?.parkOrgId ?? ''))}/assistant-candidates`),
+  'park.list-bindable-enterprises': async (req) =>
+    apiFetch(`/api/parks/${encodeURIComponent(String(req?.parkOrgId ?? ''))}/bindable-enterprises`),
+  'park.search-member-candidates': async (req) =>
+    apiFetch(
+      `/api/parks/${encodeURIComponent(String(req?.parkOrgId ?? ''))}/member-candidates?q=${encodeURIComponent(String(req?.q ?? ''))}`,
+    ),
   'park.get-settings': async (req) =>
     apiFetch(`/api/parks/${encodeURIComponent(String(req?.parkOrgId ?? ''))}/settings`),
   'park.update-settings': async (req) =>

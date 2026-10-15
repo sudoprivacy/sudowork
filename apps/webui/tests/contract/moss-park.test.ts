@@ -2,11 +2,14 @@ import { describe, expect, test, vi } from 'vitest'
 import { createMossParkPort } from '@sudowork/moss-client'
 import {
   AssistantAssignmentSchema,
+  AssistantCandidatesSchema,
   AuditEventSchema,
+  BindableEnterprisesSchema,
   BindingSchema,
   EnterpriseListItemSchema,
   InquiryViewSchema,
   LeadSchema,
+  MemberCandidatesSchema,
   ParkContextSchema,
   ParkMemberSchema,
   RegisterEnterpriseResponseSchema,
@@ -66,6 +69,35 @@ describe('MossParkPort request contract', () => {
     })
   })
 
+  test('candidate endpoints preserve method, path, query and token', async () => {
+    const fetcher = vi.fn().mockResolvedValue({ items: [] })
+    const port = createMossParkPort(fetcher)
+
+    expect(
+      AssistantCandidatesSchema.safeParse(await port.listAssistantCandidates(context, 'park/1'))
+        .success,
+    ).toBe(true)
+    expect(
+      BindableEnterprisesSchema.safeParse(await port.listBindableEnterprises(context, 'park/1'))
+        .success,
+    ).toBe(true)
+    expect(
+      MemberCandidatesSchema.safeParse(
+        await port.searchMemberCandidates(context, 'park/1', '张三+%'),
+      ).success,
+    ).toBe(true)
+
+    expect(fetcher.mock.calls.map((call) => call[1])).toEqual([
+      { method: 'GET', path: '/api/v1/parks/park%2F1/assistant-candidates', accessToken: 'token' },
+      { method: 'GET', path: '/api/v1/parks/park%2F1/bindable-enterprises', accessToken: 'token' },
+      {
+        method: 'GET',
+        path: '/api/v1/parks/park%2F1/member-candidates?q=%E5%BC%A0%E4%B8%89%2B%25',
+        accessToken: 'token',
+      },
+    ])
+  })
+
   test('端点返回数据可被 contracts schema 解析（port 与契约一致，计划 5.5 contract 层）', async () => {
     const leadRow = {
       lead_id: 'l1',
@@ -79,6 +111,7 @@ describe('MossParkPort request contract', () => {
       policy_matches: null,
       suggested_action: null,
       owner_id: null,
+      owner_name: null,
       status: 'proposed',
       created_at: 1,
       updated_at: 1,
@@ -130,7 +163,9 @@ describe('MossParkPort request contract', () => {
             action: 'park.lead_claim',
             target_type: 'lead',
             target_id: 'l1',
+            target_name: null,
             actor_user_id: 'ops',
+            actor_name: null,
             reason: null,
             before: null,
             after: null,
@@ -141,7 +176,14 @@ describe('MossParkPort request contract', () => {
       })
       .mockResolvedValueOnce({
         items: [
-          { id: 'm1', park_org_id: 'p1', user_id: 'u1', park_role: 'park_ops', created_at: 1 },
+          {
+            id: 'm1',
+            park_org_id: 'p1',
+            user_id: 'u1',
+            user_name: null,
+            park_role: 'park_ops',
+            created_at: 1,
+          },
         ],
       })
       .mockResolvedValueOnce({
@@ -150,7 +192,9 @@ describe('MossParkPort request contract', () => {
             id: 'as1',
             park_org_id: 'p1',
             assistant_id: 'a1',
+            assistant_name: null,
             enterprise_org_id: 'e1',
+            enterprise_name: null,
             created_at: 1,
           },
         ],

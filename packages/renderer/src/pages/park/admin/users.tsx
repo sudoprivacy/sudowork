@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Button, Card, Input, Message, Modal, Select, Table } from '@arco-design/web-react';
+import { AutoComplete, Button, Card, Message, Modal, Select, Table, Tooltip } from '@arco-design/web-react';
 import { IconPlus } from '@arco-design/web-react/icon';
 import { useTranslation } from 'react-i18next';
 import { useState } from 'react';
@@ -15,6 +15,7 @@ import PageWrapper from '@renderer/components/base/PageWrapper';
 
 interface IMemberRow {
   user_id: string;
+  user_name: string | null;
   park_role: string;
 }
 
@@ -24,13 +25,13 @@ export default function ParkAdminUsersPage() {
   const { t } = useTranslation();
   const { parkOrgId } = useParkOrgId();
   const [memberOpen, setMemberOpen] = useState(false);
+  const [memberQuery, setMemberQuery] = useState('');
   const [memberUserId, setMemberUserId] = useState('');
   const [memberRole, setMemberRole] = useState('park_ops');
 
-  const members = useParkQuery<{ items: IMemberRow[] }>(
-    'listMembers',
-    parkOrgId ? { parkOrgId } : undefined,
-  );
+  const members = useParkQuery<{ items: IMemberRow[] }>('listMembers', parkOrgId ? { parkOrgId } : undefined);
+  // AutoComplete 一体式（计划 4.4 #15）：输入关键字即搜；直接键入 ID 原样提交（保底手输）
+  const candidates = useParkQuery<{ items: Array<{ user_id: string; display_name: string }> }>('searchMemberCandidates', parkOrgId && memberQuery.trim() ? { parkOrgId, q: memberQuery.trim() } : undefined);
 
   async function run(action: () => Promise<unknown>, successMsg: string) {
     try {
@@ -57,7 +58,15 @@ export default function ParkAdminUsersPage() {
           pagination={false}
           loading={members.loading}
           columns={[
-            { title: t('park.admin.users.userId', '用户 ID'), dataIndex: 'user_id' },
+            {
+              title: t('park.admin.users.userName', '用户'),
+              dataIndex: 'user_name',
+              render: (v: string | null, record: IMemberRow) => (
+                <Tooltip content={record.user_id}>
+                  <span>{v || record.user_id}</span>
+                </Tooltip>
+              ),
+            },
             {
               title: t('park.admin.users.role', '园区角色'),
               dataIndex: 'park_role',
@@ -66,16 +75,7 @@ export default function ParkAdminUsersPage() {
             {
               title: t('park.common.actions', '操作'),
               render: (_: unknown, record: IMemberRow) => (
-                <Button
-                  size='mini'
-                  status='danger'
-                  onClick={() =>
-                    void run(
-                      () => invokePark('removeMember', { parkOrgId, userId: record.user_id }),
-                      t('park.admin.users.removed', '已移除'),
-                    ).then(members.reload)
-                  }
-                >
+                <Button size='mini' status='danger' onClick={() => void run(() => invokePark('removeMember', { parkOrgId, userId: record.user_id }), t('park.admin.users.removed', '已移除')).then(members.reload)}>
                   {t('park.admin.users.remove', '移除')}
                 </Button>
               ),
@@ -88,11 +88,9 @@ export default function ParkAdminUsersPage() {
         title={t('park.admin.users.addMember', '添加成员')}
         visible={memberOpen}
         onOk={() =>
-          void run(
-            () => invokePark('addMember', { parkOrgId, userId: memberUserId, parkRole: memberRole }),
-            t('park.admin.users.added', '已添加'),
-          ).then(() => {
+          void run(() => invokePark('addMember', { parkOrgId, userId: memberUserId, parkRole: memberRole }), t('park.admin.users.added', '已添加')).then(() => {
             setMemberOpen(false);
+            setMemberQuery('');
             setMemberUserId('');
             members.reload();
           })
@@ -100,9 +98,25 @@ export default function ParkAdminUsersPage() {
         onCancel={() => setMemberOpen(false)}
       >
         <div className='space-y-3'>
-          <Input placeholder={t('park.admin.users.userId', '用户 ID')} value={memberUserId} onChange={setMemberUserId} />
+          <AutoComplete
+            placeholder={t('park.admin.users.searchUserPlaceholder', '输入姓名 / 手机号 / 邮箱 / 用户 ID 搜索')}
+            value={memberQuery}
+            filterOption={false}
+            onSearch={setMemberQuery}
+            onChange={(value, option) => {
+              if (!option) setMemberUserId(value);
+            }}
+            onSelect={(value) => {
+              setMemberUserId(value);
+              setMemberQuery(candidates.data?.items.find((candidate) => candidate.user_id === value)?.display_name ?? value);
+            }}
+            data={(candidates.data?.items ?? []).map((candidate) => ({
+              value: candidate.user_id,
+              name: candidate.display_name,
+            }))}
+          />
           <Select value={memberRole} onChange={setMemberRole}>
-            {ROLE_OPTIONS.map(role => (
+            {ROLE_OPTIONS.map((role) => (
               <Select.Option key={role} value={role}>
                 {t(`park.role.${role}`, role)}
               </Select.Option>

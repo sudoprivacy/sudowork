@@ -1657,6 +1657,10 @@ export const park = {
   listAssignments: bridge.buildProvider<unknown, { parkOrgId: string }>('park.list-assignments'),
   assignAssistant: bridge.buildProvider<unknown, { parkOrgId: string; assistantId: string; enterpriseOrgId: string }>('park.assign-assistant'),
   unassignAssistant: bridge.buildProvider<unknown, { parkOrgId: string; assistantId: string; enterpriseOrgId: string }>('park.unassign-assistant'),
+  // admin Modal 下拉候选（计划 4.1-B）
+  listAssistantCandidates: bridge.buildProvider<unknown, { parkOrgId: string }>('park.list-assistant-candidates'),
+  listBindableEnterprises: bridge.buildProvider<unknown, { parkOrgId: string }>('park.list-bindable-enterprises'),
+  searchMemberCandidates: bridge.buildProvider<unknown, { parkOrgId: string; q: string }>('park.search-member-candidates'),
   getSettings: bridge.buildProvider<unknown, { parkOrgId: string }>('park.get-settings'),
   updateSettings: bridge.buildProvider<unknown, { parkOrgId: string; updates: Record<string, unknown> }>('park.update-settings'),
   policyTree: bridge.buildProvider<unknown, { parkOrgId: string }>('park.policy-tree'),

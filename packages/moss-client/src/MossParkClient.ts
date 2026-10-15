@@ -34,6 +34,10 @@ export interface MossParkPort {
   assignments(ctx: MossCallContext, parkOrgId: string): Promise<unknown>
   assignAssistant(ctx: MossCallContext, parkOrgId: string, body: unknown): Promise<unknown>
   unassignAssistant(ctx: MossCallContext, parkOrgId: string, assistantId: string, enterpriseOrgId: string): Promise<unknown>
+  /** admin Modal 下拉候选（计划 4.1-B）：助手 / 未绑定企业 / 成员搜索 */
+  listAssistantCandidates(ctx: MossCallContext, parkOrgId: string): Promise<unknown>
+  listBindableEnterprises(ctx: MossCallContext, parkOrgId: string): Promise<unknown>
+  searchMemberCandidates(ctx: MossCallContext, parkOrgId: string, q: string): Promise<unknown>
   documentTree(ctx: MossCallContext): Promise<unknown>
   createDocumentNode(ctx: MossCallContext, name: string): Promise<unknown>
   documents(ctx: MossCallContext, nodeId: string): Promise<unknown>
@@ -97,6 +101,12 @@ export function createMossParkPort(mossFetch: MossFetch): MossParkPort {
     assignAssistant: (ctx, parkOrgId, body) => mossFetch(ctx.baseUrl, { method: 'POST', path: park(parkOrgId, '/assistant-assignments'), accessToken: ctx.accessToken, body }),
     unassignAssistant: (ctx, parkOrgId, assistantId, enterpriseOrgId) =>
       mossFetch(ctx.baseUrl, { method: 'DELETE', path: park(parkOrgId, `/assistant-assignments?assistant_id=${seg(assistantId)}&enterprise_org_id=${seg(enterpriseOrgId)}`), accessToken: ctx.accessToken }),
+    listAssistantCandidates: (ctx, parkOrgId) =>
+      mossFetch(ctx.baseUrl, { method: 'GET', path: park(parkOrgId, '/assistant-candidates'), accessToken: ctx.accessToken }),
+    listBindableEnterprises: (ctx, parkOrgId) =>
+      mossFetch(ctx.baseUrl, { method: 'GET', path: park(parkOrgId, '/bindable-enterprises'), accessToken: ctx.accessToken }),
+    searchMemberCandidates: (ctx, parkOrgId, q) =>
+      mossFetch(ctx.baseUrl, { method: 'GET', path: park(parkOrgId, `/member-candidates?q=${seg(q)}`), accessToken: ctx.accessToken }),
     documentTree: (ctx) => mossFetch(ctx.baseUrl, { method: 'GET', path: '/api/v1/documents/tree', accessToken: ctx.accessToken }),
     createDocumentNode: (ctx, name) => mossFetch(ctx.baseUrl, { method: 'POST', path: '/api/v1/documents/tree/nodes', accessToken: ctx.accessToken, body: { name } }),
     documents: (ctx, nodeId) => mossFetch(ctx.baseUrl, { method: 'GET', path: `/api/v1/documents/tree/nodes/${seg(nodeId)}/documents`, accessToken: ctx.accessToken }),

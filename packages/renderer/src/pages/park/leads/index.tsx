@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Button, Card, Input, Message, Modal, Radio, Table, Tag, Typography } from '@arco-design/web-react';
+import { Button, Card, Input, Message, Modal, Radio, Select, Table, Tag, Typography } from '@arco-design/web-react';
 import { IconPlus } from '@arco-design/web-react/icon';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -21,6 +21,7 @@ interface ILeadRow {
   score: number | null;
   status: string;
   owner_id: string | null;
+  owner_name?: string | null;
   created_at: number;
 }
 
@@ -44,13 +45,12 @@ export default function ParkLeadsPage() {
           ...(filter === 'proposed' ? { status: 'proposed' } : {}),
           ...(filter === 'watched' ? { watched: true } : {}),
         }
-      : undefined,
+      : undefined
   );
+  // 新建线索 Modal 的企业下拉候选（复用 listEnterprises，计划 4.4 #17）
+  const enterpriseCandidates = useParkQuery<{ items: Array<{ enterprise_org_id: string; enterprise_name: string }> }>('listEnterprises', parkOrgId ? { parkOrgId } : undefined);
 
-  const items = (data?.items ?? []).filter(lead =>
-    filter === 'default' ? lead.status === 'proposed' || lead.owner_id === user?.id
-      : filter !== 'mine' || lead.owner_id === user?.id,
-  )
+  const items = (data?.items ?? []).filter((lead) => (filter === 'default' ? lead.status === 'proposed' || lead.owner_id === user?.id : filter !== 'mine' || lead.owner_id === user?.id));
 
   async function createManual() {
     if (!parkOrgId || !enterpriseOrgId.trim()) return;
@@ -64,9 +64,9 @@ export default function ParkLeadsPage() {
       setIsCreateOpen(false);
       setEnterpriseOrgId('');
       setNote('');
-      reload()
+      reload();
     } catch (err) {
-      Message.error(err instanceof Error ? err.message : t('park.leads.updateFailed', '操作失败'))
+      Message.error(err instanceof Error ? err.message : t('park.leads.updateFailed', '操作失败'));
     }
   }
 
@@ -83,24 +83,24 @@ export default function ParkLeadsPage() {
     >
       <Card loading={loading}>
         <div className='mb-3 flex items-center gap-3'>
-          <Radio.Group value={filter} onChange={v => setFilter(v as IFilter)}>
+          <Radio.Group value={filter} onChange={(v) => setFilter(v as IFilter)}>
             <Radio value='default'>{t('park.leads.filterDefault')}</Radio>
             <Radio value='all'>{t('park.leads.filterAll', '全部')}</Radio>
             <Radio value='proposed'>{t('park.leads.filterProposed', '待确认')}</Radio>
             <Radio value='mine'>{t('park.leads.filterMine', '我的')}</Radio>
-            {role === 'park_leader' ? (
-              <Radio value='watched'>{t('park.leads.filterWatched', '已关注')}</Radio>
-            ) : null}
+            {role === 'park_leader' ? <Radio value='watched'>{t('park.leads.filterWatched', '已关注')}</Radio> : null}
           </Radio.Group>
         </div>
         {error ? (
-          <Typography.Text type='error'>{t('park.common.loadFailed', '加载失败')}: {error}</Typography.Text>
+          <Typography.Text type='error'>
+            {t('park.common.loadFailed', '加载失败')}: {error}
+          </Typography.Text>
         ) : (
           <Table
             rowKey='lead_id'
             data={items as never}
             pagination={{ pageSize: 20 }}
-            onRow={record => ({
+            onRow={(record) => ({
               onClick: () => navigate(`/park/leads/${String((record as ILeadRow).lead_id)}`),
             })}
             columns={[
@@ -118,8 +118,8 @@ export default function ParkLeadsPage() {
               },
               {
                 title: t('park.leads.owner', '负责人'),
-                dataIndex: 'owner_id',
-                render: (v: string | null) => v ?? t('park.leads.noOwner', '未认领'),
+                dataIndex: 'owner_name',
+                render: (v: string | null, record: ILeadRow) => (record.owner_id ? v || record.owner_id : t('park.leads.noOwner', '未认领')),
               },
               {
                 title: t('park.common.createdAt', '创建时间'),
@@ -130,17 +130,22 @@ export default function ParkLeadsPage() {
           />
         )}
       </Card>
-      <Modal
-        title={t('park.leads.createManual', '新建线索')}
-        visible={isCreateOpen}
-        onOk={() => void createManual()}
-        onCancel={() => setIsCreateOpen(false)}
-      >
+      <Modal title={t('park.leads.createManual', '新建线索')} visible={isCreateOpen} onOk={() => void createManual()} onCancel={() => setIsCreateOpen(false)}>
         <div className='space-y-3'>
-          <Input
-            placeholder={t('park.admin.organizations.enterpriseOrgId', '企业组织 ID')}
-            value={enterpriseOrgId}
-            onChange={setEnterpriseOrgId}
+          <Select
+            showSearch
+            placeholder={t('park.leads.selectEnterprise', '搜索并选择企业')}
+            value={enterpriseOrgId || undefined}
+            onChange={(value) => setEnterpriseOrgId(value ? String(value) : '')}
+            filterOption={(inputValue, option) =>
+              String((option.props as { children?: string }).children ?? '')
+                .toLowerCase()
+                .includes(inputValue.toLowerCase())
+            }
+            options={(enterpriseCandidates.data?.items ?? []).map((candidate) => ({
+              value: candidate.enterprise_org_id,
+              label: candidate.enterprise_name,
+            }))}
           />
           <Input placeholder={t('park.leads.notePlaceholder')} value={note} onChange={setNote} />
         </div>

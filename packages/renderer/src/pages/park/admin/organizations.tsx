@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Button, Card, Input, Message, Modal, Table, Tag } from '@arco-design/web-react';
+import { Button, Card, Message, Modal, Select, Table, Tag, Tooltip } from '@arco-design/web-react';
 import { IconPlus } from '@arco-design/web-react/icon';
 import { useTranslation } from 'react-i18next';
 import { useState } from 'react';
@@ -15,6 +15,7 @@ import PageWrapper from '@renderer/components/base/PageWrapper';
 
 interface IBindingsRow {
   enterprise_org_id: string;
+  enterprise_name: string;
   lifecycle: string;
 }
 
@@ -24,10 +25,8 @@ export default function ParkAdminOrganizationsPage() {
   const [bindOpen, setBindOpen] = useState(false);
   const [bindOrgId, setBindOrgId] = useState('');
 
-  const enterprises = useParkQuery<{ items: IBindingsRow[] }>(
-    'listEnterprises',
-    parkOrgId ? { parkOrgId } : undefined,
-  );
+  const enterprises = useParkQuery<{ items: IBindingsRow[] }>('listEnterprises', parkOrgId ? { parkOrgId } : undefined);
+  const bindableCandidates = useParkQuery<{ items: Array<{ enterprise_org_id: string; display_name: string }> }>('listBindableEnterprises', parkOrgId ? { parkOrgId } : undefined);
 
   async function run(action: () => Promise<unknown>, successMsg: string) {
     try {
@@ -43,7 +42,14 @@ export default function ParkAdminOrganizationsPage() {
       <Card
         title={t('park.admin.organizations.title', '组织与绑定')}
         extra={
-          <Button size='small' icon={<IconPlus />} onClick={() => setBindOpen(true)}>
+          <Button
+            size='small'
+            icon={<IconPlus />}
+            onClick={() => {
+              bindableCandidates.reload();
+              setBindOpen(true);
+            }}
+          >
             {t('park.admin.organizations.bindEnterprise', '绑定企业')}
           </Button>
         }
@@ -54,7 +60,15 @@ export default function ParkAdminOrganizationsPage() {
           pagination={false}
           loading={enterprises.loading}
           columns={[
-            { title: t('park.admin.organizations.enterpriseOrgId', '企业组织 ID'), dataIndex: 'enterprise_org_id' },
+            {
+              title: t('park.admin.organizations.enterpriseName', '企业名称'),
+              dataIndex: 'enterprise_name',
+              render: (v: string | null | undefined, record: IBindingsRow) => (
+                <Tooltip content={record.enterprise_org_id}>
+                  <span>{v || record.enterprise_org_id}</span>
+                </Tooltip>
+              ),
+            },
             {
               title: t('park.admin.organizations.lifecycle', '生命周期'),
               dataIndex: 'lifecycle',
@@ -68,10 +82,7 @@ export default function ParkAdminOrganizationsPage() {
         title={t('park.admin.organizations.bindEnterprise', '绑定企业')}
         visible={bindOpen}
         onOk={() =>
-          void run(
-            () => invokePark('createBinding', { parkOrgId, enterpriseOrgId: bindOrgId, lifecycle: 'prospect' }),
-            t('park.admin.organizations.bound', '绑定成功'),
-          ).then(() => {
+          void run(() => invokePark('createBinding', { parkOrgId, enterpriseOrgId: bindOrgId, lifecycle: 'prospect' }), t('park.admin.organizations.bound', '绑定成功')).then(() => {
             setBindOpen(false);
             setBindOrgId('');
             enterprises.reload();
@@ -79,10 +90,20 @@ export default function ParkAdminOrganizationsPage() {
         }
         onCancel={() => setBindOpen(false)}
       >
-        <Input
-          placeholder={t('park.admin.organizations.enterpriseOrgId', '企业组织 ID')}
-          value={bindOrgId}
-          onChange={setBindOrgId}
+        <Select
+          showSearch
+          placeholder={t('park.admin.organizations.selectEnterprise', '搜索并选择企业')}
+          value={bindOrgId || undefined}
+          onChange={(value) => setBindOrgId(value ? String(value) : '')}
+          filterOption={(inputValue, option) =>
+            String((option.props as { children?: string }).children ?? '')
+              .toLowerCase()
+              .includes(inputValue.toLowerCase())
+          }
+          options={(bindableCandidates.data?.items ?? []).map((candidate) => ({
+            value: candidate.enterprise_org_id,
+            label: candidate.display_name,
+          }))}
         />
       </Modal>
     </PageWrapper>

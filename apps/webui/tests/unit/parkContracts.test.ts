@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
   AssistantAssignmentSchema,
+  AssistantCandidatesSchema,
   AuditEventSchema,
+  BindableEnterprisesSchema,
   BindingSchema,
   EnterpriseDetailSchema,
   EnterpriseListItemSchema,
   EnterpriseProfileSchema,
+  MemberCandidatesSchema,
   ParkAssistantInfoSchema,
   ParkContextSchema,
   ParkMemberSchema,
@@ -52,11 +55,13 @@ describe('park contracts（园区契约 schema 解析）', () => {
       policy_matches: null,
       suggested_action: null,
       owner_id: null,
+      owner_name: null,
       status: 'proposed',
       created_at: 1,
       updated_at: 1,
     })
     expect(lead.status).toBe('proposed')
+    expect(lead.owner_name).toBeNull()
     expect(() => LeadSchema.parse({ ...lead, status: 'closed' })).toThrow()
   })
 
@@ -73,6 +78,7 @@ describe('park contracts（园区契约 schema 解析）', () => {
       policy_matches: null,
       suggested_action: null,
       owner_id: null,
+      owner_name: null,
       status: 'proposed',
       created_at: 1,
       updated_at: 1,
@@ -115,7 +121,15 @@ describe('park contracts（园区契约 schema 解析）', () => {
     const metrics = ParkMetricsSchema.parse({
       funnel: { prospect: 2, active: 1, exiting: 0, exited: 0 },
       lead_status: { proposed: 3 },
-      high_score_leads: [{ lead_id: 'l1', enterprise_org_id: 'e', score: 90, status: 'proposed' }],
+      high_score_leads: [
+        {
+          lead_id: 'l1',
+          enterprise_org_id: 'e',
+          enterprise_name: '星澜智能',
+          score: 90,
+          status: 'proposed',
+        },
+      ],
       totals: { enterprises: 3, inquiries: 5, leads: 3 },
     })
     expect(metrics.funnel.prospect).toBe(2)
@@ -198,6 +212,7 @@ describe('park contracts（园区契约 schema 解析）', () => {
       contact_name: null,
       contact_phone: null,
       assigned_owner_id: null,
+      assigned_owner_name: null,
       tags: [],
       lifecycle: 'active',
       lead_summary: { total: 3, by_status: { proposed: 2, confirmed: 1 } },
@@ -232,7 +247,9 @@ describe('park contracts（园区契约 schema 解析）', () => {
       action: 'park.lead_claim',
       target_type: 'lead',
       target_id: 'l1',
+      target_name: '星澜智能',
       actor_user_id: 'ops',
+      actor_name: '运营',
       reason: null,
       before: { status: 'proposed' },
       after: { status: 'confirmed' },
@@ -240,6 +257,7 @@ describe('park contracts（园区契约 schema 解析）', () => {
       created_at: 1,
     })
     expect(event.action).toBe('park.lead_claim')
+    expect(event.actor_name).toBe('运营')
     expect(() => AuditEventSchema.parse({ audit_id: 'au1' })).toThrow()
   })
 
@@ -248,10 +266,12 @@ describe('park contracts（园区契约 schema 解析）', () => {
       id: 'm1',
       park_org_id: 'p1',
       user_id: 'u1',
+      user_name: '运营',
       park_role: 'park_ops',
       created_at: 1,
     })
     expect(member.park_role).toBe('park_ops')
+    expect(member.user_name).toBe('运营')
     expect(() => ParkMemberSchema.parse({ ...member, park_role: 'admin' })).toThrow()
   })
 
@@ -260,10 +280,28 @@ describe('park contracts（园区契约 schema 解析）', () => {
       id: 'as1',
       park_org_id: 'p1',
       assistant_id: 'a1',
+      assistant_name: '园区咨询',
       enterprise_org_id: 'e1',
+      enterprise_name: '星澜智能',
       created_at: 1,
     })
     expect(assignment.enterprise_org_id).toBe('e1')
+    expect(assignment.assistant_name).toBe('园区咨询')
+  })
+
+  it('候选端点：助手 / 未绑定企业 / 成员搜索（admin Modal 下拉）', () => {
+    const assistants = AssistantCandidatesSchema.parse({
+      items: [{ assistant_id: 'a1', name: 'park-consultation', display_name: '园区咨询' }],
+    })
+    expect(assistants.items[0]?.display_name).toBe('园区咨询')
+    const bindable = BindableEnterprisesSchema.parse({
+      items: [{ enterprise_org_id: 'e1', display_name: '未绑企业' }],
+    })
+    expect(bindable.items[0]?.display_name).toBe('未绑企业')
+    const members = MemberCandidatesSchema.parse({
+      items: [{ user_id: 'u1', display_name: '张三' }],
+    })
+    expect(members.items[0]?.user_id).toBe('u1')
   })
 
   it('Binding：生命周期四态枚举', () => {

@@ -65,6 +65,7 @@ export const EnterpriseDetailSchema = z.object({
   contact_name: z.string().nullable(),
   contact_phone: z.string().nullable(),
   assigned_owner_id: z.string().nullable(),
+  assigned_owner_name: z.string().nullable(),
   tags: z.array(z.string()),
   lifecycle: z.string(),
   lead_summary: z.object({
@@ -87,6 +88,7 @@ export const LeadSchema = z.object({
   policy_matches: z.unknown().nullable(),
   suggested_action: z.string().nullable(),
   owner_id: z.string().nullable(),
+  owner_name: z.string().nullable(),
   status: z.enum(['proposed', 'confirmed', 'assigned', 'following_up', 'converted', 'lost', 'rejected']),
   created_at: z.number(),
   updated_at: z.number(),
@@ -133,6 +135,7 @@ export const ParkMetricsSchema = z.object({
     z.object({
       lead_id: z.string(),
       enterprise_org_id: z.string(),
+      enterprise_name: z.string().nullable(),
       score: z.number(),
       status: z.string(),
     }),
@@ -178,7 +181,9 @@ export const AuditEventSchema = z.object({
   action: z.string(),
   target_type: z.string(),
   target_id: z.string().nullable(),
+  target_name: z.string().nullable(),
   actor_user_id: z.string(),
+  actor_name: z.string().nullable(),
   reason: z.string().nullable(),
   before: z.unknown().nullable(),
   after: z.unknown().nullable(),
@@ -191,6 +196,7 @@ export const ParkMemberSchema = z.object({
   id: z.string(),
   park_org_id: z.string(),
   user_id: z.string(),
+  user_name: z.string().nullable(),
   park_role: z.enum(['park_leader', 'park_ops', 'park_system_operator']),
   created_at: z.number(),
 })
@@ -213,7 +219,37 @@ export const AssistantAssignmentSchema = z.object({
   id: z.string(),
   park_org_id: z.string(),
   assistant_id: z.string(),
+  assistant_name: z.string().nullable(),
   enterprise_org_id: z.string(),
+  enterprise_name: z.string().nullable(),
   created_at: z.number(),
 })
+
+/** assistant-candidates 响应（admin 分配 Modal 下拉候选）。 */
+export const AssistantCandidateSchema = z.object({
+  assistant_id: z.string(),
+  name: z.string(),
+  display_name: z.string(),
+})
+export type AssistantCandidate = z.infer<typeof AssistantCandidateSchema>
+
+export const AssistantCandidatesSchema = z.object({ items: z.array(AssistantCandidateSchema) })
+
+/** bindable-enterprises 响应（绑定企业 Modal 下拉候选：未绑定任何园区的企业 org）。 */
+export const BindableEnterpriseSchema = z.object({
+  enterprise_org_id: z.string(),
+  display_name: z.string(),
+})
+export type BindableEnterprise = z.infer<typeof BindableEnterpriseSchema>
+
+export const BindableEnterprisesSchema = z.object({ items: z.array(BindableEnterpriseSchema) })
+
+/** member-candidates 响应（添加成员 Modal 搜索候选：排除已是本园区成员的用户）。 */
+export const MemberCandidateSchema = z.object({
+  user_id: z.string(),
+  display_name: z.string(),
+})
+export type MemberCandidate = z.infer<typeof MemberCandidateSchema>
+
+export const MemberCandidatesSchema = z.object({ items: z.array(MemberCandidateSchema) })
 export type AssistantAssignment = z.infer<typeof AssistantAssignmentSchema>

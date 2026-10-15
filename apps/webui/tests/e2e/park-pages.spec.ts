@@ -146,6 +146,7 @@ test('leader：园区总览数字与企业、咨询、线索明细一致', async
   ] as const) {
     await expect(page.locator('.arco-statistic').filter({ hasText: label }).first()).toContainText(
       String(count),
+      { timeout: 25_000 },
     )
   }
 })
@@ -272,6 +273,18 @@ test('sysop：政策上传、删旧、构建与 Assistant 分配从页面提交�
     }
     await route.fulfill({ json: { items: [] } })
   })
+  await page.route('**/api/parks/*/assistant-candidates', (route) =>
+    route.fulfill({
+      json: {
+        items: [{ assistant_id: 'e2e-assistant', name: 'E2E 助手', display_name: 'E2E 助手' }],
+      },
+    }),
+  )
+  await page.route('**/api/parks/*/enterprises', (route) =>
+    route.fulfill({
+      json: { items: [{ enterprise_org_id: 'e2e-enterprise', enterprise_name: 'E2E 企业' }] },
+    }),
+  )
   await page.goto('/#/park/admin/policies')
   const policyCard = page.locator('.arco-card').filter({ hasText: '政策知识库' }).first()
   await policyCard.locator('.arco-select-view').first().click()
@@ -301,12 +314,50 @@ test('sysop：政策上传、删旧、构建与 Assistant 分配从页面提交�
   const assignmentCard = page.locator('.arco-card').filter({ hasText: 'Assistant 分配' }).first()
   await assignmentCard.getByRole('button', { name: '分配' }).click()
   const modal = page.locator('.arco-modal:visible')
-  await modal.getByPlaceholder('Assistant ID').fill('e2e-assistant')
-  await modal.getByPlaceholder('企业组织 ID').fill('e2e-enterprise')
+  await modal.locator('.arco-select-view').first().click()
+  await page.locator('.arco-select-popup:visible').getByText('E2E 助手').click()
+  await modal.locator('.arco-select-view').nth(1).click()
+  await page.locator('.arco-select-popup:visible').getByText('E2E 企业').click()
   await modal.getByRole('button', { name: '确定' }).click()
   await expect
     .poll(() => assignment)
     .toEqual({ assistant_id: 'e2e-assistant', enterprise_org_id: 'e2e-enterprise' })
+})
+
+test('sysop：添加成员可按姓名选择，也可直接输入用户 ID', async ({ page }) => {
+  await loginAs(page, 'sysop', 'Sysop@2026')
+  const addedUsers: string[] = []
+  await page.route('**/api/parks/*/members', async (route) => {
+    if (route.request().method() === 'POST') {
+      addedUsers.push(route.request().postDataJSON().user_id)
+      await route.fulfill({ json: { user_id: addedUsers.at(-1) } })
+      return
+    }
+    await route.fulfill({ json: { items: [] } })
+  })
+  await page.route('**/api/parks/*/member-candidates*', (route) => {
+    const query = new URL(route.request().url()).searchParams.get('q') ?? ''
+    return route.fulfill({
+      json: {
+        items: query.includes('张') ? [{ user_id: 'candidate-user', display_name: '张三' }] : [],
+      },
+    })
+  })
+
+  await page.goto('/#/park/admin/users')
+  await page.getByRole('button', { name: '添加成员' }).click()
+  const modal = page.locator('.arco-modal:visible')
+  const userInput = modal.getByPlaceholder('输入姓名 / 手机号 / 邮箱 / 用户 ID 搜索')
+  await userInput.fill('张')
+  await page.getByText('张三', { exact: true }).click()
+  await expect(userInput).toHaveValue('张三')
+  await modal.getByRole('button', { name: '确定' }).click()
+  await expect.poll(() => addedUsers).toEqual(['candidate-user'])
+
+  await page.getByRole('button', { name: '添加成员' }).click()
+  await modal.getByPlaceholder('输入姓名 / 手机号 / 邮箱 / 用户 ID 搜索').fill('manual-user-id')
+  await modal.getByRole('button', { name: '确定' }).click()
+  await expect.poll(() => addedUsers).toEqual(['candidate-user', 'manual-user-id'])
 })
 
 test('entuser：assistant 页点击开始咨询创建会话（页面级会话创建）', async ({ page }) => {

@@ -250,6 +250,20 @@ export function createParksRouter(deps: ParkRouterDeps): Router {
   get('/:parkOrgId/assistant-assignments', ({ ctx, parkOrgId }) =>
     deps.park.assignments(ctx, parkOrgId),
   )
+  // admin Modal 下拉候选（moss park 模块新增，计划 4.1-B）
+  get('/:parkOrgId/assistant-candidates', ({ ctx, parkOrgId }) =>
+    deps.park.listAssistantCandidates(ctx, parkOrgId),
+  )
+  get('/:parkOrgId/bindable-enterprises', ({ ctx, parkOrgId }) =>
+    deps.park.listBindableEnterprises(ctx, parkOrgId),
+  )
+  get('/:parkOrgId/member-candidates', ({ ctx, parkOrgId, req }) =>
+    deps.park.searchMemberCandidates(
+      ctx,
+      parkOrgId,
+      typeof req.query.q === 'string' ? req.query.q : '',
+    ),
+  )
   mutate('post', '/:parkOrgId/assistant-assignments', async ({ ctx, parkOrgId, req }) =>
     deps.park.assignAssistant(ctx, parkOrgId, await readBody(req)),
   )
