@@ -220,6 +220,7 @@ export class ConversationCoordinator {
     let reserved = false
     let delivery: PendingDelivery | undefined
     if (!lock || lock.state === 'idle') {
+      if (entry.pendingDelivery) throw new Error('browser_return_conversation_busy')
       const acquired = await acquireWriteLock(this.deps.pool, {
         principalId: entry.principalId,
         mossSessionId: sessionId,
@@ -427,13 +428,14 @@ export class ConversationCoordinator {
       }
 
       if (payload.type === 'result') {
-        entry.pendingDelivery = null
+        const delivery = entry.pendingDelivery
         await releaseToIdle(this.deps.pool, {
           principalId: entry.principalId,
           mossSessionId: entry.mossSessionId,
         })
         await this.broadcastLockState(entry)
         this.broadcast(entry, { kind: 'upstream', event: payload })
+        if (entry.pendingDelivery === delivery) entry.pendingDelivery = null
         this.closeUnusedEntry(entry)
       }
     }
@@ -482,8 +484,18 @@ export class ConversationCoordinator {
       if (msg.kind === 'send' || msg.kind === 'answer_question') {
         if (entry.pendingDelivery?.phase === 'cancelled')
           await this.releasePendingDelivery(entry, entry.pendingDelivery)
-        if (entry.pendingDelivery && entry.pendingDelivery.phase !== 'submitted') {
-          this.sendTo(conn.ws, { kind: 'error', code: 'CONVERSATION_BUSY' })
+        if (
+          entry.pendingDelivery &&
+          (msg.kind === 'send' || entry.pendingDelivery.phase !== 'submitted')
+        ) {
+          const lock = await getLock(this.deps.pool, {
+            principalId: entry.principalId,
+            mossSessionId: entry.mossSessionId,
+          })
+          this.sendTo(conn.ws, {
+            kind: 'error',
+            code: lock?.state === 'uncertain' ? 'LOCK_UNCERTAIN' : 'CONVERSATION_BUSY',
+          })
           return
         }
         const acquired = await acquireWriteLock(this.deps.pool, {
