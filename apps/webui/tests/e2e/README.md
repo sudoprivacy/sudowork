@@ -118,6 +118,12 @@ provided note. The harness performs the scoped one-time approvals in its chat,
 then requires exact AI readback, one trusted submission, persistent identity and
 restored conversation history. It does not type or return control for the person.
 
+The harness requests a 1440 by 900 desktop controller viewport and records
+its actual dimensions when ready. The external phone or viewer keeps its own
+viewport. The shared panel helper opens a collapsed workspace through the
+normal visible button before selecting Browser. On failure, the harness reconnects
+to its owned Chrome to capture the actual session before stopping it.
+
 Use `--turn-timeout 1800` while coordinating a physical iPhone/Safari journey.
 Prepare a dedicated test account and share its login privately. The ready JSON
 contains no password. An external desktop viewer can verify the manual harness;

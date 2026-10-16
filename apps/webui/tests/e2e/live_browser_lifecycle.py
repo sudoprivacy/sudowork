@@ -10,6 +10,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from ai_dev_browser.core.browser import browser_start, browser_stop
 from live_browser_permissions import approve_browser_permission
+from live_browser_ui import open_browser_panel
 from playwright.async_api import async_playwright, expect
 
 
@@ -102,11 +103,7 @@ async def main(args):
         await page.get_by_role("button", name=login["pwdLoginTab"], exact=True).click()
         await page.wait_for_url(lambda value: "/login" not in value, timeout=20000)
         await page.goto(config["origin"] + "/#/conversation/" + sid)
-        await page.get_by_role(
-            "tab", name=labels["rightPanel"]["tabs"]["browser"], exact=True
-        ).click()
-        panel = page.get_by_test_id("browser-session-panel")
-        await panel.wait_for(state="visible")
+        panel = await open_browser_panel(page, labels["rightPanel"]["tabs"]["browser"])
 
         async def state():
             response = await page.request.post(

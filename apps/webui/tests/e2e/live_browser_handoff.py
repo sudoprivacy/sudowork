@@ -11,6 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from ai_dev_browser.core.browser import browser_start, browser_stop
 from live_browser_permissions import approve_browser_permission
+from live_browser_ui import open_browser_panel
 from playwright.async_api import Error as PlaywrightError
 from playwright.async_api import async_playwright, expect
 
@@ -86,6 +87,7 @@ async def main(args):
                 f"http://127.0.0.1:{own['port']}"
             )
             page = chrome.contexts[0].pages[0]
+            await page.set_viewport_size({"width": 1440, "height": 900})
             errors = []
             messages = []
             approvals = []
@@ -96,7 +98,9 @@ async def main(args):
                 socket.on("framereceived", lambda v: messages.append(v))
 
             page.on("websocket", websocket)
-            await page.goto(config["origin"] + "/#/login")
+            await page.goto(
+                config["origin"] + "/#/login", wait_until="domcontentloaded"
+            )
             await page.get_by_text(login["passwordTab"], exact=True).click()
             await page.get_by_placeholder(
                 login["pwdAccountPlaceholder"], exact=True
@@ -106,15 +110,16 @@ async def main(args):
                 "button", name=login["pwdLoginTab"], exact=True
             ).click()
             await page.wait_for_url(lambda u: "/login" not in u, timeout=20000)
-            await page.goto(config["origin"] + "/#/conversation/" + sid)
+            await page.goto(
+                config["origin"] + "/#/conversation/" + sid,
+                wait_until="domcontentloaded",
+            )
             await page.locator("textarea").first.wait_for(
                 state="visible", timeout=30000
             )
-            await page.get_by_role(
-                "tab", name=conversation["rightPanel"]["tabs"]["browser"], exact=True
-            ).click()
-            panel = page.get_by_test_id("browser-session-panel")
-            await panel.wait_for(state="visible")
+            panel = await open_browser_panel(
+                page, conversation["rightPanel"]["tabs"]["browser"]
+            )
 
             async def state():
                 response = await page.request.post(
@@ -247,7 +252,7 @@ async def main(args):
                     "button", name=labels["openViewer"], exact=True
                 ).click()
             viewer = await opened.value
-            await viewer.wait_for_load_state()
+            await viewer.wait_for_load_state("domcontentloaded")
             await viewer.bring_to_front()
             viewer_panel = viewer.get_by_test_id("browser-session-panel")
             await viewer_panel.wait_for(state="visible")
@@ -260,6 +265,9 @@ async def main(args):
                     "expectedHumanValue": expected,
                     "handoffNote": "Read the Participant value, report it exactly, then submit once with a trusted browser click. Do not replace the value.",
                     "humanInputDrivenByHarness": False,
+                    "controllerViewport": await page.evaluate(
+                        "()=>({width:innerWidth,height:innerHeight,scale:devicePixelRatio})"
+                    ),
                 }
                 (evidence_root / "manual-human-ready.json").write_text(
                     json.dumps(ready, ensure_ascii=False, indent=2), encoding="utf-8"
@@ -471,15 +479,22 @@ async def main(args):
             json.dumps({"receipts": receipts, "expected": expected})
         )
         # Preserve the actual UI at the failing step, before owned Chrome closes.
-        for name in ("page", "viewer"):
-            surface = locals().get(name)
-            if surface is not None and not surface.is_closed():
-                try:
-                    await surface.screenshot(
-                        path=str(evidence_root / f"ui-handoff-failure-{name}.png")
-                    )
-                except (PlaywrightError, OSError) as error:
-                    print(f"Failure screenshot unavailable: {type(error).__name__}")
+        try:
+            # The original Playwright context has already exited on exception.
+            async with async_playwright() as capture:
+                failed_browser = await capture.chromium.connect_over_cdp(
+                    f"http://127.0.0.1:{own['port']}", timeout=5000
+                )
+                for index, surface in enumerate(failed_browser.contexts[0].pages):
+                    if surface.url.startswith(config["origin"]) and (
+                        sid in surface.url or "/#/login" in surface.url
+                    ):
+                        await surface.screenshot(
+                            path=str(evidence_root / f"ui-handoff-failure-{index}.png"),
+                            timeout=5000,
+                        )
+        except (PlaywrightError, OSError) as error:
+            print(f"Failure screenshot unavailable: {type(error).__name__}")
         (evidence_root / "stream-summary.json").write_text(
             json.dumps(stream_summary(locals().get("messages", [])), indent=2),
             encoding="utf-8",
