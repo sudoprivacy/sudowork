@@ -75,7 +75,7 @@ async def main(args):
     fixture_origin = (
         args.fixture_origin or f"http://{args.fixture_host}:{site.server_port}"
     )
-    url = fixture_origin.rstrip("/") + "/review"
+    url = fixture_origin.rstrip("/") + "/review?run=" + uuid.uuid4().hex
     expected = (
         "iPhone 中文 " if args.manual_human else "Human review "
     ) + uuid.uuid4().hex[:8]
@@ -216,7 +216,7 @@ async def main(args):
                 start,
                 lambda event: (
                     event.get("type") == "tool_use"
-                    and url in json.dumps(event.get("input", ""))
+                    and event.get("name") == "mcp__sudowork-browser__browser_observe"
                 ),
             )
             loaded = await state()

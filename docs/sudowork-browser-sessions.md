@@ -479,3 +479,15 @@ context, a 390 by 844 touch viewport, trusted Unicode input and automatic AI
 continuation. The external driver took control before choosing Page view and
 waited for that page frame before clicking. This client was desktop Chromium;
 the result does not establish physical iPhone or Safari acceptance.
+
+On 2026-10-17, the complete external-viewer journey also passed against the
+current public frontend (`dd3a6c7f`) and Moss v0.1.64. A separate Chromium touch
+context took control, inserted a fresh Unicode value and returned control.
+The actual model read that value and submitted exactly once; the browser,
+profile, cookie and reloaded history were preserved. This remains a desktop
+Chromium preflight, with physical iPhone/Safari acceptance pending.
+
+Each live run uses a unique fixture query so a persistent profile cannot reuse
+an earlier page. The setup waits for actual browser observation and completion,
+then verifies the requested tab, rather than requiring a redundant navigation
+tool call when the browser is already on the requested page.
