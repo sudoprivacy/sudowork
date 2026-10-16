@@ -81,7 +81,6 @@ const testState = { sections: [] as TimelineSection[] };
 vi.mock('@renderer/pages/conversation/grouped-history/utils/groupingHelpers', () => ({
   buildGroupedHistory: () => ({
     pinnedConversations: [],
-    recent: [],
     pinnedTimeline: [],
     pinnedScheduled: [],
     scheduledGroups: [],
@@ -323,7 +322,6 @@ it('merges external history without adding it to the shared native conversation 
   const { result } = renderConversationHook();
   await act(async () => {});
   expect(result.current.conversations).toEqual([native]);
-  expect(result.current.recent).toContainEqual(external);
   expect(result.current.timelineSections.flatMap((section) => section.items).map((item) => item.conversation)).toContainEqual(external);
   expect(result.current.agentGroups).toEqual([]);
 });
