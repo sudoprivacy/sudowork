@@ -366,12 +366,9 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
     const result = await c1.waitFor(
       (e) => e.kind === 'upstream' && (e.event as { type?: string })?.type === 'result',
     )
-    // The initial idle event predates this turn. Wait for the database-backed
-    // unlock after its result before asking the observer to take over.
-    await c1.waitFor(
-      (e) =>
-        e.kind === 'lock' && e.state === 'idle' && c1.events.indexOf(e) > c1.events.indexOf(result),
-    )
+    // Completion reaches the browser only after the turn's database-backed unlock.
+    const beforeResult = c1.events.slice(0, c1.events.indexOf(result))
+    expect(beforeResult.filter((e) => e.kind === 'lock').at(-1)?.state).toBe('idle')
 
     // observer 看到输出与 writer:false
     await c2.waitFor(
@@ -438,12 +435,8 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
         (event) =>
           event.kind === 'upstream' && (event.event as { type?: string })?.type === 'result',
       )
-      await events.waitFor(
-        (event) =>
-          event.kind === 'lock' &&
-          event.state === 'idle' &&
-          events.events.indexOf(event) > events.events.indexOf(result),
-      )
+      const beforeResult = events.events.slice(0, events.events.indexOf(result))
+      expect(beforeResult.filter((event) => event.kind === 'lock').at(-1)?.state).toBe('idle')
       const context = await request(app)
         .get(`/api/conversations/${SID}/context`)
         .set('Cookie', cookie1)
@@ -719,10 +712,16 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
     const c1 = collector(ws1)
     const c2 = collector(ws2)
 
+    const promptStart = upstreamReceived.length
     ws1.send(JSON.stringify({ kind: 'send', text: 'long task', images: [] }))
     await c1.waitFor((e) => e.kind === 'lock' && e.state === 'running')
     await c1.waitFor((e) => e.kind === 'writer' && e.isWriter === true)
     await c2.waitFor((e) => e.kind === 'lock' && e.state === 'running')
+
+    // The lock reserves delivery; acceptance requires the actual upstream frame.
+    await vi.waitFor(() =>
+      expect(upstreamReceived.slice(promptStart).some((frame) => frame.type === 'user')).toBe(true),
+    )
 
     // writer 断线 → uncertain 广播给 observer
     ws1.close()
@@ -853,6 +852,21 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
       const logged = warn.mock.calls.map((args) => args.map(String).join(' ')).join('\n')
       expect(logged).toContain('does not match configured moss.wsBaseUrl host')
       expect(logged).toContain('[coordinator] send failed')
+      const lock = await pool.query<{ state: string }>(
+        'SELECT state FROM conversation_locks WHERE principal_id=$1 AND moss_session_id=$2',
+        [principal.id, SID],
+      )
+      expect(lock.rows[0]?.state).toBe('idle')
+      upstreamWsUrlOverride = null
+      const before = upstreamReceived.length
+      ws1.send(JSON.stringify({ kind: 'send', text: 'Explicit retry after refused connection' }))
+      await c1.waitFor(
+        (event) =>
+          event.kind === 'upstream' && (event.event as { type?: string })?.type === 'result',
+      )
+      expect(upstreamReceived.slice(before).filter((frame) => frame.type === 'user')).toHaveLength(
+        1,
+      )
     } finally {
       warn.mockRestore()
       upstreamWsUrlOverride = null

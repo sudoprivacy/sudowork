@@ -1,12 +1,10 @@
 import type { Pool } from 'pg'
 
 /**
- * conversation_locks 事务锁（计划 3.8）：
- * - 第一次发送：无 writer、idle 或 writer=当前 → 原子取得写权并进入 running；否则 409
- * - 收到 result → idle（idle 期间任何订阅者可抢占写权，先发先得）
- * - writer 在 idle 断开 → 清空 writer
- * - writer 在 running 断开或 WebUI 重启 → uncertain 并清空 writer
- * - uncertain：只允许 terminate（成功后删除 lock）或新建会话
+ * One prompt delivery gate per Moss control session.
+ * New turns require idle; an existing turn can retain its writer.
+ * Completion or a known unsent failure restores idle. Losing an accepted turn
+ * preserves uncertain delivery until completion or explicit termination.
  */
 
 export type LockState = 'idle' | 'running' | 'uncertain'
@@ -18,7 +16,12 @@ export type AcquireWriteResult =
 
 export async function acquireWriteLock(
   pool: Pool,
-  input: { principalId: string; mossSessionId: string; webSessionId: string },
+  input: {
+    principalId: string
+    mossSessionId: string
+    webSessionId: string
+    isExistingTurnAllowed?: boolean
+  },
 ): Promise<AcquireWriteResult> {
   const { rows } = await pool.query(
     `INSERT INTO conversation_locks (principal_id, moss_session_id, writer_web_session_id, state, updated_at)
@@ -27,10 +30,15 @@ export async function acquireWriteLock(
        SET writer_web_session_id = $3, state = 'running', updated_at = now()
        WHERE conversation_locks.state <> 'uncertain'
          AND (conversation_locks.state = 'idle'
-              OR conversation_locks.writer_web_session_id IS NULL
-              OR conversation_locks.writer_web_session_id = $3)
+              OR ($4::boolean AND (conversation_locks.writer_web_session_id IS NULL
+                                   OR conversation_locks.writer_web_session_id = $3)))
      RETURNING state`,
-    [input.principalId, input.mossSessionId, input.webSessionId],
+    [
+      input.principalId,
+      input.mossSessionId,
+      input.webSessionId,
+      input.isExistingTurnAllowed ?? true,
+    ],
   )
   if (rows[0]) return { ok: true, state: 'running' }
 
@@ -57,10 +65,7 @@ export async function releaseToIdle(
   )
 }
 
-/**
- * set_model 抢占路径专用：仅当锁仍为本次设置的 running + 本 writer 时回收为 idle（保留 writer）。
- * 带守卫（区别于 releaseToIdle）：与断线 markUncertain / REST terminate 交错时不误回收。返回是否回收。
- */
+/** Release a known unsent operation only while its writer still holds the running lock. */
 export async function releaseToIdleIfHeld(
   pool: Pool,
   input: { principalId: string; mossSessionId: string; webSessionId: string },
