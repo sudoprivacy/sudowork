@@ -474,7 +474,12 @@ esac
 if [ "\${1:-}" = image ]; then echo linux/amd64; exit 0; fi
 if [ "\${1:-}" = load ]; then cat >/dev/null; exit 0; fi
 if [ "\${1:-}" = inspect ]; then echo healthy; exit 0; fi
-case " $* " in *" ps -q webui "*) echo webui-container;; esac
+if [ "\${1:-}" = cp ]; then
+  mkdir -p "$3"
+  printf 'previous asset' > "$3/previous-A1b2C3d4.js"
+  exit 0
+fi
+case " $* " in *" ps -q webui "*|*" ps -a -q webui "*) echo webui-container;; esac
 exit 0
 `,
     )
@@ -516,5 +521,13 @@ exit 0
       'old-compose\n',
     )
     expect(readFileSync(resolve(backupDirectory, 'release-tag'), 'utf8')).toBe('v1.2.2\n')
+    expect(
+      readFileSync(resolve(backupDirectory, 'previous-assets/previous-A1b2C3d4.js'), 'utf8'),
+    ).toBe('previous asset')
+    const commands = readFileSync(dockerLog, 'utf8')
+    expect(commands).toContain('cp webui-container:/app/apps/webui/dist/client/assets/.')
+    expect(commands).toContain(
+      'publish-assets node dist/server/publishAssets.js --target /retained-assets /app/apps/webui/dist/client/assets /previous-assets',
+    )
   })
 })

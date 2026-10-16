@@ -100,12 +100,46 @@ assistant receipt, usage and page errors. Output directories must be new.
 Failures retain their screenshot; the test closes only its own viewing Chrome.
 The managed browser is left stopped for explicit fixture cleanup.
 
+This journey starts with a stopped browser and no previous human lease. A
+persistent browser can outlive a terminated conversation, so stop and explicitly
+return an owned fixture before creating the next session. Prepare fresh fixtures
+through the normal owner API without opening the previous conversation during
+login. The live lifecycle and file journeys share the same visible one-time
+approval helper; a pending tool permission must be answered before expecting
+the real model's completion.
+
+## External human viewer
+
+`live_browser_handoff.py --manual-human` prepares the same real model journey
+and writes `manual-human-ready.json` with the authenticated viewer URL, random
+expected value and handoff note. A person opens that viewer on another device,
+takes control, enters the value through the panel and returns control with the
+provided note. The harness performs the scoped one-time approvals in its chat,
+then requires exact AI readback, one trusted submission, persistent identity and
+restored conversation history. It does not type or return control for the person.
+
+The harness requests a 1440 by 900 desktop controller viewport and records
+its actual dimensions when ready. The external phone or viewer keeps its own
+viewport. The shared panel helper opens a collapsed workspace through the
+normal visible button before selecting Browser. On failure, the harness reconnects
+to its owned Chrome to capture the actual session before stopping it.
+
+Use `--turn-timeout 1800` while coordinating a physical iPhone/Safari journey.
+Prepare a dedicated test account and share its login privately. The ready JSON
+contains no password. An external desktop viewer can verify the manual harness;
+that result does not count as physical iPhone or Safari acceptance.
+
 ## Browser file transfer
 
 `live_browser_files.py` drives a real model and the shared WebUI panel. Use a
 fresh conversation and a stopped managed worker with the file-transfer
 capability. Release any previous human lease and recover any worker restart
 through the supported human controls before running the journey.
+
+Pending-approval reload acceptance waits for the refreshed document and the
+visible conversation browser tab. The page-wide load event is not the
+readiness boundary; the visible approval and completed model history remain
+required after reconnection.
 
 ```sh
 python apps/webui/tests/e2e/live_browser_files.py \

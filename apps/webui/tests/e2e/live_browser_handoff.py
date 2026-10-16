@@ -10,6 +10,8 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from ai_dev_browser.core.browser import browser_start, browser_stop
+from live_browser_permissions import approve_browser_permission
+from live_browser_ui import open_browser_panel
 from playwright.async_api import Error as PlaywrightError
 from playwright.async_api import async_playwright, expect
 
@@ -73,8 +75,10 @@ async def main(args):
     fixture_origin = (
         args.fixture_origin or f"http://{args.fixture_host}:{site.server_port}"
     )
-    url = fixture_origin.rstrip("/") + "/review"
-    expected = "Human review " + uuid.uuid4().hex[:8]
+    url = fixture_origin.rstrip("/") + "/review?run=" + uuid.uuid4().hex
+    expected = (
+        "iPhone 中文 " if args.manual_human else "Human review "
+    ) + uuid.uuid4().hex[:8]
     own = browser_start(headless=True, temp=True, reuse="none", silent_stderr=True)
     assert "error" not in own, own
     try:
@@ -83,15 +87,20 @@ async def main(args):
                 f"http://127.0.0.1:{own['port']}"
             )
             page = chrome.contexts[0].pages[0]
+            await page.set_viewport_size({"width": 1440, "height": 900})
             errors = []
             messages = []
+            approvals = []
+            approved_ids = set()
             page.on("pageerror", lambda e: errors.append(str(e)))
 
             def websocket(socket):
                 socket.on("framereceived", lambda v: messages.append(v))
 
             page.on("websocket", websocket)
-            await page.goto(config["origin"] + "/#/login")
+            await page.goto(
+                config["origin"] + "/#/login", wait_until="domcontentloaded"
+            )
             await page.get_by_text(login["passwordTab"], exact=True).click()
             await page.get_by_placeholder(
                 login["pwdAccountPlaceholder"], exact=True
@@ -101,15 +110,16 @@ async def main(args):
                 "button", name=login["pwdLoginTab"], exact=True
             ).click()
             await page.wait_for_url(lambda u: "/login" not in u, timeout=20000)
-            await page.goto(config["origin"] + "/#/conversation/" + sid)
+            await page.goto(
+                config["origin"] + "/#/conversation/" + sid,
+                wait_until="domcontentloaded",
+            )
             await page.locator("textarea").first.wait_for(
                 state="visible", timeout=30000
             )
-            await page.get_by_role(
-                "tab", name=conversation["rightPanel"]["tabs"]["browser"], exact=True
-            ).click()
-            panel = page.get_by_test_id("browser-session-panel")
-            await panel.wait_for(state="visible")
+            panel = await open_browser_panel(
+                page, conversation["rightPanel"]["tabs"]["browser"]
+            )
 
             async def state():
                 response = await page.request.post(
@@ -133,7 +143,15 @@ async def main(args):
             async def wait_turn(start, required=None, assistant_reply=None):
                 deadline = time.monotonic() + args.turn_timeout
                 while time.monotonic() < deadline:
+                    if assistant_reply and receipts:
+                        assert (
+                            len(receipts) == 1
+                            and receipts[0]["value"] == assistant_reply
+                        ), (
+                            "The submitted value must match the external human's exact input"
+                        )
                     is_current_turn = False
+                    last_tool = None
                     assistant_text = ""
                     for raw in messages[start:]:
                         if not isinstance(raw, str):
@@ -145,6 +163,20 @@ async def main(args):
                         event = message.get("event", {})
                         if message.get("kind") != "upstream":
                             continue
+                        if event.get("type") == "tool_use":
+                            tool_input = event.get("input", {})
+                            if isinstance(tool_input, str):
+                                tool_input = json.loads(tool_input)
+                            last_tool = (event.get("name", ""), tool_input)
+                        if event.get("type") == "control_request":
+                            request_id = event.get("request_id")
+                            if request_id not in approved_ids:
+                                approvals.append(
+                                    await approve_browser_permission(
+                                        page, event, last_tool
+                                    )
+                                )
+                                approved_ids.add(request_id)
                         if required and required(event):
                             is_current_turn = True
                         if assistant_reply and event.get("type") == "assistant":
@@ -184,7 +216,7 @@ async def main(args):
                 start,
                 lambda event: (
                     event.get("type") == "tool_use"
-                    and url in json.dumps(event.get("input", ""))
+                    and event.get("name") == "mcp__sudowork-browser__browser_observe"
                 ),
             )
             loaded = await state()
@@ -220,100 +252,128 @@ async def main(args):
                     "button", name=labels["openViewer"], exact=True
                 ).click()
             viewer = await opened.value
-            await viewer.wait_for_load_state()
+            await viewer.wait_for_load_state("domcontentloaded")
             await viewer.bring_to_front()
             viewer_panel = viewer.get_by_test_id("browser-session-panel")
             await viewer_panel.wait_for(state="visible")
-            await viewer_panel.get_by_role(
-                "button", name=labels["take"], exact=True
-            ).click()
-            await expect(
-                viewer_panel.get_by_role("button", name=labels["return"], exact=True)
-            ).to_be_enabled(timeout=15000)
-            await expect(
-                panel.get_by_role("button", name=labels["take"], exact=True)
-            ).to_be_disabled()
-            image = viewer_panel.get_by_role("img", name=labels["page"], exact=True)
-            await expect(image).to_be_visible()
-            if args.headful:
-                await viewer.wait_for_function(
-                    "()=>document.querySelector('[data-testid=browser-session-panel] img')?.naturalWidth===1280"
+            if args.manual_human:
+                start = len(messages)
+                ready = {
+                    "readyForExternalHuman": True,
+                    "viewerUrl": viewer.url,
+                    "conversationUrl": page.url,
+                    "expectedHumanValue": expected,
+                    "handoffNote": "Read the Participant value, report it exactly, then submit once with a trusted browser click. Do not replace the value.",
+                    "humanInputDrivenByHarness": False,
+                    "controllerViewport": await page.evaluate(
+                        "()=>({width:innerWidth,height:innerHeight,scale:devicePixelRatio})"
+                    ),
+                }
+                (evidence_root / "manual-human-ready.json").write_text(
+                    json.dumps(ready, ensure_ascii=False, indent=2), encoding="utf-8"
                 )
-                await viewer.screenshot(
-                    path=str(evidence_root / "ui-headful-window.png")
-                )
-                # Exercise native Chrome input through the actual authenticated
-                # window surface, then use page view for the review form.
-                window_size = await image.evaluate(
-                    "e=>({w:e.clientWidth,h:e.clientHeight,nw:e.naturalWidth,nh:e.naturalHeight})"
+                print(json.dumps(ready, ensure_ascii=False), flush=True)
+            else:
+                await viewer_panel.get_by_role(
+                    "button", name=labels["take"], exact=True
+                ).click()
+                await expect(
+                    viewer_panel.get_by_role(
+                        "button", name=labels["return"], exact=True
+                    )
+                ).to_be_enabled(timeout=15000)
+                await expect(
+                    panel.get_by_role("button", name=labels["take"], exact=True)
+                ).to_be_disabled()
+                image = viewer_panel.get_by_role("img", name=labels["page"], exact=True)
+                await expect(image).to_be_visible()
+                if args.headful:
+                    await viewer.wait_for_function(
+                        "()=>document.querySelector('[data-testid=browser-session-panel] img')?.naturalWidth===1280"
+                    )
+                    await viewer.screenshot(
+                        path=str(evidence_root / "ui-headful-window.png")
+                    )
+                    # Exercise native Chrome input through the actual authenticated
+                    # window surface, then use page view for the review form.
+                    window_size = await image.evaluate(
+                        "e=>({w:e.clientWidth,h:e.clientHeight,nw:e.naturalWidth,nh:e.naturalHeight})"
+                    )
+                    await image.click(
+                        position={
+                            "x": 300 * window_size["w"] / window_size["nw"],
+                            "y": 70 * window_size["h"] / window_size["nh"],
+                        }
+                    )
+                    await viewer_panel.get_by_label(labels["text"], exact=True).fill(
+                        url
+                    )
+                    await viewer_panel.get_by_role(
+                        "button", name=labels["insert"], exact=True
+                    ).click()
+                    await expect(
+                        viewer_panel.get_by_label(labels["text"], exact=True)
+                    ).to_have_value("")
+                    await image.press("Enter")
+                    await viewer_panel.get_by_label(
+                        labels["viewMode"], exact=True
+                    ).click()
+                    await viewer.get_by_text(labels["pageView"], exact=True).click()
+                    await viewer.wait_for_function(
+                        "()=>{const e=document.querySelector('[data-testid=browser-session-panel] img');return e?.naturalWidth>100&&e.naturalHeight<900}"
+                    )
+                size = await image.evaluate(
+                    "(e)=>({w:e.clientWidth,h:e.clientHeight,nw:e.naturalWidth,nh:e.naturalHeight})"
                 )
                 await image.click(
                     position={
-                        "x": 300 * window_size["w"] / window_size["nw"],
-                        "y": 70 * window_size["h"] / window_size["nh"],
+                        "x": 200 * size["w"] / size["nw"],
+                        "y": 170 * size["h"] / size["nh"],
                     }
                 )
-                await viewer_panel.get_by_label(labels["text"], exact=True).fill(url)
+                await viewer_panel.get_by_label(labels["text"], exact=True).fill(
+                    expected
+                )
                 await viewer_panel.get_by_role(
                     "button", name=labels["insert"], exact=True
                 ).click()
                 await expect(
                     viewer_panel.get_by_label(labels["text"], exact=True)
                 ).to_have_value("")
-                await image.press("Enter")
-                await viewer_panel.get_by_label(labels["viewMode"], exact=True).click()
-                await viewer.get_by_text(labels["pageView"], exact=True).click()
-                await viewer.wait_for_function(
-                    "()=>{const e=document.querySelector('[data-testid=browser-session-panel] img');return e?.naturalWidth>100&&e.naturalHeight<900}"
+                await viewer.screenshot(
+                    path=str(evidence_root / "ui-handoff-human-input.png")
                 )
-            size = await image.evaluate(
-                "(e)=>({w:e.clientWidth,h:e.clientHeight,nw:e.naturalWidth,nh:e.naturalHeight})"
-            )
-            await image.click(
-                position={
-                    "x": 200 * size["w"] / size["nw"],
-                    "y": 170 * size["h"] / size["nh"],
-                }
-            )
-            await viewer_panel.get_by_label(labels["text"], exact=True).fill(expected)
-            await viewer_panel.get_by_role(
-                "button", name=labels["insert"], exact=True
-            ).click()
-            await expect(
-                viewer_panel.get_by_label(labels["text"], exact=True)
-            ).to_have_value("")
-            await viewer.screenshot(
-                path=str(evidence_root / "ui-handoff-human-input.png")
-            )
-            start = len(messages)
-            await send(
-                "Control is held by the human. Attempt exactly one browser_action reload using freshly observed epochs to verify it is rejected. Do not use any other route, change anything or submit. Report HELD_BY_HUMAN and stop."
-            )
-            await wait_turn(
-                start,
-                lambda event: (
-                    event.get("type") == "tool_result"
-                    and "browser_control_held_by_user" in json.dumps(event)
-                ),
-            )
-            held = messages[start:]
-            assert any(
-                "browser_control_held_by_user" in m for m in held if isinstance(m, str)
-            ), "The human lease did not reject the AI write"
-            assert receipts == [], receipts
-            await viewer.bring_to_front()
-            await viewer_panel.get_by_label(labels["note"], exact=True).fill(
-                "I filled the Participant field. Freshly observe the same page, report the exact value, "
-                "then submit once with a real click. Do not change the value, call the form API, "
-                "use a JS click, or start another browser."
-            )
-            start = len(messages)
-            await viewer_panel.get_by_role(
-                "button", name=labels["return"], exact=True
-            ).click()
-            await expect(
-                viewer_panel.get_by_role("button", name=labels["take"], exact=True)
-            ).to_be_enabled(timeout=15000)
+                start = len(messages)
+                await send(
+                    "Control is held by the human. Attempt exactly one browser_action reload using freshly observed epochs to verify it is rejected. Do not use any other route, change anything or submit. Report HELD_BY_HUMAN and stop."
+                )
+                await wait_turn(
+                    start,
+                    lambda event: (
+                        event.get("type") == "tool_result"
+                        and "browser_control_held_by_user" in json.dumps(event)
+                    ),
+                )
+                held = messages[start:]
+                assert any(
+                    "browser_control_held_by_user" in m
+                    for m in held
+                    if isinstance(m, str)
+                ), "The human lease did not reject the AI write"
+                assert receipts == [], receipts
+                await viewer.bring_to_front()
+                await viewer_panel.get_by_label(labels["note"], exact=True).fill(
+                    "I filled the Participant field. Freshly observe the same page, report the exact value, "
+                    "then submit once with a real click. Do not change the value, call the form API, "
+                    "use a JS click, or start another browser."
+                )
+                start = len(messages)
+                await viewer_panel.get_by_role(
+                    "button", name=labels["return"], exact=True
+                ).click()
+                await expect(
+                    viewer_panel.get_by_role("button", name=labels["take"], exact=True)
+                ).to_be_enabled(timeout=15000)
             if args.manual_continuation:
                 await send(
                     "Human control has been explicitly returned. Use sudowork-browser MCP browser_observe to freshly read the same page. Report the exact Participant value you see, then submit the review exactly once with a real click. Do not replace or fill the value, use JS click, call the form API, or start another browser."
@@ -325,13 +385,16 @@ async def main(args):
             deadline = time.monotonic() + 10
             while not receipts and time.monotonic() < deadline:
                 await asyncio.sleep(0.1)
-            assert receipts == [
-                {
-                    "value": expected,
-                    "trusted": True,
-                    "cookie": "shared_fixture=original-browser",
-                }
-            ], receipts
+            assert len(receipts) == 1, receipts
+            assert receipts[0]["value"] == expected and receipts[0]["trusted"] is True
+            cookies = dict(
+                item.strip().split("=", 1)
+                for item in receipts[0]["cookie"].split(";")
+                if "=" in item
+            )
+            assert cookies.get("shared_fixture") == "original-browser", (
+                "The shared browser must retain its original fixture login cookie"
+            )
             after = await state()
             assert after["browserSessionId"] == before["browserSessionId"]
             assert after["profileId"] == before["profileId"]
@@ -347,7 +410,7 @@ async def main(args):
                     f"/api/conversations/{sid}/context"
                 )
             ) as restored:
-                await page.reload()
+                await page.reload(wait_until="domcontentloaded")
             history_response = await restored.value
             assert history_response.status == 200, await history_response.text()
             history = await history_response.json()
@@ -393,7 +456,9 @@ async def main(args):
                 "profileId": after["profileId"],
                 "receipts": receipts,
                 "mainPanelAndViewerShareBrowser": True,
-                "heldAgentWriteRejected": True,
+                "heldAgentWriteRejected": not args.manual_human,
+                "externalHumanViewer": args.manual_human,
+                "visibleOneTimeApprovals": approvals,
                 "automaticReturnNotification": not args.manual_continuation,
                 "historyRestoredAfterReload": True,
                 "headfulWindowSurface": args.headful,
@@ -414,15 +479,22 @@ async def main(args):
             json.dumps({"receipts": receipts, "expected": expected})
         )
         # Preserve the actual UI at the failing step, before owned Chrome closes.
-        for name in ("page", "viewer"):
-            surface = locals().get(name)
-            if surface is not None and not surface.is_closed():
-                try:
-                    await surface.screenshot(
-                        path=str(evidence_root / f"ui-handoff-failure-{name}.png")
-                    )
-                except (PlaywrightError, OSError) as error:
-                    print(f"Failure screenshot unavailable: {type(error).__name__}")
+        try:
+            # The original Playwright context has already exited on exception.
+            async with async_playwright() as capture:
+                failed_browser = await capture.chromium.connect_over_cdp(
+                    f"http://127.0.0.1:{own['port']}", timeout=5000
+                )
+                for index, surface in enumerate(failed_browser.contexts[0].pages):
+                    if surface.url.startswith(config["origin"]) and (
+                        sid in surface.url or "/#/login" in surface.url
+                    ):
+                        await surface.screenshot(
+                            path=str(evidence_root / f"ui-handoff-failure-{index}.png"),
+                            timeout=5000,
+                        )
+        except (PlaywrightError, OSError) as error:
+            print(f"Failure screenshot unavailable: {type(error).__name__}")
         (evidence_root / "stream-summary.json").write_text(
             json.dumps(stream_summary(locals().get("messages", [])), indent=2),
             encoding="utf-8",
@@ -497,6 +569,11 @@ if __name__ == "__main__":
         help="Address of this fixture reachable from the managed Chrome worker.",
     )
     parser.add_argument("--turn-timeout", type=int, default=180)
+    parser.add_argument(
+        "--manual-human",
+        action="store_true",
+        help="Prepare a real model session and wait for a person in an external viewer, such as iPhone Safari. Use a longer turn timeout while coordinating the person.",
+    )
     parser.add_argument(
         "--manual-continuation",
         action="store_true",

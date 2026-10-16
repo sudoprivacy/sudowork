@@ -188,6 +188,55 @@ E2E_TEST_PREFIX=webui-e2e-<unique>
 Local conversations and terminals, local extension relay, local knowledge base, channels, teams, security center, billing, member/enterprise management and extension settings;
 多实例、Redis、分布式锁、审计平台、outbox、MCP SSE relay、性能压测平台。
 
+## Static assets across upgrades
+
+Compose retains built client assets in the `webui-assets` volume. Before the
+server starts, the one-time `publish-assets` job adds the new image's assets.
+The server mounts that volume read-only. The current image still supplies its
+own HTML entry point, while previously opened pages can request older chunks.
+Publishing an identical release is idempotent; an existing asset name with
+different bytes fails publication without overwriting the retained file.
+
+For source Compose, set `WEBUI_IMAGE` when deploying a published image. The
+release installer pins the migration, asset publisher and server to its selected
+release. These three services must use the same application image. A normal `docker compose up -d`
+includes the asset prerequisite. An app-only cutover with `--no-deps` must run
+the target image's publisher first.
+
+The release installer exports the previous container's assets into its upgrade
+backup and imports them before replacing the application. If publication fails,
+it restores the previous configuration before any application or database change.
+
+When enabling retention on an existing source deployment, export its previous
+public `dist/client/assets` directory before replacing the old container.
+Import those files together with the new image's assets:
+
+```sh
+docker compose run --rm --no-deps \
+  --volume /opt/sudowork/previous-assets:/previous-assets:ro \
+  publish-assets node dist/server/publishAssets.js \
+  --target /retained-assets /app/apps/webui/dist/client/assets /previous-assets
+docker compose up -d
+```
+
+Keep the asset volume through subsequent upgrades and app-only rollbacks.
+Rolling back to an older image does not require restoring the database. Older
+images without the publisher can use the already prepared asset volume via an
+app-only rollback. Asset garbage collection requires a separate retention
+decision; deployment does not delete older files.
+
+The existing Docker smoke test seeds an older chunk, publishes the actual new
+build, and boots the packaged server with both source Compose and the release
+installer's generated Compose. It requires old and current JavaScript to remain
+available, and checks that conflicting publication preserves the original HTTP
+response.
+
+PostgreSQL readiness uses TCP. Its temporary initialization server only accepts
+Unix sockets and must not release migrations early. The real container test
+holds initialization, verifies that the configured health command remains
+unready, then releases initialization and requires successful migration and HTTP
+responses.
+
 ## License
 
 Apache-2.0（含自 Sudowork 摘取的样式与组件，保留原始版权头）。
