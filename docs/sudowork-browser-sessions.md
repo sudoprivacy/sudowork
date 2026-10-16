@@ -1,6 +1,6 @@
 # Shared browser sessions for Desktop and WebUI
 
-Status: cloud browser control, the shared panel, Desktop integration and compact takeover controls are merged. The public WebUI is deployed with production Moss 0.1.59, public browser SDK v0.57.5 and user-runtime SDK v0.1.2. Actual Electron, Chromium and Firefox clients passed real model/browser journeys; the public frontend's complete Chromium journey also passed after deployment. Existing personal Chrome attachment, the optional local extension relay and actual phone/Safari acceptance remain open. This document is the source for [the shared design page](https://s.shareone.vip/md/sudowork-browser-sessions).
+Status: cloud browser control, the shared panel, Desktop integration and compact takeover controls are merged. The tested v0.2.33 WebUI source was deployed with production Moss 0.1.59, public browser SDK v0.57.5 and user-runtime SDK v0.1.2. Actual Electron, Chromium and Firefox clients passed real model/browser journeys; both public viewing browsers and the full public lifecycle journey also passed. Formal v0.2.33 artifacts are published. Existing personal Chrome attachment, the optional local extension relay and physical phone/Safari acceptance remain open. This document is the source for [the shared design page](https://s.shareone.vip/md/sudowork-browser-sessions).
 
 ## 1. Decisions
 
@@ -430,12 +430,12 @@ implementation and evidence before this design is considered fully delivered.
 
 ### Public WebUI deployment and acceptance
 
-On October 15, 2026, [the official image build](https://github.com/sudoprivacy/sudowork/actions/runs/38678395905)
-published source `41cae42566a984d13cc5798c5b6a23900d5d7c25`, whose Git tree is
-identical to the merged #1250 source. The deployed image is
-`sha256:31a996ff6addc9a5ca8267c30ae1b6815f65c8827693267e5cb5040758933efd`.
+On October 15, 2026, [the final image build](https://github.com/sudoprivacy/sudowork/actions/runs/38685336013)
+published source `96e8ea412a6d44d1509d4046b116e1215cae1b7d`, whose Git tree is
+identical to merged #1254 and tag v0.2.33. The accepted deployment image is
+`sha256:c45c01af59f94f4efd0567f0943951a4bfff8e8f0319d010248259ec4491202d`.
 The application replacement retained the PostgreSQL container/volume, gateway,
-TLS files, encryption keys, original conversation lock states and 579 old
+TLS files, encryption keys, original conversation lock states and 759 old
 hashed assets. Its previous image and a consistent database backup remain
 available for rollback. No database backup was restored during the upgrade.
 
@@ -445,7 +445,7 @@ returned the original bytes and SHA-256. The check waits for visible application
 readiness and verifies identity explicitly; background polling makes network
 idleness unsuitable as the completion condition.
 
-The complete live file journey then passed at
+The complete live file journey passed in real Firefox and Chromium at
 [the public WebUI](https://webui.sudoprivacy.com) with real gpt-6-luna and the
 production managed extension Chrome. It verified actual AI prefill at human
 focus, trusted Unicode replacement with a 450 ms delayed click, native file
@@ -455,3 +455,27 @@ submission and the exact 80-byte downloaded receipt/SHA-256. Anonymous and stale
 uploads returned their expected 401/409 responses, with no page errors. The
 completed owned conversation was terminated through its normal owner API;
 persistent profile data was retained.
+
+The public lifecycle journey also passed headful extension startup, a headless
+restart, explicit headful CDP, persistent login cookies and display release.
+Normal one-time permissions were answered through the real chat UI; the AI
+continued automatically after Return while Chrome remained stopped. The live
+test makes the initial stopped profile and transport explicit and shares the
+permission handler with file acceptance.
+
+[Formal v0.2.33 release](https://github.com/sudoprivacy/sudowork/actions/runs/38694947513)
+passed Windows, both Mac architectures and both native WebUI architectures.
+The published Windows ZIP matched its GitHub asset digest and passed headless
+and headful journeys using its packaged executable and browser MCP resources.
+The previous v0.2.32 publication was cancelled after the missing-resource defect
+was found; the v0.2.33 packaging guard and clean compilation repair were verified.
+
+The handoff live test has an external-human mode for a real phone viewer. It
+prints a scoped viewer URL and a random value, then requires the actual person
+to take control, enter that value and return to AI. Exact model readback,
+trusted submission, shared identity and restored history remain required.
+The complete mode passed a real-model preflight with a separate Chromium
+context, a 390 by 844 touch viewport, trusted Unicode input and automatic AI
+continuation. The external driver took control before choosing Page view and
+waited for that page frame before clicking. This client was desktop Chromium;
+the result does not establish physical iPhone or Safari acceptance.

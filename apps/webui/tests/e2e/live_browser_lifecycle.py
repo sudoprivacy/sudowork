@@ -9,6 +9,7 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from ai_dev_browser.core.browser import browser_start, browser_stop
+from live_browser_permissions import approve_browser_permission
 from playwright.async_api import async_playwright, expect
 
 
@@ -153,9 +154,14 @@ async def main(args):
                 .click()
             )
 
-        stopped = await wait_state(lambda value: value["state"] == "stopped")
+        stopped = await state()
+        assert stopped["state"] == "stopped" and not stopped["isHumanControlHeld"], (
+            "Start this journey with the owned browser stopped and its previous "
+            "human lease explicitly returned; persistent Chrome can outlive a conversation"
+        )
         assert stopped["capabilities"]["lifecycle"] is True
         profile = stopped["profileId"]
+        await choose("transport", "extension")
         await choose("launchMode", "headful")
         await panel.get_by_role(
             "button", name=browser_labels["start"], exact=True
@@ -233,11 +239,42 @@ async def main(args):
                 value["state"] == "stopped" and not value["isHumanControlHeld"]
             )
         )
-        await expect(
+        approvals = []
+        approved_ids = set()
+        reply = (
             page.locator(".message-item.text.justify-start")
             .get_by_text(ready_marker, exact=False)
             .first
-        ).to_be_visible(timeout=180000)
+        )
+        deadline = asyncio.get_running_loop().time() + 180
+        while not await reply.is_visible():
+            last_tool = None
+            for raw in messages[start:]:
+                if not isinstance(raw, str):
+                    continue
+                try:
+                    message = json.loads(raw)
+                except ValueError:
+                    continue
+                if message.get("kind") != "upstream":
+                    continue
+                event = message.get("event", {})
+                if event.get("type") == "tool_use":
+                    tool_input = event.get("input", {})
+                    if isinstance(tool_input, str):
+                        tool_input = json.loads(tool_input)
+                    last_tool = (event.get("name", ""), tool_input)
+                if event.get("type") == "control_request":
+                    request_id = event.get("request_id")
+                    if request_id not in approved_ids:
+                        approvals.append(
+                            await approve_browser_permission(page, event, last_tool)
+                        )
+                        approved_ids.add(request_id)
+            assert asyncio.get_running_loop().time() < deadline, (
+                "The actual AI must complete its stopped-browser return"
+            )
+            await asyncio.sleep(0.25)
         deadline = asyncio.get_running_loop().time() + 30
         while True:
             assistant_text = ""
@@ -301,6 +338,7 @@ async def main(args):
             "automaticAIContinuationWhileStopped": True,
             "assistantReceipt": ready_marker,
             "modelUsage": current_result.get("usage"),
+            "visibleOneTimeApprovals": approvals,
             "fencedViewRequests": request_errors,
             "browserSessionIds": [
                 value["browserSessionId"] for value in (original, headless, fallback)
