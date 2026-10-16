@@ -1,3 +1,4 @@
+import ExternalAgentUsageDetails from './ExternalAgentUsageDetails';
 import ExternalVersionSelector from './ExternalVersionSelector';
 import ExternalTaskEvidence from './ExternalTaskEvidence';
 import { Alert, Button, Input, Spin, Tag, Tooltip, Typography } from '@arco-design/web-react';
@@ -317,9 +318,7 @@ function ExternalChat({ sessionId: routeSessionId, agentId }: IExternalChatProps
                 </Button>
               </div>
             </div>
-            <Typography.Paragraph type='secondary' className='text-xs mt-2 mb-0'>
-              {t(agent?.capabilities?.version_pin === 'supported' ? 'agent.external.versions.durableCapabilities' : 'agent.external.chat.capabilities')}
-            </Typography.Paragraph>
+            {agent && <ExternalAgentUsageDetails agent={agent} />}
           </div>
         </div>
       </div>

@@ -136,6 +136,18 @@ const session = z.object({
   updated_at: z.number(),
 });
 const capability = z.enum(["supported", "unsupported", "unknown"]);
+const agentUsage = z.object({
+  data_scope: z.literal("synthetic_only"),
+  input: z.literal("text_query_only"),
+  attachments: z.literal("unsupported"),
+  resource_refs: z.literal("unsupported"),
+  tools: z.literal("unsupported"),
+  content_classification: z.literal("caller_declared_only"),
+  capability_basis: z.literal("adapter_contract"),
+  evaluated_at: z.number().int().nonnegative(),
+  reviewed_at: z.number().int().nonnegative().nullable(),
+  review_state: z.enum(["not_approved", "expired", "current"]),
+});
 const agent = z.object({
   id,
   name: z.string(),
@@ -147,6 +159,7 @@ const agent = z.object({
   decoder: z.enum(["text", "reply_actions_v1"]),
   approved: z.boolean(),
   review_expires_at: z.number(),
+  usage: agentUsage.optional(),
   capabilities: z.object({
     streaming: capability,
     cancel: capability,

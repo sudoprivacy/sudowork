@@ -1,9 +1,26 @@
-// Derived from Moss ca1ab5cdad399393dce4145e42f682fb9e1aa22a:contracts/external-provider/v1/contract.ts. DO NOT EDIT.
+// Derived from Moss da6ced75933bf358416b3d68b01cb8328b9782db:contracts/external-provider/v1/contract.ts. DO NOT EDIT.
 /** Moss-owned external-provider pilot wire contract. ADR-003/004 remain Proposed. */
 export const EXTERNAL_PROVIDER_API = 'external-provider.sudo.dev/v1alpha5' as const
 export type Capability = 'supported' | 'unsupported' | 'unknown'
 export type ExternalTaskStatus = 'accepted' | 'dispatching' | 'running' | 'succeeded' | 'failed' | 'unknown' | 'rejected'
 export type OutputDecoder = 'text' | 'reply_actions_v1'
+
+/** Optional additive read metadata. Not admission, health, DLP or remote execution evidence. */
+export interface ExternalAgentUsage {
+  data_scope: 'synthetic_only'
+  input: 'text_query_only'
+  attachments: 'unsupported'
+  resource_refs: 'unsupported'
+  tools: 'unsupported'
+  content_classification: 'caller_declared_only'
+  capability_basis: 'adapter_contract'
+  /** Projection time; no provider probe is performed by this read. */
+  evaluated_at: number
+  /** Successful explicit review of this configuration; null for unrecorded/invalidated reviews. */
+  reviewed_at: number | null
+  /** Only the review window; dispatch rechecks policy, grants, credentials and connection. */
+  review_state: 'not_approved' | 'expired' | 'current'
+}
 
 export interface ExternalAgent {
   id: string
@@ -18,6 +35,7 @@ export interface ExternalAgent {
   approved: boolean
   review_expires_at: number
   capabilities: { streaming: Capability; cancel: Capability; resume: Capability; version_pin: Capability }
+  usage?: ExternalAgentUsage
 }
 
 /** Client command mapped to SubmitTask by the transport. Never accepted directly by HTTP ingress. */

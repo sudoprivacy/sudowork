@@ -1,3 +1,4 @@
+import ExternalAgentUsageDetails from './ExternalAgentUsageDetails';
 import { Alert, Button, Tag, Typography } from '@arco-design/web-react';
 import { Bot, ArrowUpRight, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -37,6 +38,7 @@ export default function PublishedExternalAgents({ query = '' }: IPublishedExtern
               </div>
               <p className={styles.description}>{t('agent.external.published.scope')}</p>
               <Typography.Text type='secondary'>{t('agent.external.sourceIdentityUnverified')}</Typography.Text>
+              <ExternalAgentUsageDetails agent={agent} />
               <div className={styles.actions}>
                 <Button type='primary' icon={<ArrowUpRight size={14} />} onClick={() => void navigate(newExternalConversationPath(agent.id))}>
                   {t('agent.external.published.start')}

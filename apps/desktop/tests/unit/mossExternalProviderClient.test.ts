@@ -185,3 +185,40 @@ it('submits a typed TaskSpec request once and retains rejection decisions in his
   await expect(port.create({ agent_id: 'agent-1', query: '6 * 7', idempotency_key: 'request-1234' })).rejects.toThrow('connection lost');
   expect(request).toHaveBeenCalledTimes(3);
 });
+
+const usageAgent = {
+  id: 'usage-agent',
+  name: 'Usage',
+  provider: 'dify',
+  execution_mode: 'external_hosted',
+  profile: 'synthetic_pilot',
+  source_identity_evidence: 'unverified',
+  source_digest: 'digest',
+  decoder: 'text',
+  approved: true,
+  review_expires_at: 1000,
+  capabilities: { streaming: 'supported', cancel: 'unsupported', resume: 'unsupported', version_pin: 'unsupported' },
+};
+const usage = {
+  data_scope: 'synthetic_only',
+  input: 'text_query_only',
+  attachments: 'unsupported',
+  resource_refs: 'unsupported',
+  tools: 'unsupported',
+  content_classification: 'caller_declared_only',
+  capability_basis: 'adapter_contract',
+  evaluated_at: 100,
+  reviewed_at: null,
+  review_state: 'current',
+};
+it('retains optional usage from new servers and accepts old servers without fabricating it', async () => {
+  const request = vi.fn().mockResolvedValue({ success: true, data: [usageAgent] });
+  const port = createMossExternalProviderPort(request);
+  expect((await port.agents())[0].usage).toBeUndefined();
+  request.mockResolvedValue({ success: true, data: [{ ...usageAgent, usage }] });
+  expect((await port.agents())[0].usage).toEqual(usage);
+});
+it.each([{ data_scope: 'internal' }, { attachments: 'supported' }, { tools: 'supported' }, { content_classification: 'verified' }, { capability_basis: 'remote_attestation' }, { evaluated_at: -1 }, { reviewed_at: 'yesterday' }])('rejects unsupported or malformed usage claims: %j', async (patch) => {
+  const request = vi.fn().mockResolvedValue({ success: true, data: [{ ...usageAgent, usage: { ...usage, ...patch } }] });
+  await expect(createMossExternalProviderPort(request).agents()).rejects.toThrow();
+});

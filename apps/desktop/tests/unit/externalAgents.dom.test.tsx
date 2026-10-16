@@ -1,8 +1,10 @@
+import type { ExternalAgent } from '@sudowork/contracts/external-provider';
 import React from 'react';
 import { EXTERNAL_PROVIDER_API } from '@sudowork/contracts/external-provider';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import ExternalAgentUsageDetails from '@renderer/pages/external-agents/ExternalAgentUsageDetails';
 
 const mocks = vi.hoisted(() => ({ context: vi.fn(), access: vi.fn(), versions: vi.fn(), evidence: vi.fn(), agents: vi.fn(), sessions: vi.fn(), history: vi.fn(), create: vi.fn(), events: vi.fn(), emit: vi.fn(), close: vi.fn(), user: { id: 'user-a', enterprise_code: 'org-a' } }));
 vi.mock('@sudowork/host-bridge/ipcBridge', () => ({ externalProviders: Object.fromEntries(['context', 'access', 'versions', 'evidence', 'agents', 'sessions', 'history', 'create', 'events'].map((key) => [key, { invoke: mocks[key as 'access'] }])) }));
@@ -334,4 +336,55 @@ it('retains the translated provider name when revoked agents disappear from the 
   page('/conversation/external:session-1');
   await screen.findByText('agent.external.provider.custom_http');
   expect(screen.queryByText('custom_http')).toBeNull();
+});
+
+it('usage details keep absent metadata unconfirmed and separate capabilities from review and execution evidence', async () => {
+  const baseline: ExternalAgent = {
+    ...agent,
+    execution_mode: 'external_hosted',
+    profile: 'synthetic_pilot',
+    source_identity_evidence: 'unverified',
+    source_digest: 'digest',
+    decoder: 'text',
+    approved: true,
+    review_expires_at: 1,
+    capabilities: { streaming: 'supported', cancel: 'unsupported', resume: 'unknown', version_pin: 'unsupported' },
+  };
+  const view = render(<ExternalAgentUsageDetails agent={baseline} />);
+  fireEvent.click(screen.getByText('agent.external.usage.title'));
+  expect(await screen.findByText('agent.external.usage.unavailable')).toBeTruthy();
+  view.rerender(
+    <ExternalAgentUsageDetails
+      agent={{
+        ...baseline,
+        usage: {
+          data_scope: 'synthetic_only',
+          input: 'text_query_only',
+          attachments: 'unsupported',
+          resource_refs: 'unsupported',
+          tools: 'unsupported',
+          content_classification: 'caller_declared_only',
+          capability_basis: 'adapter_contract',
+          evaluated_at: 100,
+          reviewed_at: null,
+          review_state: 'expired',
+        },
+      }}
+    />
+  );
+  for (const key of ['scope', 'classification', 'unknown', 'expired', 'notRecorded', 'basis', 'evidence']) expect(await screen.findByText(`agent.external.usage.${key}`)).toBeTruthy();
+  expect(screen.queryByText('agent.external.usage.unavailable')).toBeNull();
+});
+
+it('the published directory exposes usage details without a per-agent fetch', async () => {
+  render(
+    <MemoryRouter>
+      <PublishedExternalAgents />
+    </MemoryRouter>
+  );
+  fireEvent.click(await screen.findByText('agent.external.usage.title'));
+  expect(await screen.findByText('agent.external.usage.unavailable')).toBeTruthy();
+  expect(mocks.versions).not.toHaveBeenCalled();
+  expect(mocks.evidence).not.toHaveBeenCalled();
+  expect(mocks.agents).toHaveBeenCalledTimes(1);
 });
