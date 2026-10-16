@@ -23,9 +23,18 @@ const bridgeAlias = [
     find: '@sudowork/contracts/browser-session',
     replacement: abs('../../packages/contracts/src/browserSession.ts'),
   },
-  { find: '@sudowork/moss-client/external-providers', replacement: abs('../../packages/moss-client/src/MossExternalProviderClient.ts') },
-  { find: '@sudowork/contracts/external-provider', replacement: abs('../../packages/contracts/src/external-provider.gen.ts') },
-  { find: '@sudowork/contracts/task', replacement: abs('../../packages/contracts/src/task.gen.ts') },
+  {
+    find: '@sudowork/moss-client/external-providers',
+    replacement: abs('../../packages/moss-client/src/MossExternalProviderClient.ts'),
+  },
+  {
+    find: '@sudowork/contracts/external-provider',
+    replacement: abs('../../packages/contracts/src/external-provider.gen.ts'),
+  },
+  {
+    find: '@sudowork/contracts/task',
+    replacement: abs('../../packages/contracts/src/task.gen.ts'),
+  },
   {
     find: '@sudowork/moss-client/agents',
     replacement: abs('../../packages/moss-client/src/MossAgentClient.ts'),
@@ -47,6 +56,9 @@ const bridgeAlias = [
 
 export default defineConfig({
   test: {
+    coverage: {
+      include: ['src/**/*.{ts,tsx}'],
+    },
     projects: [
       {
         resolve: { alias: bridgeAlias },

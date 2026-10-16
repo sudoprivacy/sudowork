@@ -351,7 +351,7 @@ if [ "$SOURCE_MODE" = 0 ] && [ "$DRY_RUN" != 1 ] \
   DATABASE_READY=0
   for _attempt in $(seq 1 30); do
     if "${OLD_COMPOSE[@]}" exec -T postgres sh -c \
-      'pg_isready --username="$POSTGRES_USER" --dbname="$POSTGRES_DB"' >/dev/null 2>&1; then
+      'pg_isready -h 127.0.0.1 --username="$POSTGRES_USER" --dbname="$POSTGRES_DB"' >/dev/null 2>&1; then
       DATABASE_READY=1
       break
     fi
@@ -371,6 +371,16 @@ if [ "$SOURCE_MODE" = 0 ] && [ "$DRY_RUN" != 1 ] \
   fi
   mv "$UPGRADE_BACKUP_DIR/database.dump.part" "$UPGRADE_BACKUP_DIR/database.dump"
   chmod 600 "$UPGRADE_BACKUP_DIR/.env" "$UPGRADE_BACKUP_DIR/database.dump"
+  OLD_WEBUI_CONTAINER="$("${OLD_COMPOSE[@]}" ps -a -q webui)"
+  if [ -n "$OLD_WEBUI_CONTAINER" ]; then
+    case "$OLD_WEBUI_CONTAINER" in
+      *$'\n'*) die 'expected one previous WebUI container; the installation was not upgraded' ;;
+    esac
+    mkdir "$UPGRADE_BACKUP_DIR/previous-assets"
+    docker cp "$OLD_WEBUI_CONTAINER:/app/apps/webui/dist/client/assets/." \
+      "$UPGRADE_BACKUP_DIR/previous-assets" \
+      || die 'could not retain previous client assets; the installation was not upgraded'
+  fi
 fi
 
 read_env_value() {
@@ -549,7 +559,7 @@ services:
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
       interval: 5s
       timeout: 3s
       retries: 20
@@ -575,6 +585,14 @@ services:
         condition: service_healthy
     restart: 'no'
 
+  publish-assets:
+    image: sudowork-webui:@@WEBUI_IMAGE_VERSION@@
+    pull_policy: never
+    command: ['node', 'dist/server/publishAssets.js', '--target', '/retained-assets', '/app/apps/webui/dist/client/assets']
+    volumes:
+      - webui-assets:/retained-assets
+    restart: 'no'
+
   webui:
     image: sudowork-webui:@@WEBUI_IMAGE_VERSION@@
     pull_policy: never
@@ -588,12 +606,24 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+      publish-assets:
+        condition: service_completed_successfully
+    volumes:
+      - type: volume
+        source: webui-assets
+        target: /app/apps/webui/dist/client/assets
+        read_only: true
+        volume:
+          nocopy: true
     healthcheck:
       test: ['CMD-SHELL', 'node -e "require(''http'').get(''http://127.0.0.1:26808/health/live'',r=>process.exit(r.statusCode===200?0:1)).on(''error'',()=>process.exit(1))"']
       interval: 10s
       timeout: 5s
       retries: 12
     restart: unless-stopped
+
+volumes:
+  webui-assets:
 EOF
   sed "s/@@WEBUI_IMAGE_VERSION@@/$IMAGE_VERSION/g" "$temporary" > "$COMPOSE_FILE"
   rm -f "$temporary"
@@ -787,7 +817,7 @@ rollback_release() {
     DATABASE_READY=0
     for _attempt in $(seq 1 30); do
       if "${COMPOSE[@]}" exec -T postgres sh -c \
-        'pg_isready --username="$POSTGRES_USER" --dbname="$POSTGRES_DB"' >/dev/null 2>&1; then
+        'pg_isready -h 127.0.0.1 --username="$POSTGRES_USER" --dbname="$POSTGRES_DB"' >/dev/null 2>&1; then
         DATABASE_READY=1
         break
       fi
@@ -819,7 +849,19 @@ rollback_release() {
   fi
 }
 
-log 'Starting PostgreSQL, database migration, and WebUI'
+if [ -n "$UPGRADE_BACKUP_DIR" ] && [ -d "$UPGRADE_BACKUP_DIR/previous-assets" ]; then
+  log 'Retaining previous and new client assets before changing the application'
+  if ! "${COMPOSE[@]}" run --rm --no-deps \
+    --volume "$UPGRADE_BACKUP_DIR/previous-assets:/previous-assets:ro" \
+    publish-assets node dist/server/publishAssets.js --target /retained-assets \
+    /app/apps/webui/dist/client/assets /previous-assets; then
+    cp "$UPGRADE_BACKUP_DIR/.env" "$ENV_FILE"
+    cp "$UPGRADE_BACKUP_DIR/docker-compose.yml" "$COMPOSE_FILE"
+    die 'asset publication failed before application cutover; previous configuration restored'
+  fi
+fi
+
+log 'Starting PostgreSQL, database migration, asset publication, and WebUI'
 if [ "$SOURCE_MODE" = 1 ]; then
   "${COMPOSE[@]}" up -d --build
 elif ! "${COMPOSE[@]}" up -d; then
