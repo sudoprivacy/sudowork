@@ -115,6 +115,19 @@ function createApi(): IOntologyWorkbenchApi {
     },
   ];
   snapshot.publishedVersions.push({ ...snapshot.publishedVersions[0], id: 'version-2', version: 'v2' }, { ...snapshot.publishedVersions[0], id: 'version-3', version: 'v3' });
+  snapshot.skillBlueprints = snapshot.publishedVersions.map((version) => ({
+    id: `skill-${version.id}`,
+    name: `${snapshot.draft.title} ${version.version} skill`,
+    description: 'Customer operations',
+    status: 'published',
+    ontologyVersionId: version.id,
+    version: '1.0.0',
+    entityIds: ['customer'],
+    toolManifest: [],
+    registeredSkillId: `ontology-skill-${version.id}`,
+    createdAt: 1,
+    updatedAt: 1,
+  }));
   snapshot.stats = recalculateOntologyStats(snapshot);
   const summary = summarizeOntologyWorkbenchSnapshot(snapshot);
   const mutationResult = { snapshot, summaries: [summary], activeWorkspaceId: snapshot.workspaceId };
@@ -960,6 +973,21 @@ describe('OntologyWorkbench', () => {
   it('validates quality rule expressions and displays execution results', async () => {
     const api = createApi();
     const snapshot = await api.getWorkbench();
+    snapshot.skillBlueprints = [
+      {
+        id: 'skill-version-2',
+        name: 'Customer skill',
+        description: 'Customer operations',
+        status: 'published',
+        ontologyVersionId: 'version-2',
+        version: '1.0.0',
+        entityIds: [],
+        toolManifest: [],
+        registeredSkillId: 'ontology-skill-version-2',
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ];
     snapshot.objects[0].attributes = [createAttribute()];
     snapshot.qualityRules = [
       {
@@ -1103,6 +1131,8 @@ describe('OntologyWorkbench', () => {
         code: 'customer_lookup',
         name: 'Customer Lookup',
         description: 'Look up customers.',
+        displayName: '客户查询',
+        displayDescription: '查询客户记录。',
         runtime: 'typescript',
         objectIds: ['customer'],
         signature: 'customerLookup(query)',
@@ -1123,7 +1153,7 @@ describe('OntologyWorkbench', () => {
     fireEvent.click(screen.getAllByText('ontology.console.views.ontology.title')[0]);
     fireEvent.click(await screen.findByText('ontology.list.detail'));
     fireEvent.click(await screen.findByText('ontology.detail.tabs.runtime'));
-    const functionRow = (await screen.findByText('Customer Lookup')).closest('.rounded') as HTMLElement;
+    const functionRow = (await screen.findByText('客户查询')).closest('.rounded') as HTMLElement;
     fireEvent.click(within(functionRow).getByRole('button', { name: 'ontology.runtime.run' }));
 
     const dialog = await screen.findByRole('dialog', { name: 'ontology.runtime.runTitle' });
@@ -1149,6 +1179,8 @@ describe('OntologyWorkbench', () => {
         executor: 'notification',
         objectIds: ['customer'],
         description: 'Notify an account owner.',
+        displayName: '客户负责人通知',
+        displayDescription: '通知客户记录的负责人。',
         configuration: { title: 'Customer', message: 'Customer {{customerId}} requires attention.' },
         parameters: [{ name: 'customerId', type: 'string', required: true }],
         outputSchema: [{ name: 'delivered', type: 'boolean' }],
@@ -1165,7 +1197,7 @@ describe('OntologyWorkbench', () => {
     fireEvent.click(screen.getAllByText('ontology.console.views.ontology.title')[0]);
     fireEvent.click(await screen.findByText('ontology.list.detail'));
     fireEvent.click(await screen.findByText('ontology.detail.tabs.runtime'));
-    const actionRow = (await screen.findByText('Notify Customer')).closest('.rounded') as HTMLElement;
+    const actionRow = (await screen.findByText('客户负责人通知')).closest('.rounded') as HTMLElement;
     fireEvent.click(within(actionRow).getByRole('button', { name: 'ontology.editor.edit' }));
     const editor = await screen.findByRole('dialog', { name: 'ontology.runtime.editAction' });
     expect(within(editor).getByText('ontology.runtime.parametersJson')).toBeInTheDocument();
@@ -1295,7 +1327,7 @@ describe('OntologyWorkbench', () => {
     await waitFor(() =>
       expect(api.createAgentBlueprint).toHaveBeenCalledWith({
         name: 'Versioned Agent',
-        ontologyVersionId: 'version-2',
+        skillBlueprintId: 'skill-version-2',
         workspaceId: 'customer_domain',
         promptTemplate: 'ontology.agent.defaultPrompt',
       })

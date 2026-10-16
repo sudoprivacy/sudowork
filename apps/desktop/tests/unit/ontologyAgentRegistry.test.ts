@@ -38,6 +38,20 @@ function fixture(id = 'workspace') {
     diff: { addedObjectIds: [], changedObjectIds: [], removedObjectIds: [], addedRelationIds: [], removedRelationIds: [], riskLevel: 'low', summary: '' },
     snapshot: { objects: [], relations: [], mappings: [], qualityRules: [], logicFunctions: [], actions: [], serviceEndpoints: [], businessDocuments: [] },
   }));
+  snapshot.skillBlueprints = ['v1', 'v2'].map((version) => ({
+    id: `skill-${version}`,
+    name: `Orders ${version} skill`,
+    description: 'Order operations',
+    status: 'published' as const,
+    ontologyVersionId: version,
+    version: '1.0.0',
+    entityIds: [],
+    toolManifest: [],
+    registeredSkillId: `ontology-skill-${version}`,
+    publishedAt: 1,
+    createdAt: 1,
+    updatedAt: 1,
+  }));
   return snapshot;
 }
 let repository: Repository;
@@ -64,22 +78,22 @@ beforeEach(() => {
   runtime.refresh.mockResolvedValue(undefined);
   registry = new OntologyAgentRegistry(repository, engine, runtime);
 });
-const create = (version = 'v1', workspace = 'workspace') => registry.create({ name: `Orders ${version}`, ontologyVersionId: version }, workspace);
+const create = (version = 'v1', workspace = 'workspace') => registry.create({ name: `Orders ${version}`, skillBlueprintId: `skill-${version}` }, workspace);
 
 describe('ontology version agent lifecycle', () => {
   it('uses the user-selected name before first registration and preserves it on later reuse', async () => {
     const initial = await create();
-    const selected = await registry.create({ name: '  Procurement assistant  ', ontologyVersionId: 'v1' }, 'workspace');
+    const selected = await registry.create({ name: '  Procurement assistant  ', skillBlueprintId: 'skill-v1' }, 'workspace');
     expect(selected.blueprint).toMatchObject({ id: initial.blueprint.id, name: 'Procurement assistant' });
     await registry.register({ blueprintId: selected.blueprint.id }, 'workspace');
     expect(runtime.install).toHaveBeenCalledWith(expect.objectContaining({ name: 'Procurement assistant' }), expect.anything());
-    const reused = await registry.create({ name: 'Another name', ontologyVersionId: 'v1' }, 'workspace');
+    const reused = await registry.create({ name: 'Another name', skillBlueprintId: 'skill-v1' }, 'workspace');
     expect(reused.blueprint.name).toBe('Procurement assistant');
     expect(repository.getSnapshot('workspace')?.agentBlueprints).toHaveLength(1);
   });
 
   it.each(['', '   ', 'a'.repeat(101)])('rejects invalid names without creating a record: %j', async (name) => {
-    await expect(registry.create({ name, ontologyVersionId: 'v1' }, 'workspace')).rejects.toThrow('ontology.studio.agentErrors.invalidName');
+    await expect(registry.create({ name, skillBlueprintId: 'skill-v1' }, 'workspace')).rejects.toThrow('ontology.studio.agentErrors.invalidName');
     expect(repository.getSnapshot('workspace')?.agentBlueprints).toHaveLength(0);
   });
 

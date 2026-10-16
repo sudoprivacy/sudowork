@@ -247,7 +247,7 @@
   margin: 0;
 }
 .ontology-inspector-content {
-  padding: 16px;
+  padding: 8px;
 }
 .ontology-section-heading {
   margin-top: 24px;
@@ -293,6 +293,112 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+.ontology-data-guide-modal :global(.arco-modal-body) {
+  padding: 16px;
+}
+.ontology-data-guide-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  padding: 0;
+}
+.ontology-data-guide-option {
+  min-height: 220px;
+  cursor: pointer;
+  border: 1px solid var(--color-border-2);
+  border-radius: 12px;
+  background: var(--color-bg-1);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+.ontology-data-guide-option:hover,
+.ontology-data-guide-option:focus-visible {
+  border-color: rgb(var(--primary-5));
+  box-shadow: 0 6px 20px rgb(var(--gray-3));
+  transform: translateY(-2px);
+  outline: none;
+}
+.ontology-data-guide-option.is-recommended {
+  border-color: rgb(var(--primary-4));
+  background: rgb(var(--primary-1));
+}
+.ontology-data-guide-option.is-recommended .ontology-data-guide-title {
+  color: rgb(var(--primary-6)) !important;
+}
+.ontology-data-guide-grid:has(.ontology-data-guide-option.is-model-first:hover) .ontology-data-guide-option.is-recommended,
+.ontology-data-guide-grid:has(.ontology-data-guide-option.is-model-first:focus-visible) .ontology-data-guide-option.is-recommended {
+  border-color: var(--color-border-2);
+  background: var(--color-bg-1);
+}
+.ontology-data-guide-grid:has(.ontology-data-guide-option.is-model-first:hover) .ontology-data-guide-option.is-recommended .ontology-data-guide-title,
+.ontology-data-guide-grid:has(.ontology-data-guide-option.is-model-first:focus-visible) .ontology-data-guide-option.is-recommended .ontology-data-guide-title {
+  color: var(--color-text-1) !important;
+}
+.ontology-data-guide-grid:has(.ontology-data-guide-option.is-model-first:hover) .ontology-data-guide-option.is-recommended .ontology-data-guide-icon,
+.ontology-data-guide-grid:has(.ontology-data-guide-option.is-model-first:focus-visible) .ontology-data-guide-option.is-recommended .ontology-data-guide-icon {
+  background: var(--color-fill-2);
+  color: var(--color-text-2);
+}
+.ontology-data-guide-option.is-model-first:hover,
+.ontology-data-guide-option.is-model-first:focus-visible {
+  border-color: rgb(var(--primary-4));
+  background: rgb(var(--primary-1));
+}
+.ontology-data-guide-option.is-model-first:hover .ontology-data-guide-title,
+.ontology-data-guide-option.is-model-first:focus-visible .ontology-data-guide-title {
+  color: rgb(var(--primary-6)) !important;
+}
+.ontology-data-guide-option.is-model-first:hover .ontology-data-guide-icon,
+.ontology-data-guide-option.is-model-first:focus-visible .ontology-data-guide-icon {
+  background: rgb(var(--primary-2));
+  color: rgb(var(--primary-6));
+}
+.ontology-data-guide-option :global(.arco-card-body) {
+  height: 100%;
+  padding: 20px;
+}
+.ontology-data-guide-content {
+  display: flex;
+  min-height: 178px;
+  flex-direction: column;
+}
+.ontology-data-guide-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.ontology-data-guide-icon {
+  display: flex;
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--color-fill-2);
+  color: var(--color-text-2);
+}
+.ontology-data-guide-icon.is-primary {
+  background: rgb(var(--primary-2));
+  color: rgb(var(--primary-6));
+}
+.ontology-data-guide-title {
+  display: block;
+  margin-top: 24px;
+  color: var(--color-text-1) !important;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 24px;
+}
+.ontology-data-guide-summary {
+  display: block;
+  margin-top: 10px;
+  font-size: 13px;
+  line-height: 22px;
 }
 .ontology-list-row {
   display: flex;
@@ -356,6 +462,9 @@
   }
 }
 @media (max-width: 760px) {
+  .ontology-data-guide-grid {
+    grid-template-columns: 1fr;
+  }
   .ontology-workspace {
     grid-template-columns: 1fr;
   }

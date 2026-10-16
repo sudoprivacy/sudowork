@@ -3,7 +3,18 @@ import type { IOntologyWorkbenchApi } from '../OntologyWorkbench';
 
 export interface IOntologyStudioApi extends IOntologyWorkbenchApi {
   requestAiRepair: (input: { workspaceId: string; title: string; prompt: string }, onConversationReady: (conversationId: string) => void) => Promise<void>;
-  createAgentBlueprint: (input: import('@sudowork/ontology-common').IOntologyAgentBlueprintInput) => Promise<{ snapshot: IOntologyWorkbenchSnapshot; blueprint: import('@sudowork/ontology-common').IOntologyAgentBlueprint }>;
+  createAgentBlueprint: (input: import('@sudowork/ontology-common').IOntologyAgentBlueprintInput) => Promise<{
+    snapshot: IOntologyWorkbenchSnapshot;
+    blueprint: import('@sudowork/ontology-common').IOntologyAgentBlueprint;
+  }>;
+  createSkillBlueprint: (input: import('@sudowork/ontology-common').IOntologySkillBlueprintInput) => Promise<{
+    snapshot: IOntologyWorkbenchSnapshot;
+    blueprint: import('@sudowork/ontology-common').IOntologySkillBlueprint;
+  }>;
+  publishSkillBlueprint: (input: import('@sudowork/ontology-common').IOntologyPublishSkillInput) => Promise<{
+    snapshot: IOntologyWorkbenchSnapshot;
+    blueprint: import('@sudowork/ontology-common').IOntologySkillBlueprint;
+  }>;
   describeAssetFields: (input: IOntologyDescribeAssetFieldsInput) => Promise<IOntologyWorkbenchSnapshot>;
   saveStudioModel: (input: IOntologyStudioSaveInput) => Promise<IOntologyWorkbenchSnapshot>;
   previewStandardFile: (input: { filePath: string }) => Promise<IOntologyStandardPreview>;

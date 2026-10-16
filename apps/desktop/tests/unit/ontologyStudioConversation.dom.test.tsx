@@ -105,6 +105,7 @@ describe('ontology default conversation', () => {
     mount();
     await onCreateOntology();
     await screen.findByTestId('studio-chat');
+    fireEvent.click(await screen.findByRole('button', { name: '先完成建模' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(bridge.createWorkbench).toHaveBeenCalledTimes(1);
     expect(bridge.ensureBuilderMcp).not.toHaveBeenCalled();
@@ -197,7 +198,22 @@ describe('ontology registered agent conversation navigation', () => {
     const assistantId = 'ontology-version & 1';
     const current = structuredClone(snapshot);
     current.publishedVersions = [{ id: 'version-1', version: 'v1', status: 'published', snapshot: { objects: [], relations: [] } }] as any;
-    current.agentBlueprints = [{ id: 'blueprint-1', name: 'Orders agent', ontologyVersionId: 'version-1', status: 'registered', registeredAssistantId: assistantId }] as any;
+    current.skillBlueprints = [
+      {
+        id: 'skill-1',
+        name: 'Orders skill',
+        description: 'Order queries',
+        status: 'published',
+        ontologyVersionId: 'version-1',
+        version: '1.0.0',
+        entityIds: [],
+        toolManifest: [],
+        registeredSkillId: 'ontology-skill-1',
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ] as any;
+    current.agentBlueprints = [{ id: 'blueprint-1', name: 'Orders agent', skillBlueprintId: 'skill-1', ontologyVersionId: 'version-1', status: 'registered', registeredAssistantId: assistantId }] as any;
     bridge.getWorkbench.mockResolvedValue({ success: true, data: current });
     mount('/app/ontology/orders/release');
     fireEvent.click(await screen.findByRole('button', { name: '新会话' }));
