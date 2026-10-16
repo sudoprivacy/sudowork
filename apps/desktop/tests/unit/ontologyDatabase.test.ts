@@ -97,6 +97,13 @@ describe('OntologyDatabase schema', () => {
               const second = await engine.upsertObject({code:'line',name:'Line',sourceAssetIds:[lineAssetId]}, 'versioned');
               const invoiceId = first.objects[0].id;
               const lineId = second.objects.find(object=>object.code==='line').id;
+              await engine.upsertLogicFunction({name:'Invoice Lookup Internal',code:'invoice_lookup_custom',description:'Internal invoice lookup.',displayName:'查询发票',displayDescription:'查询已审批的发票记录。',runtime:'typescript',objectIds:[invoiceId],body:'return [];',returnType:'object[]'}, 'versioned');
+              await engine.upsertAction({name:'Notify Invoice Owner Internal',code:'notify_invoice_owner_custom',description:'Internal invoice notification.',displayName:'通知发票负责人',displayDescription:'通知发票记录的负责人。',executor:'notification',objectIds:[invoiceId],configuration:{message:'Invoice {{recordId}} requires attention.'}}, 'versioned');
+              const runtimeArtifacts = db.getSnapshot('versioned');
+              const persistedFunction = runtimeArtifacts.logicFunctions.find(item=>item.code==='invoice_lookup_custom');
+              const persistedAction = runtimeArtifacts.actions.find(item=>item.code==='notify_invoice_owner_custom');
+              assert.deepEqual({displayName:persistedFunction.displayName,displayDescription:persistedFunction.displayDescription},{displayName:'查询发票',displayDescription:'查询已审批的发票记录。'});
+              assert.deepEqual({displayName:persistedAction.displayName,displayDescription:persistedAction.displayDescription},{displayName:'通知发票负责人',displayDescription:'通知发票记录的负责人。'});
               const withInvoiceId = await engine.upsertAttribute({objectId:invoiceId,code:'id',name:'ID',dataType:'string',mappedField:{assetId:invoiceAssetId,fieldName:'id'}}, 'versioned');
               const invoiceAttributeId = withInvoiceId.objects.find(object=>object.id===invoiceId).attributes[0].id;
               const withInvoiceReference = await engine.upsertAttribute({objectId:lineId,code:'invoice_id',name:'Invoice ID',dataType:'string',mappedField:{assetId:lineAssetId,fieldName:'invoice_id'}}, 'versioned');
