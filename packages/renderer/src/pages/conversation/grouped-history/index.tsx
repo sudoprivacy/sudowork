@@ -1,3 +1,5 @@
+import ExternalConversationRow from '@renderer/pages/external-agents/ExternalConversationRow';
+import type { UnifiedHistoryConversation } from '@renderer/pages/external-agents/history';
 /**
  * @license
  * Copyright 2026 SudoPrivacy
@@ -46,7 +48,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
     }
   }, [id, setActiveConversation]);
 
-  const { conversations, expandedWorkspaces, pinnedTimeline, pinnedScheduled, timelineSections, scheduledGroups, agentGroups, handleToggleWorkspace } = useConversations();
+  const { conversations, externalHistoryFailed, onRefreshExternalHistory, expandedWorkspaces, pinnedTimeline, pinnedScheduled, timelineSections, scheduledGroups, agentGroups, handleToggleWorkspace } = useConversations();
 
   // Select pinned list based on active tab
   const pinnedConversations = activeTab === 'agents' ? [] : activeTab === 'scheduled' ? pinnedScheduled : pinnedTimeline;
@@ -289,12 +291,15 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
     [collapsed, tooltipEnabled, batchMode, selectedConversationIds, id, dropdownVisibleId, toggleSelectedConversation, handleConversationClick, handleOpenMenu, handleMenuVisibleChange, handleEditStart, handleDeleteClick, handleExportConversation, handleTogglePin, getJobStatus]
   );
 
-  const renderConversation = (conversation: ConversationItem, scope?: string) => <ConversationRow key={scope ? `${scope}:${conversation.id}` : conversation.id} {...getConversationRowProps(conversation)} />;
+  const renderConversation = (conversation: UnifiedHistoryConversation, scope?: string) => {
+    if (conversation.type === 'external-provider') return <ExternalConversationRow key={`${scope || ''}:${conversation.id}`} conversation={conversation} isSelected={id === conversation.id} isBatchMode={batchMode} isCollapsed={collapsed} onOpen={onSessionClick} />;
+    return <ConversationRow key={scope ? `${scope}:${conversation.id}` : conversation.id} {...getConversationRowProps(conversation)} />;
+  };
 
   // Collect all sortable IDs for the pinned section
   const pinnedIds = useMemo(() => pinnedConversations.map((c) => c.id), [pinnedConversations]);
 
-  if (((activeTab === 'agents' && agentGroups.length === 0) || (activeTab === 'timeline' && timelineSections.length === 0)) && pinnedConversations.length === 0) {
+  if (((activeTab === 'agents' && agentGroups.length === 0) || (activeTab === 'timeline' && !externalHistoryFailed && timelineSections.length === 0)) && pinnedConversations.length === 0) {
     return (
       <FlexFullContainer>
         <div className='f-center'>
@@ -436,6 +441,11 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
       </Modal>
 
       <div className='size-full overflow-y-auto overflow-x-hidden'>
+        {externalHistoryFailed && activeTab === 'timeline' && (
+          <Button type='text' className='!h-auto whitespace-normal' onClick={() => void onRefreshExternalHistory()}>
+            {t('agent.external.chat.historyFailed')}
+          </Button>
+        )}
         {/* ── PINNED SECTION ── */}
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={handleDragCancel}>
           {pinnedConversations.length > 0 && (
@@ -583,7 +593,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
                     }
 
                     if (item.type === 'conversation' && item.conversation) {
-                      return renderConversation(item.conversation as ConversationItem);
+                      return renderConversation(item.conversation);
                     }
 
                     return null;

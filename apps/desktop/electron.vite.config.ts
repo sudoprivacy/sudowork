@@ -87,6 +87,7 @@ const mainAliases = [
   // Bundle the shared workspace packages from source (see externalizeDepsPlugin
   // exclude below) so the packaged/dev main process never depends on a prior
   // `dist` build of them.
+  { find: '@sudowork/moss-client/external-providers', replacement: resolve('../../packages/moss-client/src/MossExternalProviderClient.ts') },
   { find: '@sudowork/moss-client/agents', replacement: resolve('../../packages/moss-client/src/MossAgentClient.ts') },
   { find: '@sudowork/moss-client', replacement: resolve('../../packages/moss-client/src/index.ts') },
   { find: /^@sudowork\/ontology-common\/(.*)$/, replacement: resolve('../../packages/ontology-common/src') + '/$1' },
@@ -96,6 +97,9 @@ const mainAliases = [
   { find: '@sudowork/contracts/auth', replacement: resolve('../../packages/contracts/src/auth.ts') },
   { find: '@sudowork/contracts/conversations', replacement: resolve('../../packages/contracts/src/conversations.ts') },
   browserSessionContractAlias,
+  { find: '@sudowork/contracts/external-provider', replacement: resolve('../../packages/contracts/src/external-provider.gen.ts') },
+  { find: '@sudowork/contracts/task', replacement: resolve('../../packages/contracts/src/task.gen.ts') },
+  { find: '@sudowork/contracts/agent-federation', replacement: resolve('../../packages/contracts/src/agent-federation.gen.ts') },
   { find: /^@sudowork\/host-bridge\/(.*)$/, replacement: resolve('../../packages/host-bridge/src') + '/$1' },
   { find: /^@sudowork\/host-bridge$/, replacement: resolve('../../packages/host-bridge/src/index.ts') },
   { find: '@', replacement: resolve('src') },
@@ -234,6 +238,10 @@ export default defineConfig(({ mode }) => {
           browserPageViewAlias,
           browserSessionContractAlias,
           ...commonAliasEntries(),
+          { find: '@sudowork/moss-client/external-providers', replacement: resolve('../../packages/moss-client/src/MossExternalProviderClient.ts') },
+          { find: '@sudowork/contracts/external-provider', replacement: resolve('../../packages/contracts/src/external-provider.gen.ts') },
+          { find: '@sudowork/contracts/task', replacement: resolve('../../packages/contracts/src/task.gen.ts') },
+          { find: '@sudowork/contracts/agent-federation', replacement: resolve('../../packages/contracts/src/agent-federation.gen.ts') },
           { find: '@renderer', replacement: resolve('../../packages/renderer/src') },
           { find: '@process', replacement: resolve('src/process') },
           { find: '@worker', replacement: resolve('src/worker') },

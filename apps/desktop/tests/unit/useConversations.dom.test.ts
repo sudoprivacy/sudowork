@@ -10,6 +10,8 @@ import { createElement, type PropsWithChildren } from 'react';
 import { SWRConfig } from 'swr';
 
 import type { TimelineSection } from '@renderer/pages/conversation/grouped-history/types';
+import { externalSessionView } from '@renderer/pages/external-agents/navigation';
+import type { ExternalConversationView } from '@renderer/pages/external-agents/navigation';
 
 // ── localStorage mock ────────────────────────────────────────────────────────
 
@@ -37,6 +39,12 @@ const mockConversationChangedOn = vi.fn((cb: (...args: unknown[]) => void) => {
   return () => {
     conversationChangedCallback = null;
   };
+});
+
+const externalHistoryState = vi.hoisted(() => ({ conversations: [] as ExternalConversationView[], isFailed: false, onRefresh: vi.fn() }));
+vi.mock('@renderer/pages/external-agents/useExternalHistory', () => ({ useExternalHistory: () => externalHistoryState }));
+beforeEach(() => {
+  externalHistoryState.conversations = [];
 });
 
 vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
@@ -73,6 +81,10 @@ const testState = { sections: [] as TimelineSection[] };
 vi.mock('@renderer/pages/conversation/grouped-history/utils/groupingHelpers', () => ({
   buildGroupedHistory: () => ({
     pinnedConversations: [],
+    pinnedTimeline: [],
+    pinnedScheduled: [],
+    scheduledGroups: [],
+    agentGroups: [],
     timelineSections: testState.sections,
   }),
 }));
@@ -298,4 +310,18 @@ describe('useConversations - IPC channel conversation refresh', () => {
     // Cleanup should have been called, removing the listener
     expect(conversationChangedCallback).toBeNull();
   });
+});
+
+it('merges external history without adding it to the shared native conversation source', async () => {
+  storageMap.clear();
+  testState.sections = [];
+  const native = { id: 'native-session', type: 'acp', name: 'Native', createTime: Date.now(), extra: { backend: 'scode' } };
+  mockInvoke.mockResolvedValue([native]);
+  const external = externalSessionView({ id: 'remote-session', agent_id: 'published', agent_name: 'External', title: 'External history', created_at: Date.now(), updated_at: Date.now(), active_task_id: null });
+  externalHistoryState.conversations = [external];
+  const { result } = renderConversationHook();
+  await act(async () => {});
+  expect(result.current.conversations).toEqual([native]);
+  expect(result.current.timelineSections.flatMap((section) => section.items).map((item) => item.conversation)).toContainEqual(external);
+  expect(result.current.agentGroups).toEqual([]);
 });

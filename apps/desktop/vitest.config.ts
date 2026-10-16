@@ -33,6 +33,10 @@ const aliases = [
   { find: /^@mcp\//, replacement: path.resolve(__dirname, './src/common') + '/' },
   // Resolve shared workspace packages to source so tests never depend on a
   // prior `dist` build (uniform local/CI; exercises the actual source).
+  { find: '@sudowork/moss-client/external-providers', replacement: path.resolve(__dirname, '../../packages/moss-client/src/MossExternalProviderClient.ts') },
+  { find: '@sudowork/contracts/external-provider', replacement: path.resolve(__dirname, '../../packages/contracts/src/external-provider.gen.ts') },
+  { find: '@sudowork/contracts/agent-federation', replacement: path.resolve(__dirname, '../../packages/contracts/src/agent-federation.gen.ts') },
+  { find: '@sudowork/contracts/task', replacement: path.resolve(__dirname, '../../packages/contracts/src/task.gen.ts') },
   { find: '@sudowork/moss-client/agents', replacement: path.resolve(__dirname, '../../packages/moss-client/src/MossAgentClient.ts') },
   { find: '@sudowork/moss-client', replacement: path.resolve(__dirname, '../../packages/moss-client/src/index.ts') },
   { find: /^@sudowork\/ontology-common\/(.*)$/, replacement: path.resolve(__dirname, '../../packages/ontology-common/src') + '/$1' },
@@ -144,6 +148,9 @@ export default defineConfig({
         '../../packages/renderer/src/utils/platform.ts',
         '../../packages/renderer/src/hooks/useResponsiveSider.ts',
         '../../packages/renderer/src/pages/my-agents/index.tsx',
+        '../../packages/renderer/src/pages/external-agents/**/*.{ts,tsx}',
+        '../../packages/moss-client/src/MossExternalProviderClient.ts',
+        'src/process/services/mossExternalProviders.ts',
         '../../packages/renderer/src/pages/guid/utils/personalAgentSelection.ts',
         '../../packages/renderer/src/pages/guid/components/ExecutionModeSelector.tsx',
         '../../packages/renderer/src/pages/guid/hooks/useGuidEntryPrompt.ts',

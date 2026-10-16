@@ -14,6 +14,7 @@ const state = vi.hoisted(() => ({
 vi.mock('electron', () => ({ net: { fetch: state.chromiumFetch } }));
 vi.mock('@/common', () => ({
   ipcBridge: {
+    externalProviders: new Proxy({}, { get: () => ({ provider: vi.fn() }) }),
     eeclaw: new Proxy({}, { get: (_target, name: string) => ({ provider: (handler: LoginHandler) => state.providers.set(name, handler), emit: vi.fn() }) }),
   },
 }));

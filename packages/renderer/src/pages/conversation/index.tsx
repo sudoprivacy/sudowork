@@ -1,3 +1,5 @@
+import ExternalConversationPage from '@renderer/pages/external-agents/ExternalConversationPage';
+import { isExternalConversationId } from '@renderer/pages/external-agents/navigation';
 import { isOntologyConversation, ontologyConversationPath } from '@sudowork/common/conversationPurpose';
 /**
  * @license
@@ -217,4 +219,7 @@ const ChatConversationIndex: React.FC = () => {
   );
 };
 
-export default ChatConversationIndex;
+export default function ConversationPage() {
+  const { id } = useParams();
+  return isExternalConversationId(id) ? <ExternalConversationPage /> : <ChatConversationIndex />;
+}

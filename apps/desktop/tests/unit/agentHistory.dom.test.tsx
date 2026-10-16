@@ -1,10 +1,12 @@
 import React from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ConversationItem, GroupedHistoryResult } from '@renderer/pages/conversation/grouped-history/types';
+import type { ConversationItem } from '@renderer/pages/conversation/grouped-history/types';
 import { buildGroupedHistory } from '@renderer/pages/conversation/grouped-history/utils/groupingHelpers';
+import { mergeExternalHistory } from '@renderer/pages/external-agents/history';
+import { externalSessionView, externalConversationPath } from '@renderer/pages/external-agents/navigation';
 
-const state = vi.hoisted(() => ({ history: {} as GroupedHistoryResult, conversations: [] as ConversationItem[], navigate: vi.fn(), onConversationClick: vi.fn() }));
+const state = vi.hoisted(() => ({ history: {} as ReturnType<typeof mergeExternalHistory>, conversations: [] as ConversationItem[], navigate: vi.fn(), onConversationClick: vi.fn() }));
 vi.mock('react-router-dom', () => ({ useParams: () => ({}), useNavigate: () => state.navigate }));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock('@renderer/pages/cron/hooks/useCronJobs', () => ({ useCronJobsMap: () => ({ getJobStatus: vi.fn(), markAsRead: vi.fn(), setActiveConversation: vi.fn() }) }));
@@ -120,3 +122,17 @@ interface IConversationRowMockProps {
   conversation: ConversationItem;
   agentDisplayName?: string;
 }
+
+it('keeps external sessions on the complete timeline and preserves native Agent navigation after rebase', () => {
+  const external = externalSessionView({ id: 'published-session', agent_id: 'published-agent', agent_name: 'Published', title: 'External session', created_at: Date.now(), updated_at: Date.now(), active_task_id: null });
+  state.history = mergeExternalHistory(buildGroupedHistory([], t, [], [myAgent]), [external], t);
+  const { rerender } = render(<WorkspaceGroupedHistory activeTab='agents' />);
+  expect(screen.getByRole('button', { name: myAgent.displayName, exact: true })).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'External session' })).toBeNull();
+  rerender(<WorkspaceGroupedHistory activeTab='timeline' />);
+  fireEvent.click(screen.getByRole('button', { name: 'External session' }));
+  expect(state.navigate).toHaveBeenCalledWith(externalConversationPath('published-session'));
+  expect(state.onConversationClick).not.toHaveBeenCalled();
+  rerender(<WorkspaceGroupedHistory activeTab='timeline' batchMode />);
+  expect(screen.getByRole('button', { name: 'External session' })).toBeDisabled();
+});

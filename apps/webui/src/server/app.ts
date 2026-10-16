@@ -1,3 +1,4 @@
+import { createExternalProviderRouter } from './features/externalProviders/externalProviderRoutes.js'
 import express, { type Express } from 'express'
 import type { Server } from 'node:http'
 import { join } from 'node:path'
@@ -240,6 +241,7 @@ export function registerApiRoutes(app: Express, deps: ApiDeps): ApiHandles {
   // The consumer endpoints the points/usage/orders pages read, forwarded to
   // moss under this session. Allowlisted, not a blanket /api/v1 proxy.
   app.use('/api/v1', createConsumerRouter({ auth }))
+  app.use('/api/v1', createExternalProviderRouter({ auth, request: mossFetch }))
   // Remote-connections page: `channel.*` wires land here, forwarded to moss
   // `/api/v1/channels/*` under this session (same allowlist model as above).
   app.use('/api/channels', createChannelsRouter({ auth }))

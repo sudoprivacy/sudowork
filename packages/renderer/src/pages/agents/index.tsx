@@ -1,10 +1,11 @@
+import PublishedExternalAgents from '@renderer/pages/external-agents/PublishedExternalAgents';
 /**
  * @license
  * Copyright 2026 SudoPrivacy
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Button, Input, Message, Spin, Tooltip } from '@arco-design/web-react';
+import { Button, Input, Message, Spin, Tooltip, Typography } from '@arco-design/web-react';
 import { Bot, Check, Plus, Search, Share2, Shield } from 'lucide-react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -1714,10 +1715,11 @@ const AgentSettings: React.FC = () => {
 
   return (
     <PageWrapper>
-      <div className='flex flex-col h-full w-full'>
+      <div className='flex flex-col h-full w-full min-h-0'>
         {isEnterprise && isElectronDesktop() ? (
           <MossCatalogBrowser
             kind='agents'
+            publishedContent={(query) => <PublishedExternalAgents query={query} />}
             customContent={renderCustomAssistantGridWithEnterpriseActions(customAssistants)}
             onCreate={() => {
               void handleCreate();
@@ -1744,13 +1746,13 @@ const AgentSettings: React.FC = () => {
                   setActiveTab(value as AssistantStoreTab);
                 }}
                 items={[
-                  { value: 'store', label: t('settings.assistant.storeTab', '智能体库') },
-                  { value: 'exclusive', label: t('settings.assistant.exclusiveTab', '专属智能体') },
+                  { value: 'store', label: t('settings.mossCatalog.agentLibrary') },
+                  { value: 'exclusive', label: t('settings.mossCatalog.exclusiveAgents') },
                   {
                     value: 'installed',
                     label: (
                       <>
-                        {t('settings.assistant.installedTab', '我的智能体')}
+                        {t('settings.mossCatalog.myAgents')}
                         {assistants.length > 0 && <span className='f-center min-w-4 h-4 ml-5px px-1 rd-full bg-primary text-white text-10px leading-4 font-medium'>{assistants.length}</span>}
                       </>
                     ),
@@ -1805,6 +1807,12 @@ const AgentSettings: React.FC = () => {
 
                 {/* Assistant grid */}
                 <AionScrollArea className='flex-1 min-h-0' disableOverflow onScroll={handleHubScroll}>
+                  {activeTab === 'exclusive' && (
+                    <>
+                      <PublishedExternalAgents query={hubSearchQuery} />
+                      <Typography.Title heading={5}>{t('agent.external.published.nativeTitle')}</Typography.Title>
+                    </>
+                  )}
                   {/* Enterprise mode: show tenant assistants from local tenant/ directory */}
                   {activeTab === 'exclusive' && isEnterprise ? (
                     hubLoading ? (
@@ -1814,7 +1822,7 @@ const AgentSettings: React.FC = () => {
                     ) : hubAssistantList.length === 0 ? (
                       <div className='flex flex-col items-center justify-center py-12 text-secondary gap-2'>
                         <Shield size={32} className='text-tertiary' />
-                        <span className='text-13px'>{t('settings.assistant.noTenantAssistants', '暂无专属智能体')}</span>
+                        <span className='text-13px'>{t('agent.external.published.nativeEmpty')}</span>
                       </div>
                     ) : (
                       <div className='grid gap-4 pb-4' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
