@@ -1,10 +1,12 @@
 import React from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ConversationItem, GroupedHistoryResult } from '@renderer/pages/conversation/grouped-history/types';
+import type { ConversationItem } from '@renderer/pages/conversation/grouped-history/types';
 import { buildGroupedHistory } from '@renderer/pages/conversation/grouped-history/utils/groupingHelpers';
+import { mergeExternalHistory } from '@renderer/pages/external-agents/history';
+import { externalSessionView, externalConversationPath } from '@renderer/pages/external-agents/navigation';
 
-const state = vi.hoisted(() => ({ history: {} as GroupedHistoryResult, conversations: [] as ConversationItem[], navigate: vi.fn(), onConversationClick: vi.fn() }));
+const state = vi.hoisted(() => ({ history: {} as ReturnType<typeof mergeExternalHistory>, conversations: [] as ConversationItem[], navigate: vi.fn(), onConversationClick: vi.fn() }));
 vi.mock('react-router-dom', () => ({ useParams: () => ({}), useNavigate: () => state.navigate }));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock('@renderer/pages/cron/hooks/useCronJobs', () => ({ useCronJobsMap: () => ({ getJobStatus: vi.fn(), markAsRead: vi.fn(), setActiveConversation: vi.fn() }) }));
@@ -54,27 +56,28 @@ describe('Agent history compatibility', () => {
     for (const conversation of conversations) {
       expect(screen.getAllByRole('button', { name: conversation.name }).length).toBeGreaterThan(0);
     }
-    expect(screen.getByText(myAgent.displayName)).toBeInTheDocument();
+    expect(screen.queryByText(myAgent.displayName)).toBeNull();
   });
 
-  it('shows known Agent conversations in their group and Recent without adding a timeline copy', () => {
+  it('lists the server-resolved Agent instances separately from the complete session timeline', () => {
     const conversations = legacyConversations();
-    const owned = {
-      ...conversations[0],
-      id: 'owned',
-      name: 'Owned conversation',
-      modifyTime: Date.now(),
-      extra: { agentName: 'My Agent', presetAssistantId: myAgent.ref },
-    } as ConversationItem;
-    state.history = buildGroupedHistory([...conversations, owned], t, [], [myAgent]);
-    render(<WorkspaceGroupedHistory />);
-
-    expect(screen.queryByRole('button', { name: owned.name })).toBeNull();
+    const owned = { ...conversations[0], id: 'owned', name: 'Owned conversation', extra: { presetAssistantId: myAgent.ref, pinned: true } } as ConversationItem;
+    const instance = { ...conversations[1], id: 'instance', name: 'Recruiting conversation', extra: { presetAssistantId: 'template-a', agentName: 'Recruiting Agent' } } as ConversationItem;
+    state.history = buildGroupedHistory([...conversations, owned, instance], t, [], [myAgent, { ref: 'template-a', displayName: 'Recruiting Agent', kind: 'template' }]);
+    const { rerender } = render(<WorkspaceGroupedHistory activeTab='agents' />);
+    expect(screen.getByRole('button', { name: 'Recruiting Agent', exact: true })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: instance.name })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'common.expandMore Recruiting Agent' }));
+    expect(screen.getAllByRole('button', { name: instance.name })).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: conversations[0].name })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: `common.expandMore ${myAgent.displayName}` }));
     expect(screen.getAllByRole('button', { name: owned.name })).toHaveLength(1);
-    fireEvent.click(screen.getByRole('button', { name: 'conversation.sidebar.recent' }));
-    expect(screen.getByRole('button', { name: `${myAgent.displayName} · ${owned.name}` })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: conversations[0].name })).toBeInTheDocument();
+
+    rerender(<WorkspaceGroupedHistory activeTab='timeline' />);
+    expect(screen.queryByText(myAgent.displayName)).toBeNull();
+    expect(screen.getAllByRole('button', { name: instance.name })).toHaveLength(1);
+    for (const conversation of conversations) expect(screen.getAllByRole('button', { name: conversation.name })).toHaveLength(1);
+    expect(screen.getByText(owned.name)).toBeInTheDocument();
   });
 
   it('keeps the complete timeline when the Agent list is unavailable', () => {
@@ -93,7 +96,7 @@ describe('Agent history compatibility', () => {
       .map((conversation) => ({ ...conversation, extra: { presetAssistantId: myAgent.ref, agentName: myAgent.displayName } }) as ConversationItem);
     state.conversations = conversations;
     state.history = buildGroupedHistory(conversations, t, [], [myAgent]);
-    render(<WorkspaceGroupedHistory />);
+    render(<WorkspaceGroupedHistory activeTab='agents' />);
 
     fireEvent.click(screen.getByRole('button', { name: myAgent.displayName, exact: true }));
     expect(state.onConversationClick).toHaveBeenCalledWith(conversations[1]);
@@ -108,7 +111,7 @@ describe('Agent history compatibility', () => {
 
   it('opens a new conversation under an unused Agent', () => {
     state.history = buildGroupedHistory([], t, [], [myAgent]);
-    render(<WorkspaceGroupedHistory />);
+    render(<WorkspaceGroupedHistory activeTab='agents' />);
     fireEvent.click(screen.getByRole('button', { name: myAgent.displayName, exact: true }));
     expect(state.navigate).toHaveBeenCalledWith(`/guid?assistant=${encodeURIComponent(myAgent.ref)}`);
     expect(state.onConversationClick).not.toHaveBeenCalled();
@@ -119,3 +122,17 @@ interface IConversationRowMockProps {
   conversation: ConversationItem;
   agentDisplayName?: string;
 }
+
+it('keeps external sessions on the complete timeline and preserves native Agent navigation after rebase', () => {
+  const external = externalSessionView({ id: 'published-session', agent_id: 'published-agent', agent_name: 'Published', title: 'External session', created_at: Date.now(), updated_at: Date.now(), active_task_id: null });
+  state.history = mergeExternalHistory(buildGroupedHistory([], t, [], [myAgent]), [external], t);
+  const { rerender } = render(<WorkspaceGroupedHistory activeTab='agents' />);
+  expect(screen.getByRole('button', { name: myAgent.displayName, exact: true })).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'External session' })).toBeNull();
+  rerender(<WorkspaceGroupedHistory activeTab='timeline' />);
+  fireEvent.click(screen.getByRole('button', { name: 'External session' }));
+  expect(state.navigate).toHaveBeenCalledWith(externalConversationPath('published-session'));
+  expect(state.onConversationClick).not.toHaveBeenCalled();
+  rerender(<WorkspaceGroupedHistory activeTab='timeline' batchMode />);
+  expect(screen.getByRole('button', { name: 'External session' })).toBeDisabled();
+});

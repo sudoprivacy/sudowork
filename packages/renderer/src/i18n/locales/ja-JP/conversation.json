@@ -275,6 +275,8 @@
     "preset_registered": "Agent preset registered successfully!"
   },
   "sidebar": {
+    "agents": "エージェント",
+    "sessions": "セッション",
     "recent": "最近",
     "myAgent": "マイエージェント",
     "agentHasNoConversations": "まだ会話がありません"

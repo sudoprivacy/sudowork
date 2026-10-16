@@ -1,3 +1,5 @@
+import { useExternalHistory } from '@renderer/pages/external-agents/useExternalHistory';
+import { mergeExternalHistory } from '@renderer/pages/external-agents/history';
 /**
  * @license
  * Copyright 2026 SudoPrivacy
@@ -58,13 +60,14 @@ export const useConversations = () => {
   }, [expandedWorkspaces]);
 
   const { jobs: cronJobs } = useAllCronJobs();
+  const externalHistory = useExternalHistory();
 
   const groupedHistory: GroupedHistoryResult = useMemo(() => {
     const result = buildGroupedHistory(conversations, t, cronJobs, myAgents);
     return result;
   }, [conversations, t, cronJobs, myAgents]);
 
-  const { pinnedTimeline, pinnedScheduled, timelineSections, scheduledGroups, agentGroups, recent } = groupedHistory;
+  const { pinnedTimeline, pinnedScheduled, timelineSections, scheduledGroups, agentGroups } = useMemo(() => mergeExternalHistory(groupedHistory, externalHistory.conversations, t), [groupedHistory, externalHistory.conversations, t]);
 
   // Auto-expand all workspaces on first load only (#1156)
   useEffect(() => {
@@ -115,13 +118,14 @@ export const useConversations = () => {
 
   return {
     conversations,
+    externalHistoryFailed: externalHistory.isFailed,
+    onRefreshExternalHistory: externalHistory.onRefresh,
     expandedWorkspaces,
     pinnedTimeline,
     pinnedScheduled,
     timelineSections,
     scheduledGroups,
     agentGroups,
-    recent,
     handleToggleWorkspace,
   };
 };

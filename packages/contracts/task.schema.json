@@ -1,0 +1,674 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.sudo.dev/experimental/task/v1alpha1",
+  "$defs": {
+    "SubmitTask": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "api_version": {
+          "const": "task.sudo.dev/v1alpha1"
+        },
+        "kind": {
+          "const": "SubmitTask"
+        },
+        "agent": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "catalog_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,100}$"
+            },
+            "requested_version": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "requested_channel": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "required": [
+            "catalog_id"
+          ]
+        },
+        "session_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,100}$"
+        },
+        "request_source": {
+          "enum": [
+            "interactive",
+            "api"
+          ]
+        },
+        "input": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "instruction": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000
+            },
+            "parameters": {
+              "type": "object",
+              "maxProperties": 0
+            },
+            "resource_refs": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "maxProperties": 20
+              },
+              "maxItems": 8
+            }
+          },
+          "required": [
+            "instruction",
+            "resource_refs"
+          ]
+        },
+        "workspace_refs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "maxProperties": 20
+          },
+          "maxItems": 8
+        },
+        "requested_mode": {
+          "enum": [
+            "auto",
+            "local",
+            "cloud",
+            "private"
+          ]
+        },
+        "data_classification": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "required_capabilities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "maxItems": 20
+        },
+        "constraints": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "idempotency_key": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "timeout_ms": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 120000
+            },
+            "deadline": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "max_cost_units": {
+              "type": "number",
+              "minimum": 0
+            },
+            "max_attempts": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          "required": [
+            "idempotency_key"
+          ]
+        },
+        "output_contract": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "schema_ref": {
+              "type": "object",
+              "maxProperties": 20
+            },
+            "artifact_types": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "maxItems": 20
+            },
+            "rubric_ref": {
+              "type": "object",
+              "maxProperties": 20
+            }
+          },
+          "required": []
+        },
+        "parent_task_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,100}$"
+        },
+        "supersedes_task_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,100}$"
+        }
+      },
+      "required": [
+        "api_version",
+        "kind",
+        "agent",
+        "request_source",
+        "input",
+        "workspace_refs",
+        "requested_mode",
+        "data_classification",
+        "required_capabilities",
+        "constraints"
+      ]
+    },
+    "TaskSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "api_version": {
+          "const": "task.sudo.dev/v1alpha1"
+        },
+        "kind": {
+          "const": "TaskSpec"
+        },
+        "agent": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "principal": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "trust_domain": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "agent_name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                }
+              },
+              "required": [
+                "trust_domain",
+                "agent_name"
+              ]
+            },
+            "requested_version": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "requested_channel": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "required": [
+            "principal"
+          ]
+        },
+        "session_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,100}$"
+        },
+        "request_source": {
+          "enum": [
+            "interactive",
+            "api"
+          ]
+        },
+        "input": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "instruction": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000
+            },
+            "parameters": {
+              "type": "object",
+              "maxProperties": 0
+            },
+            "resource_refs": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "maxProperties": 20
+              },
+              "maxItems": 8
+            }
+          },
+          "required": [
+            "instruction",
+            "resource_refs"
+          ]
+        },
+        "workspace_refs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "maxProperties": 20
+          },
+          "maxItems": 8
+        },
+        "requested_mode": {
+          "enum": [
+            "auto",
+            "local",
+            "cloud",
+            "private"
+          ]
+        },
+        "data_classification": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "required_capabilities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "maxItems": 20
+        },
+        "constraints": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "idempotency_key": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{8,128}$"
+            },
+            "timeout_ms": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 120000
+            },
+            "deadline": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "max_cost_units": {
+              "type": "number",
+              "minimum": 0
+            },
+            "max_attempts": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          "required": [
+            "idempotency_key"
+          ]
+        },
+        "output_contract": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "schema_ref": {
+              "type": "object",
+              "maxProperties": 20
+            },
+            "artifact_types": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "maxItems": 20
+            },
+            "rubric_ref": {
+              "type": "object",
+              "maxProperties": 20
+            }
+          },
+          "required": []
+        },
+        "parent_task_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,100}$"
+        },
+        "supersedes_task_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,100}$"
+        },
+        "task_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,100}$"
+        },
+        "created_at": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "requested_by": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "subject_type": {
+              "const": "user"
+            },
+            "subject_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 150
+            }
+          },
+          "required": [
+            "subject_type",
+            "subject_id"
+          ]
+        }
+      },
+      "required": [
+        "api_version",
+        "kind",
+        "agent",
+        "session_id",
+        "request_source",
+        "input",
+        "workspace_refs",
+        "requested_mode",
+        "data_classification",
+        "required_capabilities",
+        "constraints",
+        "task_id",
+        "created_at",
+        "requested_by"
+      ]
+    },
+    "TaskExecutionResolution": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "api_version": {
+              "const": "task.sudo.dev/v1alpha1"
+            },
+            "kind": {
+              "const": "TaskExecutionResolution"
+            },
+            "resolution_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,100}$"
+            },
+            "task_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,100}$"
+            },
+            "reason_code": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            },
+            "policy_version": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "policy_snapshot_digest": {
+              "type": "string",
+              "pattern": "^sha256:[a-f0-9]{64}$"
+            },
+            "decided_at": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "status": {
+              "const": "accepted"
+            },
+            "attempt_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,100}$"
+            },
+            "execution_mode": {
+              "const": "external_hosted"
+            },
+            "resolved_runtime": {
+              "const": "external_provider"
+            },
+            "resolution_mode": {
+              "const": "default"
+            },
+            "governance_org_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 150
+            },
+            "agent": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "principal": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "trust_domain": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    },
+                    "agent_name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    }
+                  },
+                  "required": [
+                    "trust_domain",
+                    "agent_name"
+                  ]
+                },
+                "version": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "source_digest": {
+                  "type": "string",
+                  "pattern": "^sha256:[a-f0-9]{64}$"
+                },
+                "version_evidence": {
+                  "enum": [
+                    "source_snapshot_only",
+                    "provider_revision_fenced"
+                  ]
+                },
+                "source_identity_evidence": {
+                  "const": "unverified"
+                },
+                "claimed_app_id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "claimed_workspace_id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "release_digest": {
+                  "type": "string",
+                  "pattern": "^sha256:[a-f0-9]{64}$"
+                },
+                "execution_revision": {
+                  "type": "string",
+                  "pattern": "^sha256:[a-f0-9]{64}$"
+                },
+                "resolved_from_channel": {
+                  "enum": [
+                    "stable",
+                    "canary"
+                  ]
+                },
+                "channel_revision": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "principal",
+                "version",
+                "source_digest",
+                "version_evidence"
+              ]
+            },
+            "binding_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,100}$"
+            },
+            "configuration_revision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "provider_kind": {
+              "enum": [
+                "dify",
+                "custom_http"
+              ]
+            }
+          },
+          "required": [
+            "api_version",
+            "kind",
+            "resolution_id",
+            "task_id",
+            "reason_code",
+            "reason",
+            "policy_version",
+            "policy_snapshot_digest",
+            "decided_at",
+            "status",
+            "attempt_id",
+            "execution_mode",
+            "resolved_runtime",
+            "resolution_mode",
+            "governance_org_id",
+            "agent",
+            "binding_id",
+            "configuration_revision",
+            "provider_kind"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "api_version": {
+              "const": "task.sudo.dev/v1alpha1"
+            },
+            "kind": {
+              "const": "TaskExecutionResolution"
+            },
+            "resolution_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,100}$"
+            },
+            "task_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,100}$"
+            },
+            "reason_code": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            },
+            "policy_version": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "policy_snapshot_digest": {
+              "type": "string",
+              "pattern": "^sha256:[a-f0-9]{64}$"
+            },
+            "decided_at": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "status": {
+              "const": "rejected"
+            }
+          },
+          "required": [
+            "api_version",
+            "kind",
+            "resolution_id",
+            "task_id",
+            "reason_code",
+            "reason",
+            "policy_version",
+            "policy_snapshot_digest",
+            "decided_at",
+            "status"
+          ]
+        }
+      ]
+    },
+    "TaskRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "api_version": {
+          "const": "task.sudo.dev/v1alpha1"
+        },
+        "kind": {
+          "const": "TaskRecord"
+        },
+        "spec": {
+          "$ref": "#/$defs/TaskSpec"
+        },
+        "resolution": {
+          "$ref": "#/$defs/TaskExecutionResolution"
+        }
+      },
+      "required": [
+        "api_version",
+        "kind",
+        "spec",
+        "resolution"
+      ]
+    }
+  }
+}

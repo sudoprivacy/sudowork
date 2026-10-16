@@ -1,6 +1,7 @@
 export interface IMyAgent {
   ref: string;
   displayName: string;
+  /** Origin of this user's Agent; template denotes a user's instantiated Agent. */
   kind: "default" | "own" | "template";
 }
 

@@ -1,3 +1,6 @@
+import type { AgentReleaseOptions } from '@sudowork/contracts/agent-federation';
+import type { ExternalTaskEvidence } from '@sudowork/contracts/external-provider';
+import type { ExternalProviderAccess, ExternalPilotPolicy, ExternalAgentAdmin, ExternalProviderMember, ExternalConnectionInspection, InspectExternalConnection, OnboardExternalAgent, UpdateExternalAgent , CreateExternalTask, ExternalAgent, ExternalEventsPage, ExternalSession, ExternalTask } from '@sudowork/contracts/external-provider';
 import type { IMossCatalogPage, IMossCatalogItem, IMossCatalogInstallation, MossCatalogKind, MossCatalogSource } from '@sudowork/common/mossCatalog';
 /**
  * @license
@@ -3600,4 +3603,41 @@ export const mossCatalog = {
     }
   >('moss-catalog.set-enabled'),
   changed: bridge.buildEmitter<void>('moss-catalog.changed'),
+};
+
+export const externalProviders = {
+  versions: bridge.buildProvider<IBridgeResponse<AgentReleaseOptions>, { agentId: string; after?: string }>('external-providers.versions'),
+  evidence: bridge.buildProvider<IBridgeResponse<ExternalTaskEvidence>, { taskId: string }>('external-providers.evidence'),
+  context: bridge.buildProvider<IBridgeResponse<{ isAvailable: boolean; identity: string }>, void>('external-providers.context'),
+  access: bridge.buildProvider<IBridgeResponse<ExternalProviderAccess>, void>('external-providers.access'),
+  policy: bridge.buildProvider<IBridgeResponse<ExternalPilotPolicy>, void>('external-providers.policy'),
+  savePolicy: bridge.buildProvider<IBridgeResponse<ExternalPilotPolicy>, ExternalPilotPolicy>('external-providers.savePolicy'),
+  adminAgents: bridge.buildProvider<IBridgeResponse<ExternalAgentAdmin[]>, void>('external-providers.adminAgents'),
+  members: bridge.buildProvider<IBridgeResponse<ExternalProviderMember[]>, void>('external-providers.members'),
+  inspect: bridge.buildProvider<IBridgeResponse<ExternalConnectionInspection>, InspectExternalConnection>('external-providers.inspect'),
+  onboard: bridge.buildProvider<IBridgeResponse<ExternalAgentAdmin>, OnboardExternalAgent>('external-providers.onboard'),
+  update: bridge.buildProvider<IBridgeResponse<ExternalAgentAdmin>, { agentId: string; input: UpdateExternalAgent }>('external-providers.update'),
+  rotate: bridge.buildProvider<IBridgeResponse<ExternalAgentAdmin>, { agentId: string; revision: number; api_key: string }>('external-providers.rotate'),
+  archive: bridge.buildProvider<IBridgeResponse<ExternalAgentAdmin>, { agentId: string; revision: number }>('external-providers.archive'),
+  testAgent: bridge.buildProvider<IBridgeResponse<ExternalConnectionInspection>, { agentId: string }>('external-providers.testAgent'),
+  review: bridge.buildProvider<IBridgeResponse<ExternalAgentAdmin>, { agentId: string; approved: boolean; revision: number; review_days?: number }>('external-providers.review'),
+
+  agents: bridge.buildProvider<IBridgeResponse<ExternalAgent[]>, void>(
+    "external-providers.agents",
+  ),
+  sessions: bridge.buildProvider<IBridgeResponse<ExternalSession[]>, void>(
+    "external-providers.sessions",
+  ),
+  history: bridge.buildProvider<
+    IBridgeResponse<ExternalTask[]>,
+    { sessionId: string }
+  >("external-providers.history"),
+  create: bridge.buildProvider<
+    IBridgeResponse<ExternalTask>,
+    CreateExternalTask
+  >("external-providers.create"),
+  events: bridge.buildProvider<
+    IBridgeResponse<ExternalEventsPage>,
+    { taskId: string; cursor: number }
+  >("external-providers.events"),
 };

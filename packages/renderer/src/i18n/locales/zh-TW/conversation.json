@@ -275,6 +275,8 @@
     "preset_registered": "Agent preset registered successfully!"
   },
   "sidebar": {
+    "agents": "智慧體",
+    "sessions": "工作階段",
     "recent": "最近",
     "myAgent": "我的智能體",
     "agentHasNoConversations": "還沒有對話"

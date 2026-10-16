@@ -1,0 +1,998 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.sudo.dev/experimental/agent-federation/v1alpha1",
+  "$defs": {
+    "ProviderCapabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "supports_streaming": {
+          "type": "boolean"
+        },
+        "supports_cancel": {
+          "type": "boolean"
+        },
+        "supports_resume": {
+          "type": "boolean"
+        },
+        "supports_idempotency": {
+          "type": "boolean"
+        },
+        "supports_tool_events": {
+          "type": "boolean"
+        },
+        "supports_trace_export": {
+          "type": "boolean"
+        },
+        "supports_version_pin": {
+          "type": "boolean"
+        },
+        "supports_human_approval": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "supports_streaming",
+        "supports_cancel",
+        "supports_resume",
+        "supports_idempotency",
+        "supports_tool_events",
+        "supports_trace_export",
+        "supports_version_pin",
+        "supports_human_approval"
+      ]
+    },
+    "CustomAgentManifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "api_version": {
+          "const": "agent-federation.sudo.dev/v1alpha1"
+        },
+        "kind": {
+          "const": "CustomAgentManifest"
+        },
+        "provider_kind": {
+          "const": "custom_http"
+        },
+        "external_agent_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "source_revision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "execution_mode": {
+          "const": "external_hosted"
+        },
+        "protocol": {
+          "enum": [
+            "agent-http.sudo.dev/v1alpha1",
+            "agent-http.sudo.dev/v1alpha2"
+          ]
+        },
+        "input_profile": {
+          "const": "query_only_v1"
+        },
+        "output_profile": {
+          "const": "text_v1"
+        },
+        "capabilities": {
+          "$ref": "#/$defs/ProviderCapabilities"
+        },
+        "execution_revision": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "api_version",
+        "kind",
+        "provider_kind",
+        "external_agent_id",
+        "name",
+        "source_revision",
+        "execution_mode",
+        "protocol",
+        "input_profile",
+        "output_profile",
+        "capabilities"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "protocol": {
+                "const": "agent-http.sudo.dev/v1alpha2"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "execution_revision"
+            ],
+            "properties": {
+              "capabilities": {
+                "const": {
+                  "supports_streaming": false,
+                  "supports_cancel": false,
+                  "supports_resume": true,
+                  "supports_idempotency": true,
+                  "supports_tool_events": false,
+                  "supports_trace_export": false,
+                  "supports_version_pin": true,
+                  "supports_human_approval": false
+                }
+              },
+              "execution_revision": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "capabilities": {
+                "const": {
+                  "supports_streaming": false,
+                  "supports_cancel": false,
+                  "supports_resume": false,
+                  "supports_idempotency": false,
+                  "supports_tool_events": false,
+                  "supports_trace_export": false,
+                  "supports_version_pin": false,
+                  "supports_human_approval": false
+                }
+              },
+              "execution_revision": false
+            }
+          }
+        }
+      ]
+    },
+    "TaskCorrelation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "task_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "attempt_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        }
+      },
+      "required": [
+        "task_id",
+        "attempt_id",
+        "session_id"
+      ]
+    },
+    "ExternalRunBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "api_version": {
+          "const": "agent-federation.sudo.dev/v1alpha1"
+        },
+        "kind": {
+          "const": "ExternalRunBinding"
+        },
+        "task_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "attempt_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "binding_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "provider_kind": {
+          "enum": [
+            "dify",
+            "custom_http"
+          ]
+        },
+        "external_agent_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "source_digest": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "provider_run_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "provider_session_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "adapter_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "observability": {
+          "const": "partial"
+        },
+        "replay": {
+          "const": "unsupported"
+        },
+        "resume": {
+          "enum": [
+            "unsupported",
+            "query_only"
+          ]
+        },
+        "version_evidence": {
+          "enum": [
+            "source_snapshot_only",
+            "provider_revision_fenced"
+          ]
+        },
+        "started_at": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "completed_at": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "source_identity_evidence": {
+          "const": "unverified"
+        },
+        "execution_revision": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "api_version",
+        "kind",
+        "task_id",
+        "attempt_id",
+        "session_id",
+        "binding_id",
+        "provider_kind",
+        "external_agent_id",
+        "source_digest",
+        "provider_run_id",
+        "adapter_version",
+        "observability",
+        "replay",
+        "resume",
+        "version_evidence",
+        "started_at"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "version_evidence": {
+                "const": "provider_revision_fenced"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "execution_revision"
+            ],
+            "properties": {
+              "provider_kind": {
+                "const": "custom_http"
+              },
+              "resume": {
+                "const": "query_only"
+              },
+              "execution_revision": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "resume": {
+                "const": "unsupported"
+              },
+              "execution_revision": false
+            }
+          }
+        }
+      ]
+    },
+    "ProviderObservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "api_version": {
+          "const": "agent-federation.sudo.dev/v1alpha1"
+        },
+        "kind": {
+          "const": "ProviderObservation"
+        },
+        "task_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "attempt_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "provider_kind": {
+          "enum": [
+            "dify",
+            "custom_http"
+          ]
+        },
+        "adapter_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "type": {
+          "enum": [
+            "output_snapshot",
+            "result"
+          ]
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 128000
+        },
+        "status": {
+          "enum": [
+            "running",
+            "succeeded",
+            "failed"
+          ]
+        },
+        "provider_refs": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "run_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+            },
+            "session_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+            },
+            "message_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+            },
+            "provider_task_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+            },
+            "provider_workflow_run_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+            }
+          },
+          "required": []
+        },
+        "observed_at": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        }
+      },
+      "required": [
+        "api_version",
+        "kind",
+        "task_id",
+        "attempt_id",
+        "session_id",
+        "sequence",
+        "provider_kind",
+        "adapter_version",
+        "type",
+        "text",
+        "status",
+        "provider_refs",
+        "observed_at"
+      ]
+    },
+    "InvokeHttpAgent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "api_version": {
+          "const": "agent-http.sudo.dev/v1alpha1"
+        },
+        "kind": {
+          "const": "InvokeAgent"
+        },
+        "invocation_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "external_agent_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "query": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8000
+        },
+        "provider_session_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "end_user": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        }
+      },
+      "required": [
+        "api_version",
+        "kind",
+        "invocation_id",
+        "external_agent_id",
+        "query",
+        "provider_session_id",
+        "end_user"
+      ]
+    },
+    "HttpAgentResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "api_version": {
+          "const": "agent-http.sudo.dev/v1alpha1"
+        },
+        "kind": {
+          "const": "AgentResult"
+        },
+        "invocation_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "provider_run_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "provider_session_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+        },
+        "status": {
+          "enum": [
+            "succeeded",
+            "failed"
+          ]
+        },
+        "output": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "text": {
+              "type": "string",
+              "maxLength": 128000
+            }
+          },
+          "required": [
+            "text"
+          ]
+        }
+      },
+      "required": [
+        "api_version",
+        "kind",
+        "invocation_id",
+        "provider_run_id",
+        "status",
+        "output"
+      ]
+    },
+    "AgentPrincipal": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "trust_domain": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "agent_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        }
+      },
+      "required": [
+        "trust_domain",
+        "agent_name"
+      ]
+    },
+    "AgentExecutionSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "provider_kind": {
+          "enum": [
+            "dify",
+            "custom_http"
+          ]
+        },
+        "endpoint": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "app_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "workspace_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "source_digest": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "sourceManifest": {
+          "$ref": "#/$defs/CustomAgentManifest"
+        },
+        "parametersDigest": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^sha256:[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "decoder": {
+          "enum": [
+            "text",
+            "reply_actions_v1"
+          ]
+        },
+        "definitionProfileVersion": {
+          "const": 1
+        }
+      },
+      "required": [
+        "endpoint",
+        "app_id",
+        "workspace_id",
+        "source_digest",
+        "parametersDigest",
+        "decoder"
+      ]
+    },
+    "AgentVersionManifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "api_version": {
+          "const": "agent-federation.sudo.dev/v1alpha1"
+        },
+        "kind": {
+          "const": "AgentVersionManifest"
+        },
+        "principal": {
+          "$ref": "#/$defs/AgentPrincipal"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+        },
+        "spec_digest": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "snapshot": {
+          "$ref": "#/$defs/AgentExecutionSnapshot"
+        },
+        "created_by": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "created_at": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "api_version",
+        "kind",
+        "principal",
+        "version",
+        "spec_digest",
+        "snapshot",
+        "created_by",
+        "created_at"
+      ]
+    },
+    "AgentVersionDecision": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "decision": {
+          "enum": [
+            "approved",
+            "revoked"
+          ]
+        },
+        "actor_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "note": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "expires_at": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "created_at": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "id",
+        "decision",
+        "actor_id",
+        "note",
+        "expires_at",
+        "created_at"
+      ]
+    },
+    "AgentChannel": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "enum": [
+            "stable",
+            "canary"
+          ]
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "updated_at": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "enabled": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "revision",
+        "updated_at",
+        "enabled"
+      ]
+    },
+    "AgentVersionsPage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "api_version": {
+          "const": "agent-federation.sudo.dev/v1alpha1"
+        },
+        "kind": {
+          "const": "AgentVersionsPage"
+        },
+        "principal": {
+          "$ref": "#/$defs/AgentPrincipal"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "api_version": {
+                "const": "agent-federation.sudo.dev/v1alpha1"
+              },
+              "kind": {
+                "const": "AgentVersionManifest"
+              },
+              "principal": {
+                "$ref": "#/$defs/AgentPrincipal"
+              },
+              "version": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+              },
+              "spec_digest": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              },
+              "snapshot": {
+                "$ref": "#/$defs/AgentExecutionSnapshot"
+              },
+              "created_by": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+              },
+              "created_at": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "decisions": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/AgentVersionDecision"
+                },
+                "maxItems": 100
+              }
+            },
+            "required": [
+              "api_version",
+              "kind",
+              "principal",
+              "version",
+              "spec_digest",
+              "snapshot",
+              "created_by",
+              "created_at",
+              "decisions"
+            ]
+          },
+          "maxItems": 50
+        },
+        "channels": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AgentChannel"
+          },
+          "maxItems": 2
+        },
+        "next_cursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "api_version",
+        "kind",
+        "principal",
+        "items",
+        "channels",
+        "next_cursor"
+      ]
+    },
+    "AgentReleaseOptions": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "api_version": {
+          "const": "agent-federation.sudo.dev/v1alpha1"
+        },
+        "kind": {
+          "const": "AgentReleaseOptions"
+        },
+        "principal": {
+          "$ref": "#/$defs/AgentPrincipal"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "version": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+              },
+              "source_digest": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              },
+              "spec_digest": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              },
+              "execution_revision": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              },
+              "approval_expires_at": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "version",
+              "source_digest",
+              "spec_digest",
+              "approval_expires_at"
+            ]
+          },
+          "maxItems": 50
+        },
+        "channels": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AgentChannel"
+          },
+          "maxItems": 2
+        },
+        "next_cursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "catalog_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        }
+      },
+      "required": [
+        "api_version",
+        "kind",
+        "principal",
+        "items",
+        "channels",
+        "next_cursor",
+        "catalog_id"
+      ]
+    }
+  }
+}

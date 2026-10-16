@@ -508,14 +508,17 @@ interface MarkdownViewProps {
   onRef?: (el?: HTMLDivElement | null) => void;
   /** Enable raw HTML rendering in markdown content. Use with caution — only for trusted sources. */
   allowHtml?: boolean;
+  /** External providers cannot load HTML, images or workspace files. */
+  isExternalContent?: boolean;
 }
 
-const MarkdownView: React.FC<MarkdownViewProps> = ({ hiddenCodeCopyButton, codeStyle, className, onRef, allowHtml, children: childrenProp }) => {
+const MarkdownView: React.FC<MarkdownViewProps> = ({ hiddenCodeCopyButton, codeStyle, className, onRef, allowHtml, isExternalContent = false, children: childrenProp }) => {
   const { t } = useTranslation();
   const conversation = useConversationContextSafe();
 
   const normalizedChildren = useMemo(() => {
     if (typeof childrenProp === 'string') {
+      if (isExternalContent) return convertLatexDelimiters(childrenProp);
       let text = childrenProp.replace(/file:\/\//g, '');
       // Normalize Windows backslash paths in markdown image syntax to forward slashes.
       // Without this, the markdown parser treats backslashes as escape characters,
@@ -526,7 +529,7 @@ const MarkdownView: React.FC<MarkdownViewProps> = ({ hiddenCodeCopyButton, codeS
       return text;
     }
     return childrenProp;
-  }, [childrenProp]);
+  }, [childrenProp, isExternalContent]);
 
   const isLocalFilePath = (src: string): boolean => {
     if (src.startsWith('http://') || src.startsWith('https://')) {
@@ -544,8 +547,10 @@ const MarkdownView: React.FC<MarkdownViewProps> = ({ hiddenCodeCopyButton, codeS
         <div ref={onRef} className='markdown-shadow-body'>
           <ReactMarkdown
             remarkPlugins={[remarkGfm, remarkMath, remarkBreaks]}
-            rehypePlugins={allowHtml ? [rehypeRaw, rehypeKatex] : [rehypeKatex]}
+            skipHtml={isExternalContent}
+            rehypePlugins={allowHtml && !isExternalContent ? [rehypeRaw, rehypeKatex] : [rehypeKatex]}
             urlTransform={(url) => {
+              if (isExternalContent) return /^https?:\/\//i.test(url) ? url : '';
               // Allow Windows absolute paths like C:/Users/... or D:\docs\...
               // defaultUrlTransform treats the drive letter (e.g. "C") as an unknown
               // protocol scheme and sanitizes the URL to empty string.
@@ -564,13 +569,13 @@ const MarkdownView: React.FC<MarkdownViewProps> = ({ hiddenCodeCopyButton, codeS
               },
               code: (props: any) => CodeBlock({ ...props, codeStyle, hiddenCodeCopyButton }),
               a: ({ node: _node, ...props }) => {
-                const file = props.href ? resolveWorkspaceFileLink(props.href, conversation?.workspace) : null;
+                const file = !isExternalContent && props.href ? resolveWorkspaceFileLink(props.href, conversation?.workspace) : null;
                 if (file && conversation) return <WorkspaceFileLink {...props} conversation={conversation} file={file} />;
                 return (
                   <a
                     {...props}
                     target='_blank'
-                    rel='noreferrer'
+                    rel='noopener noreferrer'
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
@@ -608,6 +613,7 @@ const MarkdownView: React.FC<MarkdownViewProps> = ({ hiddenCodeCopyButton, codeS
                 />
               ),
               img: ({ node: _node, ...props }) => {
+                if (isExternalContent) return <span>{props.alt}</span>;
                 if (isLocalFilePath(props.src || '')) {
                   const src = decodeURIComponent(props.src || '');
                   return <LocalImageView src={src} alt={props.alt || ''} className={props.className} style={{ width: '40%', borderRadius: '8px' }} />;

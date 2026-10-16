@@ -19,6 +19,7 @@ const Guid = React.lazy(() => import('./pages/guid'));
 const MossSessionPage = React.lazy(() => import('./pages/moss-session/MossSessionPage'));
 const About = React.lazy(() => import('./pages/settings/about'));
 const AgentSettings = React.lazy(() => import('./pages/agents'));
+const ExternalAgents = React.lazy(() => import('./pages/external-agents'));
 const MyAgents = React.lazy(() => import('./pages/my-agents'));
 const DisplaySettings = React.lazy(() => import('./pages/settings/display'));
 const GeminiSettings = React.lazy(() => import('./pages/settings/gemini'));
@@ -76,6 +77,7 @@ const PROTECTED_ROUTE_CONFIGS = [
   { path: '/settings/model', component: SudocodeModelSettings },
   { path: '/app/agent', component: AgentSettings },
   { path: '/app/agents/mine', component: MyAgents },
+  { path: '/app/agents/external', component: ExternalAgents },
   { path: '/settings/agent', component: AgentSettings },
   { path: '/settings/display', component: DisplaySettings },
   { path: '/settings/channels', component: ChannelsPage },

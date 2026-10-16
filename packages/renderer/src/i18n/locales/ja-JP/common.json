@@ -65,7 +65,7 @@
   "tray.showWindow": "Sudowork を表示",
   "tray.quit": "終了",
   "siderMenu": {
-    "agent": "エージェントテンプレート",
+    "agent": "エージェント一覧",
     "skillStore": "スキルストア",
     "security": "セキュリティ",
     "webui": "リモート接続",

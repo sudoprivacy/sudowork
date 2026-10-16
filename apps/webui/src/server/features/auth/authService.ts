@@ -514,10 +514,11 @@ export async function logout(deps: AuthDeps, webSessionId: string): Promise<void
 export async function getMossContext(
   deps: AuthDeps,
   session: WebSessionRow,
+  forceRefresh = false,
 ): Promise<MossCallContext> {
   const baseUrl = session.mossBaseUrl ?? deps.config.moss.baseUrl
   const stored = await decryptStored(deps, session)
-  if (stored.expiresAt - Date.now() < 60_000) {
+  if (forceRefresh || stored.expiresAt - Date.now() < 60_000) {
     try {
       const refreshed = await refreshTokensFor(deps, session)
       return { accessToken: refreshed.accessToken, baseUrl }
