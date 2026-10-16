@@ -20,6 +20,7 @@ const state = vi.hoisted(() => ({
   resumeCalls: 0,
   releaseGate: null as Promise<void> | null,
   releaseCalls: 0,
+  completionGate: null as Promise<void> | null,
   isSendRefused: false,
 }))
 vi.mock('@server/features/conversations/lockRepository', () => ({
@@ -43,6 +44,7 @@ vi.mock('@server/features/conversations/lockRepository', () => ({
   }),
   releaseToIdle: vi.fn(async () => {
     state.lock = { state: 'idle', writerWebSessionId: null }
+    if (state.completionGate) await state.completionGate
   }),
   releaseToIdleIfHeld: vi.fn(async (_pool, input) => {
     state.releaseCalls++
@@ -147,10 +149,42 @@ beforeEach(() => {
   state.resumeCalls = 0
   state.releaseGate = null
   state.releaseCalls = 0
+  state.completionGate = null
   state.isSendRefused = false
 })
 
 describe('conversation reconnect during generation', () => {
+  test('finishes the accepted turn before another send or browser return can reserve delivery', async () => {
+    const service = coordinator(),
+      browser = connection()
+    service.subscribe(browser)
+    await service.handleClientMessage(browser, { kind: 'send', text: 'Accepted' })
+    let complete!: () => void
+    state.completionGate = new Promise<void>((resolve) => {
+      complete = resolve
+    })
+    const result = { type: 'result', result: 'First completed' }
+    state.sockets[0]!.onEvent(result)
+    await vi.waitFor(() => expect(state.lock?.state).toBe('idle'))
+    await service.handleClientMessage(browser, { kind: 'send', text: 'Too early' })
+    expect(browser.ws.send).toHaveBeenCalledWith(
+      JSON.stringify({ kind: 'error', code: 'CONVERSATION_BUSY' }),
+    )
+    await expect(
+      service.prepareBrowserReturn(browser.webSession, browser.mossSessionId),
+    ).rejects.toThrow('browser_return_conversation_busy')
+    expect(state.sockets[0]!.send).toHaveBeenCalledOnce()
+    complete()
+    await vi.waitFor(() =>
+      expect(browser.ws.send).toHaveBeenCalledWith(
+        JSON.stringify({ kind: 'upstream', event: result }),
+      ),
+    )
+    await service.handleClientMessage(browser, { kind: 'send', text: 'Next turn' })
+    expect(state.sockets[0]!.send).toHaveBeenCalledTimes(2)
+    await service.terminate('principal-a', 'session-a')
+  })
+
   test.each(['resume', 'websocket', 'send'])(
     'allows another turn after a known pre-delivery %s failure',
     async (stage) => {
