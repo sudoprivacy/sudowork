@@ -24,19 +24,23 @@ import { resolveTenantConfig, type TenantConfigInput } from '@sudowork/common/ty
 type FetchMock = ReturnType<typeof vi.fn>
 type StatusRoute = { status: number; body: unknown }
 
-describe('mossAdapter: browser return from a separate viewer', () => {
+describe('mossAdapter: session streams', () => {
   class ViewerSocket extends EventTarget {
     static instances: ViewerSocket[] = []
     static readonly OPEN = 1
     static readonly CLOSING = 2
     static readonly CLOSED = 3
     readonly readyState = 1
+    sent: unknown[] = []
     constructor(public url: string) {
       super()
       ViewerSocket.instances.push(this)
     }
     close() {
       this.dispatchEvent(new Event('close'))
+    }
+    send(value: string) {
+      this.sent.push(JSON.parse(value))
     }
     frame(value: unknown) {
       this.dispatchEvent(new MessageEvent('message', { data: JSON.stringify(value) }))
@@ -85,6 +89,92 @@ describe('mossAdapter: browser return from a separate viewer', () => {
       msg: 'browser_return_stream_unavailable',
     })
     expect(fetch).not.toHaveBeenCalled()
+  })
+
+  async function subscribe(sessionId: string): Promise<ViewerSocket> {
+    await ipc.conversation.syncMessages.invoke({ conversation_id: sessionId })
+    return ViewerSocket.instances.at(-1)!
+  }
+
+  function requestPermission(socket: ViewerSocket, id: string) {
+    socket.frame({
+      kind: 'upstream',
+      event: {
+        type: 'control_request',
+        request_id: id,
+        request: { tool_name: 'read_file', input: { path: 'test.txt' } },
+      },
+    })
+  }
+
+  for (const event of [{ type: 'result' }, { type: 'result', is_error: true, result: 'aborted' }]) {
+    it(`removes another client's settled permissions on ${JSON.stringify(event)}`, async () => {
+      stubFetch({ '/context': { messages: [] }, '/deliverables': { files: [] } })
+      const first = await subscribe('permission-first')
+      const second = await subscribe('permission-second')
+      requestPermission(first, 'first-approval')
+      requestPermission(first, 'first-approval-2')
+      requestPermission(second, 'second-approval')
+      const removed: string[] = []
+      const off = ipc.conversation.confirmation.remove.on((value) => removed.push(value.id))
+      first.frame({ kind: 'upstream', event })
+      expect(
+        await ipc.conversation.confirmation.list.invoke({ conversation_id: 'permission-first' }),
+      ).toEqual([])
+      expect(removed).toEqual(['first-approval', 'first-approval-2'])
+      expect(
+        await ipc.conversation.confirmation.list.invoke({ conversation_id: 'permission-second' }),
+      ).toMatchObject([{ id: 'second-approval' }])
+      first.frame({ kind: 'upstream', event })
+      expect(removed).toHaveLength(2)
+      requestPermission(first, 'next-turn-approval')
+      expect(
+        await ipc.conversation.confirmation.list.invoke({ conversation_id: 'permission-first' }),
+      ).toMatchObject([{ id: 'next-turn-approval' }])
+      off()
+    })
+  }
+
+  it('removes displayed permissions when their authenticated stream closes', async () => {
+    stubFetch({ '/context': { messages: [] } })
+    const socket = await subscribe('permission-close')
+    requestPermission(socket, 'closed-approval')
+    const removed: string[] = []
+    const off = ipc.conversation.confirmation.remove.on((value) => removed.push(value.id))
+    socket.close()
+    expect(removed).toEqual(['closed-approval'])
+    expect(
+      await ipc.conversation.confirmation.list.invoke({ conversation_id: 'permission-close' }),
+    ).toEqual([])
+    const replacement = await subscribe('permission-close')
+    requestPermission(replacement, 'replacement-approval')
+    socket.close()
+    expect(removed).toEqual(['closed-approval'])
+    expect(
+      await ipc.conversation.confirmation.list.invoke({ conversation_id: 'permission-close' }),
+    ).toMatchObject([{ id: 'replacement-approval' }])
+    off()
+  })
+
+  it('keeps other pending permissions when this client answers one request', async () => {
+    stubFetch({ '/context': { messages: [] } })
+    const socket = await subscribe('permission-local')
+    requestPermission(socket, 'answered-approval')
+    requestPermission(socket, 'pending-approval')
+    expect(
+      await ipc.conversation.confirmation.confirm.invoke({
+        conversation_id: 'permission-local',
+        msg_id: 'answered-approval',
+        callId: 'answered-approval',
+        data: 'allow_once',
+      }),
+    ).toMatchObject({ success: true })
+    expect(socket.sent).toEqual([
+      { kind: 'control_response', requestId: 'answered-approval', optionId: 'allow_once' },
+    ])
+    expect(
+      await ipc.conversation.confirmation.list.invoke({ conversation_id: 'permission-local' }),
+    ).toMatchObject([{ id: 'pending-approval' }])
   })
 })
 
