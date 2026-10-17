@@ -85,6 +85,28 @@ describe('conversation_locks（计划 3.8）', () => {
     expect(res).toEqual({ ok: true, state: 'running' })
   })
 
+  test('concurrent new turns from the same writer share one atomic reservation', async () => {
+    const sid = `new-turn-${randomUUID()}`
+    const claim = () =>
+      acquireWriteLock(pool, {
+        principalId,
+        mossSessionId: sid,
+        webSessionId: W1,
+        isExistingTurnAllowed: false,
+      })
+    const attempts = await Promise.all([claim(), claim()])
+    expect(attempts.filter((attempt) => attempt.ok)).toHaveLength(1)
+    expect(attempts.filter((attempt) => !attempt.ok)).toEqual([
+      { ok: false, reason: 'BUSY', holderWebSessionId: W1 },
+    ])
+    expect(
+      await acquireWriteLock(pool, { principalId, mossSessionId: sid, webSessionId: W1 }),
+    ).toEqual({ ok: true, state: 'running' })
+    await releaseToIdle(pool, { principalId, mossSessionId: sid })
+    expect(await claim()).toEqual({ ok: true, state: 'running' })
+    await deleteLock(pool, { principalId, mossSessionId: sid })
+  })
+
   test('result releases to idle but keeps writer; idle disconnect clears writer; next device takes over', async () => {
     await releaseToIdle(pool, { principalId, mossSessionId: SID })
     expect(await getLock(pool, { principalId, mossSessionId: SID })).toEqual({
