@@ -7,7 +7,8 @@ import type { AddressInfo } from 'node:net';
 import JSZip from 'jszip';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
-// Only account configuration and Electron directory locations are substituted.
+// Account configuration, Electron directories and runtime cache invalidation
+// are substituted so installation does not boot an unrelated agent runtime.
 // A local HTTP fixture serves the archive; the client, ZIP validation, installer,
 // registry, directory collisions, and recovery use real network/filesystem I/O.
 const state = vi.hoisted(() => ({ root: '', server: '', token: '' }));
@@ -22,6 +23,8 @@ vi.mock('@process/constants/enterpriseStorage', () => ({
   getEnterpriseTenantAssistantsDir: () => path.join(state.root, 'agents', 'tenant'),
 }));
 vi.mock('@process/bridge/eeclawBridge', () => ({ getValidToken: async () => state.token }));
+vi.mock('@process/task/AcpSkillManager', () => ({ AcpSkillManager: { resetInstance: vi.fn() } }));
+import { AcpSkillManager } from '@process/task/AcpSkillManager';
 import { changeCatalogInstallation, detailLocalMossCatalog, getMossCatalogInstallations, installMossCatalog, isCatalogPathVisible } from '@process/services/mossCatalogInstall';
 
 let server: Server | undefined;
@@ -31,6 +34,7 @@ let downloadCount: number;
 const skill = { kind: 'skills' as const, source: 'tenant' as const, id: 'filesystem-skill' };
 
 beforeEach(async () => {
+  vi.mocked(AcpSkillManager.resetInstance).mockClear();
   state.root = await fs.mkdtemp(path.join(os.tmpdir(), 'moss-filesystem-'));
   state.token = randomUUID();
   content = `Skill instructions ${randomUUID()}`;
@@ -117,4 +121,5 @@ it('downloads a skill, reuses its directory, repairs missing files, and reinstal
   expect(await getMossCatalogInstallations()).toEqual([restored]);
   expect((await detailLocalMossCatalog(skill)).content).toBe(content);
   expect(await fs.readdir(path.dirname(installed.path))).toEqual([path.basename(installed.path)]);
+  expect(AcpSkillManager.resetInstance).toHaveBeenCalledTimes(5);
 });
