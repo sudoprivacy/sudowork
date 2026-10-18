@@ -157,6 +157,7 @@ export class RemoteConversationProvider implements IConversationProvider {
         runtimeType: this.config.runtimeType,
         agentName: params.extra?.agentName || params.extra?.presetAssistantId,
         presetAssistantId: params.extra?.presetAssistantId,
+        templateRef: params.extra?.templateRef,
         enabledSkills: params.extra?.enabledSkills,
         mossAssistantRef: params.extra?.mossAssistantRef,
         dangerouslySkipPermissions: params.extra?.dangerouslySkipPermissions ?? false,
@@ -389,6 +390,7 @@ export class RemoteConversationProvider implements IConversationProvider {
         authToken: undefined,
         runtimeType: this.config.runtimeType,
         agentName: session.assistantName || session.assistant_name,
+        templateRef: typeof session.clientMetadata?.session_template_ref === 'string' ? session.clientMetadata.session_template_ref : undefined,
         ...getConversationExecutionExtra('remote'),
         sessionMode: 'remote',
         mossSessionId,
@@ -710,6 +712,7 @@ export class RemoteConversationProvider implements IConversationProvider {
         acpWsUrl: wsUrl,
         mossSessionPending: false,
         agentName: sessionData.assistantName || sessionData.assistant_name,
+        templateRef: typeof sessionData.clientMetadata?.session_template_ref === 'string' ? sessionData.clientMetadata.session_template_ref : undefined,
       };
 
       if (isRemotePath) {

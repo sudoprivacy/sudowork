@@ -61,6 +61,35 @@ describe('conversation creation outcomes', () => {
     expect(deps.resetAgentSelection).not.toHaveBeenCalled();
   });
 
+  it.each(['local', 'remote'] as const)('keeps personal identity separate from the template in %s creation', async (sessionMode) => {
+    state.create.mockResolvedValue({ id: 'composed-session' });
+    const deps = dependencies({
+      sessionMode,
+      selectedAgent: 'custom',
+      selectedAgentKey: 'custom:recruiter-template',
+      selectedAgentInfo: { backend: 'custom', customAgentId: 'recruiter-template', name: 'Recruiter' } as GuidSendDeps['selectedAgentInfo'],
+      personalAgentRef: 'user-created:alice-agent',
+      personalAgentName: 'Alice',
+      templateRef: 'recruiter-template',
+      isPresetAgent: true,
+      selectedSkills: [],
+      selectedMode: 'default',
+      isMainAgentAvailable: () => true,
+      findAgentByKey: () => ({ backend: 'scode', cliPath: '/test/scode' }) as ReturnType<GuidSendDeps['findAgentByKey']>,
+    });
+    const { result } = renderHook(() => useGuidSend(deps));
+    await act(async () => {
+      await result.current.handleSend();
+    });
+    expect(state.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: sessionMode === 'remote' ? 'remote-agent' : 'acp',
+        extra: expect.objectContaining({ presetAssistantId: 'user-created:alice-agent', templateRef: 'recruiter-template' }),
+      })
+    );
+    expect(deps.navigate).toHaveBeenCalledWith('/conversation/composed-session');
+  });
+
   it('reports an empty local create response and retains the draft', async () => {
     state.isEnterprise = false;
     state.create.mockResolvedValue(undefined);

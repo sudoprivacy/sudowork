@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isPersonalAgentRef } from '@sudowork/common/personalAgents'
 import { isSessionAccessible } from './sessionAccess.js'
 import type { Pool } from 'pg'
 import type { AppConfig } from '../../config.js'
@@ -180,6 +181,9 @@ export async function listConversations(
       taskId: s.taskId ?? s.sessionId,
       status: s.status,
       assistantName: s.assistantName ?? null,
+      ...(typeof s.clientMetadata?.session_template_ref === 'string'
+        ? { templateRef: s.clientMetadata.session_template_ref }
+        : {}),
       source: s.source ?? null,
       managementContext:
         s.source === 'agent-manager' &&
@@ -215,6 +219,16 @@ export async function createConversation(
   ctx: MossCallContext,
 ): Promise<{ id: string; taskId: string }> {
   const assistantName = await assertSelectionVisible(deps, input, ctx)
+  const templateRef = input.templateRef
+    ? await assertSelectionVisible(
+        deps,
+        { ...input, assistantName: input.templateRef, templateRef: undefined, enabledSkills: [] },
+        ctx,
+      )
+    : undefined
+  if (templateRef && (!isPersonalAgentRef(assistantName) || isPersonalAgentRef(templateRef))) {
+    throw new InvalidSelectionError('assistantName', input.templateRef!)
+  }
   // 模型：先校验可用（不通过则 400，不建会话）→ setUserModel（Moss 用户级），使新会话采用该模型
   if (input.modelId) {
     await assertModelAvailable(deps, input.modelId, ctx)
@@ -223,6 +237,7 @@ export async function createConversation(
   const created = await mapMossErrors(() =>
     deps.moss.create(ctx, {
       assistantName,
+      ...(templateRef ? { templateRef } : {}),
       enabledSkills: input.enabledSkills,
     }),
   )

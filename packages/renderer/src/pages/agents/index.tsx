@@ -12,6 +12,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next';
 import useSWR, { mutate } from 'swr';
 import { useNavigate } from 'react-router-dom';
+import { resetGuidDraft } from '@renderer/pages/guid/hooks/useGuidDraft';
 import { eeclaw, skillHub, assistantHub } from '@sudowork/host-bridge/ipcBridge';
 import type { IInstalledSkillInfo, IAssistantHubSkill, IAssistantHubVersionLike } from '@sudowork/host-bridge/ipcBridge';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
@@ -55,7 +56,7 @@ async function createAssistant(input: Parameters<typeof ipcBridge.assistantHub.c
 }
 
 const AgentSettings: React.FC = () => {
-  const { openingReference, onOpenAgent } = useAgentEntry();
+  const { openingReference } = useAgentEntry();
   const { t, i18n } = useTranslation();
   const localeKey = resolveLocaleKey(i18n.language);
 
@@ -940,7 +941,14 @@ const AgentSettings: React.FC = () => {
   );
 
   const getEntryReference = useCallback((id: string) => resolveAssistantEntryReference(assistants.find((assistant) => assistant.id === id) ?? { id }, isEnterprise && getRendererSessionMode() === 'remote'), [assistants, isEnterprise]);
-  const onUseAssistantReference = useCallback((reference: string) => onOpenAgent(getEntryReference(reference), refreshAgentDetection), [onOpenAgent, getEntryReference, refreshAgentDetection]);
+  const onUseAssistantReference = useCallback(
+    async (reference: string) => {
+      await refreshAgentDetection();
+      resetGuidDraft();
+      void navigate(`/guid?assistant=${encodeURIComponent(getEntryReference(reference))}`);
+    },
+    [getEntryReference, navigate, refreshAgentDetection]
+  );
 
   // Enter the installed Agent's latest Session, or its first draft.
   const handleGoUseHubAssistant = useCallback(async () => {

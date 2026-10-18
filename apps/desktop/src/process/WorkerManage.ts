@@ -56,6 +56,7 @@ const buildConversation = (conversation: TChatConversation, options?: BuildConve
         mossSessionPending?: boolean;
         presetAssistantId?: string;
         mossAssistantRef?: string;
+        templateRef?: string;
         agentName?: string;
         dangerouslySkipPermissions?: boolean;
         runtimeType?: 'host' | 'docker';
@@ -120,6 +121,7 @@ const buildConversation = (conversation: TChatConversation, options?: BuildConve
         username: extra?.username,
         password: extra?.password,
         assistantName: isDefaultRemoteAgent ? undefined : assistantReference,
+        templateRef: extra?.templateRef,
         dangerouslySkipPermissions: options?.yoloMode ?? extra?.dangerouslySkipPermissions,
         runtimeType: extra?.runtimeType,
         yoloMode: options?.yoloMode,

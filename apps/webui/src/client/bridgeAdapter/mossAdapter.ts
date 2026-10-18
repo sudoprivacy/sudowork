@@ -705,6 +705,7 @@ interface ConversationListItem {
   taskId?: string | null
   status?: string
   assistantName?: string | null
+  templateRef?: string | null
   /** Display label for a pending creation; never replaces its identity. */
   displayName?: string
   managementContext?: {
@@ -800,6 +801,7 @@ function toChatConversation(
       backend: 'scode',
       agentName,
       mossAssistantRef: item.assistantName ?? undefined,
+      templateRef: item.templateRef ?? undefined,
       pinned: item.pinned ?? false,
       pinnedAt: item.pinnedAt ?? undefined,
       mossSessionId: item.id,
@@ -2072,6 +2074,7 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     const extra = req?.extra as
       | {
           presetAssistantId?: unknown
+          templateRef?: unknown
           agentName?: unknown
           enabledSkills?: unknown
           nameIsFirstMessage?: unknown
@@ -2084,6 +2087,7 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
       method: 'POST',
       body: JSON.stringify({
         assistantName: agent,
+        ...(typeof extra?.templateRef === 'string' ? { templateRef: extra.templateRef } : {}),
         enabledSkills: extra?.enabledSkills ?? req?.enabledSkills ?? [],
       }),
     })

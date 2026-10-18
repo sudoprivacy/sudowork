@@ -34,6 +34,7 @@ export interface MossWsConnectionConfig {
   cwd?: string;
   /** Agent name (optional) */
   assistantName?: string;
+  templateRef?: string;
   /** Skip permission confirmation */
   dangerouslySkipPermissions?: boolean;
   /** Runtime type */
@@ -219,6 +220,7 @@ export class MossWsConnection {
     const body: Record<string, unknown> = {
       dangerously_skip_permissions: this.config.dangerouslySkipPermissions ?? false,
       assistant_name: this.config.assistantName,
+      ...(this.config.templateRef ? { template_ref: this.config.templateRef } : {}),
       // 新增: 发送启用的 skill 列表（仅当显式指定时）
       enabled_skills: this.config.enabledSkills,
     };

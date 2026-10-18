@@ -9,7 +9,8 @@ import { AlarmClock, ArrowLeft, BookOpen, Bot, ChevronDown, Globe, ListChecks, L
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Button, Dropdown, Menu, Message, Popover, Tabs } from '@arco-design/web-react';
+import { Button, Dropdown, Menu, Message, Popover } from '@arco-design/web-react';
+import HistoryViewSelector from '@renderer/pages/conversation/components/HistoryViewSelector';
 import type { BatchHistoryApi, SidebarTabKey } from '@renderer/pages/conversation/grouped-history/types';
 import { cleanupSiderTooltips } from '@renderer/utils/siderTooltip';
 import { useAuth } from '@renderer/context/AuthContext';
@@ -223,11 +224,9 @@ const Sider: React.FC = () => {
 
             {/* Session history tabs + batch mode button */}
             <div className={classNames('shrink-0 mb-2 px-2 flex items-center justify-between')}>
-              <Tabs
-                className='sidebar-tabs flex-1 shrink-0'
-                type='line'
-                activeTab={effectiveTab}
-                headerPadding={false}
+              <HistoryViewSelector
+                value={effectiveTab}
+                isCronVisible={isCronVisible}
                 onChange={(tab) => {
                   const next = tab as SidebarTabKey;
                   setActiveTab(next);
@@ -237,11 +236,7 @@ const Sider: React.FC = () => {
                     // ignore
                   }
                 }}
-              >
-                <Tabs.TabPane key='agents' title={t('conversation.sidebar.agents')} />
-                <Tabs.TabPane key='timeline' title={t('conversation.sidebar.sessions')} />
-                {isCronVisible && <Tabs.TabPane key='scheduled' title={t('conversation.history.scheduledTab', { defaultValue: '定时任务' })} />}
-              </Tabs>
+              />
               {effectiveTab !== 'agents' && (
                 <Popover
                   trigger={[]}

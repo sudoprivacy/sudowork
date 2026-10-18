@@ -34,6 +34,10 @@ export type GuidSendDeps = {
   // Agent state
   selectedAgent: AcpBackend | 'custom';
   selectedAgentKey: string;
+  personalAgentRef?: string;
+  personalAgentName?: string;
+  templateRef?: string;
+  isCompositionPending?: boolean;
   /** Resolved backend key (builtin/preset) for the selected agent; used to skip the guest model guard for claude. */
   modelBackendKey: string;
   selectedAgentInfo: AvailableAgent | undefined;
@@ -129,7 +133,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
   const isSendingRef = useRef(false);
 
   const handleSend = useCallback(async () => {
-    if (isAgentSelectionPending) return false;
+    if (isAgentSelectionPending || deps.isCompositionPending) return false;
     // Guest pre-send check: prompt if no usable model. Login users (isGuest=false) always skip.
     // claude code carries its own config (~/.claude/settings.json) and does not consume
     // model.config; skip this guard for claude to avoid a false "no model configured".
@@ -194,8 +198,9 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
           extra: {
             workspace: finalWorkspace,
             backend: 'remote-agent',
-            agentName: agentInfo?.name || 'Moss Server',
-            presetAssistantId: agentInfo?.customAgentId || agentInfo?.name || 'Moss Server',
+            agentName: deps.personalAgentName || agentInfo?.name || 'Moss Server',
+            presetAssistantId: deps.personalAgentRef || agentInfo?.customAgentId || agentInfo?.name || 'Moss Server',
+            templateRef: deps.templateRef,
             enabledSkills: isWebBridgeAvailable() ? [...new Set(selectedSkills)] : isEnterprise && isPreset ? enabledSkills : undefined,
             sessionMode: selectedMode,
             dangerouslySkipPermissions: selectedMode === 'yolo',
@@ -293,7 +298,8 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
             customAgentId: acpAgentInfo?.customAgentId,
             presetContext: isPreset ? presetRules : undefined,
             enabledSkills: isWebBridgeAvailable() ? [...new Set(selectedSkills)] : isPreset ? enabledSkills : undefined,
-            presetAssistantId: isPreset ? agentInfo?.customAgentId || acpAgentInfo?.customAgentId : undefined,
+            presetAssistantId: deps.personalAgentRef || (isPreset ? agentInfo?.customAgentId || acpAgentInfo?.customAgentId : undefined),
+            templateRef: deps.templateRef,
             sessionMode: isPreset ? resolveSessionMode(getPresetByAgentId(agentInfo?.customAgentId)?.defaultMode, acpBackend, selectedMode) : selectedMode,
             currentModelId: effectiveAcpModelId,
             sessionModeParam: 'local',
@@ -342,6 +348,10 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
       }
     }
   }, [
+    deps.personalAgentRef,
+    deps.personalAgentName,
+    deps.templateRef,
+    deps.isCompositionPending,
     input,
     files,
     dir,
@@ -403,7 +413,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
   }, [handleSend, input, isAgentSelectionPending, isEnterprise, sessionMode, t, setLoading, setInput, setMentionOpen, setMentionQuery, setMentionSelectorOpen, setMentionActiveIndex, setFiles, setDir, resetAgentSelection, setSelectedSkills]);
 
   // Calculate button disabled state
-  const isButtonDisabled = Boolean(isAgentSelectionPending) || !input.trim();
+  const isButtonDisabled = Boolean(isAgentSelectionPending || deps.isCompositionPending) || !input.trim();
 
   return {
     handleSend,

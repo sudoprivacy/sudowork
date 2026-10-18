@@ -47,6 +47,40 @@ function setup() {
 }
 
 describe('personal Agent selection', () => {
+  test('combines an owned identity with an installed template as independent references', async () => {
+    const { deps, create } = setup()
+    await createConversation(
+      deps,
+      principal,
+      {
+        assistantName: 'moss-agent:own:alice-project',
+        templateRef: 'installed-template',
+        enabledSkills: [],
+      },
+      ctx,
+    )
+    expect(create).toHaveBeenCalledWith(ctx, {
+      assistantName: 'moss-agent:own:alice-project',
+      templateRef: 'template-id',
+      enabledSkills: [],
+    })
+  })
+
+  test.each([
+    { assistantName: 'moss-agent:own:bob-project', templateRef: 'installed-template' },
+    { assistantName: 'moss-agent:user:alice', templateRef: 'removed-template' },
+    { assistantName: 'moss-agent:user:alice', templateRef: 'moss-agent:own:alice-project' },
+    { assistantName: 'installed-template', templateRef: 'installed-template' },
+  ])(
+    'rejects an invalid identity/template combination before starting the runtime: %j',
+    async (selection) => {
+      const { deps, create } = setup()
+      await expect(
+        createConversation(deps, principal, { ...selection, enabledSkills: [] }, ctx),
+      ).rejects.toBeInstanceOf(InvalidSelectionError)
+      expect(create).not.toHaveBeenCalled()
+    },
+  )
   test.each(['moss-agent:user:alice', 'moss-agent:own:alice-project'])(
     'creates a session for an owned Agent: %s',
     async (assistantName) => {

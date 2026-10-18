@@ -101,6 +101,7 @@ export const MossWorkspaceNodeSchema: z.ZodType<MossWorkspaceNode> = z.lazy(() =
 export const CreateConversationRequestSchema = z.object({
   /** 空串 = 不指定智能体，由 Moss 走默认（部署版实测空 assistant_name 创建 200） */
   assistantName: z.string().trim().max(255),
+  templateRef: z.string().trim().min(1).max(255).optional(),
   enabledSkills: z.array(z.string().min(1).max(255)).max(50).default([]),
   /** 建会话时所选模型（可选）；服务端校验可用后 setUserModel + 本地持久化 */
   modelId: z.string().trim().min(1).max(255).optional(),
@@ -133,6 +134,7 @@ export const ConversationListItemSchema = z.object({
   taskId: z.string().nullable().optional(),
   status: z.string(),
   assistantName: z.string().nullable(),
+  templateRef: z.string().nullable().optional(),
   source: z.string().nullable(),
   managementContext: z
     .object({

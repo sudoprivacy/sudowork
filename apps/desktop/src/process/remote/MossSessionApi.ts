@@ -1287,6 +1287,7 @@ export interface MossSession {
   /** Assistant name */
   assistant_name?: string;
   assistantName?: string;
+  clientMetadata?: Record<string, unknown>;
   /** Runtime configuration */
   runtime?: {
     type: string;

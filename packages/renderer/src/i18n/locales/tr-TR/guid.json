@@ -73,5 +73,11 @@
     "statusTesting": "Testing latency...",
     "statusUnreachable": "Unreachable",
     "statusAvailable": "Available"
+  },
+  "sessionComposition": {
+    "agent": "My Agent",
+    "template": "Task template",
+    "noTemplate": "No template",
+    "engine": "Execution engine: {{engine}}"
   }
 }
