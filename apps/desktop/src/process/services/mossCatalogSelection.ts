@@ -2,7 +2,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { IMossCatalogInstallation, MossCatalogKind } from '@sudowork/common/mossCatalog';
 import { isPersonalAgentRef } from '@sudowork/common/personalAgents';
-import { listMossCatalog, detailMossCatalog } from './mossCatalogApi';
+import { z } from 'zod';
+import { listMossCatalog, detailMossCatalog, requestMossCatalog } from './mossCatalogApi';
 import { getMossCatalogInstallations, installMossCatalog, validateCatalogInstallation, catalogResourceRoot, catalogRuntimeName } from './mossCatalogInstall';
 import { requireMossPersonalAgent } from './mossPersonalAgents';
 
@@ -19,6 +20,15 @@ export async function resolveMossCatalogSelection(assistantId?: string, skillIds
     if (reference.startsWith('moss-prepared:')) return reference;
     const exact = installed.filter((item) => item.kind === kind && (item.id === reference || item.runtimeName === reference));
     let matches = exact.length ? exact : installed.filter((item) => item.kind === kind && item.name === reference);
+    if (!matches.length && kind === 'agents' && /^[a-f0-9-]{36}$/i.test(reference)) {
+      const templates = z.array(z.object({ id: z.string(), name: z.string(), enabled: z.boolean().optional() })).parse(await (await requestMossCatalog('/api/v1/agent-templates/installed')).json());
+      const template = templates.find((item) => item.id === reference);
+      if (template) {
+        if (template.enabled === false) throw new Error('Selected template is disabled');
+        unresolved.push(reference);
+        return reference;
+      }
+    }
     if (!matches.length && !['Moss Server', 'Remote Agent'].includes(reference)) {
       const tenant = await listMossCatalog({ kind, source: 'tenant' });
       const candidates = tenant.items.filter((item) => item.id === reference || item.name === reference);
