@@ -85,10 +85,10 @@ function getCommandPrefix(platform, useVx = true) {
  */
 function normalizeArch(arch) {
   const archMap = {
-    'x64': 'x64',
-    'arm64': 'arm64',
-    'ia32': 'ia32',
-    'armv7l': 'arm',
+    x64: 'x64',
+    arm64: 'arm64',
+    ia32: 'ia32',
+    armv7l: 'arm',
   };
   return archMap[arch] || arch;
 }
@@ -134,6 +134,11 @@ function buildEnvironment(platform, targetArch, electronVersion) {
   return env;
 }
 
+/** Build the supported CLI arguments shared by both native rebuild paths. */
+function getElectronRebuildArgs(modules, targetArch, electronVersion) {
+  return ['--only', modules.join(','), '--force', '--arch', targetArch, '--version', electronVersion];
+}
+
 /**
  * Rebuild native modules using electron-rebuild
  *
@@ -145,19 +150,13 @@ function buildEnvironment(platform, targetArch, electronVersion) {
  * @param {string[]} [options.modules] - Modules to rebuild (default: auto-detect by platform)
  */
 function rebuildWithElectronRebuild(options) {
-  const {
-    platform,
-    arch,
-    electronVersion,
-    cwd = path.resolve(__dirname, '..'),
-    modules = getModulesToRebuild(platform),
-  } = options;
+  const { platform, arch, electronVersion, cwd = path.resolve(__dirname, '..'), modules = getModulesToRebuild(platform) } = options;
 
   const targetArch = normalizeArch(arch);
   const env = buildEnvironment(platform, targetArch, electronVersion);
 
   const bunxCmd = getBunxCommand();
-  const rebuildCmd = `${bunxCmd} electron-rebuild --only ${modules.join(',')} --force --arch ${targetArch} --electron-version ${electronVersion}`;
+  const rebuildCmd = `${bunxCmd} electron-rebuild ${getElectronRebuildArgs(modules, targetArch, electronVersion).join(' ')}`;
 
   execSync(rebuildCmd, {
     stdio: 'inherit',
@@ -200,16 +199,7 @@ function canCrossCompileFromSource(buildArch, targetArch, platform) {
  * @param {string} [options.buildArch] - Build machine architecture (for cross-compilation detection)
  */
 function rebuildSingleModule(options) {
-  const {
-    moduleName,
-    moduleRoot,
-    platform,
-    arch,
-    electronVersion,
-    projectRoot = path.resolve(__dirname, '..'),
-    forceRebuild = false,
-    buildArch = process.arch,
-  } = options;
+  const { moduleName, moduleRoot, platform, arch, electronVersion, projectRoot = path.resolve(__dirname, '..'), forceRebuild = false, buildArch = process.arch } = options;
 
   const targetArch = normalizeArch(arch);
   const normalizedBuildArch = normalizeArch(buildArch);
@@ -263,15 +253,7 @@ function rebuildSingleModule(options) {
   if (!forceRebuild || mustUsePrebuild) {
     try {
       env.npm_config_build_from_source = 'false';
-      const prebuildArgs = [
-        '--yes',
-        'prebuild-install',
-        '--runtime=electron',
-        `--target=${electronVersion}`,
-        `--platform=${platform}`,
-        `--arch=${targetArch}`,
-        '--force',
-      ];
+      const prebuildArgs = ['--yes', 'prebuild-install', '--runtime=electron', `--target=${electronVersion}`, `--platform=${platform}`, `--arch=${targetArch}`, '--force'];
 
       const fullCmd = cmdPrefix ? `${cmdPrefix} ${bunxCmd} ${prebuildArgs.join(' ')}` : `${bunxCmd} ${prebuildArgs.join(' ')}`;
       console.log(`     Running: ${fullCmd}`);
@@ -314,15 +296,7 @@ function rebuildSingleModule(options) {
 
   try {
     env.npm_config_build_from_source = 'true';
-    const rebuildArgs = [
-      '--yes',
-      'electron-rebuild',
-      '--only',
-      moduleName,
-      '--force',
-      `--platform=${platform}`,
-      `--arch=${targetArch}`,
-    ];
+    const rebuildArgs = ['--yes', 'electron-rebuild', ...getElectronRebuildArgs([moduleName], targetArch, electronVersion)];
 
     const fullCmd = cmdPrefix ? `${cmdPrefix} ${bunxCmd} ${rebuildArgs.join(' ')}` : `${bunxCmd} ${rebuildArgs.join(' ')}`;
     console.log(`     Running: ${fullCmd}`);
@@ -380,14 +354,8 @@ function findNodeFiles(dir, maxDepth = 3, currentDepth = 0) {
  */
 function verifyModuleBinary(moduleRoot, moduleName) {
   const binaryPathsToCheck = {
-    'better-sqlite3': [
-      path.join(moduleRoot, 'build', 'Release', 'better_sqlite3.node'),
-    ],
-    'node-pty': [
-      path.join(moduleRoot, 'build', 'Release', 'pty.node'),
-      path.join(moduleRoot, 'build', 'Release', 'conpty.node'),
-      path.join(moduleRoot, 'build', 'Release', 'conpty_console_list.node'),
-    ],
+    'better-sqlite3': [path.join(moduleRoot, 'build', 'Release', 'better_sqlite3.node')],
+    'node-pty': [path.join(moduleRoot, 'build', 'Release', 'pty.node'), path.join(moduleRoot, 'build', 'Release', 'conpty.node'), path.join(moduleRoot, 'build', 'Release', 'conpty_console_list.node')],
   };
 
   const pathsToCheck = binaryPathsToCheck[moduleName] || [];
@@ -405,7 +373,7 @@ function verifyModuleBinary(moduleRoot, moduleName) {
   const foundFiles = findNodeFiles(moduleRoot);
   if (foundFiles.length > 0) {
     console.log(`     Debug: Found .node files:`);
-    foundFiles.forEach(f => console.log(`       - ${f}`));
+    foundFiles.forEach((f) => console.log(`       - ${f}`));
     return true;
   }
 
@@ -417,6 +385,7 @@ module.exports = {
   normalizeArch,
   getModulesToRebuild,
   buildEnvironment,
+  getElectronRebuildArgs,
   rebuildWithElectronRebuild,
   rebuildSingleModule,
   verifyModuleBinary,
