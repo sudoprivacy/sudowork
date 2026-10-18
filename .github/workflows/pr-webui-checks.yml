@@ -11,7 +11,7 @@
 # through the `default` condition (dist/*.js) — without it the tests cannot even
 # import the packages.
 
-name: '✓PR WebUI Checks'
+name: "✓PR WebUI Checks"
 
 on:
   pull_request:
@@ -26,9 +26,28 @@ permissions:
   contents: read
 
 env:
-  BUN_INSTALL_REGISTRY: 'https://registry.npmjs.org/'
+  BUN_INSTALL_REGISTRY: "https://registry.npmjs.org/"
 
 jobs:
+  webui-container:
+    name: WebUI Container E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/webui/Dockerfile
+          load: true
+          tags: sudowork-webui:container-e2e
+          cache-from: type=gha,scope=webui-container-e2e
+          cache-to: type=gha,mode=max,scope=webui-container-e2e
+      - name: Boot the packaged server and production SPA
+        run: python3 apps/webui/tests/e2e/container_smoke.py --image sudowork-webui:container-e2e
   webui-checks:
     name: WebUI Checks
     runs-on: ubuntu-latest
@@ -56,12 +75,12 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: "22"
 
       - name: Setup bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version-file: package.json
 
       - name: Install dependencies
         run: bun install --no-frozen-lockfile

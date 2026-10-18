@@ -5,21 +5,22 @@
  */
 
 import classNames from 'classnames';
-import { AlarmClock, ArrowLeft, BookOpen, Bot, ChevronDown, Globe, ListChecks, LogIn, LogOut, Network, Plus, Settings, ShieldCheck, Sparkles } from 'lucide-react';
+import { AlarmClock, ArrowLeft, BookOpen, Bot, ChevronDown, Globe, ListChecks, LogIn, LogOut, Network, Settings, ShieldCheck, Sparkles } from 'lucide-react';
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Button, Dropdown, Menu, Message, Popover, Tabs } from '@arco-design/web-react';
-import { ConfigStorage } from '@sudowork/common/storage';
-import type { BatchHistoryApi } from '@renderer/pages/conversation/grouped-history/types';
+import { Button, Dropdown, Menu, Message, Popover } from '@arco-design/web-react';
+import HistoryViewSelector from '@renderer/pages/conversation/components/HistoryViewSelector';
+import type { BatchHistoryApi, SidebarTabKey } from '@renderer/pages/conversation/grouped-history/types';
 import { cleanupSiderTooltips } from '@renderer/utils/siderTooltip';
 import { useAuth } from '@renderer/context/AuthContext';
-import { addEventListener, emitter } from '@renderer/utils/emitter';
+import { addEventListener } from '@renderer/utils/emitter';
 import { useAppMode } from '@renderer/hooks/useAppMode';
 import { useCronAccess } from '@renderer/hooks/useCronAccess';
 import { isElectronDesktop } from '@renderer/utils/platform';
 
 import WorkspaceGroupedHistory from '@renderer/pages/conversation/WorkspaceGroupedHistory';
+import NewConversationButton from '@renderer/pages/conversation/components/NewConversationButton';
 import { maskPhone } from '@renderer/utils';
 import SidebarNavItem from '@renderer/layouts/components/SidebarNavItem';
 import SettingsSider from './SettingsSider';
@@ -49,16 +50,15 @@ const Sider: React.FC = () => {
   // Batch-action API published up from the history list; drives the popover content.
   const [batchApi, setBatchApi] = useState<BatchHistoryApi | null>(null);
 
-  // Sidebar tab state: 'timeline' or 'scheduled'
   const SIDER_TAB_STORAGE_KEY = 'sudowork_sider_tab';
-  const [activeTab, setActiveTab] = useState<'timeline' | 'scheduled'>(() => {
+  const [activeTab, setActiveTab] = useState<SidebarTabKey>(() => {
     try {
       const stored = localStorage.getItem(SIDER_TAB_STORAGE_KEY);
-      if (stored === 'scheduled') return 'scheduled';
+      if (stored === 'scheduled' || stored === 'agents' || stored === 'timeline') return stored;
     } catch {
       // ignore
     }
-    return 'timeline';
+    return isEnterprise ? 'agents' : 'timeline';
   });
 
   // 功能菜单项定义 / Function menu items definition
@@ -85,12 +85,12 @@ const Sider: React.FC = () => {
     avatar: null as string | null,
   };
 
-  // With the cron UI hidden the scheduled tab is hidden too, so fall back to
-  // the timeline even if 'scheduled' was previously persisted.
-  const effectiveTab: 'timeline' | 'scheduled' = isCronVisible ? activeTab : 'timeline';
+  const effectiveTab: SidebarTabKey = !isCronVisible && activeTab === 'scheduled' ? 'timeline' : activeTab;
 
-  // Batch management only applies to conversations (timeline tab); leaving the
-  // timeline tab exits batch mode so the popover can't be opened under 定时任务.
+  useEffect(() => {
+    setIsBatchMode(false);
+  }, [effectiveTab]);
+
   // Dismiss the batch popover when clicking truly blank space, but keep it open
   // when interacting with the trigger, the popover itself, or a conversation row
   // (so ticking row checkboxes doesn't exit batch mode).
@@ -191,23 +191,13 @@ const Sider: React.FC = () => {
         ) : (
           <div className='h-full min-h-0 flex flex-col overflow-hidden py-2 box-border'>
             <div className='min-h-0 shrink overflow-y-auto scrollbar-hide'>
-              {/* 新会话按钮 - 带边框的按钮风格 / New Chat button with border style */}
-              <div
-                className='h-10.5 flex-shrink-0 f-center gap-2 px-3.5 mb-3 rd-3 cursor-pointer transition-all border bg-subtle hover:bg-hover active:bg-fill-2'
-                onClick={() => {
+              <NewConversationButton
+                onSessionClick={() => {
                   cleanupSiderTooltips();
                   setIsBatchMode(false);
-                  // 清除持久化的 agent 选择，确保新会话时不恢复之前的助手
-                  void ConfigStorage.set('guid.lastSelectedAgent', '');
-                  // 触发 Guide 页面重置所有用户输入状态
-                  emitter.emit('guid.reset');
-                  void navigate('/guid');
                   onSessionClick();
                 }}
-              >
-                <Plus size={18} strokeWidth={1.8} className='text-foreground shrink-0' />
-                <span className='text-15px font-medium text-foreground truncate'>{t('conversation.welcome.newConversation')}</span>
-              </div>
+              />
 
               {/* 功能菜单区域 / Function menu area */}
               <div className='mb-4 flex flex-col gap-0.5'>
@@ -234,54 +224,49 @@ const Sider: React.FC = () => {
 
             {/* Session history tabs + batch mode button */}
             <div className={classNames('shrink-0 mb-2 px-2 flex items-center justify-between')}>
-              {isCronVisible && (
-                <Tabs
-                  className='sidebar-tabs flex-1 shrink-0'
-                  type='line'
-                  activeTab={effectiveTab}
-                  headerPadding={false}
-                  onChange={(tab) => {
-                    const next = tab as 'timeline' | 'scheduled';
-                    setActiveTab(next);
-                    try {
-                      localStorage.setItem(SIDER_TAB_STORAGE_KEY, next);
-                    } catch {
-                      // ignore
-                    }
-                  }}
+              <HistoryViewSelector
+                value={effectiveTab}
+                isCronVisible={isCronVisible}
+                onChange={(tab) => {
+                  const next = tab as SidebarTabKey;
+                  setActiveTab(next);
+                  try {
+                    localStorage.setItem(SIDER_TAB_STORAGE_KEY, next);
+                  } catch {
+                    // ignore
+                  }
+                }}
+              />
+              {effectiveTab !== 'agents' && (
+                <Popover
+                  trigger={[]}
+                  popupVisible={isBatchMode}
+                  position='rt'
+                  className='batch-actions-popover'
+                  getPopupContainer={() => document.body}
+                  content={
+                    <div className='flex flex-col gap-1.5 w-45'>
+                      <div className='px-0.5 pb-0.5 text-12px leading-18px text-secondary'>{t('conversation.history.selectedCount', { count: batchApi?.selectedCount ?? 0 })}</div>
+                      <Button long type='secondary' className='rd-2' onClick={() => batchApi?.onToggleSelectAll()}>
+                        {batchApi?.allSelected ? t('common.cancel') : t('conversation.history.selectAll')}
+                      </Button>
+                      <Button long type='secondary' className='rd-2' disabled={!batchApi?.selectedCount} onClick={() => batchApi?.onBatchExport()}>
+                        {t('conversation.history.batchExport')}
+                      </Button>
+                      <Button long type='secondary' status='danger' className='rd-2' disabled={!batchApi?.selectedCount} onClick={() => batchApi?.onBatchDelete()}>
+                        {t('conversation.history.batchDelete')}
+                      </Button>
+                    </div>
+                  }
                 >
-                  <Tabs.TabPane key='timeline' title={t('conversation.history.timeline', { defaultValue: '对话' })} />
-                  <Tabs.TabPane key='scheduled' title={t('conversation.history.scheduledTab', { defaultValue: '定时任务' })} />
-                </Tabs>
-              )}
-              <Popover
-                trigger={[]}
-                popupVisible={isBatchMode}
-                position='rt'
-                className='batch-actions-popover'
-                getPopupContainer={() => document.body}
-                content={
-                  <div className='flex flex-col gap-1.5 w-45'>
-                    <div className='px-0.5 pb-0.5 text-12px leading-18px text-secondary'>{t('conversation.history.selectedCount', { count: batchApi?.selectedCount ?? 0 })}</div>
-                    <Button long type='secondary' className='rd-2' onClick={() => batchApi?.onToggleSelectAll()}>
-                      {batchApi?.allSelected ? t('common.cancel') : t('conversation.history.selectAll')}
-                    </Button>
-                    <Button long type='secondary' className='rd-2' disabled={!batchApi?.selectedCount} onClick={() => batchApi?.onBatchExport()}>
-                      {t('conversation.history.batchExport')}
-                    </Button>
-                    <Button long type='secondary' status='danger' className='rd-2' disabled={!batchApi?.selectedCount} onClick={() => batchApi?.onBatchDelete()}>
-                      {t('conversation.history.batchDelete')}
-                    </Button>
+                  <div
+                    className={classNames('batch-mode-trigger size-8 f-center rd-8px cursor-pointer transition-all shrink-0', isBatchMode ? 'bg-[rgba(var(--ui-accent-orange-rgb),0.12)] text-[var(--ui-accent-orange)]' : 'hover:bg-hover active:bg-fill-2 text-secondary')}
+                    onClick={() => setIsBatchMode((prev) => !prev)}
+                  >
+                    <ListChecks size={18} strokeWidth={1.8} className='block leading-none' />
                   </div>
-                }
-              >
-                <div
-                  className={classNames('batch-mode-trigger size-8 f-center rd-8px cursor-pointer transition-all shrink-0', isBatchMode ? 'bg-[rgba(var(--ui-accent-orange-rgb),0.12)] text-[var(--ui-accent-orange)]' : 'hover:bg-hover active:bg-fill-2 text-secondary')}
-                  onClick={() => setIsBatchMode((prev) => !prev)}
-                >
-                  <ListChecks size={18} strokeWidth={1.8} className='block leading-none' />
-                </div>
-              </Popover>
+                </Popover>
+              )}
             </div>
 
             <div className='flex min-h-24 flex-1 flex-col'>

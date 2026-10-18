@@ -157,8 +157,8 @@ class ComponentHealthMonitor {
    * 检查 Nexus 状态
    */
   private async checkNexusHealth(): Promise<ComponentStatus> {
-    const { dynamicNexusVfsService } = await import('../nexus-vfs/DynamicNexusVfsService');
-    const installed = await dynamicNexusVfsService.checkInstalled();
+    const { scodeRuntimeService } = await import('../scode/ScodeRuntimeService');
+    const installed = await scodeRuntimeService.checkInstalled();
 
     if (!installed) {
       return { installed: false, needsAction: true, actionType: 'install' };
@@ -166,7 +166,7 @@ class ComponentHealthMonitor {
 
     // 检查 gRPC/进程 健康
     try {
-      const running = await dynamicNexusVfsService.checkActualRunning();
+      const running = await scodeRuntimeService.checkActualRunning();
       return { installed: true, running, needsAction: !running, actionType: 'start' };
     } catch (err) {
       mainLog(TAG, `Nexus health check failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -267,8 +267,8 @@ class ComponentHealthMonitor {
     try {
       switch (component) {
         case 'nexus': {
-          const { dynamicNexusVfsService } = await import('../nexus-vfs/DynamicNexusVfsService');
-          await dynamicNexusVfsService.install();
+          const { scodeRuntimeService } = await import('../scode/ScodeRuntimeService');
+          await scodeRuntimeService.install();
           return true;
         }
         default:

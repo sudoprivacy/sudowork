@@ -24,6 +24,349 @@ import { resolveTenantConfig, type TenantConfigInput } from '@sudowork/common/ty
 type FetchMock = ReturnType<typeof vi.fn>
 type StatusRoute = { status: number; body: unknown }
 
+describe('mossAdapter: session streams', () => {
+  class ViewerSocket extends EventTarget {
+    static instances: ViewerSocket[] = []
+    static readonly OPEN = 1
+    static readonly CLOSING = 2
+    static readonly CLOSED = 3
+    readonly readyState = 1
+    sent: unknown[] = []
+    constructor(public url: string) {
+      super()
+      ViewerSocket.instances.push(this)
+    }
+    close() {
+      this.dispatchEvent(new Event('close'))
+    }
+    send(value: string) {
+      this.sent.push(JSON.parse(value))
+    }
+    frame(value: unknown) {
+      this.dispatchEvent(new MessageEvent('message', { data: JSON.stringify(value) }))
+    }
+  }
+  let ipc: typeof import('@sudowork/host-bridge/ipcBridge')
+  beforeEach(async () => {
+    vi.resetModules()
+    ViewerSocket.instances = []
+    vi.stubGlobal('WebSocket', ViewerSocket)
+    await import('@client/bridgeAdapter/mossAdapter')
+    ipc = await import('@sudowork/host-bridge/ipcBridge')
+  })
+  afterEach(() => {
+    for (const socket of ViewerSocket.instances) socket.close()
+    vi.unstubAllGlobals()
+  })
+
+  it('updates the selected Session runtime without opening a stream or resending input', async () => {
+    const fetch = stubFetch({ '/runtime/upgrade': { success: true } })
+    expect(await ipc.moss.upgradeRuntime.invoke({ conversationId: 'session/a' })).toMatchObject({
+      success: true,
+    })
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(String(fetch.mock.calls[0]![0])).toContain(
+      '/api/conversations/session%2Fa/runtime/upgrade',
+    )
+    expect(fetch.mock.calls[0]![1]).toMatchObject({ method: 'POST', body: '{}' })
+    expect(ViewerSocket.instances).toHaveLength(0)
+  })
+
+  it('waits for the authenticated subscription before triggering an automatic model turn', async () => {
+    const fetch = stubFetch({ '/browser': { session: {} } })
+    const response = ipc.browserSession.invoke.invoke({
+      conversationId: 'viewer-return',
+      action: { kind: 'return', controlEpoch: 1, targetEpoch: 1 },
+    })
+    await vi.waitFor(() => expect(ViewerSocket.instances).toHaveLength(1))
+    const socket = ViewerSocket.instances[0]!
+    expect(fetch).not.toHaveBeenCalled()
+    socket.frame({ kind: 'upstream', event: { type: 'hello' } })
+    await Promise.resolve()
+    expect(fetch).not.toHaveBeenCalled()
+    socket.frame({ kind: 'writer', isWriter: true })
+    expect(await response).toMatchObject({ success: true })
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps human control when the subscription closes before acknowledgement', async () => {
+    const fetch = stubFetch({ '/browser': { session: {} } })
+    const response = ipc.browserSession.invoke.invoke({
+      conversationId: 'viewer-disconnect',
+      action: { kind: 'return', controlEpoch: 1, targetEpoch: 1 },
+    })
+    await vi.waitFor(() => expect(ViewerSocket.instances).toHaveLength(1))
+    ViewerSocket.instances[0]!.close()
+    expect(await response).toMatchObject({
+      success: false,
+      msg: 'browser_return_stream_unavailable',
+    })
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  async function subscribe(sessionId: string): Promise<ViewerSocket> {
+    await ipc.conversation.syncMessages.invoke({ conversation_id: sessionId })
+    return ViewerSocket.instances.at(-1)!
+  }
+
+  function requestPermission(socket: ViewerSocket, id: string) {
+    socket.frame({
+      kind: 'upstream',
+      event: {
+        type: 'control_request',
+        request_id: id,
+        request: { tool_name: 'read_file', input: { path: 'test.txt' } },
+      },
+    })
+  }
+
+  for (const event of [{ type: 'result' }, { type: 'result', is_error: true, result: 'aborted' }]) {
+    it(`removes another client's settled permissions on ${JSON.stringify(event)}`, async () => {
+      stubFetch({ '/context': { messages: [] }, '/deliverables': { files: [] } })
+      const first = await subscribe('permission-first')
+      const second = await subscribe('permission-second')
+      requestPermission(first, 'first-approval')
+      requestPermission(first, 'first-approval-2')
+      requestPermission(second, 'second-approval')
+      const removed: string[] = []
+      const off = ipc.conversation.confirmation.remove.on((value) => removed.push(value.id))
+      first.frame({ kind: 'upstream', event })
+      expect(
+        await ipc.conversation.confirmation.list.invoke({ conversation_id: 'permission-first' }),
+      ).toEqual([])
+      expect(removed).toEqual(['first-approval', 'first-approval-2'])
+      expect(
+        await ipc.conversation.confirmation.list.invoke({ conversation_id: 'permission-second' }),
+      ).toMatchObject([{ id: 'second-approval' }])
+      first.frame({ kind: 'upstream', event })
+      expect(removed).toHaveLength(2)
+      requestPermission(first, 'next-turn-approval')
+      expect(
+        await ipc.conversation.confirmation.list.invoke({ conversation_id: 'permission-first' }),
+      ).toMatchObject([{ id: 'next-turn-approval' }])
+      off()
+    })
+  }
+
+  it('removes displayed permissions when their authenticated stream closes', async () => {
+    stubFetch({ '/context': { messages: [] } })
+    const socket = await subscribe('permission-close')
+    requestPermission(socket, 'closed-approval')
+    const removed: string[] = []
+    const off = ipc.conversation.confirmation.remove.on((value) => removed.push(value.id))
+    socket.close()
+    expect(removed).toEqual(['closed-approval'])
+    expect(
+      await ipc.conversation.confirmation.list.invoke({ conversation_id: 'permission-close' }),
+    ).toEqual([])
+    const replacement = await subscribe('permission-close')
+    requestPermission(replacement, 'replacement-approval')
+    socket.close()
+    expect(removed).toEqual(['closed-approval'])
+    expect(
+      await ipc.conversation.confirmation.list.invoke({ conversation_id: 'permission-close' }),
+    ).toMatchObject([{ id: 'replacement-approval' }])
+    off()
+  })
+
+  it('keeps other pending permissions when this client answers one request', async () => {
+    stubFetch({ '/context': { messages: [] } })
+    const socket = await subscribe('permission-local')
+    requestPermission(socket, 'answered-approval')
+    requestPermission(socket, 'pending-approval')
+    expect(
+      await ipc.conversation.confirmation.confirm.invoke({
+        conversation_id: 'permission-local',
+        msg_id: 'answered-approval',
+        callId: 'answered-approval',
+        data: 'allow_once',
+      }),
+    ).toMatchObject({ success: true })
+    expect(socket.sent).toEqual([
+      { kind: 'control_response', requestId: 'answered-approval', optionId: 'allow_once' },
+    ])
+    expect(
+      await ipc.conversation.confirmation.list.invoke({ conversation_id: 'permission-local' }),
+    ).toMatchObject([{ id: 'pending-approval' }])
+  })
+
+  it('ends loading on uncertain delivery without replaying the interrupted request', async () => {
+    const messages: IResponseMessage[] = []
+    const off = ipc.conversation.responseStream.on((message) => messages.push(message))
+    try {
+      await ipc.acpConversation.sendMessage.invoke({
+        conversation_id: 'uncertain-turn',
+        input: 'Original request',
+      } as never)
+      const socket = ViewerSocket.instances[0]!
+      messages.length = 0
+      socket.frame({ kind: 'lock', state: 'uncertain' })
+      socket.frame({ kind: 'lock', state: 'uncertain' })
+      expect(messages.map((message) => message.type)).toEqual(['error', 'finish'])
+      expect(messages[0]!.data).toBe('LOCK_UNCERTAIN')
+      expect(socket.sent).toHaveLength(1)
+      messages.length = 0
+      socket.close()
+      expect(messages).toHaveLength(0)
+    } finally {
+      off()
+    }
+  })
+
+  it('ends loading on socket loss and permits only an explicit new request to reconnect', async () => {
+    const messages: IResponseMessage[] = []
+    const off = ipc.conversation.responseStream.on((message) => messages.push(message))
+    try {
+      await ipc.acpConversation.sendMessage.invoke({
+        conversation_id: 'lost-turn',
+        input: 'Original request',
+      } as never)
+      messages.length = 0
+      ViewerSocket.instances[0]!.close()
+      expect(messages.map((message) => message.type)).toEqual(['error', 'finish'])
+      expect(messages[0]!.data).toBe('CONNECTION_CLOSED')
+      expect(ViewerSocket.instances).toHaveLength(1)
+      await ipc.acpConversation.sendMessage.invoke({
+        conversation_id: 'lost-turn',
+        input: 'Check effects and continue',
+      } as never)
+      expect(ViewerSocket.instances).toHaveLength(2)
+      expect(ViewerSocket.instances[1]!.sent).toHaveLength(1)
+      messages.length = 0
+      ViewerSocket.instances[0]!.frame({
+        kind: 'upstream',
+        event: { type: 'result', result: 'late old result' },
+      })
+      expect(messages).toHaveLength(0)
+    } finally {
+      off()
+    }
+  })
+
+  it.each(['permissions_cleared', 'permission_resolved'])(
+    'removes expired approval cards when receiving %s',
+    async (reason) => {
+      const removed = vi.fn()
+      const off = ipc.conversation.confirmation.remove.on(removed)
+      try {
+        await ipc.acpConversation.sendMessage.invoke({
+          conversation_id: 'approval-lifecycle',
+          input: 'Run a tool',
+        } as never)
+        const socket = ViewerSocket.instances[0]!
+        socket.frame({
+          kind: 'upstream',
+          event: {
+            type: 'control_request',
+            request_id: 'approval-1',
+            request: { tool_name: 'Bash', input: { command: 'pwd' } },
+          },
+        })
+        expect(
+          await ipc.conversation.confirmation.list.invoke({
+            conversation_id: 'approval-lifecycle',
+          }),
+        ).toHaveLength(1)
+        if (reason === 'permission_resolved')
+          socket.frame({ kind: reason, requestId: 'approval-1' })
+        else socket.frame({ kind: 'permissions_cleared' })
+        expect(
+          await ipc.conversation.confirmation.list.invoke({
+            conversation_id: 'approval-lifecycle',
+          }),
+        ).toEqual([])
+        expect(removed).toHaveBeenCalledExactlyOnceWith({
+          conversation_id: 'approval-lifecycle',
+          id: 'approval-1',
+        })
+        expect(socket.sent).toHaveLength(1)
+      } finally {
+        off()
+      }
+    },
+  )
+
+  it('retains a live approval while its execution outcome is uncertain', async () => {
+    const removed = vi.fn()
+    const off = ipc.conversation.confirmation.remove.on(removed)
+    try {
+      await ipc.acpConversation.sendMessage.invoke({
+        conversation_id: 'uncertain-approval',
+        input: 'Run a tool',
+      } as never)
+      const socket = ViewerSocket.instances[0]!
+      const request = {
+        kind: 'upstream',
+        event: {
+          type: 'control_request',
+          request_id: 'approval-live',
+          request: { tool_name: 'Bash' },
+        },
+      }
+      socket.frame(request)
+      socket.frame(request)
+      socket.frame({ kind: 'lock', state: 'uncertain' })
+      expect(
+        await ipc.conversation.confirmation.list.invoke({ conversation_id: 'uncertain-approval' }),
+      ).toHaveLength(1)
+      expect(removed).not.toHaveBeenCalled()
+      expect(socket.sent).toHaveLength(1)
+    } finally {
+      off()
+    }
+  })
+})
+
+describe('mossAdapter: user Vault capability', () => {
+  beforeEach(async () => {
+    vi.resetModules()
+    await import('@client/bridgeAdapter/mossAdapter')
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('maps current metadata and obtains values through the read operation', async () => {
+    const namespace = 'user:alice:mail'
+    const resource = '/api/v1/me/secrets/user%3Aalice%3Amail/password'
+    const fetch = stubFetch({
+      [resource]: { success: true, data: { value: 'synthetic', status: 'enabled', version: 2 } },
+      '/api/v1/me/secrets': {
+        success: true,
+        data: [
+          { namespace, key: 'password', status: 'enabled', enabled: true, version: 2 },
+          { namespace, key: 'disabled', status: 'disabled', enabled: false, version: 3 },
+        ],
+      },
+    })
+    const ipc = await import('@sudowork/host-bridge/ipcBridge')
+    expect(await ipc.secret.list.invoke({ namespace })).toMatchObject({
+      success: true,
+      data: [
+        { namespace, key: 'password', currentVersion: 2, deleted: false },
+        { namespace, key: 'disabled', currentVersion: 3, deleted: true },
+      ],
+    })
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(await ipc.secret.get.invoke({ namespace, key: 'password' })).toMatchObject({
+      success: true,
+      data: 'synthetic',
+    })
+  })
+
+  it('returns a storage failure instead of an empty successful list', async () => {
+    stubFetch({
+      '/api/v1/me/secrets': {
+        success: false,
+        error: { code: 'secret_store_unavailable', message: 'Vault unavailable' },
+      },
+    })
+    const ipc = await import('@sudowork/host-bridge/ipcBridge')
+    expect(await ipc.secret.list.invoke({ namespace: 'user:alice:mail' })).toMatchObject({
+      success: false,
+      msg: 'Vault unavailable',
+    })
+  })
+})
+
 describe('mossAdapter: personal Agent conversation names', () => {
   let ipc: typeof import('@sudowork/host-bridge/ipcBridge')
   const ownRef = 'moss-agent:own:22222222-2222-4222-8222-222222222222'
@@ -154,6 +497,31 @@ describe('mossAdapter: personal Agents', () => {
     const input = { displayName: 'Valid name', userId: 'foreign-owner' }
     expect(await ipcBridge.eeclaw.createUserAgent.invoke(input)).toMatchObject({ success: false })
     expect(request).not.toHaveBeenCalled()
+  })
+})
+
+describe('mossAdapter: browser binary files', () => {
+  afterEach(() => vi.unstubAllGlobals())
+  it('preserves binary bytes and has one octet-stream content type through the provider', async () => {
+    const data = new Uint8Array([0, 255, 42])
+    const request = vi.fn(async (_url: RequestInfo | URL, _options?: RequestInit) =>
+      Response.json({ file: { id: 'a'.repeat(32) } }),
+    )
+    vi.stubGlobal('fetch', request)
+    const result = await ipcBridge.browserSession.uploadFile.invoke({
+      conversationId: 'conversation',
+      name: 'review.txt',
+      controlEpoch: 2,
+      targetEpoch: 3,
+      data,
+    })
+    expect(result).toEqual({ success: true, data: { id: 'a'.repeat(32) } })
+    const options = request.mock.calls[0]?.[1]
+    expect(options).toBeDefined()
+    if (!options) throw new Error('Binary upload request was not dispatched')
+    expect(new Headers(options.headers).get('content-type')).toBe('application/octet-stream')
+    expect(new Uint8Array(options.body as ArrayBuffer)).toEqual(data)
+    expect(options.credentials).toBe('include')
   })
 })
 
@@ -292,7 +660,13 @@ describe('mossAdapter: eeclaw tenancy channels', () => {
   it('get-cloud-assistants maps agents and carries the guid-selector filter fields', async () => {
     stubFetch({
       '/api/agent-templates': [
-        { name: 'hub-1', displayName: 'Hub One', tag: 'hub', description: 'd1' },
+        {
+          id: 'server-hub-1',
+          name: 'hub-1',
+          displayName: 'Hub One',
+          tag: 'hub',
+          description: 'd1',
+        },
         { name: 'builtin-1', display_name: 'Builtin', isBuiltin: true, tag: 'system' },
         { name: 'mine', tag: 'custom' },
       ],
@@ -302,7 +676,7 @@ describe('mossAdapter: eeclaw tenancy channels', () => {
     expect(result.success).toBe(true)
     expect(result.data).toEqual([
       expect.objectContaining({
-        key: 'hub-1',
+        key: 'server-hub-1',
         name: 'Hub One',
         description: 'd1',
         isBuiltin: false,
@@ -758,6 +1132,25 @@ describe('mossAdapter: assistant/skill management channels', () => {
     const adapters = await ipcBridge.extensions.getAcpAdapters.invoke()
     expect(assistants).toEqual([])
     expect(adapters).toEqual([])
+  })
+})
+
+describe('manual cron creation', () => {
+  it('forwards disabled state in the initial request', async () => {
+    const fetchMock = stubFetch({ '/api/cron': { id: 'manual' } })
+    await ipcBridge.cron.addJob.invoke({
+      name: 'manual',
+      message: 'Return OK',
+      schedule: { kind: 'at', atMs: 0, description: 'Manual' },
+      enabled: false,
+      conversationId: '',
+      agentType: 'remote-agent',
+      createdBy: 'user',
+    })
+    expect(JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit).body))).toMatchObject({
+      enabled: false,
+      schedule: { kind: 'at', value: '0' },
+    })
   })
 })
 
@@ -1274,6 +1667,7 @@ describe('mossAdapter: newly created conversation list reads', () => {
 
     const oldRead = ipc.database.getUserConversations.invoke({})
     const newRead = ipc.database.getUserConversations.invoke({})
+    await vi.waitFor(() => expect(pending).toHaveLength(2))
     pending[1]?.(new Response(JSON.stringify({ conversations: [{ id: 'newer' }] })))
     expect((await newRead).map((item) => item.id)).toEqual(['newer'])
     pending[0]?.(new Response(JSON.stringify({ conversations: [{ id: 'older' }] })))

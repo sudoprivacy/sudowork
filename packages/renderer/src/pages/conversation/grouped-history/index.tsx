@@ -1,3 +1,5 @@
+import ExternalConversationRow from '@renderer/pages/external-agents/ExternalConversationRow';
+import type { UnifiedHistoryConversation } from '@renderer/pages/external-agents/history';
 /**
  * @license
  * Copyright 2026 SudoPrivacy
@@ -16,6 +18,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import type { TChatConversation } from '@sudowork/common/storage';
 import { emitter } from '@renderer/utils/emitter';
+import { resetGuidDraft } from '@renderer/pages/guid/hooks/useGuidDraft';
 import { useCronJobsMap } from '@renderer/pages/cron/hooks/useCronJobs';
 import FlexFullContainer from '@renderer/components/FlexFullContainer';
 import DirectorySelectionModal from '@renderer/components/DirectorySelectionModal';
@@ -29,10 +32,7 @@ import { useConversations } from './hooks/useConversations';
 import { useDragAndDrop } from './hooks/useDragAndDrop';
 import { useExport } from './hooks/useExport';
 import type { AgentGroup, ConversationRowProps, ConversationItem, WorkspaceGroupedHistoryProps } from './types';
-import { getLatestAgentConversation } from './utils/groupingHelpers';
-
-/** Section key for the cross-agent recent list; cannot collide with an agent reference. */
-const RECENT_SECTION_KEY = '__recent__';
+import { getLatestAgentConversation } from '../utils/agentIdentity';
 
 const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSessionClick, collapsed = false, tooltipEnabled = false, batchMode = false, onBatchModeChange, activeTab = 'timeline', onBatchApiChange }) => {
   const { id } = useParams();
@@ -48,10 +48,10 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
     }
   }, [id, setActiveConversation]);
 
-  const { conversations, expandedWorkspaces, pinnedTimeline, pinnedScheduled, timelineSections, scheduledGroups, agentGroups, recent, handleToggleWorkspace } = useConversations();
+  const { conversations, externalHistoryFailed, onRefreshExternalHistory, expandedWorkspaces, pinnedTimeline, pinnedScheduled, timelineSections, scheduledGroups, agentGroups, handleToggleWorkspace } = useConversations();
 
   // Select pinned list based on active tab
-  const pinnedConversations = activeTab === 'scheduled' ? pinnedScheduled : pinnedTimeline;
+  const pinnedConversations = activeTab === 'agents' ? [] : activeTab === 'scheduled' ? pinnedScheduled : pinnedTimeline;
 
   // Filter out pinned conversations from scheduled groups to avoid duplicates
   // Only filter based on pinnedScheduled (pinned in scheduled tab)
@@ -76,7 +76,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
 
   // ── Timeline section collapse state ──
   const TIMELINE_EXPANSION_KEY = 'sudowork_timeline_expansion';
-  // Map of timeline label → expanded boolean. undefined means "use default" (true).
+  // Preserve explicit choices; Agent groups start collapsed.
   const [expandedTimeline, setExpandedTimeline] = React.useState<Record<string, boolean>>(() => {
     try {
       const stored = localStorage.getItem(TIMELINE_EXPANSION_KEY);
@@ -91,16 +91,16 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
   });
 
   const isTimelineSectionExpanded = useCallback(
-    (timelineLabel: string): boolean => {
-      return expandedTimeline[timelineLabel] !== false; // default to expanded
+    (timelineLabel: string, isDefaultExpanded = true): boolean => {
+      return expandedTimeline[timelineLabel] ?? isDefaultExpanded;
     },
     [expandedTimeline]
   );
 
-  const handleToggleTimeline = useCallback((timelineLabel: string) => {
+  const onToggleTimeline = useCallback((timelineLabel: string, isDefaultExpanded = true) => {
     setExpandedTimeline((prev) => {
-      const currentlyExpanded = prev[timelineLabel] !== false; // default true
-      const next = { ...prev, [timelineLabel]: !currentlyExpanded };
+      const isCurrentlyExpanded = prev[timelineLabel] ?? isDefaultExpanded;
+      const next = { ...prev, [timelineLabel]: !isCurrentlyExpanded };
       try {
         localStorage.setItem(TIMELINE_EXPANSION_KEY, JSON.stringify(next));
       } catch {
@@ -204,7 +204,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
   const { renameModalVisible, renameModalName, setRenameModalName, renameLoading, dropdownVisibleId, handleConversationClick, handleDeleteClick, handleBatchDelete, handleEditStart, handleRenameConfirm, handleRenameCancel, handleTogglePin, handleMenuVisibleChange, handleOpenMenu } =
     useConversationActions({
       batchMode,
-      activeTab,
+      activeTab: activeTab === 'agents' ? 'timeline' : activeTab,
       onSessionClick,
       onBatchModeChange,
       selectedConversationIds,
@@ -219,6 +219,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
       void handleConversationClick(latest);
       return;
     }
+    resetGuidDraft();
     void navigate(`/guid?assistant=${encodeURIComponent(group.ref)}`);
     onSessionClick?.();
   }
@@ -290,20 +291,15 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
     [collapsed, tooltipEnabled, batchMode, selectedConversationIds, id, dropdownVisibleId, toggleSelectedConversation, handleConversationClick, handleOpenMenu, handleMenuVisibleChange, handleEditStart, handleDeleteClick, handleExportConversation, handleTogglePin, getJobStatus]
   );
 
-  /**
-   * `scope` disambiguates the React key: a conversation appears both under its
-   * agent and in the cross-agent `最近` section, and the same key in two places
-   * makes React reuse one row's state for the other.
-   */
-  const renderConversation = (conversation: ConversationItem, scope?: string) => {
-    const rowProps = getConversationRowProps(conversation);
-    return <ConversationRow key={scope ? `${scope}:${conversation.id}` : conversation.id} {...rowProps} />;
+  const renderConversation = (conversation: UnifiedHistoryConversation, scope?: string) => {
+    if (conversation.type === 'external-provider') return <ExternalConversationRow key={`${scope || ''}:${conversation.id}`} conversation={conversation} isSelected={id === conversation.id} isBatchMode={batchMode} isCollapsed={collapsed} onOpen={onSessionClick} />;
+    return <ConversationRow key={scope ? `${scope}:${conversation.id}` : conversation.id} {...getConversationRowProps(conversation)} />;
   };
 
   // Collect all sortable IDs for the pinned section
   const pinnedIds = useMemo(() => pinnedConversations.map((c) => c.id), [pinnedConversations]);
 
-  if (activeTab === 'timeline' && agentGroups.length === 0 && timelineSections.length === 0 && pinnedConversations.length === 0) {
+  if (((activeTab === 'agents' && agentGroups.length === 0) || (activeTab === 'timeline' && !externalHistoryFailed && timelineSections.length === 0)) && pinnedConversations.length === 0) {
     return (
       <FlexFullContainer>
         <div className='f-center'>
@@ -445,6 +441,11 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
       </Modal>
 
       <div className='size-full overflow-y-auto overflow-x-hidden'>
+        {externalHistoryFailed && activeTab === 'timeline' && (
+          <Button type='text' className='!h-auto whitespace-normal' onClick={() => void onRefreshExternalHistory()}>
+            {t('agent.external.chat.historyFailed')}
+          </Button>
+        )}
         {/* ── PINNED SECTION ── */}
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={handleDragCancel}>
           {pinnedConversations.length > 0 && (
@@ -505,22 +506,10 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
           `最近` crosses the groups on purpose: grouping only by agent would make
           "find the one from last week" start with "remember whose it was".
         */}
-        {activeTab === 'timeline' && agentGroups.length > 0 && (
+        {activeTab === 'agents' && agentGroups.length > 0 && (
           <>
-            {recent.length > 0 && (
-              <div className='mb-8px min-w-0'>
-                {!collapsed && (
-                  <div className='chat-history__section px-12px py-8px text-13px text-secondary font-bold flex items-center gap-6px cursor-pointer hover:text-foreground transition-colors select-none' onClick={() => handleToggleTimeline(RECENT_SECTION_KEY)}>
-                    <Down size={12} className={classNames('line-height-0 transition-transform duration-200 flex-shrink-0', isTimelineSectionExpanded(RECENT_SECTION_KEY) ? 'rotate-0' : '-rotate-90')} />
-                    <span>{t('conversation.sidebar.recent', '最近')}</span>
-                  </div>
-                )}
-                {(collapsed || isTimelineSectionExpanded(RECENT_SECTION_KEY)) && <div className='flex flex-col gap-2px min-w-0'>{recent.map((conversation) => renderConversation(conversation as ConversationItem, RECENT_SECTION_KEY))}</div>}
-              </div>
-            )}
-
             {agentGroups.map((group) => {
-              const isExpanded = isTimelineSectionExpanded(group.ref);
+              const isExpanded = isTimelineSectionExpanded(group.ref, false);
               // The implicit default agent is named after the person; an account
               // with no name falls back to a label rather than showing a blank
               // row or the internal reference.
@@ -534,7 +523,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
                         size='mini'
                         aria-label={`${t(isExpanded ? 'common.collapse' : 'common.expandMore')} ${label}`}
                         aria-expanded={isExpanded}
-                        onClick={() => handleToggleTimeline(group.ref)}
+                        onClick={() => onToggleTimeline(group.ref, false)}
                         icon={<Down size={12} className={classNames('line-height-0 transition-transform duration-200', isExpanded ? 'rotate-0' : '-rotate-90')} />}
                       />
                       <Button type='text' size='mini' className='flex-1 min-w-0 text-left !justify-start !text-inherit !font-bold' disabled={batchMode} onClick={() => onAgentOpen(group)}>
@@ -561,7 +550,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
             return (
               <div key={section.timeline} className='mb-8px min-w-0'>
                 {!collapsed && (
-                  <div className='chat-history__section px-12px py-8px text-13px text-secondary font-bold flex items-center gap-6px cursor-pointer hover:text-foreground transition-colors select-none' onClick={() => handleToggleTimeline(section.timeline)}>
+                  <div className='chat-history__section px-12px py-8px text-13px text-secondary font-bold flex items-center gap-6px cursor-pointer hover:text-foreground transition-colors select-none' onClick={() => onToggleTimeline(section.timeline)}>
                     <Down size={12} className={classNames('line-height-0 transition-transform duration-200 flex-shrink-0', sectionExpanded ? 'rotate-0' : '-rotate-90')} />
                     <span>{section.timeline}</span>
                   </div>
@@ -604,7 +593,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
                     }
 
                     if (item.type === 'conversation' && item.conversation) {
-                      return renderConversation(item.conversation as ConversationItem);
+                      return renderConversation(item.conversation);
                     }
 
                     return null;

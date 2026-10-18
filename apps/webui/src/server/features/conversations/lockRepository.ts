@@ -1,12 +1,11 @@
 import type { Pool } from 'pg'
 
 /**
- * conversation_locks 事务锁（计划 3.8）：
- * - 第一次发送：无 writer、idle 或 writer=当前 → 原子取得写权并进入 running；否则 409
- * - 收到 result → idle（idle 期间任何订阅者可抢占写权，先发先得）
- * - writer 在 idle 断开 → 清空 writer
- * - writer 在 running 断开或 WebUI 重启 → uncertain 并清空 writer
- * - uncertain：只允许 terminate（成功后删除 lock）或新建会话
+ * One prompt delivery gate per Moss control session.
+ * New turns require idle; an existing turn can retain its writer.
+ * Completion or a known unsent failure restores idle. Losing an accepted turn
+ * preserves uncertainty until completion, termination, or a live idle observation
+ * followed by an atomic acquisition of the observed uncertain lock version.
  */
 
 export type LockState = 'idle' | 'running' | 'uncertain'
@@ -18,7 +17,12 @@ export type AcquireWriteResult =
 
 export async function acquireWriteLock(
   pool: Pool,
-  input: { principalId: string; mossSessionId: string; webSessionId: string },
+  input: {
+    principalId: string
+    mossSessionId: string
+    webSessionId: string
+    isExistingTurnAllowed?: boolean
+  },
 ): Promise<AcquireWriteResult> {
   const { rows } = await pool.query(
     `INSERT INTO conversation_locks (principal_id, moss_session_id, writer_web_session_id, state, updated_at)
@@ -27,10 +31,15 @@ export async function acquireWriteLock(
        SET writer_web_session_id = $3, state = 'running', updated_at = now()
        WHERE conversation_locks.state <> 'uncertain'
          AND (conversation_locks.state = 'idle'
-              OR conversation_locks.writer_web_session_id IS NULL
-              OR conversation_locks.writer_web_session_id = $3)
+              OR ($4::boolean AND (conversation_locks.writer_web_session_id IS NULL
+                                   OR conversation_locks.writer_web_session_id = $3)))
      RETURNING state`,
-    [input.principalId, input.mossSessionId, input.webSessionId],
+    [
+      input.principalId,
+      input.mossSessionId,
+      input.webSessionId,
+      input.isExistingTurnAllowed ?? true,
+    ],
   )
   if (rows[0]) return { ok: true, state: 'running' }
 
@@ -57,10 +66,7 @@ export async function releaseToIdle(
   )
 }
 
-/**
- * set_model 抢占路径专用：仅当锁仍为本次设置的 running + 本 writer 时回收为 idle（保留 writer）。
- * 带守卫（区别于 releaseToIdle）：与断线 markUncertain / REST terminate 交错时不误回收。返回是否回收。
- */
+/** Release a known unsent operation only while its writer still holds the running lock. */
 export async function releaseToIdleIfHeld(
   pool: Pool,
   input: { principalId: string; mossSessionId: string; webSessionId: string },
@@ -70,6 +76,32 @@ export async function releaseToIdleIfHeld(
      WHERE principal_id = $1 AND moss_session_id = $2
        AND state = 'running' AND writer_web_session_id = $3`,
     [input.principalId, input.mossSessionId, input.webSessionId],
+  )
+  return (rowCount ?? 0) > 0
+}
+
+/** Capture the exact uncertain transition before observing the execution. */
+export async function getUncertainLockVersion(
+  pool: Pool,
+  input: { principalId: string; mossSessionId: string },
+): Promise<string | null> {
+  const { rows } = await pool.query<{ version: string }>(
+    `SELECT updated_at::text AS version FROM conversation_locks
+     WHERE principal_id=$1 AND moss_session_id=$2 AND state='uncertain'`,
+    [input.principalId, input.mossSessionId],
+  )
+  return rows[0]?.version ?? null
+}
+
+/** Admit only the new explicit send, if no lock transition occurred during its probe. */
+export async function acquireRecoveredWriteLock(
+  pool: Pool,
+  input: { principalId: string; mossSessionId: string; webSessionId: string; version: string },
+): Promise<boolean> {
+  const { rowCount } = await pool.query(
+    `UPDATE conversation_locks SET state='running', writer_web_session_id=$3, updated_at=now()
+     WHERE principal_id=$1 AND moss_session_id=$2 AND state='uncertain' AND updated_at=$4::timestamptz`,
+    [input.principalId, input.mossSessionId, input.webSessionId, input.version],
   )
   return (rowCount ?? 0) > 0
 }

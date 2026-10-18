@@ -18,6 +18,8 @@ import { isPersonalAgentRef } from '@sudowork/common/personalAgents';
 import { AcpAdapter } from '@/agent/acp/AcpAdapter';
 import { AcpApprovalStore, createAcpApprovalKey } from '@/agent/acp/ApprovalStore';
 import { AcpConnection } from '@/agent/acp/AcpConnection';
+import { localAgentToolControl } from '@process/services/browserPanel/localToolControl';
+import { getLocalBrowserMcpConfig } from '@process/services/browserPanel/localBrowserSessionHost';
 import { resolveTunnelEnv } from '@/agent/acp/tunnelEnv';
 import { CLAUDE_YOLO_SESSION_MODE, CODEBUDDY_YOLO_SESSION_MODE, IFLOW_YOLO_SESSION_MODE, QWEN_YOLO_SESSION_MODE } from '@/agent/acp/constants';
 import { acpDetector } from '@/agent/acp/AcpDetector';
@@ -49,7 +51,7 @@ import type {
 import { ACP_BACKENDS_ALL, AcpErrorType, createAcpError, getAcpResumeStrategy } from '@/types/acpTypes';
 import { ExtensionRegistry } from '@/extensions';
 import { getEnhancedEnv, resolveNpxPath } from '@process/utils/shellEnv';
-import { dynamicNexusVfsService } from '@process/services/nexus-vfs/DynamicNexusVfsService';
+import { scodeRuntimeService } from '@process/services/scode/ScodeRuntimeService';
 import { applyPresetRuntime, applyPresetRuntimeFromMeta } from '@process/task/presetRuntime';
 import { readMossAssistantSnapshot } from '@process/services/mossResourcePreparation';
 import { resolveMossPersonalRuntime } from '@process/services/mossPersonalAgents';
@@ -167,6 +169,8 @@ function normalizeToolCallStatus(status: string | undefined): 'pending' | 'in_pr
 }
 
 export interface AcpAgentData extends IMossConversationExecution {
+  purpose?: 'general' | 'ontology';
+  ontologyId?: string;
   workspace?: string;
   backend: AcpBackend;
   cliPath?: string;
@@ -191,8 +195,16 @@ export interface AcpAgentData extends IMossConversationExecution {
 }
 
 class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
+  private readonly toolControlActorId = uuid();
+  private readonly toolControlTurns = new Set<Promise<unknown>>();
+  private isToolBootstrapAdmitted = false;
+  private isSharedBrowserMcpEnabled = false;
+  private turnToolEpoch = 0;
   workspace: string;
   private bootstrap: Promise<void> | undefined;
+  private get isOntologySession(): boolean {
+    return this.options.purpose === 'ontology' || !!this.options.presetAssistantId?.startsWith('ontology-');
+  }
   private isFirstMessage: boolean = true;
   options: AcpAgentData;
   private currentMode: string = 'default';
@@ -294,7 +306,42 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     this.status = 'pending';
     this.yoloMode = this.yoloMode || this.currentMode === 'yolo' || this.currentMode === 'bypassPermissions';
 
-    this.connection = new AcpConnection();
+    this.connection = new AcpConnection({ isOntologySession: this.isOntologySession });
+    const connection = this.connection;
+    localAgentToolControl.register(this.toolControlActorId, {
+      connection: {
+        get hasActiveSession() {
+          return connection.hasActiveSession;
+        },
+        get isToolPauseSupported() {
+          return connection.isToolPauseSupported;
+        },
+        pauseTools: async () => {
+          this.userCancelled = true;
+          const ticket = await connection.pauseTools();
+          let timeout: ReturnType<typeof setTimeout> | undefined;
+          try {
+            await Promise.race([
+              Promise.allSettled([...this.toolControlTurns]),
+              new Promise<never>((_resolve, reject) => {
+                timeout = setTimeout(() => reject(new Error('Agent turn has not drained after tool takeover')), 10_000);
+              }),
+            ]);
+          } finally {
+            if (timeout) clearTimeout(timeout);
+          }
+          return ticket;
+        },
+        resumeTools: (ticket) => connection.resumeTools(ticket),
+      },
+      ready: async () => {
+        try {
+          await this.bootstrap;
+        } catch (error) {
+          if (this.isToolBootstrapAdmitted) throw error;
+        }
+      },
+    });
     this.connection.conversationId = data.conversation_id;
     this.adapter = new AcpAdapter(data.conversation_id, data.backend);
     this.extra = {
@@ -346,6 +393,8 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
   initAgent(data: AcpAgentData = this.options): Promise<void> {
     if (this.bootstrap) return this.bootstrap;
     this.bootstrap = (async () => {
+      localAgentToolControl.assertCanPrompt();
+      this.isToolBootstrapAdmitted = true;
       let cliPath = data.cliPath;
       let customArgs: string[] | undefined;
       let customEnv: Record<string, string> | undefined;
@@ -434,8 +483,8 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         workspace: this.extra.workspace,
         cdpPort,
       };
-      const assistantSnapshot = await readMossAssistantSnapshot(this.options);
-      if (this.options.mossAccountScope && isPersonalAgentRef(this.options.presetAssistantId)) {
+      const assistantSnapshot = this.options.purpose === 'ontology' ? undefined : await readMossAssistantSnapshot(this.options);
+      if (!this.isOntologySession && this.options.mossAccountScope && isPersonalAgentRef(this.options.presetAssistantId)) {
         const runtime = await resolveMossPersonalRuntime(this.options.presetAssistantId!, this.options.mossAccountScope);
         this.connection.managedAgentId = runtime.agentId;
         this.connection.systemPromptAppend = runtime.systemPromptAppend;
@@ -452,6 +501,15 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       // forcing the agent to `find` for its own scripts.
       if (presetResult.contextAppendix) {
         this.options.presetContext = (this.options.presetContext || '') + presetResult.contextAppendix;
+      }
+
+      if (this.isOntologySession) {
+        const { prepareOntologyConversationRuntime } = await import('@process/services/ontology/ontologyConversationRuntime');
+        const runtime = await prepareOntologyConversationRuntime(this.options);
+        if (!runtime) throw new Error('ontology.studio.errors.builderUnavailable');
+        this.options.presetContext = runtime.presetContext;
+        this.options.extraMcpConfigs = runtime.extraMcpConfigs;
+        this.connection.systemPromptAppend = runtime.presetContext;
       }
 
       // Store resolved config for connection
@@ -472,7 +530,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       // until validated.
       customEnv = {
         ...customEnv,
-        ...resolveTunnelEnv(data.backend, dynamicNexusVfsService.acpTunnelEndpoint),
+        ...resolveTunnelEnv(data.backend, scodeRuntimeService.isRunning),
       };
 
       this.extra = {
@@ -551,7 +609,14 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         void this.cacheModelList(modelInfo);
       }
     })();
-    return this.bootstrap;
+    const bootstrap = this.bootstrap;
+    if (this.isOntologySession) {
+      // A failed initialization must not poison every subsequent send.
+      void bootstrap.catch(() => {
+        if (this.bootstrap === bootstrap) this.bootstrap = undefined;
+      });
+    }
+    return bootstrap;
   }
 
   private async connect(): Promise<void> {
@@ -654,7 +719,9 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     // A2: inject ontology-builder / other extra MCP configs so the AI Builder chat can
     // call ontology_* tools. Merged into a single mcp_servers list because ACP session/new
     // takes one array; the individual configs are already stable stdio-transport records.
-    const mcpConfigs: Array<{ name: string; command: string; args?: string[]; env?: Array<{ name: string; value: string }> }> = [];
+    const mcpConfigs: unknown[] = [];
+    mcpConfigs.push(await getLocalBrowserMcpConfig(this.conversation_id, this.connection.isHttpMcpSupported));
+    this.isSharedBrowserMcpEnabled = true;
     if (this.options.teamMcpConfig) mcpConfigs.push(this.options.teamMcpConfig);
     if (this.options.extraMcpConfigs?.length) mcpConfigs.push(...this.options.extraMcpConfigs);
     const memberMcpServers: unknown[] | undefined = mcpConfigs.length > 0 ? mcpConfigs : undefined;
@@ -772,11 +839,20 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     return this.lastTurnProseText;
   }
 
-  async sendMessage(data: { content: string; files?: string[]; msg_id?: string; cronMeta?: CronMessageMeta; skills?: string[]; hiddenPromptPrefix?: string; suppressUserBubble?: boolean }): Promise<{
+  sendMessage(data: Parameters<AcpAgent['performMessage']>[0]) {
+    const pending = this.performMessage(data);
+    this.toolControlTurns.add(pending);
+    void pending.finally(() => this.toolControlTurns.delete(pending)).catch(() => {});
+    return pending;
+  }
+
+  private async performMessage(data: { content: string; files?: string[]; msg_id?: string; cronMeta?: CronMessageMeta; skills?: string[]; hiddenPromptPrefix?: string; suppressUserBubble?: boolean }): Promise<{
     success: boolean;
     msg?: string;
     message?: string;
   }> {
+    const toolEpoch = localAgentToolControl.assertCanPrompt();
+    this.turnToolEpoch = toolEpoch;
     const managerSendStart = Date.now();
     if (ProcessConfig.getSync('eeclaw.accountScope')) {
       const { assertMossLocalExecutionAllowed } = await import('@process/services/mossLocalRuntime');
@@ -926,19 +1002,19 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
       // Managed chats use their prepared version; ID-based lookup can find a
       // different tenant copy or miss the digest-named snapshot entirely.
-      if (this.options.mossAccountScope && isPersonalAgentRef(this.options.presetAssistantId)) {
+      if (this.options.purpose !== 'ontology' && this.options.mossAccountScope && isPersonalAgentRef(this.options.presetAssistantId)) {
         const runtime = await resolveMossPersonalRuntime(this.options.presetAssistantId!, this.options.mossAccountScope);
         this.options.agentName = runtime.displayName;
         const governanceBlock = extractGovernanceBlock(this.options.presetContext);
         this.options.presetContext = [runtime.systemPromptAppend, governanceBlock].filter(Boolean).join('\n\n');
-      } else if (this.options.mossAccountScope && this.options.presetAssistantId) {
+      } else if (this.options.purpose !== 'ontology' && this.options.mossAccountScope && this.options.presetAssistantId) {
         const snapshot = await readMossAssistantSnapshot(this.options);
         if (!snapshot) throw new Error('Assistant snapshot is missing');
         const governanceBlock = extractGovernanceBlock(this.options.presetContext);
         const presetResult = applyPresetRuntimeFromMeta(snapshot.meta, { presetAssistantId: this.options.presetAssistantId, backend: this.extra.backend, workspace: this.extra.workspace, cdpPort: chromiumCdpPort || 9230 }, snapshot.directory);
         this.options.presetContext = [snapshot.presetContext, governanceBlock].filter(Boolean).join('\n\n') + presetResult.contextAppendix;
         this.options.agentName = snapshot.meta.display_name || snapshot.meta.nameI18n?.[app.getLocale()] || snapshot.meta.name || this.options.agentName;
-      } else if (this.options.presetAssistantId) {
+      } else if (this.options.purpose !== 'ontology' && this.options.presetAssistantId) {
         // Non-managed presets continue to pick up local edits between turns.
         try {
           const strippedId = this.options.presetAssistantId.startsWith('builtin-') ? this.options.presetAssistantId.slice('builtin-'.length) : this.options.presetAssistantId;
@@ -1185,7 +1261,7 @@ This identity statement takes priority over the default identity in USER.md.
         contentToSend = applyHiddenPromptPrefix(contentToSend, data.hiddenPromptPrefix);
 
         const agentSendStart = Date.now();
-        const result = await this.sendToConnection(contentToSend, data.msg_id, finalImages, true);
+        const result = await this.sendToConnection(contentToSend, data.msg_id, finalImages, true, toolEpoch);
         if (ACP_PERF_LOG) mainLog('ACP-PERF', `manager: sendMessage completed ${Date.now() - agentSendStart}ms (total: ${Date.now() - managerSendStart}ms)`);
         if (this.isFirstMessage) {
           this.isFirstMessage = false;
@@ -1202,7 +1278,7 @@ This identity statement takes priority over the default identity in USER.md.
         return result;
       }
       const agentSendStart = Date.now();
-      const result = await this.sendToConnection(data.content, data.msg_id, undefined, true);
+      const result = await this.sendToConnection(data.content, data.msg_id, undefined, true, toolEpoch);
       if (ACP_PERF_LOG) mainLog('ACP-PERF', `manager: sendMessage completed ${Date.now() - agentSendStart}ms (total: ${Date.now() - managerSendStart}ms)`);
       // Handle sendToConnection error result (not thrown)
       if (!result.success) {
@@ -1215,14 +1291,7 @@ This identity statement takes priority over the default identity in USER.md.
       }
       return result;
     } catch (e) {
-      this.flushThinkFilters();
-      this.streamTextBuffer.flushAll();
-      cronBusyGuard.setProcessing(this.conversation_id, false);
-      this.status = 'finished';
-      this.turnActive = false;
-      // Clear processingStartTime on error
-      // 错误时清除处理开始时间
-      this.processingStartTime = undefined;
+      this.finishTurnState();
 
       // Telemetry: end conversation tracking (error)
       const errorMsg = e instanceof Error ? e.message : String(e);
@@ -1328,7 +1397,7 @@ This identity statement takes priority over the default identity in USER.md.
     }
   }
 
-  private async sendToConnection(content: string, msg_id?: string, images?: Array<{ type: 'image'; data: string; mimeType: string }>, skipStart?: boolean): Promise<AcpResult> {
+  private async sendToConnection(content: string, msg_id?: string, images?: Array<{ type: 'image'; data: string; mimeType: string }>, skipStart?: boolean, toolEpoch = this.turnToolEpoch): Promise<AcpResult> {
     const sendStart = Date.now();
     try {
       if (!this.connection.isConnected || !this.connection.hasActiveSession) {
@@ -1341,6 +1410,7 @@ This identity statement takes priority over the default identity in USER.md.
           if (ACP_PERF_LOG) mainLog('ACP-PERF', `send: auto-reconnect failed ${Date.now() - reconnectStart}ms`);
           const errorMsg = reconnectError instanceof Error ? reconnectError.message : String(reconnectError);
           this.logAgentError('sendToConnection reconnect failed', reconnectError, { msg_id });
+          this.emitErrorMessage(translateLLMError(errorMsg));
           return {
             success: false,
             error: createAcpError(AcpErrorType.CONNECTION_NOT_READY, `Failed to reconnect: ${errorMsg}`, true),
@@ -1396,6 +1466,11 @@ This identity statement takes priority over the default identity in USER.md.
         processedContent = SCODE_COMPLETION_REMINDER + processedContent;
       }
 
+      localAgentToolControl.assertCanPrompt(toolEpoch);
+      if (this.isSharedBrowserMcpEnabled)
+        processedContent =
+          '[SudoWork shared browser] Use the sudowork-browser MCP tools for browser tasks so you and the user share the same browser, profile and tab. Desktop defaults to standalone CDP; choose extension explicitly when needed. Choose headless or headful from the task. Request explicit handoff for manual login. Never bypass human control using a shell, a separate browser or a different connection.\n\n' +
+          processedContent;
       await this.connection.sendPrompt(processedContent, images, msg_id);
       if (ACP_PERF_LOG) mainLog('ACP-PERF', `send: sendPrompt completed ${Date.now() - promptStart}ms (total send: ${Date.now() - sendStart}ms)`);
 
@@ -2337,6 +2412,7 @@ This identity statement takes priority over the default identity in USER.md.
       }, HARD_TIMEOUT_MS);
 
       (this.connection?.disconnect?.() || Promise.resolve())
+        .then(() => localAgentToolControl.unregister(this.toolControlActorId))
         .catch((err) => {
           mainWarn('[AcpAgent]', 'connection.disconnect() failed during kill', err);
         })
@@ -3604,8 +3680,10 @@ This identity statement takes priority over the default identity in USER.md.
       return;
     }
 
-    this.flushThinkFilters();
-    this.streamTextBuffer.flushAll();
+    if (v.type !== 'finish') {
+      this.flushThinkFilters();
+      this.streamTextBuffer.flushAll();
+    }
 
     if (v.type === 'acp_permission') {
       const { toolCall, options } = v.data as AcpPermissionRequest;
@@ -3631,16 +3709,7 @@ This identity statement takes priority over the default identity in USER.md.
     }
 
     if (v.type === 'finish') {
-      cronBusyGuard.setProcessing(this.conversation_id, false);
-      this.turnActive = false;
-
-      // Delay clearing processingStartTime to match frontend's 1-second finish delay
-      // This ensures timer can be restored if user switches conversations during the delay
-      // 延迟清除 processingStartTime 以匹配前端 1 秒的 finish 延迟
-      // 这确保在延迟期间切换会话时计时器可以恢复
-      setTimeout(() => {
-        this.processingStartTime = undefined;
-      }, 1500);
+      this.finishTurnState();
 
       await this.archiveCurrentTurnFiles().catch((err) => {
         mainError('AcpAgent', 'Turn archive failed:', err);
@@ -3714,6 +3783,16 @@ This identity statement takes priority over the default identity in USER.md.
   }
 
   // ========== Message Emission Helpers ==========
+
+  /** Complete execution state before clients can restore or start another turn. */
+  private finishTurnState(): void {
+    this.flushThinkFilters();
+    this.streamTextBuffer.flushAll();
+    cronBusyGuard.setProcessing(this.conversation_id, false);
+    this.status = 'finished';
+    this.turnActive = false;
+    this.processingStartTime = undefined;
+  }
 
   get lastConnectionStatus(): string | null {
     return this._lastConnectionStatus;
@@ -3795,6 +3874,7 @@ This identity statement takes priority over the default identity in USER.md.
   }
 
   private emitErrorMessage(error: string, withFinish: boolean = true, classification?: { errorClass: string; errorBytes?: number }): void {
+    if (withFinish) this.finishTurnState();
     const errorMessage: TMessage = {
       id: uuid(),
       conversation_id: this.conversation_id,
@@ -3810,14 +3890,7 @@ This identity statement takes priority over the default identity in USER.md.
     };
     this.emitMessage(errorMessage);
 
-    // Emit finish event to reset frontend processing state (unless skipped)
-    // Clear processingStartTime immediately on error (no delay)
-    // 发送 finish 事件以重置前端处理状态（除非跳过），错误时立即清除 processingStartTime（不延迟）
     if (withFinish) {
-      // Immediately clear processingStartTime on error
-      // 错误时立即清除 processingStartTime
-      this.processingStartTime = undefined;
-
       const finishMessage: IResponseMessage = {
         type: 'finish',
         conversation_id: this.conversation_id,
@@ -3825,6 +3898,7 @@ This identity statement takes priority over the default identity in USER.md.
         data: null,
       };
       ipcBridge.acpConversation.responseStream.emit(finishMessage);
+      channelEventBus.emitAgentMessage(this.conversation_id, finishMessage);
     }
   }
 
@@ -4190,8 +4264,7 @@ This identity statement takes priority over the default identity in USER.md.
    * them straight here). Subcommands:
    *
    *   /browser open <url>      — open url in the right-panel browser
-   *   /browser status          — show recent network responses for the
-   *                              currently active tab (status codes + URLs)
+   *   /browser status          — show shared session, tabs and control state
    *   /browser eval <js>       — run JS in the active tab, stream result back
    *   /browser screenshot      — capture the active tab and return as image
    */
@@ -4217,52 +4290,44 @@ This identity statement takes priority over the default identity in USER.md.
       if (!args) {
         emit('Usage: `/browser open <url>`, `/browser status`, `/browser eval <js>`, or `/browser screenshot`.');
       } else {
-        const { browserPanelCdpService } = await import('@process/services/browserPanel/BrowserPanelCdpService');
+        const { connectLocalBrowserMcp, getLocalBrowserSessions } = await import('@process/services/browserPanel/localBrowserSessionHost');
         const subMatch = args.match(/^(open|status|eval|screenshot)(?:\s+([\s\S]+))?$/i);
         if (!subMatch) {
           emit(`Unknown /browser subcommand. Usage: \`/browser open <url>\`, \`/browser status\`, \`/browser eval <js>\`, \`/browser screenshot\`.`);
         } else {
           const sub = subMatch[1].toLowerCase();
           const rest = (subMatch[2] || '').trim();
-          const targetId = browserPanelCdpService.resolveWebContentsId();
-
-          if (sub === 'open') {
-            if (!rest) {
-              emit('Usage: `/browser open <url>`');
-            } else {
-              ipcBridge.rightPanelBrowser.open.emit({ url: rest, switchTab: true, conversationId: this.conversation_id });
-              emit(`Opened ${rest} in the right-panel browser.`);
-            }
-          } else if (targetId === null) {
-            emit('No active browser tab. Open one with `/browser open <url>` or click the 浏览器 tab on the right.');
-          } else if (sub === 'status') {
-            const recent = browserPanelCdpService.listNetworkRequests(targetId, { limit: 25 });
-            if (recent.length === 0) {
-              emit('No network responses captured for the active tab yet.');
-            } else {
-              const lines = recent.map((r) => `${r.status ?? '   '} ${r.method ?? ''} ${r.type ?? ''} ${r.url.slice(0, 200)}`);
-              emit(['```', ...lines, '```'].join('\n'));
-            }
-          } else if (sub === 'eval') {
-            if (!rest) {
-              emit('Usage: `/browser eval <js-expression>`');
-            } else {
-              const result = await browserPanelCdpService.evaluateScript(targetId, { expression: rest });
-              if (!result.ok) {
-                emit(`Eval failed: ${result.errorText ?? 'unknown error'}${result.errorDetail ? `\n${result.errorDetail}` : ''}`);
+          const current = (await getLocalBrowserSessions().invoke(this.conversation_id, { kind: 'state' })).session;
+          if (sub === 'status') emit('Browser session\n\n```json\n' + JSON.stringify(current, null, 2) + '\n```');
+          else if ((sub === 'open' || sub === 'eval') && !rest) emit(`Usage: \`/browser ${sub} <${sub === 'open' ? 'url' : 'js-expression'}>\``);
+          else if (sub !== 'open' && current.state === 'stopped') emit('No active browser tab. Open one with `/browser open <url>`.');
+          else {
+            const client = await connectLocalBrowserMcp(this.conversation_id);
+            try {
+              const call = async (name: string, args: Record<string, unknown>) => {
+                const reply = await client.callTool({ name, arguments: args });
+                const content = reply.content as Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+                const text = content.find((item) => item.type === 'text')?.text || '{}';
+                if (reply.isError) throw new Error(text);
+                return { content, data: JSON.parse(text) as { session: typeof current; result?: unknown } };
+              };
+              const observed = current.state === 'stopped' ? await call('browser_launch', { isHeadless: false, transport: 'cdp' }) : await call('browser_observe', {});
+              const epochs = { controlEpoch: observed.data.session.controlEpoch, targetEpoch: observed.data.session.targetEpoch };
+              if (sub === 'open') {
+                await call('browser_action', { kind: 'navigate', url: rest, ...epochs });
+                ipcBridge.rightPanelBrowser.open.emit({ url: rest, switchTab: true, conversationId: this.conversation_id });
+                emit(`Opened ${rest} in the shared browser.`);
+              } else if (sub === 'eval') {
+                const result = await call('browser_action', { kind: 'command', method: 'Runtime.evaluate', paramsJson: JSON.stringify({ expression: rest, returnByValue: true }), ...epochs });
+                emit('Browser evaluation\n\n```json\n' + JSON.stringify(result.data.result, null, 2) + '\n```');
               } else {
-                const text = typeof result.value === 'string' ? result.value : JSON.stringify(result.value, null, 2);
-                emit(['```', String(text ?? result.description ?? '(no return value)'), '```'].join('\n'));
+                const shot = observed.content.find((item) => item.type === 'image');
+                if (!shot?.data) throw new Error('The shared browser did not return an image');
+                emit(`![browser screenshot](data:${shot.mimeType || 'image/jpeg'};base64,${shot.data})`);
               }
+            } finally {
+              await client.close();
             }
-          } else if (sub === 'screenshot') {
-            const shot = await browserPanelCdpService.takeScreenshot(targetId, { format: 'png' });
-            ipcBridge.acpConversation.responseStream.emit({
-              type: 'content',
-              conversation_id: this.conversation_id,
-              msg_id: responseMsgId,
-              data: `![browser screenshot](data:image/png;base64,${shot.base64})`,
-            });
           }
         }
       }

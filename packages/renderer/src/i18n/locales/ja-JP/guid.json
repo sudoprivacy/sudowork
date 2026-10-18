@@ -73,5 +73,11 @@
     "statusTesting": "Testing latency...",
     "statusUnreachable": "Unreachable",
     "statusAvailable": "Available"
+  },
+  "sessionComposition": {
+    "agent": "マイ Agent",
+    "template": "タスクテンプレート",
+    "noTemplate": "テンプレートなし",
+    "engine": "実行エンジン：{{engine}}"
   }
 }

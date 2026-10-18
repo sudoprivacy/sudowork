@@ -19,23 +19,32 @@ import { MossHttpError, type MossFetch } from './MossHttpClient.js'
 export type MossPhoneLoginResult = { kind: 'tokens'; tokens: MossTokenSet }
 
 export interface MossAuthPort {
-  loginWithPassword(input: { username: string; password: string }, baseUrl: string): Promise<MossTokenSet>
+  loginWithPassword(
+    input: { username: string; password: string },
+    baseUrl: string,
+  ): Promise<MossTokenSet>
   loginWithApiKey(apiKey: string, baseUrl: string): Promise<MossTokenSet>
   /** Ask moss to mint and deliver a code. Returns the resend cooldown. */
   sendPhoneCode(phone: string, baseUrl: string): Promise<{ nextSendIn: number }>
-  loginWithPhone(input: { phone: string; code: string }, baseUrl: string): Promise<MossPhoneLoginResult>
+  loginWithPhone(
+    input: { phone: string; code: string },
+    baseUrl: string,
+  ): Promise<MossPhoneLoginResult>
   registerWithPhone(
     input: { phone: string; code: string; nickname: string; invitationCode: string },
     baseUrl: string,
   ): Promise<MossTokenSet>
   refresh(refreshToken: string, baseUrl: string): Promise<MossTokenSet>
   me(accessToken: string, baseUrl: string): Promise<MossMe>
+  switchOrg?(accessToken: string, orgId: string, baseUrl: string): Promise<MossTokenSet>
 }
-
 
 /** Raised when the control plane refuses a send until the cooldown elapses. */
 export class SmsRateLimitedError extends Error {
-  constructor(readonly retryAfterSec: number, message?: string) {
+  constructor(
+    readonly retryAfterSec: number,
+    message?: string,
+  ) {
     super(message || 'Please wait before requesting another code')
     this.name = 'SmsRateLimitedError'
   }
@@ -62,6 +71,15 @@ function rateLimitMessage(err: unknown): string | undefined {
 
 export function createMossAuthPort(mossFetch: MossFetch): MossAuthPort {
   return {
+    async switchOrg(accessToken, orgId, baseUrl) {
+      const json = await mossFetch(baseUrl, {
+        method: 'POST',
+        path: '/api/v1/auth/switch-org',
+        accessToken,
+        body: { org_id: orgId },
+      })
+      return MossTokenSetSchema.parse(json)
+    },
     async loginWithPassword(input, baseUrl) {
       const json = await mossFetch(baseUrl, {
         method: 'POST',

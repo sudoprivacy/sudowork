@@ -1,4 +1,8 @@
 {
+  "interrupted": {
+    "title": "Execution connection interrupted",
+    "body": "The previous action may have taken effect. Check its results before asking the agent to continue. A new message will be accepted after the execution is confirmed idle."
+  },
   "database_open_failed": {
     "title": "Couldn't open the database",
     "body": "Your data is safe — the database files on disk were not modified or deleted. Sudowork couldn't open its local database this launch, so your history may not appear. Please restart the app; if this keeps happening, reinstall or repair Sudowork. Avoid creating new chats until it's resolved, to keep your data consistent."
@@ -39,5 +43,12 @@
   "timeout": {
     "title": "Request timed out",
     "body": "The request timed out; please retry shortly."
+  },
+  "runtime_update_required": {
+    "title": "Runtime update required",
+    "body": "Update your Cloud runtime to use the current configuration. Other running sessions must finish first. Messages and tools are never resent by this action.",
+    "cta": "Update runtime",
+    "updated": "Runtime updated. Send a new message to continue.",
+    "failed": "The update was not confirmed. Finish other running sessions and try again."
   }
 }

@@ -1,3 +1,6 @@
+import type { AgentReleaseOptions } from '@sudowork/contracts/agent-federation';
+import type { ExternalTaskEvidence } from '@sudowork/contracts/external-provider';
+import type { ExternalProviderAccess, ExternalPilotPolicy, ExternalAgentAdmin, ExternalProviderMember, ExternalConnectionInspection, InspectExternalConnection, OnboardExternalAgent, UpdateExternalAgent , CreateExternalTask, ExternalAgent, ExternalEventsPage, ExternalSession, ExternalTask } from '@sudowork/contracts/external-provider';
 import type { IMossCatalogPage, IMossCatalogItem, IMossCatalogInstallation, MossCatalogKind, MossCatalogSource } from '@sudowork/common/mossCatalog';
 /**
  * @license
@@ -6,6 +9,7 @@ import type { IMossCatalogPage, IMossCatalogItem, IMossCatalogInstallation, Moss
  */
 
 import { bridge } from '@office-ai/platform';
+import type { BrowserFile, BrowserSessionAction, BrowserSessionReply } from '@sudowork/contracts/browser-session';
 import type { IConfirmation, IResponseMessage } from '@sudowork/common/chatTypes';
 import type { IAssistantInfo, IAssistantMeta } from '@sudowork/common/assistantTypes';
 import type { IChannelPairingRequest, IChannelPluginStatus, IChannelSession, IChannelUser, IPluginCredentials } from '@sudowork/common/channelTypes';
@@ -71,6 +75,7 @@ import type {
   IOntologyPreviewAssetInput,
   IOntologyPreviewAssetResult,
   IOntologyPublishApprovalInput,
+  IOntologyPublishSkillInput,
   IOntologyPublishedVersion,
   IOntologyQualityRuleInput,
   IOntologyRegisterAgentInput,
@@ -80,6 +85,8 @@ import type {
   IOntologyRollbackInput,
   IOntologyRuntimeExecutionResult,
   IOntologySelectWorkbenchInput,
+  IOntologySkillBlueprint,
+  IOntologySkillBlueprintInput,
   IOntologySyncAssetSchemaInput,
   IOntologyWorkbenchDraftInput,
   IOntologyWorkbenchListResult,
@@ -620,6 +627,8 @@ export const moss = {
   updateSession: bridge.buildProvider<IBridgeResponse<MossSessionInfo>, { sessionId: string; title?: string }>('moss.update-session'),
   /** Resume an existing session to get WebSocket URL */
   resumeSession: bridge.buildProvider<IBridgeResponse<{ wsUrl: string; session: MossSessionInfo }>, { sessionId: string }>('moss.resume-session'),
+  /** Apply a controlled owner runtime update without resending any conversation input. */
+  upgradeRuntime: bridge.buildProvider<IBridgeResponse, { conversationId: string }>('moss.upgrade-runtime'),
   /** Send message to session (WebSocket) */
   sendMessage: bridge.buildProvider<
     IBridgeResponse,
@@ -1048,7 +1057,13 @@ export const ontology = {
   saveStudioModel: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, import('@sudowork/ontology-common').IOntologyStudioSaveInput>('ontology.studio.save-model'),
   previewStandardFile: bridge.buildProvider<IBridgeResponse<import('@sudowork/ontology-common').IOntologyStandardPreview>, { filePath: string }>('ontology.studio.preview-file'),
   importStandardFile: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, import('@sudowork/ontology-common').IOntologyStandardImportInput>('ontology.studio.import-file'),
-  exportStandardFile: bridge.buildProvider<IBridgeResponse<{ content: string; format: import('@sudowork/ontology-common').OntologyFileFormat }>, import('@sudowork/ontology-common').IOntologyStandardExportInput>('ontology.studio.export-file'),
+  exportStandardFile: bridge.buildProvider<
+    IBridgeResponse<{
+      content: string;
+      format: import('@sudowork/ontology-common').OntologyFileFormat;
+    }>,
+    import('@sudowork/ontology-common').IOntologyStandardExportInput
+  >('ontology.studio.export-file'),
   listWorkbenches: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchListResult>, void>('ontology.workbench.list'),
   getWorkbench: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, IOntologySelectWorkbenchInput | undefined>('ontology.workbench.get'),
   createWorkbench: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchMutationResult>, IOntologyCreateWorkbenchInput>('ontology.workbench.create'),
@@ -1102,6 +1117,20 @@ export const ontology = {
   approvePublishedVersion: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, IOntologyPublishApprovalInput>('ontology.publish.approve-version'),
   rejectPublishedVersion: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, IOntologyRejectVersionInput>('ontology.publish.reject-version'),
   rollbackToVersion: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, IOntologyRollbackInput>('ontology.publish.rollback-version'),
+  createSkillBlueprint: bridge.buildProvider<
+    IBridgeResponse<{
+      snapshot: IOntologyWorkbenchSnapshot;
+      blueprint: IOntologySkillBlueprint;
+    }>,
+    IOntologySkillBlueprintInput
+  >('ontology.skill.create-blueprint'),
+  publishSkillBlueprint: bridge.buildProvider<
+    IBridgeResponse<{
+      snapshot: IOntologyWorkbenchSnapshot;
+      blueprint: IOntologySkillBlueprint;
+    }>,
+    IOntologyPublishSkillInput
+  >('ontology.skill.publish-blueprint'),
   createAgentBlueprint: bridge.buildProvider<
     IBridgeResponse<{
       snapshot: IOntologyWorkbenchSnapshot;
@@ -1344,8 +1373,8 @@ export const sudoclaw = {
 // Types (ScodeConfig / ScodeModelEntry / ScodeModelProvider) live in
 // @sudowork/common/scodeTypes and are imported + re-exported at the top of this file.
 export const scode = {
-  /** Read scode config from ~/.nexus/sudowork/sudocode/sudocode.json */
-  getConfig: bridge.buildProvider<IBridgeResponse<ScodeConfig>, void>('scode.get-config'),
+  /** Read scode config and its resolved path from the main process. */
+  getConfig: bridge.buildProvider<IBridgeResponse<ScodeConfig> & { path?: string }, void>('scode.get-config'),
   /** Save full scode config to ~/.nexus/sudowork/sudocode/sudocode.json (overwrite) */
   saveConfig: bridge.buildProvider<IBridgeResponse<void>, { config: ScodeConfig }>('scode.save-config'),
   /** Save custom OpenAI-compatible scode model providers for the signed-in user */
@@ -1426,7 +1455,6 @@ export const nexus = {
   getStatus: bridge.buildProvider<
     IBridgeResponse<{
       running: boolean;
-      port: number;
       setupStage: string;
       installed: boolean;
       version?: string;
@@ -1446,8 +1474,6 @@ export const nexus = {
   }>('nexus.install-progress'),
   /** Emitted once when installation completes (success or failure) */
   installResult: bridge.buildEmitter<{ success: boolean; msg?: string }>('nexus.install-result'),
-  /** Install Nexus server from local file */
-  installFromLocalFile: bridge.buildProvider<IBridgeResponse<void>, { filePath: string }>('nexus.install-from-local-file'),
   /** Start Nexus server */
   start: bridge.buildProvider<IBridgeResponse<void>, void>('nexus.start'),
   /** Stop Nexus server */
@@ -1510,6 +1536,12 @@ export const logs = {
 // Right-panel BrowserPanel control API. The panel itself lives in the renderer
 // (Electron <webview>); these IPCs let the main process clear its partition
 // cache and (later) attach CDP-based agent tooling.
+export const browserSession = {
+  invoke: bridge.buildProvider<IBridgeResponse<BrowserSessionReply>, { conversationId: string; action: BrowserSessionAction }>('browser-session:invoke'),
+  uploadFile: bridge.buildProvider<IBridgeResponse<BrowserFile>, { conversationId: string; name: string; controlEpoch: number; targetEpoch: number; data: Uint8Array }>('browser-session:upload-file'),
+  downloadFile: bridge.buildProvider<IBridgeResponse<Uint8Array>, { conversationId: string; fileId: string }>('browser-session:download-file'),
+};
+
 export const browserPanel = {
   clearCache: bridge.buildProvider<IBridgeResponse<void>, void>('browser-panel:clear-cache'),
 
@@ -1756,6 +1788,7 @@ export interface ICronJob {
 
 export interface ICreateCronJobParams {
   name: string;
+  enabled?: boolean;
   schedule: ICronSchedule;
   message: string;
   conversationId: string;
@@ -2031,6 +2064,7 @@ export interface ICreateConversationParams {
       presetContext?: string;
       /** 预设助手 ID，用于在会话面板显示助手名称和头像 / Preset assistant ID for displaying name and avatar in conversation panel */
       presetAssistantId?: string;
+      templateRef?: string;
       /** Initial session mode selected on Guid page (from AgentModeSelector) */
       sessionMode?: string;
       /** Session mode (remote/local) for enterprise mode Provider selection - distinct from sessionMode (yolo/auto) */
@@ -2298,6 +2332,11 @@ export interface ISkillHubListResponse {
  * Prefixed with `_sudowork_` to avoid conflicts with skill content files.
  */
 export interface ISkillHubMeta {
+  ontologyBinding?: {
+    workspaceId: string;
+    versionId: string;
+    skillBlueprintId: string;
+  };
   id: string;
   name: string;
   display_name: string;
@@ -3527,11 +3566,81 @@ export const eeclaw = {
 };
 
 export const mossCatalog = {
-  list: bridge.buildProvider<IBridgeResponse<IMossCatalogPage>, { kind: MossCatalogKind; source: MossCatalogSource; query?: string; category?: string; cursor?: string }>('moss-catalog.list'),
-  detail: bridge.buildProvider<IBridgeResponse<IMossCatalogItem>, { kind: MossCatalogKind; source: MossCatalogSource; id: string; isLocal?: boolean }>('moss-catalog.detail'),
+  list: bridge.buildProvider<
+    IBridgeResponse<IMossCatalogPage>,
+    {
+      kind: MossCatalogKind;
+      source: MossCatalogSource;
+      query?: string;
+      category?: string;
+      cursor?: string;
+    }
+  >('moss-catalog.list'),
+  detail: bridge.buildProvider<
+    IBridgeResponse<IMossCatalogItem>,
+    {
+      kind: MossCatalogKind;
+      source: MossCatalogSource;
+      id: string;
+      isLocal?: boolean;
+    }
+  >('moss-catalog.detail'),
   installed: bridge.buildProvider<IBridgeResponse<IMossCatalogInstallation[]>, void>('moss-catalog.installed'),
-  install: bridge.buildProvider<IBridgeResponse<IMossCatalogInstallation>, { kind: MossCatalogKind; source: MossCatalogSource; id: string; isUpdate?: boolean }>('moss-catalog.install'),
+  install: bridge.buildProvider<
+    IBridgeResponse<IMossCatalogInstallation>,
+    {
+      kind: MossCatalogKind;
+      source: MossCatalogSource;
+      id: string;
+      isUpdate?: boolean;
+    }
+  >('moss-catalog.install'),
   remove: bridge.buildProvider<IBridgeResponse<void>, { kind: MossCatalogKind; source: MossCatalogSource; id: string }>('moss-catalog.remove'),
-  setEnabled: bridge.buildProvider<IBridgeResponse<void>, { kind: MossCatalogKind; source: MossCatalogSource; id: string; isEnabled: boolean }>('moss-catalog.set-enabled'),
+  setEnabled: bridge.buildProvider<
+    IBridgeResponse<void>,
+    {
+      kind: MossCatalogKind;
+      source: MossCatalogSource;
+      id: string;
+      isEnabled: boolean;
+    }
+  >('moss-catalog.set-enabled'),
   changed: bridge.buildEmitter<void>('moss-catalog.changed'),
+};
+
+export const externalProviders = {
+  versions: bridge.buildProvider<IBridgeResponse<AgentReleaseOptions>, { agentId: string; after?: string }>('external-providers.versions'),
+  evidence: bridge.buildProvider<IBridgeResponse<ExternalTaskEvidence>, { taskId: string }>('external-providers.evidence'),
+  context: bridge.buildProvider<IBridgeResponse<{ isAvailable: boolean; identity: string }>, void>('external-providers.context'),
+  access: bridge.buildProvider<IBridgeResponse<ExternalProviderAccess>, void>('external-providers.access'),
+  policy: bridge.buildProvider<IBridgeResponse<ExternalPilotPolicy>, void>('external-providers.policy'),
+  savePolicy: bridge.buildProvider<IBridgeResponse<ExternalPilotPolicy>, ExternalPilotPolicy>('external-providers.savePolicy'),
+  adminAgents: bridge.buildProvider<IBridgeResponse<ExternalAgentAdmin[]>, void>('external-providers.adminAgents'),
+  members: bridge.buildProvider<IBridgeResponse<ExternalProviderMember[]>, void>('external-providers.members'),
+  inspect: bridge.buildProvider<IBridgeResponse<ExternalConnectionInspection>, InspectExternalConnection>('external-providers.inspect'),
+  onboard: bridge.buildProvider<IBridgeResponse<ExternalAgentAdmin>, OnboardExternalAgent>('external-providers.onboard'),
+  update: bridge.buildProvider<IBridgeResponse<ExternalAgentAdmin>, { agentId: string; input: UpdateExternalAgent }>('external-providers.update'),
+  rotate: bridge.buildProvider<IBridgeResponse<ExternalAgentAdmin>, { agentId: string; revision: number; api_key: string }>('external-providers.rotate'),
+  archive: bridge.buildProvider<IBridgeResponse<ExternalAgentAdmin>, { agentId: string; revision: number }>('external-providers.archive'),
+  testAgent: bridge.buildProvider<IBridgeResponse<ExternalConnectionInspection>, { agentId: string }>('external-providers.testAgent'),
+  review: bridge.buildProvider<IBridgeResponse<ExternalAgentAdmin>, { agentId: string; approved: boolean; revision: number; review_days?: number }>('external-providers.review'),
+
+  agents: bridge.buildProvider<IBridgeResponse<ExternalAgent[]>, void>(
+    "external-providers.agents",
+  ),
+  sessions: bridge.buildProvider<IBridgeResponse<ExternalSession[]>, void>(
+    "external-providers.sessions",
+  ),
+  history: bridge.buildProvider<
+    IBridgeResponse<ExternalTask[]>,
+    { sessionId: string }
+  >("external-providers.history"),
+  create: bridge.buildProvider<
+    IBridgeResponse<ExternalTask>,
+    CreateExternalTask
+  >("external-providers.create"),
+  events: bridge.buildProvider<
+    IBridgeResponse<ExternalEventsPage>,
+    { taskId: string; cursor: number }
+  >("external-providers.events"),
 };

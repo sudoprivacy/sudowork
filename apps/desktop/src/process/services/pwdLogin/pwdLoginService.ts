@@ -12,8 +12,7 @@ import { app } from 'electron';
 import type { IPwdLoginParams, IPwdLoginResult } from '@sudowork/host-bridge/ipcBridge';
 import { BaseApprovalStore, type IApprovalKey } from '@/common/approval/ApprovalStore';
 import { PermissionType } from '@/common/codex/types/permissionTypes';
-import { getNexusSecretClient } from '@/common/nexus/nexus-secret-client';
-import { putSecretResilient, getSecretResilient } from '@/common/nexus/nexus-secret-resilient';
+import { getScodeSecretsClient, getSecretOrEmpty } from '@/common/scode/secretsClient';
 import { buildNamespace } from '@/common/nexus/namespace';
 import { mainError, mainLog } from '@process/utils/mainLogger';
 import { ProcessConfig } from '@/process/initStorage';
@@ -57,7 +56,7 @@ export interface PwdLoginEntryStatus {
 }
 
 // Resilient wrappers (single → batch fallback for vault dylib builds missing
-// the per-secret dispatch entries) moved to @common/nexus/nexus-secret-resilient
+// the per-secret dispatch entries) moved to @common/scode/secretsClient
 // so every secret-writing caller follows the same policy. Import above.
 
 async function getRegistry(): Promise<PwdLoginEntry[]> {
@@ -94,7 +93,7 @@ export async function resolvePwdAdapter(title: string): Promise<PwdAdapter | und
 async function hasCredential(title: string): Promise<boolean> {
   try {
     const key = title.trim();
-    const secrets = await getNexusSecretClient().listSecrets(PWD_LOGIN_NAMESPACE, false);
+    const secrets = await getScodeSecretsClient().listSecrets(PWD_LOGIN_NAMESPACE, false);
     return secrets.some((s) => s.key === key);
   } catch {
     return false;
@@ -128,7 +127,7 @@ export async function savePwdLoginCredential(title: string, username: string, pa
   if (!key) throw new Error('title required');
   const value = JSON.stringify({ username, password });
   try {
-    await putSecretResilient(PWD_LOGIN_NAMESPACE, key, value, `pwd_login: ${key}`);
+    await getScodeSecretsClient().putSecret(PWD_LOGIN_NAMESPACE, key, value, `pwd_login: ${key}`);
   } catch (err) {
     mainError('pwdLogin', `putSecret failed: ${err instanceof Error ? err.name : typeof err}`);
     throw err;
@@ -172,20 +171,14 @@ function credentialKey(title: string): IApprovalKey {
 }
 
 /**
- * Fetch credentials for `title` from the secret store via NexusSecretClient
- * (gRPC `password-vault.secret_get` to nexusd-cluster). Returns the password as
- * a Buffer ready for zeroing plus the non-secret username; the intermediate
- * String lifetime is the acknowledged residue (Python/JS can't truly zero a str).
- *
- * The stored value is JSON `{username, password}` (preferred) or a raw password
- * string (back-compat). Throws a structured PwdLoginErrorCode object so callers
- * can map to IPwdLoginResult cleanly. Replaces the old HTTP
- * `/api/v2/password_vault/{title}` path — nexusd-cluster :12022 is gRPC-only.
+ * Read the credential through Sudocode's Vault capability for the login filler.
+ * The value holds JSON {username, password} or a password string.
+ * The filler receives a Buffer; callers map failures to PwdLoginErrorCode.
  */
 async function fetchPasswordBuffer(title: string): Promise<{ username: string; passwordBuf: Buffer }> {
   let value: string;
   try {
-    value = await getSecretResilient(PWD_LOGIN_NAMESPACE, title);
+    value = await getSecretOrEmpty(PWD_LOGIN_NAMESPACE, title);
   } catch (err) {
     // Never log the error body (may carry secret material) — only the type.
     mainError('pwdLogin', `secret_get failed: ${err instanceof Error ? err.name : typeof err}`);

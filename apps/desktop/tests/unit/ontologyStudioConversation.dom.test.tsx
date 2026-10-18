@@ -1,10 +1,10 @@
 import '@arco-design/web-react/lib/_util/react-19-adapter';
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { createDefaultOntologyWorkbenchSnapshot } from '@sudowork/ontology-common';
 import OntologyPage from '@renderer/pages/ontology';
 import { ensureDefaultStudioConversation, requestStudioAiRepair } from '@renderer/pages/ontology/studioConversation';
@@ -21,8 +21,13 @@ const bridge = vi.hoisted(() => ({
   getConversation: vi.fn(),
   updateConversation: vi.fn(),
   sendMessage: vi.fn(),
+  getConfig: vi.fn(),
+  setConfig: vi.fn(),
+  setSessionMode: vi.fn(),
 }));
+vi.mock('@sudowork/common/storage', () => ({ ConfigStorage: { get: bridge.getConfig, set: bridge.setConfig } }));
 vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
+  eeclaw: { setSessionMode: { invoke: bridge.setSessionMode } },
   ontology: {
     createWorkbench: { invoke: bridge.createWorkbench },
     listWorkbenches: { invoke: bridge.listWorkbenches },
@@ -44,12 +49,18 @@ const snapshot = createDefaultOntologyWorkbenchSnapshot(1, { workspaceId: 'order
 const session = { id: 'session-1', workspaceId: 'orders', conversationId: 'chat-1', title: '订单模型', createdAt: 1, updatedAt: 1 };
 const input = { workspaceId: 'orders', title: '订单模型' };
 
+function GuidDestination() {
+  const location = useLocation();
+  return <div data-testid='agent-new-chat-route'>{location.pathname + location.search}</div>;
+}
+
 function mount(path = '/app/ontology') {
   return render(
     <I18nextProvider i18n={i18n}>
       <MemoryRouter initialEntries={[path]}>
         <Routes>
           <Route path='/app/ontology/:ontologyId?/:view?' element={<OntologyPage />} />
+          <Route path='/guid' element={<GuidDestination />} />
         </Routes>
       </MemoryRouter>
     </I18nextProvider>
@@ -60,11 +71,16 @@ async function onCreateOntology() {
   fireEvent.click(await screen.findByRole('button', { name: '新建本体' }));
   const dialog = await screen.findByRole('dialog');
   fireEvent.change(within(dialog).getByRole('textbox', { name: '名称' }), { target: { value: '订单模型' } });
-  fireEvent.click(within(dialog).getByRole('button', { name: /确定|OK/ }));
+  await act(async () => {
+    fireEvent.click(within(dialog).getByRole('button', { name: /确定|OK/ }));
+  });
 }
 
 beforeEach(() => {
   vi.resetAllMocks();
+  bridge.getConfig.mockResolvedValue({ isLocalAllowed: true });
+  bridge.setConfig.mockResolvedValue(undefined);
+  bridge.setSessionMode.mockResolvedValue(undefined);
   const storage = new Map<string, string>();
   vi.stubGlobal('localStorage', { getItem: (key: string) => storage.get(key) || null, setItem: (key: string, value: string) => storage.set(key, value), removeItem: (key: string) => storage.delete(key) });
   window.matchMedia = vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn() });
@@ -91,6 +107,10 @@ describe('ontology default conversation', () => {
     mount();
     await onCreateOntology();
     await screen.findByTestId('studio-chat');
+    const deferButton = await screen.findByRole('button', { name: '先完成建模' });
+    await act(async () => {
+      fireEvent.click(deferButton);
+    });
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(bridge.createWorkbench).toHaveBeenCalledTimes(1);
     expect(bridge.ensureBuilderMcp).not.toHaveBeenCalled();
@@ -120,7 +140,9 @@ describe('ontology default conversation', () => {
     const dialog = await screen.findByRole('dialog');
     fireEvent.click(within(dialog).getByRole('button', { name: /确定|OK/ }));
     await waitFor(() => expect(bridge.createWorkbench).toHaveBeenCalledTimes(1));
-    finish({ success: true, data: { snapshot } });
+    await act(async () => {
+      finish({ success: true, data: { snapshot } });
+    });
     await screen.findByTestId('studio-chat');
     expect(bridge.createWorkbench).toHaveBeenCalledTimes(1);
   });
@@ -175,5 +197,36 @@ describe('ontology AI check repairs', () => {
     expect(bridge.sendMessage).not.toHaveBeenCalled();
     bridge.sendMessage.mockResolvedValueOnce({ success: false, msg: 'busy' });
     await expect(requestStudioAiRepair({ ...input, prompt: 'Repair' }, vi.fn())).rejects.toThrow('ontology.studio.errors.repairBusy');
+  });
+});
+
+describe('ontology registered agent conversation navigation', () => {
+  it('opens the shared new-conversation page with the encoded registered identity', async () => {
+    const assistantId = 'ontology-version & 1';
+    const current = structuredClone(snapshot);
+    current.publishedVersions = [{ id: 'version-1', version: 'v1', status: 'published', snapshot: { objects: [], relations: [] } }] as any;
+    current.skillBlueprints = [
+      {
+        id: 'skill-1',
+        name: 'Orders skill',
+        description: 'Order queries',
+        status: 'published',
+        ontologyVersionId: 'version-1',
+        version: '1.0.0',
+        entityIds: [],
+        toolManifest: [],
+        registeredSkillId: 'ontology-skill-1',
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ] as any;
+    current.agentBlueprints = [{ id: 'blueprint-1', name: 'Orders agent', skillBlueprintId: 'skill-1', ontologyVersionId: 'version-1', status: 'registered', registeredAssistantId: assistantId }] as any;
+    bridge.getWorkbench.mockResolvedValue({ success: true, data: current });
+    mount('/app/ontology/orders/release');
+    fireEvent.click(await screen.findByRole('button', { name: '新会话' }));
+    expect(await screen.findByTestId('agent-new-chat-route')).toHaveTextContent('/guid?assistant=ontology-version%20%26%201&source=ontology');
+    expect(bridge.setConfig).not.toHaveBeenCalled();
+    expect(bridge.setSessionMode).not.toHaveBeenCalled();
+    expect(bridge.createConversation).not.toHaveBeenCalled();
   });
 });

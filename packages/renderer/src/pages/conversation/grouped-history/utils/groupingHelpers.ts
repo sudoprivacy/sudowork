@@ -6,11 +6,11 @@
 
 import type { ICronJob } from '@sudowork/host-bridge/ipcBridge';
 import type { TChatConversation } from '@sudowork/common/storage';
-import { isPersonalAgentRef } from '@sudowork/common/personalAgents';
-import { isOntologyConversation } from '@sudowork/common/conversationPurpose';
+import { isPersonalAgentRef, type IMyAgent } from '@sudowork/common/personalAgents';
 import { getActivityTime, getTimelineLabel } from '@renderer/utils/timeline';
 import { getWorkspaceDisplayName } from '@renderer/utils/workspace';
 import { getWorkspaceUpdateTime } from '@renderer/utils/workspaceHistory';
+import { compareConversationsByLatestActivity, getConversationAgentRef } from '../../utils/agentIdentity';
 
 import type { AgentGroup, ConversationItem, GroupedHistoryResult, ScheduledGroup, SidebarTabKey, TimelineItem, TimelineSection, WorkspaceGroup } from '../types';
 import { getConversationSortOrder } from './sortOrderHelpers';
@@ -36,16 +36,6 @@ export const getConversationPinnedAt = (conversation: ConversationItem): number 
 export const getConversationPinnedTab = (conversation: ConversationItem): SidebarTabKey | undefined => {
   const extra = conversation.extra as { pinnedTab?: SidebarTabKey } | undefined;
   return extra?.pinnedTab;
-};
-
-const compareConversationsByLatestActivity = (a: TChatConversation, b: TChatConversation): number => {
-  const activityDiff = getActivityTime(b) - getActivityTime(a);
-  if (activityDiff !== 0) return activityDiff;
-
-  const createTimeDiff = (b.createTime || 0) - (a.createTime || 0);
-  if (createTimeDiff !== 0) return createTimeDiff;
-
-  return b.id.localeCompare(a.id);
 };
 
 const getCronConversationTime = (conversation: TChatConversation): number => conversation.createTime || getActivityTime(conversation);
@@ -222,12 +212,8 @@ export const buildGroupedHistory = (
   conversations: ConversationItem[],
   t: (key: string) => string,
   cronJobs: ICronJob[] = [],
-  /**
-   * The person's agents, in the order the server gave them. Empty while it is
-   * still loading, which leaves `agentGroups` empty so the sidebar shows the
-   * timeline rather than flashing an ungrouped list.
-   */
-  agents: Array<{ ref: string; displayName: string; kind: AgentGroup['kind'] }> = []
+  /** Account catalog in the server's display order. */
+  agents: IMyAgent[] = []
 ): GroupedHistoryResult => {
   console.log('[buildGroupedHistory] Input:', {
     conversationsCount: conversations.length,
@@ -263,19 +249,17 @@ export const buildGroupedHistory = (
 
   // For timeline sections: exclude cronJobId conversations AND pinned conversations
   const normalConversations = conversations.filter((conv) => !(conv.extra as any)?.cronJobId && !isConversationPinned(conv));
-  const agentGroups = agents.length > 0 ? groupConversationsByAgent(normalConversations, agents) : [];
-  const groupedConversationIds = new Set(agentGroups.flatMap((group) => group.conversations.map((conversation) => conversation.id)));
-  // Older local conversations may have no Agent reference. Keep their timeline
-  // alongside the groups so Recent's limit cannot hide the rest of the history.
-  const timelineConversations = normalConversations.filter((conversation) => !groupedConversationIds.has(conversation.id));
+  const agentGroups = groupConversationsByAgent(
+    conversations.filter((conversation) => !conversation.extra?.cronJobId),
+    agents
+  );
 
   const result = {
     pinnedTimeline: pinnedTimeline as TChatConversation[],
     pinnedScheduled: pinnedScheduled as TChatConversation[],
-    timelineSections: groupConversationsByTimelineAndWorkspace(timelineConversations as TChatConversation[], t),
+    timelineSections: groupConversationsByTimelineAndWorkspace(normalConversations, t),
     scheduledGroups: buildScheduledGroups(conversations, cronJobs),
     agentGroups,
-    recent: getRecentConversations(normalConversations),
   };
 
   console.log(
@@ -287,38 +271,8 @@ export const buildGroupedHistory = (
   return result;
 };
 
-/** How many of the newest conversations the cross-agent section shows. */
-export const RECENT_CONVERSATION_LIMIT = 8;
-
-const getConversationAgentRef = (conversation: ConversationItem, listedReferences: Set<string>): string | undefined => {
-  const extra = conversation.extra as { agentName?: unknown; mossAssistantRef?: unknown; presetAssistantId?: unknown } | undefined;
-  for (const reference of [extra?.mossAssistantRef, extra?.presetAssistantId]) {
-    if (typeof reference === 'string' && (isPersonalAgentRef(reference) || listedReferences.has(reference))) return reference;
-  }
-  return typeof extra?.agentName === 'string' && extra.agentName ? extra.agentName : undefined;
-};
-
-/** Open the most recently active conversation for this identity, including pinned history. */
-export function getLatestAgentConversation(conversations: ConversationItem[], reference: string): ConversationItem | undefined {
-  const references = new Set([reference]);
-  return conversations.filter((conversation) => !conversation.extra?.cronJobId && conversation.extra?.isHealthCheck !== true && !isOntologyConversation(conversation) && getConversationAgentRef(conversation, references) === reference).sort(compareConversationsByLatestActivity)[0];
-}
-
-/**
- * Conversations grouped by the agent each belongs to.
- *
- * The group is the agent, not the template it came from: two people who both
- * picked 「招聘专家」 have two agents, and each sees only their own. `agents`
- * comes from the server for that reason — only it knows which of the three
- * kinds a stored reference is and where each kind's name lives.
- *
- * Agents keep the order the server gave them (the person's own first, then the
- * ones they made, then templates they have used), so the sidebar does not
- * reshuffle as conversations come and go. An agent with no conversations is
- * still listed: it is somewhere to start one, and a user who just made an agent
- * would otherwise watch it vanish.
- */
-export const groupConversationsByAgent = (conversations: ConversationItem[], agents: AgentGroup[] | Array<{ ref: string; displayName: string; kind: AgentGroup['kind'] }>): AgentGroup[] => {
+/** Group persistent Agent identities using the catalog and saved management context. */
+export const groupConversationsByAgent = (conversations: ConversationItem[], agents: IMyAgent[]): AgentGroup[] => {
   const byRef = new Map<string, ConversationItem[]>();
   const listedReferences = new Set(agents.map((agent) => agent.ref));
   for (const conversation of conversations) {
@@ -336,29 +290,18 @@ export const groupConversationsByAgent = (conversations: ConversationItem[], age
     conversations: (byRef.get(agent.ref) ?? []).sort(compareConversationsByLatestActivity),
   }));
 
-  // A conversation whose agent the server did not list still has to be
-  // reachable — dropping it would hide a conversation the user can open from
-  // the only place they can find it.
-  const listed = new Set(groups.map((group) => group.ref));
   for (const [ref, bucket] of byRef) {
-    if (listed.has(ref)) continue;
+    if (listedReferences.has(ref)) continue;
+    const management = bucket.find((conversation) => conversation.extra?.agentManagement)?.extra?.agentManagement;
+    if (!management && !isPersonalAgentRef(ref)) continue;
     const savedName = bucket.map((conversation) => conversation.extra?.agentName).find((name) => typeof name === 'string' && name !== ref && !isPersonalAgentRef(name));
     groups.push({
       ref,
-      displayName: savedName || (isPersonalAgentRef(ref) ? '' : ref),
-      kind: 'template',
+      displayName: management?.displayName || savedName || '',
+      kind: management ? 'managed' : 'own',
       conversations: bucket.sort(compareConversationsByLatestActivity),
     });
   }
 
   return groups;
 };
-
-/**
- * The newest conversations across every agent.
- *
- * Grouping only by agent would make "find the one from last week" start with
- * "remember whose it was", which is a step backwards from a flat list. This
- * keeps the by-time route open without giving up the grouping.
- */
-export const getRecentConversations = (conversations: ConversationItem[], limit: number = RECENT_CONVERSATION_LIMIT): ConversationItem[] => [...conversations].sort(compareConversationsByLatestActivity).slice(0, limit);

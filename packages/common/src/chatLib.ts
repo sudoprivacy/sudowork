@@ -105,6 +105,13 @@ export const convertMossMessagesToTMessages = (allMessages: any[], conversationI
       foundModel = msgModel;
     }
 
+    if (msgType === 'result') {
+      for (const response of mossFrameToResponses(msg, { sessionId: mossSessionId, conversationId, nextMsgId: () => `${conversationId}-${messageIndex}` })) {
+        if (response.type === 'error') messages.push({ ...transformMessage(response), id: `${conversationId}-${messageIndex++}`, createdAt: timestamp, status: finishedMessageStatus });
+      }
+      continue;
+    }
+
     if (msgType === 'artifacts') {
       for (const response of mossFrameToResponses(msg, { sessionId: mossSessionId, conversationId, nextMsgId: () => `${conversationId}-${messageIndex}` })) {
         if (response.type === 'content')
@@ -377,6 +384,7 @@ export const convertMossMessagesToTMessages = (allMessages: any[], conversationI
 export const transformMessage = (message: IResponseMessage): TMessage => {
   switch (message.type) {
     case 'error': {
+      const errorClass = message.errorClass ?? (message.data === 'RUNTIME_UPDATE_REQUIRED' ? 'runtime_update_required' : ['LOCK_UNCERTAIN', 'CONNECTION_CLOSED', 'PERMISSION_EXPIRED'].includes(String(message.data)) ? 'interrupted' : undefined);
       return {
         id: uuid(),
         type: 'tips',
@@ -388,6 +396,7 @@ export const transformMessage = (message: IResponseMessage): TMessage => {
         content: {
           content: message.data as string,
           type: 'error',
+          ...(errorClass ? { errorClass } : {}),
         },
       };
     }

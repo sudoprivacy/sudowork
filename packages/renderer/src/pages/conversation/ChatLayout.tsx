@@ -20,7 +20,7 @@ import { useLayoutContext } from '@renderer/context/LayoutContext';
 import { useResizableSplit } from '@renderer/hooks/useResizableSplit';
 import ConversationTabs from '@renderer/pages/conversation/ConversationTabs';
 import { PreviewPanel, usePreviewContext } from '@renderer/pages/conversation/preview';
-import ConversationTitleMinimap from '@renderer/pages/conversation/components/ConversationTitleMinimap';
+import AgentSessionHeader from '@renderer/pages/conversation/components/AgentSessionHeader';
 import { WORKSPACE_HAS_FILES_EVENT, WORKSPACE_TOGGLE_EVENT, dispatchWorkspaceStateEvent, dispatchWorkspaceToggleEvent, type WorkspaceHasFilesDetail } from '@renderer/utils/workspaceEvents';
 
 const MIN_CHAT_RATIO = 25;
@@ -461,14 +461,14 @@ const ChatLayout: React.FC<{
   const headerBlock = (
     <>
       <ConversationTabs />
-      <ArcoLayout.Header className='h-9 flex items-center justify-between p-4 gap-4 !bg-1 chat-layout-header overflow-hidden'>
-        <div className='shrink-0'>{props.headerLeft}</div>
+      <ArcoLayout.Header className='min-h-16 flex items-center justify-between px-4 py-3 gap-3 !bg-1 chat-layout-header border-b overflow-hidden'>
+        {props.headerLeft && <div className='shrink-0'>{props.headerLeft}</div>}
         <FlexFullContainer className='h-full min-w-0' containerClassName='flex items-center gap-4'>
-          <ConversationTitleMinimap title={props.title} conversationId={conversationId} />
+          <AgentSessionHeader title={props.title} conversationId={conversationId} />
         </FlexFullContainer>
         <div className='flex items-center gap-3 shrink-0'>
           {props.headerExtra}
-          {(backend || agentLogo) && <AgentModeSelector backend={backend} agentName={displayName} agentLogo={agentLogo} agentLogoIsEmoji={agentLogoIsEmoji} compact={false} showLogoInCompact={false} compactLabelType='mode' />}
+          {(backend || agentLogo) && <AgentModeSelector backend={backend} agentName={displayName} agentLogo={agentLogo} agentLogoIsEmoji={agentLogoIsEmoji} conversationId={conversationId} compact showLogoInCompact={false} compactLabelType='mode' />}
           {isWindowsRuntime && workspaceEnabled && (
             <button type='button' className='workspace-header__toggle' aria-label='Toggle workspace' onClick={() => dispatchWorkspaceToggleEvent()}>
               {rightSiderCollapsed ? <ExpandRight size={16} /> : <ExpandLeft size={16} />}

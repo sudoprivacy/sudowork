@@ -74,7 +74,7 @@ const AcpModelSelector: React.FC<{
 
     // For remote-agent (Moss Server), fetch models from Moss API
     if (backend === 'remote-agent') {
-      void fetchMossModelInfo(cancelled);
+      void fetchMossModelInfo();
       return () => {
         cancelled = true;
       };
@@ -129,11 +129,11 @@ const AcpModelSelector: React.FC<{
         });
     }
 
-    async function fetchMossModelInfo(isCancelled: boolean) {
+    async function fetchMossModelInfo() {
       try {
         // Fetch available models from Moss Server
         const modelsResult = await ipcBridge.moss.getAvailableModels.invoke();
-        if (isCancelled) return;
+        if (cancelled) return;
 
         if (!modelsResult.success || !modelsResult.data) {
           setModelInfo(buildFallbackModelInfo(fallbackModelId));
@@ -147,13 +147,20 @@ const AcpModelSelector: React.FC<{
 
         // Fetch user's current model preference
         const userPrefResult = await ipcBridge.moss.getUserModel.invoke();
-        if (isCancelled) return;
+        if (cancelled) return;
 
         let currentModelId = '';
         let currentModelLabel = '';
 
-        // Priority: user preference > system default > first available
-        if (userPrefResult.success && userPrefResult.data?.modelId) {
+        // The saved conversation model belongs to its owner. The viewer's
+        // preference only supplies a default for conversations without one.
+        if (initialModelId) {
+          const exact = availableModels.find((m) => m.id === initialModelId);
+          const aliases = availableModels.filter((m) => m.id.endsWith(`:${initialModelId}`));
+          const match = exact || (aliases.length === 1 ? aliases[0] : undefined);
+          currentModelId = match?.id || initialModelId;
+          currentModelLabel = match?.label || initialModelId;
+        } else if (userPrefResult.success && userPrefResult.data?.modelId) {
           // User has explicit preference
           currentModelId = userPrefResult.data.modelId;
           const match = availableModels.find((m: any) => m.id === currentModelId);
@@ -180,7 +187,7 @@ const AcpModelSelector: React.FC<{
         });
       } catch (error) {
         console.error('[AcpModelSelector][remote-agent] Failed to fetch Moss model info:', error);
-        if (!isCancelled) {
+        if (!cancelled) {
           setModelInfo(buildFallbackModelInfo(fallbackModelId));
         }
       }

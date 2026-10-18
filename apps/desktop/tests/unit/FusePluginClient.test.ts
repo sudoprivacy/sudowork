@@ -1,4 +1,4 @@
-import { beforeEach, describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 vi.mock('@process/utils/mainLogger', () => ({
   mainLog: vi.fn(),
@@ -10,13 +10,9 @@ vi.mock('@process/utils/mainLogger', () => ({
 // resolver. Tests never need the real one — every call we exercise here
 // goes through the injected fake client. Stub the module exports so
 // `import` doesn't blow up at module load.
-vi.mock('@common/nexus/nexus-vfs-client', () => ({
-  getNexusRpcClient: () => ({ callBinary: vi.fn() }),
+vi.mock('@common/scode/filesClient', () => ({
+  getScodeFilesClient: () => ({ callBinary: vi.fn() }),
 }));
-
-const isFuseLibraryAvailable = vi.hoisted(() => vi.fn(() => true));
-vi.mock('@process/services/nexus-vfs/VaultPluginInstaller', () => ({ isFuseLibraryAvailable }));
-beforeEach(() => isFuseLibraryAvailable.mockReturnValue(true));
 
 import { FusePluginClient } from '../../src/process/services/nexus-vfs/FusePluginClient';
 
@@ -31,18 +27,16 @@ function makeNexus(callBinary: (method: string, payload: Buffer) => Buffer | Err
 
 describe('FusePluginClient.getStatus', () => {
   it('reports a deferred FUSE library only after confirming the daemon is healthy', async () => {
-    isFuseLibraryAvailable.mockReturnValue(false);
     const serverInfo = vi.fn().mockResolvedValue({ zone_id: 'root' });
-    const callBinary = vi.fn();
+    const callBinary = vi.fn().mockResolvedValue(Buffer.from('fuse-t-missing'));
     const client = new FusePluginClient({ serverInfo, callBinary } as never);
     expect(await client.getStatus()).toEqual({ status: 'fuse-t-missing', raw: 'fuse-t-missing' });
-    expect(serverInfo).toHaveBeenCalledOnce();
-    expect(callBinary).not.toHaveBeenCalled();
+    expect(callBinary).toHaveBeenCalledOnce();
+    expect(serverInfo).not.toHaveBeenCalled();
   });
 
   it('does not ask to install FUSE when the daemon is unreachable', async () => {
-    isFuseLibraryAvailable.mockReturnValue(false);
-    const client = new FusePluginClient({ serverInfo: vi.fn().mockRejectedValue(new Error('daemon unavailable')) } as never);
+    const client = new FusePluginClient({ callBinary: vi.fn().mockRejectedValue(new Error('daemon unavailable')) } as never);
     expect(await client.getStatus()).toEqual({ status: 'unknown', raw: 'daemon unavailable' });
   });
 

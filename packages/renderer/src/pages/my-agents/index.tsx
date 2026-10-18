@@ -1,61 +1,23 @@
 import { Alert, Button, Card, Empty, Input, Message, Modal, Space, Spin, Tag, Typography } from '@arco-design/web-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
-import type { IMyAgent } from '@sudowork/common/personalAgents';
 import { emitter } from '@renderer/utils/emitter';
-import { getLatestAgentConversation } from '@renderer/pages/conversation/grouped-history/utils/groupingHelpers';
+import { useAgentEntry } from '@renderer/pages/conversation/hooks/useAgentEntry';
+import { useConversationHistory } from '@renderer/pages/conversation/context/ConversationHistoryContext';
+import { resetGuidDraft } from '@renderer/pages/guid/hooks/useGuidDraft';
 
 export default function MyAgents() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [agents, setAgents] = useState<IMyAgent[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isLoadFailed, setIsLoadFailed] = useState(false);
+  const { openingReference, onOpenAgent } = useAgentEntry();
+  const { agents: listedAgents, isAgentsLoading: isLoading, isAgentsLoadFailed: isLoadFailed, refresh: onLoad } = useConversationHistory();
+  const agents = listedAgents.filter((agent) => agent.kind !== 'template');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
-  const [openingAgentRef, setOpeningAgentRef] = useState<string | null>(null);
-  const openRequest = useRef(0);
   const [name, setName] = useState('');
   const isNameValid = name.trim().length > 0 && name.trim().length <= 60;
-
-  const onLoad = useCallback(async () => {
-    setIsLoading(true);
-    setIsLoadFailed(false);
-    try {
-      const result = await ipcBridge.eeclaw.getMyAgents.invoke();
-      if (!result.success || !Array.isArray(result.data)) throw new Error('Agent list unavailable');
-      setAgents(result.data.filter((agent) => agent.kind !== 'template'));
-    } catch {
-      setAgents([]);
-      setIsLoadFailed(true);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void onLoad();
-    return () => {
-      openRequest.current += 1;
-    };
-  }, [onLoad]);
-
-  async function onOpenAgent(agent: IMyAgent) {
-    const requestId = ++openRequest.current;
-    setOpeningAgentRef(agent.ref);
-    try {
-      const conversations = await ipcBridge.database.getUserConversations.invoke({});
-      if (requestId !== openRequest.current) return;
-      const latest = getLatestAgentConversation(conversations, agent.ref);
-      void navigate(latest ? `/conversation/${encodeURIComponent(latest.id)}` : `/guid?assistant=${encodeURIComponent(agent.ref)}`);
-    } catch {
-      if (requestId === openRequest.current) Message.error(t('agent.mine.openFailed'));
-    } finally {
-      if (requestId === openRequest.current) setOpeningAgentRef(null);
-    }
-  }
 
   async function onCreate() {
     if (!isNameValid || isCreating) return;
@@ -66,7 +28,6 @@ export default function MyAgents() {
       setIsCreateOpen(false);
       setName('');
       emitter.emit('chat.history.refresh');
-      await onLoad();
     } catch {
       Message.error(t('agent.mine.createFailed'));
     } finally {
@@ -91,10 +52,17 @@ export default function MyAgents() {
           {agents.map((agent) => (
             <Card key={agent.ref} title={agent.displayName} extra={<Tag>{t(agent.kind === 'default' ? 'agent.mine.default' : 'agent.mine.personal')}</Tag>}>
               <Space>
-                <Button type='primary' aria-label={`${t('agent.mine.open')} ${agent.displayName}`} loading={openingAgentRef === agent.ref} disabled={openingAgentRef !== null} onClick={() => void onOpenAgent(agent)}>
+                <Button type='primary' aria-label={`${t('agent.mine.open')} ${agent.displayName}`} loading={openingReference === agent.ref} disabled={openingReference !== null} onClick={() => void onOpenAgent(agent.ref)}>
                   {t('agent.mine.open')}
                 </Button>
-                <Button onClick={() => void navigate(`/guid?assistant=${encodeURIComponent(agent.ref)}`)}>{t('agent.mine.startConversation')}</Button>
+                <Button
+                  onClick={() => {
+                    resetGuidDraft();
+                    void navigate(`/guid?assistant=${encodeURIComponent(agent.ref)}`);
+                  }}
+                >
+                  {t('agent.mine.startConversation')}
+                </Button>
               </Space>
             </Card>
           ))}

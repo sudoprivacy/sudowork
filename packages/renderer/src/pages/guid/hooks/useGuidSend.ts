@@ -5,7 +5,7 @@
  */
 
 import { Message } from '@arco-design/web-react';
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import { type TFunction } from 'i18next';
 import type { NavigateFunction } from 'react-router-dom';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
@@ -34,6 +34,10 @@ export type GuidSendDeps = {
   // Agent state
   selectedAgent: AcpBackend | 'custom';
   selectedAgentKey: string;
+  personalAgentRef?: string;
+  personalAgentName?: string;
+  templateRef?: string;
+  isCompositionPending?: boolean;
   /** Resolved backend key (builtin/preset) for the selected agent; used to skip the guest model guard for claude. */
   modelBackendKey: string;
   selectedAgentInfo: AvailableAgent | undefined;
@@ -76,7 +80,7 @@ export type GuidSendDeps = {
 };
 
 export type GuidSendResult = {
-  handleSend: () => Promise<void>;
+  handleSend: () => Promise<boolean>;
   sendMessageHandler: () => void;
   isButtonDisabled: boolean;
 };
@@ -126,9 +130,10 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
   const { isEnterprise } = useAppMode();
   const { isGuest } = useAuth();
   const { hasModel, ready } = useHasAvailableModel();
+  const isSendingRef = useRef(false);
 
   const handleSend = useCallback(async () => {
-    if (isAgentSelectionPending) return;
+    if (isAgentSelectionPending || deps.isCompositionPending) return false;
     // Guest pre-send check: prompt if no usable model. Login users (isGuest=false) always skip.
     // claude code carries its own config (~/.claude/settings.json) and does not consume
     // model.config; skip this guard for claude to avoid a false "no model configured".
@@ -142,7 +147,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
       }
       if (!hasModel && !isScodeAvailable) {
         Message.error(t('guid.modelNotConfigured', { defaultValue: '未配置可用模型，请在设置页添加模型' }));
-        return;
+        return false;
       }
     }
 
@@ -193,8 +198,9 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
           extra: {
             workspace: finalWorkspace,
             backend: 'remote-agent',
-            agentName: agentInfo?.name || 'Moss Server',
-            presetAssistantId: agentInfo?.customAgentId || agentInfo?.name || 'Moss Server',
+            agentName: deps.personalAgentName || agentInfo?.name || 'Moss Server',
+            presetAssistantId: deps.personalAgentRef || agentInfo?.customAgentId || agentInfo?.name || 'Moss Server',
+            templateRef: deps.templateRef,
             enabledSkills: isWebBridgeAvailable() ? [...new Set(selectedSkills)] : isEnterprise && isPreset ? enabledSkills : undefined,
             sessionMode: selectedMode,
             dangerouslySkipPermissions: selectedMode === 'yolo',
@@ -241,7 +247,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         console.error('Failed to create remote agent conversation:', error);
         throw error;
       }
-      return;
+      return true;
     }
 
     // Non-enterprise: scode availability check
@@ -251,7 +257,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
           defaultValue: 'Sudo Code is not available. Please install or repair the runtime.',
         })
       );
-      return;
+      return false;
     }
 
     // ACP path (including preset with claude agent type)
@@ -292,18 +298,17 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
             customAgentId: acpAgentInfo?.customAgentId,
             presetContext: isPreset ? presetRules : undefined,
             enabledSkills: isWebBridgeAvailable() ? [...new Set(selectedSkills)] : isPreset ? enabledSkills : undefined,
-            presetAssistantId: isPreset ? agentInfo?.customAgentId || acpAgentInfo?.customAgentId : undefined,
+            presetAssistantId: deps.personalAgentRef || (isPreset ? agentInfo?.customAgentId || acpAgentInfo?.customAgentId : undefined),
+            templateRef: deps.templateRef,
             sessionMode: isPreset ? resolveSessionMode(getPresetByAgentId(agentInfo?.customAgentId)?.defaultMode, acpBackend, selectedMode) : selectedMode,
             currentModelId: effectiveAcpModelId,
             sessionModeParam: 'local',
           },
         });
 
+        if (!conversation) throw new Error(t('conversation.createFailed'));
         if ('__error' in conversation) throw new Error(conversation.__error);
-        if (!conversation || !conversation.id) {
-          console.error('Failed to create ACP conversation - conversation object is null or missing id');
-          return;
-        }
+        if (!conversation.id) throw new Error(t('conversation.createFailed'));
 
         // Bind the conversation to Dify enhancement when the chosen assistant
         // is a sudohub preset. Non-preset / custom assistants get a no-op since
@@ -336,12 +341,17 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         sessionStorage.setItem(`acp_initial_message_${conversation.id}`, JSON.stringify(initialMessage));
 
         await navigate(`/conversation/${conversation.id}`);
+        return true;
       } catch (error: unknown) {
         console.error('Failed to create ACP conversation:', error);
         throw error;
       }
     }
   }, [
+    deps.personalAgentRef,
+    deps.personalAgentName,
+    deps.templateRef,
+    deps.isCompositionPending,
     input,
     files,
     dir,
@@ -372,12 +382,14 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
   ]);
 
   const sendMessageHandler = useCallback(() => {
-    if (isAgentSelectionPending) return;
+    if (isAgentSelectionPending || isSendingRef.current || !input.trim()) return;
+    isSendingRef.current = true;
     setLoading(true);
     const isPreparingLocal = isEnterprise && sessionMode === 'local';
     const closePreparing = isPreparingLocal ? Message.loading({ content: t('guid.localPreparing'), duration: 0 }) : undefined;
     handleSend()
-      .then(() => {
+      .then((isCreated) => {
+        if (!isCreated) return;
         setInput('');
         setMentionOpen(false);
         setMentionQuery(null);
@@ -394,13 +406,14 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         Message.error(isPreparingLocal ? t('guid.localPreparationFailed', { reason: error instanceof Error ? error.message : String(error) }) : String(error));
       })
       .finally(() => {
+        isSendingRef.current = false;
         closePreparing?.();
         setLoading(false);
       });
-  }, [handleSend, isAgentSelectionPending, isEnterprise, sessionMode, t, setLoading, setInput, setMentionOpen, setMentionQuery, setMentionSelectorOpen, setMentionActiveIndex, setFiles, setDir, resetAgentSelection, setSelectedSkills]);
+  }, [handleSend, input, isAgentSelectionPending, isEnterprise, sessionMode, t, setLoading, setInput, setMentionOpen, setMentionQuery, setMentionSelectorOpen, setMentionActiveIndex, setFiles, setDir, resetAgentSelection, setSelectedSkills]);
 
   // Calculate button disabled state
-  const isButtonDisabled = Boolean(isAgentSelectionPending) || !input.trim();
+  const isButtonDisabled = Boolean(isAgentSelectionPending || deps.isCompositionPending) || !input.trim();
 
   return {
     handleSend,

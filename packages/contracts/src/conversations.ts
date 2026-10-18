@@ -15,12 +15,13 @@ export const MossSessionSummarySchema = z
   .object({
     sessionId: z.string(),
     taskId: z.string().optional(),
-    currentAttemptId: z.string().nullable().optional(),
+    attemptId: z.string().nullable().optional(),
     userId: z.string(),
     orgId: z.string(),
     status: z.string(),
     assistantName: z.string().nullable().optional(),
     source: z.string().nullable().optional(),
+    clientMetadata: z.record(z.unknown()).optional(),
   })
   .passthrough()
 export type MossSessionSummary = z.infer<typeof MossSessionSummarySchema>
@@ -29,15 +30,25 @@ export const MossSessionListResponseSchema = z.object({
   sessions: z.array(MossSessionSummarySchema),
 })
 
+export const MossStartupFailureSchema = z.object({
+  sessionId: z.string().optional(),
+  attemptId: z.string(),
+  code: z.string(),
+  isRetryable: z.boolean(),
+  message: z.string(),
+})
+
 export const MossCreateSessionResponseSchema = z
   .object({
     session_id: z.string(),
     task_id: z.string().optional(),
     attempt_id: z.string().nullable().optional(),
+    startup: MossStartupFailureSchema.optional(),
     ws_url: z.string(),
     work_dir: z.string().optional(),
   })
   .passthrough()
+export type MossCreateSessionResponse = z.infer<typeof MossCreateSessionResponseSchema>
 
 export const MossResumeResponseSchema = z
   .object({
@@ -45,6 +56,13 @@ export const MossResumeResponseSchema = z
     ws_url: z.string(),
   })
   .passthrough()
+
+/** A live execution observation, bound to the current runner attempt. */
+export const MossSessionActivitySchema = z.object({
+  attemptId: z.string().min(1).nullable(),
+  state: z.enum(['idle', 'busy', 'unavailable']),
+})
+export type MossSessionActivity = z.infer<typeof MossSessionActivitySchema>
 
 export const MossContextResponseSchema = z.object({
   session: MossSessionSummarySchema.optional(),
@@ -55,7 +73,14 @@ export const MossContextResponseSchema = z.object({
         .array(
           z
             .object({
-              type: z.enum(['user', 'assistant', 'thinking', 'tool_use', 'tool_result']),
+              type: z.enum([
+                'user',
+                'assistant',
+                'thinking',
+                'tool_use',
+                'tool_result',
+                'artifacts',
+              ]),
               uuid: z.string().optional(),
             })
             .passthrough(),
@@ -93,6 +118,7 @@ export const MossWorkspaceNodeSchema: z.ZodType<MossWorkspaceNode> = z.lazy(() =
 export const CreateConversationRequestSchema = z.object({
   /** 空串 = 不指定智能体，由 Moss 走默认（部署版实测空 assistant_name 创建 200） */
   assistantName: z.string().trim().max(255),
+  templateRef: z.string().trim().min(1).max(255).optional(),
   enabledSkills: z.array(z.string().min(1).max(255)).max(50).default([]),
   /** 建会话时所选模型（可选）；服务端校验可用后 setUserModel + 本地持久化 */
   modelId: z.string().trim().min(1).max(255).optional(),
@@ -125,7 +151,17 @@ export const ConversationListItemSchema = z.object({
   taskId: z.string().nullable().optional(),
   status: z.string(),
   assistantName: z.string().nullable(),
+  templateRef: z.string().nullable().optional(),
   source: z.string().nullable(),
+  managementContext: z
+    .object({
+      ownerId: z.string(),
+      ownerName: z.string(),
+      agentName: z.string(),
+      displayName: z.string(),
+    })
+    .nullable()
+    .optional(),
   /** 上游 epoch 毫秒时间戳（会话创建时间，moss sessions 列表 passthrough 字段）；未知时为 null */
   createdAt: z.number().nullable(),
   /** 上游 epoch 毫秒时间戳；未知时为 null */
@@ -207,9 +243,18 @@ export type ClientOutboundMessage = z.infer<typeof ClientOutboundMessageSchema>
 /** WebUI → 浏览器：上游事件白名单转发 + WebUI 控制事件 */
 export const ServerInboundEventSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('upstream'), event: z.unknown() }),
+  z.object({ kind: z.literal('permissions_cleared') }),
+  z.object({ kind: z.literal('permission_resolved'), requestId: z.string() }),
   z.object({ kind: z.literal('writer'), isWriter: z.boolean() }),
-  z.object({ kind: z.literal('lock'), state: z.enum(['idle', 'running', 'uncertain']) }),
-  z.object({ kind: z.literal('error'), code: z.string(), message: z.string().optional() }),
+  z.object({
+    kind: z.literal('lock'),
+    state: z.enum(['idle', 'running', 'uncertain']),
+  }),
+  z.object({
+    kind: z.literal('error'),
+    code: z.string(),
+    message: z.string().optional(),
+  }),
 ])
 export type ServerInboundEvent = z.infer<typeof ServerInboundEventSchema>
 
@@ -218,6 +263,8 @@ export const UPSTREAM_EVENT_TYPES = new Set([
   'hello',
   'assistant',
   'tool_use',
+  'tool_result',
+  'artifacts',
   'result',
   'system',
   'thinking', // 当前上游不发射；保留兼容位，未来上游支持即生效

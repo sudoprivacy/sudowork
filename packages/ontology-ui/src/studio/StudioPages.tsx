@@ -277,8 +277,12 @@ export function StudioCapabilitiesPage({ snapshot, api, onRefresh, onError }: IS
         ...values,
         id: prior?.id,
         code: values.code || prior?.code || `query_${crypto.randomUUID().slice(0, 8)}`,
+        name: prior ? prior.name : values.displayName,
+        description: prior ? prior.description : values.displayDescription || '',
+        displayName: values.displayName,
+        displayDescription: values.displayDescription || '',
         parameters,
-        signature: values.name,
+        signature: prior ? prior.signature : values.displayName,
         returnType: 'Rows',
         configuration: { ...prior?.configuration, connectorId: values.connectorId },
         status: 'active',
@@ -319,7 +323,7 @@ export function StudioCapabilitiesPage({ snapshot, api, onRefresh, onError }: IS
         data={snapshot.logicFunctions}
         noDataElement={<Empty description={text('emptyCapabilities')} />}
         columns={[
-          { title: text('name'), dataIndex: 'name' },
+          { title: text('name'), dataIndex: 'displayName' },
           { title: text('runtime'), dataIndex: 'runtime' },
           {
             title: text('operations'),
@@ -359,22 +363,22 @@ export function StudioCapabilitiesPage({ snapshot, api, onRefresh, onError }: IS
             rowKey='id'
             data={snapshot.actions}
             columns={[
-              { title: text('name'), dataIndex: 'name' },
+              { title: text('name'), dataIndex: 'displayName' },
               { title: text('executor'), dataIndex: 'executor' },
-              { title: text('description'), dataIndex: 'description' },
+              { title: text('description'), dataIndex: 'displayDescription' },
             ]}
           />
         </>
       )}
       <Modal visible={editing !== undefined} title={text('editCapability')} onCancel={() => setEditing(undefined)} onOk={onSave} style={{ width: 'min(780px, 90vw)' }} unmountOnExit>
         <Form form={form} layout='vertical'>
-          <Form.Item field='name' label={text('name')} rules={[{ required: true }]}>
+          <Form.Item field='displayName' label={text('name')} rules={[{ required: true }]}>
             <Input />
           </Form.Item>
           <Form.Item field='code' label={text('code')}>
             <Input />
           </Form.Item>
-          <Form.Item field='description' label={text('description')}>
+          <Form.Item field='displayDescription' label={text('description')}>
             <Input.TextArea />
           </Form.Item>
           <Form.Item field='objectIds' label={text('objects')}>

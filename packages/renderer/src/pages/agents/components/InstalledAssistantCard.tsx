@@ -6,16 +6,16 @@
 
 import React from 'react';
 import { Button, Popconfirm, Switch, Tooltip } from '@arco-design/web-react';
-import { Bot, Copy, Download, Eye, SquarePen, Trash2, Upload, Zap } from 'lucide-react';
+import { ArrowUpRight, Bot, Copy, Download, Eye, SquarePen, Trash2, Upload, Zap } from 'lucide-react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
+import { isElectronDesktop } from '@renderer/utils/platform';
 import type { AssistantListItem } from '../types';
 import { normalizeAssistantVersion, resolveAvatarImageSrc } from '../utils';
-import { isElectronDesktop } from '@renderer/utils/platform';
 
-const InstalledAssistantCard: React.FC<InstalledAssistantCardProps> = (props) => {
+export default function InstalledAssistantCard(props: IInstalledAssistantCardProps) {
   const { assistant, isExtension, localeKey } = props;
-  const { onToggleEnabled, onDelete, onDuplicate, onUpdate, hasUpdate, updating, onUpload, onClick } = props;
+  const { onToggleEnabled, onDelete, onDuplicate, onUpdate, hasUpdate, updating, onUpload, onClick, onUse, isOpening, isUseDisabled } = props;
   const { uploadStatus, enterprisePublishButton, hideDelete, allowToggle, allowDelete, enterpriseMode, canManage = true } = props;
   const { t } = useTranslation();
   const isCustom = enterpriseMode ? assistant._category === 'custom' || (!assistant._category && !assistant.isBuiltin && !isExtension && !assistant._isHubInstalled) : !assistant.isBuiltin && !isExtension && !assistant._isHubInstalled;
@@ -67,6 +67,23 @@ const InstalledAssistantCard: React.FC<InstalledAssistantCardProps> = (props) =>
             <span className='text-10px text-secondary'>{t('settings.assistant.relatedSkills', { count: assistant.enabledSkills.length, defaultValue: `${assistant.enabledSkills.length} 个关联技能` })}</span>
           </div>
         )}
+        {onUse && (
+          <div className='flex justify-end mt-2'>
+            <Button
+              size='small'
+              type='primary'
+              icon={<ArrowUpRight size={13} />}
+              loading={isOpening}
+              disabled={!isEnabled || isUseDisabled}
+              onClick={(event) => {
+                event.stopPropagation();
+                onUse();
+              }}
+            >
+              {t('settings.skill.goUse', '去使用')}
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Top-right: edit/view + upload (custom only) + duplicate button + shield (builtin) or delete (custom) */}
@@ -116,9 +133,9 @@ const InstalledAssistantCard: React.FC<InstalledAssistantCardProps> = (props) =>
       </div>
     </div>
   );
-};
+}
 
-type InstalledAssistantCardProps = {
+interface IInstalledAssistantCardProps {
   assistant: AssistantListItem;
   isExtension: boolean;
   localeKey: string;
@@ -131,6 +148,9 @@ type InstalledAssistantCardProps = {
   onUpload?: () => void;
   uploadStatus?: React.ReactNode;
   onClick: () => void;
+  onUse?: () => void;
+  isOpening?: boolean;
+  isUseDisabled?: boolean;
   /** Enterprise mode: publish button element */
   enterprisePublishButton?: React.ReactNode;
   /** Enterprise mode: whether to hide delete button (only custom assistants can be deleted) */
@@ -143,6 +163,4 @@ type InstalledAssistantCardProps = {
   enterpriseMode?: boolean;
   /** Web host: false hides the delete button for non-admin sessions (defaults to true; desktop keeps it). */
   canManage?: boolean;
-};
-
-export default InstalledAssistantCard;
+}

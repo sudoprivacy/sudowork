@@ -26,10 +26,12 @@ function setup() {
     { ref: 'moss-agent:own:alice-project', kind: 'own' },
     { ref: 'removed-template', kind: 'template' },
   ]
+  const template = { id: 'template-id', name: 'installed-template' }
+  const templates = [template]
   const create = vi.fn().mockResolvedValue({ sessionId: 'session-a' })
   const mossFetch = vi.fn(async (_base, req) => {
     if (req.path === '/api/v1/agents/mine') return { success: true, data: mine }
-    if (req.path === '/api/v1/agent-templates/installed') return [{ name: 'installed-template' }]
+    if (req.path === '/api/v1/agent-templates/installed') return templates
     throw new Error(`Unexpected request: ${req.path}`)
   })
   // These collaborators are not used by creation without a model override.
@@ -41,10 +43,44 @@ function setup() {
     moss: { create } as unknown as MossSessionPort,
     mossFetch,
   }
-  return { deps, create, mossFetch, mine }
+  return { deps, create, mossFetch, mine, template, templates }
 }
 
 describe('personal Agent selection', () => {
+  test('combines an owned identity with an installed template as independent references', async () => {
+    const { deps, create } = setup()
+    await createConversation(
+      deps,
+      principal,
+      {
+        assistantName: 'moss-agent:own:alice-project',
+        templateRef: 'installed-template',
+        enabledSkills: [],
+      },
+      ctx,
+    )
+    expect(create).toHaveBeenCalledWith(ctx, {
+      assistantName: 'moss-agent:own:alice-project',
+      templateRef: 'template-id',
+      enabledSkills: [],
+    })
+  })
+
+  test.each([
+    { assistantName: 'moss-agent:own:bob-project', templateRef: 'installed-template' },
+    { assistantName: 'moss-agent:user:alice', templateRef: 'removed-template' },
+    { assistantName: 'moss-agent:user:alice', templateRef: 'moss-agent:own:alice-project' },
+    { assistantName: 'installed-template', templateRef: 'installed-template' },
+  ])(
+    'rejects an invalid identity/template combination before starting the runtime: %j',
+    async (selection) => {
+      const { deps, create } = setup()
+      await expect(
+        createConversation(deps, principal, { ...selection, enabledSkills: [] }, ctx),
+      ).rejects.toBeInstanceOf(InvalidSelectionError)
+      expect(create).not.toHaveBeenCalled()
+    },
+  )
   test.each(['moss-agent:user:alice', 'moss-agent:own:alice-project'])(
     'creates a session for an owned Agent: %s',
     async (assistantName) => {
@@ -94,10 +130,47 @@ describe('personal Agent selection', () => {
       ctx,
     )
     expect(create).toHaveBeenCalledTimes(1)
+    expect(create).toHaveBeenCalledWith(ctx, { assistantName: 'template-id', enabledSkills: [] })
     expect(mossFetch).toHaveBeenCalledWith(ctx.baseUrl, {
       method: 'GET',
       path: '/api/v1/agent-templates/installed',
       accessToken: ctx.accessToken,
+    })
+  })
+
+  test('uses the stable installed ID even when the template name changes', async () => {
+    const { deps, create, template } = setup()
+    template.name = 'renamed-template'
+    await createConversation(
+      deps,
+      principal,
+      { assistantName: 'template-id', enabledSkills: [] },
+      ctx,
+    )
+    expect(create).toHaveBeenCalledWith(ctx, { assistantName: 'template-id', enabledSkills: [] })
+  })
+
+  test('refuses an ambiguous template name and accepts an exact visible ID', async () => {
+    const { deps, create, templates } = setup()
+    templates.push({ id: 'other-template-id', name: 'installed-template' })
+    await expect(
+      createConversation(
+        deps,
+        principal,
+        { assistantName: 'installed-template', enabledSkills: [] },
+        ctx,
+      ),
+    ).rejects.toBeInstanceOf(InvalidSelectionError)
+    expect(create).not.toHaveBeenCalled()
+    await createConversation(
+      deps,
+      principal,
+      { assistantName: 'other-template-id', enabledSkills: [] },
+      ctx,
+    )
+    expect(create).toHaveBeenCalledWith(ctx, {
+      assistantName: 'other-template-id',
+      enabledSkills: [],
     })
   })
 

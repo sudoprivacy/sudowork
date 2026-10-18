@@ -15,6 +15,7 @@ resources/node-win32-*.zip
 resources/bdpan-installer-*
 resources/mcporter.tgz
 resources/browser-panel-mcp/index.js
+resources/browser-panel-mcp/shared.js
 resources/team-mcp/index.js
 resources/.dev-runtime-versions.json
 resources/openclaw.manifest.json

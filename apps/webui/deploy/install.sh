@@ -76,6 +76,8 @@ Examples:
     sudo PUBLIC_ORIGIN=https://webui.example.com \
          MOSS_BASE_URL=http://10.0.1.206:43127 \
          bash -s -- --non-interactive
+WEBUI_ARCH=amd64|arm64 selects offline downloads; installation must match the host.
+
 EOF
 }
 
@@ -174,7 +176,14 @@ case "$VERSION" in
   ''|*[!0-9A-Za-z._+-]*) die "invalid WebUI version: $VERSION" ;;
 esac
 
-ARCH=amd64
+case "$(uname -m)" in
+  x86_64|amd64) HOST_ARCH=amd64 ;;
+  aarch64|arm64) HOST_ARCH=arm64 ;;
+  *) die "unsupported architecture: $(uname -m)" ;;
+esac
+ARCH="${WEBUI_ARCH:-$HOST_ARCH}"
+case "$ARCH" in amd64|arm64) ;; *) die "unsupported WEBUI_ARCH: $ARCH" ;; esac
+[ "$DOWNLOAD_ONLY" = 1 ] || [ "$ARCH" = "$HOST_ARCH" ] || die "release architecture $ARCH does not match host $HOST_ARCH"
 ARCHIVE="sudowork-webui-$VERSION-linux-$ARCH.tar.gz"
 DEFAULT_DOWNLOAD_BASE="$DEFAULT_COS_ROOT/releases/$RELEASE_TAG"
 GITHUB_DOWNLOAD_BASE="$DEFAULT_GITHUB_ROOT/download/$RELEASE_TAG"
@@ -289,10 +298,6 @@ if [ "$DRY_RUN" != 1 ]; then
   if [ "$SOURCE_MODE" = 0 ]; then
     [ "$(id -u)" -eq 0 ] || die 'run as root (for example: curl ... | sudo bash)'
     [ "$(uname -s)" = Linux ] || die 'only Linux is supported by release packages'
-    case "$(uname -m)" in
-      x86_64|amd64) ;;
-      *) die 'only x86_64/amd64 is supported by this release package' ;;
-    esac
     command -v gzip >/dev/null 2>&1 || die 'gzip is required'
     command -v install >/dev/null 2>&1 || die 'install is required'
   fi
@@ -346,7 +351,7 @@ if [ "$SOURCE_MODE" = 0 ] && [ "$DRY_RUN" != 1 ] \
   DATABASE_READY=0
   for _attempt in $(seq 1 30); do
     if "${OLD_COMPOSE[@]}" exec -T postgres sh -c \
-      'pg_isready --username="$POSTGRES_USER" --dbname="$POSTGRES_DB"' >/dev/null 2>&1; then
+      'pg_isready -h 127.0.0.1 --username="$POSTGRES_USER" --dbname="$POSTGRES_DB"' >/dev/null 2>&1; then
       DATABASE_READY=1
       break
     fi
@@ -366,6 +371,16 @@ if [ "$SOURCE_MODE" = 0 ] && [ "$DRY_RUN" != 1 ] \
   fi
   mv "$UPGRADE_BACKUP_DIR/database.dump.part" "$UPGRADE_BACKUP_DIR/database.dump"
   chmod 600 "$UPGRADE_BACKUP_DIR/.env" "$UPGRADE_BACKUP_DIR/database.dump"
+  OLD_WEBUI_CONTAINER="$("${OLD_COMPOSE[@]}" ps -a -q webui)"
+  if [ -n "$OLD_WEBUI_CONTAINER" ]; then
+    case "$OLD_WEBUI_CONTAINER" in
+      *$'\n'*) die 'expected one previous WebUI container; the installation was not upgraded' ;;
+    esac
+    mkdir "$UPGRADE_BACKUP_DIR/previous-assets"
+    docker cp "$OLD_WEBUI_CONTAINER:/app/apps/webui/dist/client/assets/." \
+      "$UPGRADE_BACKUP_DIR/previous-assets" \
+      || die 'could not retain previous client assets; the installation was not upgraded'
+  fi
 fi
 
 read_env_value() {
@@ -544,7 +559,7 @@ services:
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
       interval: 5s
       timeout: 3s
       retries: 20
@@ -570,6 +585,14 @@ services:
         condition: service_healthy
     restart: 'no'
 
+  publish-assets:
+    image: sudowork-webui:@@WEBUI_IMAGE_VERSION@@
+    pull_policy: never
+    command: ['node', 'dist/server/publishAssets.js', '--target', '/retained-assets', '/app/apps/webui/dist/client/assets']
+    volumes:
+      - webui-assets:/retained-assets
+    restart: 'no'
+
   webui:
     image: sudowork-webui:@@WEBUI_IMAGE_VERSION@@
     pull_policy: never
@@ -583,12 +606,24 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+      publish-assets:
+        condition: service_completed_successfully
+    volumes:
+      - type: volume
+        source: webui-assets
+        target: /app/apps/webui/dist/client/assets
+        read_only: true
+        volume:
+          nocopy: true
     healthcheck:
       test: ['CMD-SHELL', 'node -e "require(''http'').get(''http://127.0.0.1:26808/health/live'',r=>process.exit(r.statusCode===200?0:1)).on(''error'',()=>process.exit(1))"']
       interval: 10s
       timeout: 5s
       retries: 12
     restart: unless-stopped
+
+volumes:
+  webui-assets:
 EOF
   sed "s/@@WEBUI_IMAGE_VERSION@@/$IMAGE_VERSION/g" "$temporary" > "$COMPOSE_FILE"
   rm -f "$temporary"
@@ -648,10 +683,10 @@ if [ "$SOURCE_MODE" = 0 ]; then
 
   log "Loading WebUI and PostgreSQL images from $ARCHIVE"
   gzip -dc "$SOURCE_DIR/$ARCHIVE" | docker load
-  docker image inspect "sudowork-webui:$IMAGE_VERSION" >/dev/null \
-    || die "release archive does not contain sudowork-webui:$IMAGE_VERSION"
-  docker image inspect postgres:16-alpine >/dev/null \
-    || die 'release archive does not contain postgres:16-alpine'
+  for image in "sudowork-webui:$IMAGE_VERSION" postgres:16-alpine; do
+    [ "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$image")" = "linux/$ARCH" ] \
+      || die "release archive is missing the linux/$ARCH image $image"
+  done
 
   write_release_compose
 fi
@@ -772,39 +807,14 @@ fi
 rollback_release() {
   [ "$SOURCE_MODE" = 0 ] || return 0
   if [ -n "$UPGRADE_BACKUP_DIR" ] && [ -f "$UPGRADE_BACKUP_DIR/database.dump" ]; then
-    warn "Restoring configuration and database from $UPGRADE_BACKUP_DIR"
+    warn "Restoring the previous program configuration from $UPGRADE_BACKUP_DIR; keeping the current database"
     "${COMPOSE[@]}" stop webui migrate >/dev/null 2>&1 || true
     cp "$UPGRADE_BACKUP_DIR/.env" "$ENV_FILE"
     cp "$UPGRADE_BACKUP_DIR/docker-compose.yml" "$COMPOSE_FILE"
     [ ! -f "$UPGRADE_BACKUP_DIR/release-tag" ] \
       || cp "$UPGRADE_BACKUP_DIR/release-tag" "$INSTALL_DIR/release-tag"
-    "${COMPOSE[@]}" up -d postgres >/dev/null 2>&1 || true
-    DATABASE_READY=0
-    for _attempt in $(seq 1 30); do
-      if "${COMPOSE[@]}" exec -T postgres sh -c \
-        'pg_isready --username="$POSTGRES_USER" --dbname="$POSTGRES_DB"' >/dev/null 2>&1; then
-        DATABASE_READY=1
-        break
-      fi
-      sleep 2
-    done
-    if [ "$DATABASE_READY" != 1 ]; then
-      warn 'PostgreSQL did not become ready during rollback; use restore.sh manually'
-      return 0
-    fi
-    if ! "${COMPOSE[@]}" exec -T postgres sh -c \
-      'psql --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" --set=ON_ERROR_STOP=1 --command="DROP SCHEMA public CASCADE; CREATE SCHEMA public"' \
-      >/dev/null 2>&1; then
-      warn 'Could not reset the database schema during rollback; use restore.sh manually'
-      return 0
-    fi
-    if ! "${COMPOSE[@]}" exec -T postgres sh -c \
-      'pg_restore --no-owner --exit-on-error --username="$POSTGRES_USER" --dbname="$POSTGRES_DB"' \
-      < "$UPGRADE_BACKUP_DIR/database.dump" >/dev/null 2>&1; then
-      warn 'Could not restore the database backup; use restore.sh manually'
-      return 0
-    fi
     "${COMPOSE[@]}" up -d >/dev/null 2>&1 || true
+    warn 'If a migration prevents the previous program from starting, inspect it before using restore.sh; restoring a backup replaces newer data'
   elif [ -n "$PREVIOUS_COMPOSE" ] && [ -f "$PREVIOUS_COMPOSE" ]; then
     warn 'Restoring the previous Compose definition'
     cp "$PREVIOUS_COMPOSE" "$COMPOSE_FILE"
@@ -814,7 +824,19 @@ rollback_release() {
   fi
 }
 
-log 'Starting PostgreSQL, database migration, and WebUI'
+if [ -n "$UPGRADE_BACKUP_DIR" ] && [ -d "$UPGRADE_BACKUP_DIR/previous-assets" ]; then
+  log 'Retaining previous and new client assets before changing the application'
+  if ! "${COMPOSE[@]}" run --rm --no-deps \
+    --volume "$UPGRADE_BACKUP_DIR/previous-assets:/previous-assets:ro" \
+    publish-assets node dist/server/publishAssets.js --target /retained-assets \
+    /app/apps/webui/dist/client/assets /previous-assets; then
+    cp "$UPGRADE_BACKUP_DIR/.env" "$ENV_FILE"
+    cp "$UPGRADE_BACKUP_DIR/docker-compose.yml" "$COMPOSE_FILE"
+    die 'asset publication failed before application cutover; previous configuration restored'
+  fi
+fi
+
+log 'Starting PostgreSQL, database migration, asset publication, and WebUI'
 if [ "$SOURCE_MODE" = 1 ]; then
   "${COMPOSE[@]}" up -d --build
 elif ! "${COMPOSE[@]}" up -d; then

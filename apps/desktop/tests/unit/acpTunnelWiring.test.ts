@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 // A configured Nexus endpoint uses the session mailbox and fails closed.
@@ -40,7 +41,11 @@ async function loadAcpConnection(opts: { grpcConnect: ConnectImpl; spawnGeneric:
   }));
 
   const grpcSent: Array<{ id?: number; method?: string }> = [];
-  class MockNexusAcpTransport {
+  const grpcOptions: Array<{ agentId: string }> = [];
+  class MockScodeAcpTransport {
+    constructor(options: { agentId: string }) {
+      grpcOptions.push(options);
+    }
     connect = grpcConnect;
     close = grpcClose;
     send = vi.fn((message: { id?: number; method?: string }) => {
@@ -67,15 +72,39 @@ async function loadAcpConnection(opts: { grpcConnect: ConnectImpl; spawnGeneric:
     }
   }
   vi.doMock('@/agent/acp/transport', () => ({
-    NexusAcpTransport: MockNexusAcpTransport,
+    ScodeAcpTransport: MockScodeAcpTransport,
     StdioAcpTransport: MockStdioAcpTransport,
   }));
 
   const mod = await import('@/agent/acp/AcpConnection');
-  return { AcpConnection: mod.AcpConnection, grpcClose, grpcConnect, spawnGeneric, buildSpec, mainLog, mainWarn, grpcSent };
+  return { AcpConnection: mod.AcpConnection, grpcClose, grpcConnect, spawnGeneric, buildSpec, mainLog, mainWarn, grpcSent, grpcOptions };
 }
 
 describe('AcpConnection Nexus session routing', () => {
+  it.each([false, true])('isolates ontology mailboxes across reconnects without changing ordinary identities: ontology=%s', async (isOntologySession) => {
+    const fixture = await loadAcpConnection({ grpcConnect: async () => {}, spawnGeneric: async () => {} });
+    const connection = new fixture.AcpConnection({ isOntologySession });
+    connection.conversationId = 'existing-chat';
+    connection.managedAgentId = 'personal-agent';
+    const harness = connection as unknown as { initialize: () => Promise<void>; sendRequest: ReturnType<typeof vi.fn> };
+    harness.initialize = async () => {};
+    const tools = [{ name: 'ontology-agent', command: '/node' }];
+    const workspace = path.resolve('original-workspace');
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await connection.connect('scode', '/scode', workspace, ['acp'], { SCODE_MANAGED_SERVICE: '1' });
+      harness.sendRequest = vi.fn().mockResolvedValue({});
+      await connection.loadSession('original-acp-history', workspace, tools);
+      expect(harness.sendRequest).toHaveBeenCalledWith('session/load', expect.objectContaining({ sessionId: 'original-acp-history', cwd: workspace, mcpServers: tools }));
+      await connection.disconnect();
+    }
+    const ids = fixture.grpcOptions.map((options) => options.agentId);
+    if (isOntologySession) {
+      expect(ids[0]).toMatch(/^sudowork-ontology-existing-chat-/);
+      expect(ids[1]).not.toBe(ids[0]);
+    } else {
+      expect(ids).toEqual(['personal-agent', 'personal-agent']);
+    }
+  });
   it('gives online local agents a media endpoint without a credential proxy', async () => {
     const { AcpConnection, spawnGeneric } = await loadAcpConnection({
       localApiPort: 43210,
@@ -93,21 +122,21 @@ describe('AcpConnection Nexus session routing', () => {
       spawnGeneric: () => Promise.reject(new Error('LOCAL_SPAWN_MUST_NOT_RUN')),
     });
     const connection = new AcpConnection();
-    await expect(connection.connect('scode', '/opt/scode', '/tmp/ws', [], { ACP_GRPC_ENDPOINT: '127.0.0.1:65535' })).rejects.toThrow('MAILBOX_UNAVAILABLE');
+    await expect(connection.connect('scode', '/opt/scode', '/tmp/ws', [], { SCODE_MANAGED_SERVICE: '1' })).rejects.toThrow('MAILBOX_UNAVAILABLE');
     expect(buildSpec).toHaveBeenCalledTimes(1);
     expect(grpcConnect).toHaveBeenCalledTimes(1);
     expect(grpcClose).toHaveBeenCalledTimes(1);
     expect(spawnGeneric).not.toHaveBeenCalled();
   });
 
-  it('logs the connected Nexus endpoint after initialize', async () => {
+  it('reports the connected Sudocode session service after initialize', async () => {
     const ok = await loadAcpConnection({
       grpcConnect: () => Promise.resolve(),
       spawnGeneric: () => Promise.reject(new Error('LOCAL_SPAWN_MUST_NOT_RUN')),
     });
     const connection = new ok.AcpConnection();
     const connecting = connection.connect('scode', '/opt/scode', '/tmp/ws', [], {
-      ACP_GRPC_ENDPOINT: '127.0.0.1:12022',
+      SCODE_MANAGED_SERVICE: '1',
     });
     // The tunnel connects, then the ACP handshake runs. Answer it, or the
     // connect never resolves and the success line is never reached.
@@ -123,9 +152,7 @@ describe('AcpConnection Nexus session routing', () => {
     await connecting;
 
     expect(ok.spawnGeneric).not.toHaveBeenCalled();
-    // Names the endpoint, so the log says WHICH daemon served it, not merely
-    // that something did.
-    expect(ok.mainLog).toHaveBeenCalledWith('[ACP]', expect.stringContaining('127.0.0.1:12022'));
+    expect(ok.mainLog).toHaveBeenCalledWith('[ACP]', expect.stringContaining("Sudocode's session service"));
   });
 
   it('never attempts the tunnel when no endpoint is advertised', async () => {
@@ -152,42 +179,8 @@ describe('AcpConnection Nexus session routing', () => {
 
     // connectClaude is mocked to a no-op, so connect resolves; the point is the
     // tunnel was NOT dialed for an npx backend.
-    await connection.connect('claude', undefined, '/tmp/ws', [], { ACP_GRPC_ENDPOINT: '127.0.0.1:65535' });
+    await connection.connect('claude', undefined, '/tmp/ws', [], { SCODE_MANAGED_SERVICE: '1' });
 
     expect(grpcConnect).not.toHaveBeenCalled();
-  });
-});
-
-describe('DynamicNexusVfsService.acpTunnelEndpoint', () => {
-  async function loadService() {
-    vi.resetModules();
-    // Endpoint projection does not need RPC clients, archive tools or OS supervision.
-    vi.doMock('@common/nexus/nexus-secret-client', () => ({ getNexusSecretClient: vi.fn() }));
-    vi.doMock('@common/nexus/nexus-vfs-client', () => ({ getNexusRpcClient: vi.fn() }));
-    vi.doMock('@process/services/archiveProgress', () => ({ extractTarGzWithProgress: vi.fn(), extractZipWithProgress: vi.fn() }));
-    vi.doMock('@process/ProcessSupervisor', () => ({ processSupervisor: { track: vi.fn() } }));
-    const { dynamicNexusVfsService } = await import('@process/services/nexus-vfs/DynamicNexusVfsService');
-    return dynamicNexusVfsService as unknown as { _running: boolean; _port: number; acpTunnelEndpoint: string | null };
-  }
-
-  it('is null when the daemon is not running', async () => {
-    const svc = await loadService();
-    svc._running = false;
-    svc._port = 12022;
-    expect(svc.acpTunnelEndpoint).toBeNull();
-  });
-
-  it('is null when running without a bound port', async () => {
-    const svc = await loadService();
-    svc._running = true;
-    svc._port = 0;
-    expect(svc.acpTunnelEndpoint).toBeNull();
-  });
-
-  it('is the loopback host:port when the daemon is serving', async () => {
-    const svc = await loadService();
-    svc._running = true;
-    svc._port = 12022;
-    expect(svc.acpTunnelEndpoint).toBe('127.0.0.1:12022');
   });
 });

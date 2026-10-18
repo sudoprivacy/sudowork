@@ -18,6 +18,7 @@
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css,scss,json}\""
   },
   "dependencies": {
+    "@sudowork/contracts": "workspace:*",
     "@arco-design/web-react": "^2.66.1",
     "@codemirror/autocomplete": "^6.20.1",
     "@codemirror/commands": "^6.10.3",
@@ -72,7 +73,8 @@
     "remark-math": "^6.0.0",
     "streamdown": "^1.5.1",
     "swr": "^2.3.6",
-    "xterm": "^5.3.0"
+    "xterm": "^5.3.0",
+    "@sudowork/moss-client": "workspace:*"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

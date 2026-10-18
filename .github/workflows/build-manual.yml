@@ -107,7 +107,7 @@ jobs:
           gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
             --pattern '*-win-x64.*' --pattern latest.yml --dir release-assets/desktop
           gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
-            --pattern 'sudowork-webui-*-linux-amd64.tar.gz' --pattern install.sh \
+            --pattern 'sudowork-webui-*-linux-*.tar.gz' --pattern install.sh \
             --pattern SHA256SUMS --dir release-assets/webui
           grep -Fx "version: ${RELEASE_TAG#v}" release-assets/desktop/latest.yml
           bash apps/desktop/scripts/verify-release-assets.sh release-assets/desktop --windows-only

@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "tested_at": "2026-10-14",
+  "platform": "Windows",
+  "scope": "Consume the upstream IPv4 Chrome startup race fix; preserve the October 2 model/UI migration record.",
+  "source_base": "f6c8a8577e961ba582dc8896ec04f1518f5e1db2",
+  "sudohand": {
+    "reference": "apps/desktop/tests/integration/fixtures/sudohand-reference.json",
+    "upstream_fix": "https://github.com/sudoprivacy/sudohand/pull/35",
+    "build": "cargo build --locked -p sudohand-cli",
+    "binary_sha256": "1b922f5ea31a06e2a77065b2a0e3756f138530a1ec44a3a6cf6a9213bb69c9e1"
+  },
+  "upstream_regression": {
+    "test": "parallel_startup_publishes_reachable_ipv4_devtools",
+    "result": "passed",
+    "actual_parallel_chrome_launches": 4,
+    "assertion": "Every browser publishes a reachable IPv4 CDP endpoint and loads the fixture."
+  },
+  "consumer_wrapper_live": {
+    "command": "bun run test:browser-live",
+    "passed": 2,
+    "exit_code": 0,
+    "backends": ["ai-dev-browser", "sudohand"],
+    "assertions": [
+      "Actual Chrome discovery and Chinese input through refs",
+      "Exactly one trusted server submission",
+      "PNG capture and receipt persistence after reload",
+      "Correlated results through the production HTTP sidechannel",
+      "Failure recovery without duplicate submission"
+    ]
+  },
+  "full_unit_suite": {
+    "passed": 3166,
+    "failed": 0,
+    "existing_skips": 27,
+    "exit_code": 0
+  },
+  "precondition_failure": "The first local run lacked the pinned ai-dev-browser submodule. Its Python-backend failure was retained; initializing the recorded submodule made both real wrapper cases pass.",
+  "unverified": [
+    "A new paid-model/Desktop migration run with this browser revision",
+    "Full browser backend migration and distribution"
+  ]
+}

@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 const localRequire = createRequire(import.meta.url);
 const builderCache = process.env.ELECTRON_BUILDER_CACHE ?? path.join(process.env.LOCALAPPDATA ?? '', 'electron-builder', 'Cache');
@@ -14,11 +14,11 @@ if (process.env.NSIS_TEST_REQUIRE_COMPILER === '1' && !isCompilerAvailable) {
 }
 
 /** Execute the real installer callback with electron-builder's real sanitizer. */
-function runDirectoryCallback(directory: string, isUpdated: boolean): string {
+function compileDirectoryCallback() {
   const script = readFileSync(path.resolve(__dirname, '../../scripts/installer.nsh'), 'utf8');
   const customCallback = script.match(/Function instFilesPreserveUpdateLocationPre\s[\s\S]*?FunctionEnd/)?.[0];
   expect(customCallback).toBeDefined();
-  const builderRequire = createRequire(localRequire.resolve('electron-builder/package.json'));
+  const builderRequire = createRequire(process.env.NSIS_TEST_BUILDER_PACKAGE ?? localRequire.resolve('electron-builder/package.json'));
   const builder = path.dirname(builderRequire.resolve('app-builder-lib/package.json'));
   const upstream = readFileSync(path.join(builder, 'templates/nsis/assistedInstaller.nsh'), 'utf8');
   const upstreamCallback = upstream.match(/Function instFilesPre\s[\s\S]*?FunctionEnd/)?.[0];
@@ -39,14 +39,16 @@ SilentInstall silent
 !addincludedir "${escape(path.join(builder, 'templates/nsis/include'))}"
 !include LogicLib.nsh
 !include StrContains.nsh
+!include FileFunc.nsh
 !define APP_FILENAME "Sudowork"
 Var isUpdate
 !define isUpdated '$isUpdate == "1"'
 ${upstreamCallback}
 ${customCallback}
 Function .onInit
-  StrCpy $isUpdate "${isUpdated ? '1' : '0'}"
-  StrCpy $INSTDIR "${escape(directory)}"
+  \${GetParameters} $0
+  \${GetOptions} $0 "/updated=" $isUpdate
+  \${GetOptions} $0 "/directory=" $INSTDIR
   Call instFilesPreserveUpdateLocationPre
   FileOpen $0 "${escape(output)}" w
   FileWriteUTF16LE $0 "$INSTDIR"
@@ -59,14 +61,26 @@ SectionEnd
 `
     );
     execFileSync(compiler, ['/V2', nsis], { timeout: 30_000, stdio: 'pipe' });
-    execFileSync(executable, [], { timeout: 30_000, stdio: 'pipe' });
-    return readFileSync(output, 'utf16le').replace(/^\uFEFF/, '');
-  } finally {
+    return { fixture, executable, output };
+  } catch (error) {
     rmSync(fixture, { recursive: true, force: true });
+    throw error;
   }
 }
 
 describe.skipIf(!isCompilerAvailable)('NSIS update installation directory', () => {
+  let callback: ReturnType<typeof compileDirectoryCallback>;
+  // Compile once; each case still executes the real NSIS callback independently.
+  beforeAll(() => {
+    callback = compileDirectoryCallback();
+  }, 35_000);
+  afterAll(() => {
+    if (callback) rmSync(callback.fixture, { recursive: true, force: true });
+  });
+  function runDirectoryCallback(directory: string, isUpdated: boolean): string {
+    execFileSync(callback.executable, [`/updated=${isUpdated ? '1' : '0'}`, `/directory=${directory}`], { timeout: 8_000, stdio: 'pipe' });
+    return readFileSync(callback.output, 'utf16le').replace(/^\uFEFF/, '');
+  }
   it('preserves a custom directory during an update', () => {
     expect(runDirectoryCallback('C:\\QA\\custom-desktop', true)).toBe('C:\\QA\\custom-desktop');
   });

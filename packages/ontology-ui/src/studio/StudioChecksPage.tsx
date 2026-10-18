@@ -92,7 +92,7 @@ export default function StudioChecksPage({ snapshot, api, report, isModelDirty, 
             columns={[
               { title: text('severity'), width: 130, render: (_value, issue) => <Tag color={issue.severity === 'error' ? 'red' : 'orange'}>{text(issue.severity === 'error' ? 'blockingError' : 'advisoryWarning')}</Tag> },
               { title: text('checkTarget'), width: 180, render: (_value, issue) => targetName(issue) || text('currentOntology') },
-              { title: text('description'), render: (_value, issue) => (issue.code === 'semantic_only_relation' ? t('ontology.studio.semanticOnlyExplanation', { name: targetName(issue) }) : issue.message) },
+              { title: text('description'), render: (_value, issue) => (issue.code === 'semantic_only_relation' ? t('ontology.studio.semanticOnlyExplanation', { name: targetName(issue) }) : issue.code ? t(`ontology.studio.issues.${issue.code}`, { defaultValue: issue.message }) : issue.message) },
               {
                 title: text('operations'),
                 width: 200,

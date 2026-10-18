@@ -28,18 +28,22 @@ COPY patches/ patches/
 # --ignore-scripts: this build only produces the webui, so skip every workspace
 # member's install lifecycle — most importantly the desktop app's postinstall,
 # whose script isn't in the context (manifest-only copy). No webui runtime dep
-# compiles: node-pty ships a prebuilt @lydell/node-pty-linux-x64 package, and the
+# compiles: node-pty ships prebuilt @lydell/node-pty packages for x64/arm64, and the
 # desktop-only natives (better-sqlite3 etc.) are never loaded by the webui server.
 # The env vars keep transitive electron/playwright binary downloads out of resolve.
 ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1 \
     PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 \
     HUSKY=0 \
     NODE_OPTIONS=--max-old-space-size=8192
-RUN bun install --frozen-lockfile --ignore-scripts
+RUN --mount=type=cache,id=sudowork-webui-bun,target=/root/.bun/install/cache,sharing=locked \
+    bun install --frozen-lockfile --ignore-scripts --network-concurrency=16
 
 # Sources for the shared packages + the webui app.
 COPY packages/ packages/
 COPY apps/webui/ apps/webui/
+# Vite resolves the shared browser aliases and public page surface from source.
+COPY scripts/browser-view-alias.mjs scripts/browser-view-alias.mjs
+COPY vendor/ai-dev-browser/ai_dev_browser/remote/page_view.js vendor/ai-dev-browser/ai_dev_browser/remote/page_view.js
 
 # Build the shared package dist (contracts/common/moss-client/host-bridge) that the
 # webui server resolves at runtime, then the webui itself (vite client bundle +
@@ -72,7 +76,8 @@ COPY patches/ patches/
 ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1 \
     PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 \
     HUSKY=0
-RUN bun install --frozen-lockfile --ignore-scripts --production
+RUN --mount=type=cache,id=sudowork-webui-bun,target=/root/.bun/install/cache,sharing=locked \
+    bun install --frozen-lockfile --ignore-scripts --production --network-concurrency=16
 
 FROM node:22-slim AS runtime
 # glibc runtime to match the native @lydell/node-pty binary fetched on the debian

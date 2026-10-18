@@ -1,9 +1,9 @@
-import { Router, type NextFunction, type Response } from 'express'
+import { Router, raw, type NextFunction, type Response } from 'express'
 import { z, ZodError } from 'zod'
 import { getMossContext } from '../auth/authService.js'
 import { findPrincipalById, type Principal } from '../auth/principalRepository.js'
 import { requireSession, type AuthedRequest } from '../auth/sessionMiddleware.js'
-import { MossHttpError, type MossCallContext } from '@sudowork/moss-client'
+import { MossHttpError, upgradeMossRuntime, type MossCallContext } from '@sudowork/moss-client'
 import {
   CreateConversationRequestSchema,
   ReorderPinnedRequestSchema,
@@ -30,9 +30,16 @@ import {
   terminateConversation,
   updateConversationMeta,
   uploadWorkspaceFile,
+  requireAccessibleSession,
   type ConversationDeps,
 } from './conversationService.js'
 import { getDeliverables } from './deliverablesService.js'
+import { BrowserSessionActionSchema } from '@sudowork/contracts/browser-session'
+import {
+  invokeBrowserSession,
+  receiveBrowserFile,
+  readBrowserFile,
+} from './browserSessionService.js'
 
 /**
  * 会话 REST 路由（计划 Task 5）。
@@ -55,6 +62,17 @@ export function createConversationRouter(deps: ConversationDeps): Router {
     if (err instanceof ZodError) {
       res.status(400).json({ error: 'INVALID_REQUEST' })
       return
+    }
+    if (err instanceof MossHttpError && [400, 403, 409, 503].includes(err.status)) {
+      try {
+        const body = JSON.parse(err.bodyText) as { error?: unknown }
+        if (typeof body.error === 'string' && /^[a-z_]{1,80}$/.test(body.error)) {
+          res.status(err.status).json({ error: body.error })
+          return
+        }
+      } catch {
+        // Unknown upstream errors use the existing error handler.
+      }
     }
     if (err instanceof SessionNotFoundError) {
       res.status(404).json({ error: 'SESSION_NOT_FOUND' })
@@ -88,6 +106,108 @@ export function createConversationRouter(deps: ConversationDeps): Router {
       if (!principal) return void res.status(401).json({ error: 'SESSION_REQUIRED' })
       const ctx = await resolveCtx(req as AuthedRequest)
       res.status(200).json({ conversations: await listConversations(deps, principal, ctx) })
+    })().catch((err: unknown) => convErrorHandler(err, res, next))
+  })
+
+  router.post('/:id/runtime/upgrade', requireSession, (req, res, next) => {
+    void (async () => {
+      const principal = await resolvePrincipal(req as AuthedRequest)
+      if (!principal) return void res.status(401).json({ error: 'SESSION_REQUIRED' })
+      z.object({}).strict().parse(req.body)
+      const ctx = await resolveCtx(req as AuthedRequest)
+      const session = await requireAccessibleSession(deps, principal, String(req.params.id), ctx)
+      if (session.userId !== principal.mossUserId) throw new SessionForbiddenError()
+      await upgradeMossRuntime(deps.mossFetch, ctx, session.userId)
+      res.status(200).json({ success: true })
+    })().catch((err: unknown) => convErrorHandler(err, res, next))
+  })
+
+  router.post('/:id/browser', requireSession, (req, res, next) => {
+    void (async () => {
+      const principal = await resolvePrincipal(req as AuthedRequest)
+      if (!principal) return void res.status(401).json({ error: 'SESSION_REQUIRED' })
+      const ctx = await resolveCtx(req as AuthedRequest)
+      const input = BrowserSessionActionSchema.parse(req.body)
+      let reserved = false
+      if (input.kind === 'return') {
+        reserved = await deps.coordinator.prepareBrowserReturn(
+          (req as AuthedRequest).webSession!,
+          String(req.params.id),
+        )
+      }
+      try {
+        res
+          .status(200)
+          .json(await invokeBrowserSession(deps, principal, String(req.params.id), ctx, input))
+      } catch (error) {
+        if (reserved) {
+          await deps.coordinator.failBrowserReturn(
+            (req as AuthedRequest).webSession!,
+            String(req.params.id),
+            error instanceof MossHttpError && error.status >= 400 && error.status < 500,
+          )
+        }
+        throw error
+      }
+    })().catch((err: unknown) => convErrorHandler(err, res, next))
+  })
+
+  router.post(
+    '/:id/browser/files/upload',
+    requireSession,
+    raw({ type: 'application/octet-stream', limit: '16mb' }),
+    (req, res, next) => {
+      void (async () => {
+        const principal = await resolvePrincipal(req as AuthedRequest)
+        if (!principal) return void res.status(401).json({ error: 'SESSION_REQUIRED' })
+        const ctx = await resolveCtx(req as AuthedRequest)
+        const input = z
+          .object({
+            name: z.string().min(1).max(240),
+            controlEpoch: z.number().int().nonnegative(),
+            targetEpoch: z.number().int().nonnegative(),
+          })
+          .parse({
+            name: decodeURIComponent(req.get('X-Browser-File-Name') || ''),
+            controlEpoch:
+              req.get('X-Browser-Control-Epoch') === undefined
+                ? NaN
+                : Number(req.get('X-Browser-Control-Epoch')),
+            targetEpoch:
+              req.get('X-Browser-Target-Epoch') === undefined
+                ? NaN
+                : Number(req.get('X-Browser-Target-Epoch')),
+          })
+        if (!Buffer.isBuffer(req.body))
+          return void res.status(400).json({ error: 'INVALID_REQUEST' })
+        const file = await receiveBrowserFile(
+          deps,
+          principal,
+          String(req.params.id),
+          ctx,
+          input,
+          req.body,
+        )
+        res.set('Cache-Control', 'no-store').status(201).json({ file })
+      })().catch((err: unknown) => convErrorHandler(err, res, next))
+    },
+  )
+
+  router.get('/:id/browser/files/:fileId', requireSession, (req, res, next) => {
+    void (async () => {
+      const principal = await resolvePrincipal(req as AuthedRequest)
+      if (!principal) return void res.status(401).json({ error: 'SESSION_REQUIRED' })
+      const ctx = await resolveCtx(req as AuthedRequest)
+      const fileId = z
+        .string()
+        .regex(/^[a-f0-9]{32}$/)
+        .parse(req.params.fileId)
+      const data = await readBrowserFile(deps, principal, String(req.params.id), ctx, fileId)
+      res
+        .set('Content-Type', 'application/octet-stream')
+        .set('Cache-Control', 'no-store')
+        .status(200)
+        .send(Buffer.from(data))
     })().catch((err: unknown) => convErrorHandler(err, res, next))
   })
 

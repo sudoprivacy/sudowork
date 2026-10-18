@@ -1,28 +1,11 @@
 import path from 'path';
 import { defineConfig } from 'vitest/config';
+import { browserPageViewAlias } from '../../scripts/browser-view-alias.mjs';
 
 // Modules that stay in apps/desktop/src/common (main-only or transitively so);
 // everything else under @common / @/common now lives in @sudowork/common.
-const DESKTOP_ONLY_COMMON = [
-  'ClientFactory',
-  'adapters/index',
-  'enterpriseDebugConfig',
-  'imagePricingSource',
-  'index',
-  'navigation/NavigationInterceptor',
-  'navigation/index',
-  'nexus/generated/nexus/secrets/v1/secrets_pb',
-  'nexus/index',
-  'nexus/moss-secret-client-factory',
-  'nexus/nexus-secret-client',
-  'nexus/nexus-secret-resilient',
-  'nexus/nexus-vfs-client',
-  'nexus/nexusVfsGrpcClient',
-  'nexus/secret-cache',
-  'nexus/secret-migration',
-  'presets/assistantPresets',
-];
-const DESKTOP_ONLY_COMMON_DIRS = ['nexus', 'navigation', 'adapters'];
+const DESKTOP_ONLY_COMMON = ['ClientFactory', 'adapters/index', 'enterpriseDebugConfig', 'imagePricingSource', 'index', 'navigation/NavigationInterceptor', 'navigation/index', 'nexus/moss-secret-client-factory', 'nexus/secret-cache', 'nexus/secret-migration', 'presets/assistantPresets'];
+const DESKTOP_ONLY_COMMON_DIRS = ['navigation', 'adapters'];
 
 function commonAliasEntries() {
   const pkg = path.resolve(__dirname, '../../packages/common/src').replace(/\\/g, '/');
@@ -30,6 +13,7 @@ function commonAliasEntries() {
   const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const entries: { find: RegExp; replacement: string }[] = [];
   entries.push({ find: /^@\/?common$/, replacement: deskCommon });
+  entries.push({ find: /^@\/?common\/scode\/(.*)$/, replacement: `${deskCommon}/scode/$1` });
   for (const m of [...DESKTOP_ONLY_COMMON, ...DESKTOP_ONLY_COMMON_DIRS]) {
     entries.push({ find: new RegExp('^@\\/?common\\/' + esc(m) + '(?:\\.js)?$'), replacement: `${deskCommon}/${m}` });
   }
@@ -39,6 +23,7 @@ function commonAliasEntries() {
 }
 
 const aliases = [
+  browserPageViewAlias,
   ...commonAliasEntries(),
   { find: /^@process\//, replacement: path.resolve(__dirname, './src/process') + '/' },
   { find: /^@renderer\//, replacement: path.resolve(__dirname, '../../packages/renderer/src') + '/' },
@@ -48,6 +33,10 @@ const aliases = [
   { find: /^@mcp\//, replacement: path.resolve(__dirname, './src/common') + '/' },
   // Resolve shared workspace packages to source so tests never depend on a
   // prior `dist` build (uniform local/CI; exercises the actual source).
+  { find: '@sudowork/moss-client/external-providers', replacement: path.resolve(__dirname, '../../packages/moss-client/src/MossExternalProviderClient.ts') },
+  { find: '@sudowork/contracts/external-provider', replacement: path.resolve(__dirname, '../../packages/contracts/src/external-provider.gen.ts') },
+  { find: '@sudowork/contracts/agent-federation', replacement: path.resolve(__dirname, '../../packages/contracts/src/agent-federation.gen.ts') },
+  { find: '@sudowork/contracts/task', replacement: path.resolve(__dirname, '../../packages/contracts/src/task.gen.ts') },
   { find: '@sudowork/moss-client/agents', replacement: path.resolve(__dirname, '../../packages/moss-client/src/MossAgentClient.ts') },
   { find: '@sudowork/moss-client', replacement: path.resolve(__dirname, '../../packages/moss-client/src/index.ts') },
   { find: /^@sudowork\/ontology-common\/(.*)$/, replacement: path.resolve(__dirname, '../../packages/ontology-common/src') + '/$1' },
@@ -57,6 +46,7 @@ const aliases = [
   { find: /^@sudowork\/ontology-ui\/(.*)$/, replacement: path.resolve(__dirname, '../../packages/ontology-ui/src') + '/$1' },
   { find: /^@sudowork\/ontology-ui$/, replacement: path.resolve(__dirname, '../../packages/ontology-ui/src/index.ts') },
   { find: '@sudowork/contracts/auth', replacement: path.resolve(__dirname, '../../packages/contracts/src/auth.ts') },
+  { find: '@sudowork/contracts/browser-session', replacement: path.resolve(__dirname, '../../packages/contracts/src/browserSession.ts') },
   { find: '@sudowork/contracts/conversations', replacement: path.resolve(__dirname, '../../packages/contracts/src/conversations.ts') },
   { find: /^@sudowork\/host-bridge\/(.*)$/, replacement: path.resolve(__dirname, '../../packages/host-bridge/src') + '/$1' },
   { find: /^@sudowork\/host-bridge$/, replacement: path.resolve(__dirname, '../../packages/host-bridge/src/index.ts') },
@@ -115,6 +105,28 @@ export default defineConfig({
       // 新增功能时，将对应的源文件路径添加到此数组
       // 例如: 'src/process/services/newService.ts'
       include: [
+        'src/process/services/browserPanel/LocalBrowserWorker.ts',
+        'src/process/services/browserPanel/LocalBrowserSessions.ts',
+        'src/process/services/browserPanel/browserViewerUrl.ts',
+        'src/process/services/browserPanel/localBrowserSessionHost.ts',
+        'src/process/services/browserPanel/LocalAgentToolControl.ts',
+        'src/process/services/browserPanel/localToolControl.ts',
+        '../../packages/contracts/src/browserSession.ts',
+        '../../packages/renderer/src/components/browser/BrowserSessionPanel.tsx',
+        '../../packages/common/src/loginReturnPath.ts',
+        '../../packages/host-bridge/src/agentWorkspace.ts',
+        '../../packages/renderer/src/pages/conversation/utils/agentIdentity.ts',
+        '../../packages/renderer/src/pages/conversation/acp/useAcpMessage.ts',
+        '../../packages/renderer/src/pages/conversation/context/ConversationHistoryContext.tsx',
+        '../../packages/renderer/src/pages/conversation/components/AgentSessionHeader.tsx',
+        '../../packages/renderer/src/pages/conversation/components/HistoryViewSelector.tsx',
+        '../../packages/renderer/src/pages/guid/components/SessionCompositionSelector.tsx',
+        '../../packages/renderer/src/pages/conversation/components/NewConversationButton.tsx',
+        'src/common/scode/serviceClient.ts',
+        'src/common/scode/secretsClient.ts',
+        'src/common/scode/filesClient.ts',
+        'src/common/scode/sessionsClient.ts',
+        'src/process/services/scode/ScodeRuntimeService.ts',
         '../../packages/common/src/types/tenantConfig.ts',
         '../../packages/renderer/src/components/TenantLogo.tsx',
         '../../packages/renderer/src/layouts/components/UpdateModal.tsx',
@@ -127,6 +139,10 @@ export default defineConfig({
         '../../packages/renderer/src/pages/settings/recharge/index.tsx',
         '../../packages/renderer/src/pages/settings/recharge/components/OrderList.tsx',
         '../../packages/host-bridge/src/desktopLoginSetup.ts',
+        'src/process/services/deliverables/remoteDeliverables.ts',
+        '../../packages/common/src/cronSchedule.ts',
+        '../../packages/common/src/workspaceFileLinks.ts',
+        '../../packages/renderer/src/components/WorkspaceFileLink.tsx',
         'src/process/services/mossCatalog*.ts',
         'src/process/services/mossResourcePath.ts',
         'src/process/bridge/mossCatalogBridge.ts',
@@ -134,13 +150,25 @@ export default defineConfig({
         '../../packages/renderer/src/utils/platform.ts',
         '../../packages/renderer/src/hooks/useResponsiveSider.ts',
         '../../packages/renderer/src/pages/my-agents/index.tsx',
+        '../../packages/renderer/src/pages/external-agents/**/*.{ts,tsx}',
+        '../../packages/moss-client/src/MossExternalProviderClient.ts',
+        'src/process/services/mossExternalProviders.ts',
         '../../packages/renderer/src/pages/guid/utils/personalAgentSelection.ts',
+        '../../packages/renderer/src/pages/guid/components/ExecutionModeSelector.tsx',
+        '../../packages/renderer/src/pages/guid/hooks/useGuidEntryPrompt.ts',
+        '../../packages/renderer/src/pages/agents/components/InstalledAssistantCard.tsx',
+        '../../packages/renderer/src/pages/conversation/hooks/useAgentEntry.ts',
+        '../../packages/renderer/src/shared/agents/assistantReference.ts',
         '../../packages/common/src/personalAgents.ts',
         'src/process/services/mossPersonalAgents.ts',
         '../../packages/moss-client/src/MossAgentClient.ts',
+        '../../packages/moss-client/src/MossRuntimeClient.ts',
+        '../../packages/moss-client/src/MossBrowserFiles.ts',
         '../../packages/common/src/mossExecution.ts',
         '../../packages/common/src/conversationTitle.ts',
         '../../packages/renderer/src/pages/conversation/grouped-history/utils/groupingHelpers.ts',
+        '../../packages/renderer/src/pages/conversation/index.tsx',
+        '../../packages/renderer/src/pages/conversation/ChatConversation.tsx',
         'src/process/services/mossLocalRuntime.ts',
         'src/process/bridge/eeclawBridge.ts',
         'src/process/bridge/sudoworkServerBridge.ts',
@@ -213,6 +241,8 @@ export default defineConfig({
         '../../packages/renderer/src/pages/team/hooks/useTeamWarmup.ts',
         '../../packages/renderer/src/pages/team/components/TeamWarmupOverlay.tsx',
         '../../packages/renderer/src/pages/settings/recharge/components/CreditApplicationPanel.tsx',
+        '../../packages/renderer/src/pages/settings/recharge/index.tsx',
+        '../../packages/renderer/src/pages/settings/model-account/**/*.{ts,tsx}',
         '../../packages/ontology-common/src/index.ts',
         '../../packages/ontology-common/src/studio.ts',
         '../../packages/ontology-engine/src/standardOntology.ts',
@@ -232,6 +262,9 @@ export default defineConfig({
         'src/process/services/ontology/OntologyDatabase.ts',
         'src/process/services/ontology/OntologyService.ts',
         'src/process/services/ontology/OntologyMcpRegistration.ts',
+        'src/process/services/ontology/ontologyConversationRuntime.ts',
+        'src/process/services/ontology/ontologyToolNames.ts',
+        'src/process/services/ontology/ontologyToolHistory.ts',
         'src/utils/configureChromium.ts',
         // ACP
         'src/agent/acp/AcpAdapter.ts',
@@ -245,7 +278,6 @@ export default defineConfig({
         // Common
         'src/common/chatLib.ts',
         'src/common/nexus/hubErrors.ts',
-        'src/common/nexus/nexusVfsGrpcClient.ts',
         'src/common/runtime-errors.ts',
         'src/common/nexusFiles.ts',
         'src/common/scodeConfig.ts',

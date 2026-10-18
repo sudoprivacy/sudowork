@@ -10,13 +10,18 @@ services:
     volumes:
       - webui-pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-sudowork_webui}']
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -h 127.0.0.1 -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-sudowork_webui}',
+        ]
       interval: 5s
       timeout: 3s
       retries: 10
     restart: unless-stopped
 
   migrate:
+    image: &webui-image ${WEBUI_IMAGE:-${COMPOSE_PROJECT_NAME:-sudowork-webui}-webui}
     build: &webui-build
       context: ../..
       dockerfile: apps/webui/Dockerfile
@@ -40,7 +45,23 @@ services:
         condition: service_healthy
     restart: 'no'
 
+  publish-assets:
+    image: *webui-image
+    build: *webui-build
+    command:
+      [
+        'node',
+        'dist/server/publishAssets.js',
+        '--target',
+        '/retained-assets',
+        '/app/apps/webui/dist/client/assets',
+      ]
+    volumes:
+      - webui-assets:/retained-assets
+    restart: 'no'
+
   webui:
+    image: *webui-image
     build: *webui-build
     environment:
       <<: *webui-env
@@ -52,8 +73,21 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+      publish-assets:
+        condition: service_completed_successfully
+    volumes:
+      - type: volume
+        source: webui-assets
+        target: /app/apps/webui/dist/client/assets
+        read_only: true
+        volume:
+          nocopy: true
     healthcheck:
-      test: ['CMD-SHELL', 'node -e "require(''http'').get(''http://127.0.0.1:26808/health/live'',r=>process.exit(r.statusCode===200?0:1)).on(''error'',()=>process.exit(1))"']
+      test:
+        [
+          'CMD-SHELL',
+          'node -e "require(''http'').get(''http://127.0.0.1:26808/health/live'',r=>process.exit(r.statusCode===200?0:1)).on(''error'',()=>process.exit(1))"',
+        ]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -61,3 +95,4 @@ services:
 
 volumes:
   webui-pgdata:
+  webui-assets:

@@ -5,7 +5,8 @@
  */
 
 import React, { Suspense } from 'react';
-import { HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { loginReturnPath } from '@sudowork/common/loginReturnPath';
+import { HashRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import AppLoader from './components/AppLoader';
 import { useAuth } from './context/AuthContext';
 import { useAppMode, isModeResolved } from './hooks/useAppMode';
@@ -18,6 +19,7 @@ const Guid = React.lazy(() => import('./pages/guid'));
 const MossSessionPage = React.lazy(() => import('./pages/moss-session/MossSessionPage'));
 const About = React.lazy(() => import('./pages/settings/about'));
 const AgentSettings = React.lazy(() => import('./pages/agents'));
+const ExternalAgents = React.lazy(() => import('./pages/external-agents'));
 const MyAgents = React.lazy(() => import('./pages/my-agents'));
 const DisplaySettings = React.lazy(() => import('./pages/settings/display'));
 const GeminiSettings = React.lazy(() => import('./pages/settings/gemini'));
@@ -30,6 +32,7 @@ const RuntimeSettings = React.lazy(() => import('./pages/settings/runtime'));
 const SystemSettings = React.lazy(() => import('./pages/settings/system'));
 const ToolsSettings = React.lazy(() => import('./pages/settings/tools'));
 const ChannelsPage = React.lazy(() => import('./pages/settings/channels'));
+const BrowserViewerPage = React.lazy(() => import('./pages/browser-viewer'));
 const SecurityPage = React.lazy(() => import('./pages/security'));
 const CronPage = React.lazy(() => import('./pages/cron'));
 const CronJobDetailPage = React.lazy(() => import('./pages/cron/detail'));
@@ -67,11 +70,14 @@ const SettingsDefaultRoute: React.FC = () => {
 const PROTECTED_ROUTE_CONFIGS = [
   { path: '/guid', component: Guid },
   { path: '/conversation/:id', component: Conversation },
+  { path: '/browser-viewer/:conversationId', component: BrowserViewerPage },
+  { path: '/browser-controls/:conversationId', component: BrowserViewerPage },
   { path: '/moss-session/:sessionId', component: MossSessionPage },
   { path: '/settings/gemini', component: GeminiSettings },
   { path: '/settings/model', component: SudocodeModelSettings },
   { path: '/app/agent', component: AgentSettings },
   { path: '/app/agents/mine', component: MyAgents },
+  { path: '/app/agents/external', component: ExternalAgents },
   { path: '/settings/agent', component: AgentSettings },
   { path: '/settings/display', component: DisplaySettings },
   { path: '/settings/channels', component: ChannelsPage },
@@ -112,7 +118,7 @@ const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) =
   }
 
   if (status !== 'authenticated' && status !== 'guest') {
-    return <Navigate to='/login' replace />;
+    return <Navigate to='/login' replace state={{ returnTo: `${location.pathname}${location.search}` }} />;
   }
 
   if (!isElectronDesktop() && isDesktopOnlyRoute(location.pathname)) {
@@ -145,8 +151,20 @@ const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) =
     return <Navigate to='/guid' replace />;
   }
 
+  if (location.pathname.startsWith('/browser-viewer/') || location.pathname.startsWith('/browser-controls/'))
+    return (
+      <div className='app-shell relative size-full min-h-0 bg-2 text-1'>
+        <Outlet />
+      </div>
+    );
   return React.cloneElement(layout);
 };
+
+function LoginRoute() {
+  const { status } = useAuth();
+  const location = useLocation();
+  return status === 'authenticated' || status === 'guest' ? <Navigate to={loginReturnPath(location.state)} replace /> : withRouteFallback(LoginPage);
+}
 
 const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
   const { status } = useAuth();
@@ -156,7 +174,7 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
     <HashRouter>
       {isElectronDesktop() && <UpdateModal />}
       <Routes>
-        <Route path='/login' element={canEnterApp ? <Navigate to='/guid' replace /> : withRouteFallback(LoginPage)} />
+        <Route path='/login' element={<LoginRoute />} />
         <Route path='/register' element={canEnterApp ? <Navigate to='/guid' replace /> : withRouteFallback(RegisterPage)} />
         <Route element={<ProtectedLayout layout={layout} />}>
           <Route index element={<Navigate to='/guid' replace />} />

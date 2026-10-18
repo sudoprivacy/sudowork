@@ -14,6 +14,7 @@ const state = vi.hoisted(() => ({
 vi.mock('electron', () => ({ net: { fetch: state.chromiumFetch } }));
 vi.mock('@/common', () => ({
   ipcBridge: {
+    externalProviders: new Proxy({}, { get: () => ({ provider: vi.fn() }) }),
     eeclaw: new Proxy({}, { get: (_target, name: string) => ({ provider: (handler: LoginHandler) => state.providers.set(name, handler), emit: vi.fn() }) }),
   },
 }));
@@ -82,6 +83,23 @@ describe('desktop authentication transport', () => {
   it('keeps credential rejection distinct from connection failure', async () => {
     state.chromiumFetch.mockResolvedValue(new Response(JSON.stringify({ error: 'invalid_code', msg: 'Code expired' }), { status: 401 }));
     expect(await invoke()).toMatchObject({ success: false, error: 'invalid_code', msg: 'Code expired' });
+    expect(state.set).not.toHaveBeenCalled();
+  });
+
+  it('surfaces a native Moss policy rejection instead of the invalid-credentials fallback', async () => {
+    const message = 'Current organization does not allow phone code login';
+    state.chromiumFetch.mockResolvedValue(new Response(JSON.stringify({ error: message }), { status: 403 }));
+    expect(await invoke({ ...phone, grant_type: 'phone_register', nickname: 'User', invitation_code: 'INVITE' })).toMatchObject({
+      success: false,
+      error: 'auth_request_rejected',
+      msg: message,
+    });
+    expect(state.set).not.toHaveBeenCalled();
+  });
+
+  it('keeps an error-only machine code out of the user-facing message', async () => {
+    state.chromiumFetch.mockResolvedValue(new Response(JSON.stringify({ error: 'invalid_code' }), { status: 401 }));
+    expect(await invoke()).toEqual({ success: false, error: 'invalid_code', data: undefined });
     expect(state.set).not.toHaveBeenCalled();
   });
 

@@ -9,6 +9,7 @@ import { IconDelete, IconEdit, IconPlayArrow } from '@arco-design/web-react/icon
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
+import { isManualCronSchedule } from '@sudowork/common/cronSchedule';
 import type { ICronJob } from '@sudowork/host-bridge/ipcBridge';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import type { TChatConversation } from '@sudowork/common/storage';
@@ -37,7 +38,7 @@ export default function CronJobDetailPage() {
   const sessionMode: 'remote' | 'local' = isEnterprise ? 'remote' : 'local';
   const [job, setJob] = useState<ICronJob | null>(null);
   const [drawerVisible, setDrawerVisible] = useState(false);
-  const assistants = useAssistantsForCron();
+  const assistants = useAssistantsForCron(sessionMode);
   const localeKey = i18n.language?.startsWith('zh') ? 'zh-CN' : 'en-US';
 
   // Fetch fresh job data on mount
@@ -132,7 +133,7 @@ export default function CronJobDetailPage() {
 
   const { hasError, isPaused } = getJobStatusFlags(job);
   const selectedAssistant = job.metadata.presetAssistantId ? assistants.find((a) => a.id === job.metadata.presetAssistantId) : undefined;
-  const assistantName = selectedAssistant ? selectedAssistant.nameI18n?.[localeKey] || selectedAssistant.name || 'Sudo Code' : job.metadata.presetAssistantId || 'Sudo Code';
+  const assistantName = selectedAssistant ? selectedAssistant.nameI18n?.[localeKey] || selectedAssistant.name || 'Sudo Code' : job.metadata.presetAssistantId || t(sessionMode === 'remote' ? 'cron.create.defaultRemoteAgent' : 'cron.create.defaultAgent');
 
   const targetConvId = getCronJobConversationTarget(job);
   const isNewMode = (job.metadata.conversationMode ?? 'new') === 'new';
@@ -144,7 +145,7 @@ export default function CronJobDetailPage() {
       subtitle={
         <div className='flex items-center gap-2 mt-1'>
           <Tag color={hasError ? 'red' : isPaused ? 'orangered' : 'green'} size='small'>
-            {hasError ? t('cron.status.error', '执行出错') : isPaused ? t('cron.status.paused', '已暂停') : t('cron.status.active', '运行中')}
+            {hasError ? t('cron.status.error', '执行出错') : isManualCronSchedule(job.schedule) ? t('cron.create.frequency.manual') : isPaused ? t('cron.status.paused', '已暂停') : t('cron.status.active', '运行中')}
           </Tag>
           {!isPaused && job.state.nextRunAtMs && (
             <span>
@@ -215,7 +216,7 @@ export default function CronJobDetailPage() {
         <div>
           <div className='text-13px text-secondary mb-2'>{t('cron.create.frequency', '频率')}</div>
           <div className='flex items-center gap-3'>
-            <Switch size='small' checked={job.enabled} onChange={(checked) => void handleToggle(job.id, checked)} />
+            <Switch size='small' disabled={isManualCronSchedule(job.schedule)} checked={job.enabled} onChange={(checked) => void handleToggle(job.id, checked)} />
             <span className='text-14px text-foreground'>{formatScheduleFrequency(job.schedule, t)}</span>
           </div>
         </div>

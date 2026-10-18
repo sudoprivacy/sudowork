@@ -6,8 +6,12 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
+import { createElement, type PropsWithChildren } from 'react';
+import { SWRConfig } from 'swr';
 
 import type { TimelineSection } from '@renderer/pages/conversation/grouped-history/types';
+import { externalSessionView } from '@renderer/pages/external-agents/navigation';
+import type { ExternalConversationView } from '@renderer/pages/external-agents/navigation';
 
 // ── localStorage mock ────────────────────────────────────────────────────────
 
@@ -37,7 +41,14 @@ const mockConversationChangedOn = vi.fn((cb: (...args: unknown[]) => void) => {
   };
 });
 
+const externalHistoryState = vi.hoisted(() => ({ conversations: [] as ExternalConversationView[], isFailed: false, onRefresh: vi.fn() }));
+vi.mock('@renderer/pages/external-agents/useExternalHistory', () => ({ useExternalHistory: () => externalHistoryState }));
+beforeEach(() => {
+  externalHistoryState.conversations = [];
+});
+
 vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
+  eeclaw: { getMyAgents: { invoke: async () => ({ success: true, data: [] }) } },
   cron: {
     listJobs: { invoke: async () => [] },
     listJobsByConversation: { invoke: async () => [] },
@@ -53,6 +64,9 @@ vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
   },
 }));
 
+vi.mock('@renderer/context/AuthContext', () => ({ useAuth: () => ({ user: { id: 'test-user' }, ready: true, status: 'authenticated' }) }));
+vi.mock('@renderer/pages/guid/hooks/useGuidAgentSelection', () => ({ getRendererSessionMode: () => 'remote' }));
+
 vi.mock('react-router-dom', () => ({
   useParams: () => ({}),
 }));
@@ -67,6 +81,10 @@ const testState = { sections: [] as TimelineSection[] };
 vi.mock('@renderer/pages/conversation/grouped-history/utils/groupingHelpers', () => ({
   buildGroupedHistory: () => ({
     pinnedConversations: [],
+    pinnedTimeline: [],
+    pinnedScheduled: [],
+    scheduledGroups: [],
+    agentGroups: [],
     timelineSections: testState.sections,
   }),
 }));
@@ -115,6 +133,15 @@ const makeWorkspaceSection = (workspaces: string[]): TimelineSection[] => [
 
 // Import the hook statically since mocks are hoisted
 import { useConversations } from '@renderer/pages/conversation/grouped-history/hooks/useConversations';
+import { ConversationHistoryProvider } from '@renderer/pages/conversation/context/ConversationHistoryContext';
+
+function renderConversationHook() {
+  const cache = new Map();
+  function Wrapper({ children }: PropsWithChildren) {
+    return createElement(SWRConfig, { value: { provider: () => cache, dedupingInterval: 0 } }, createElement(ConversationHistoryProvider, null, children));
+  }
+  return renderHook(() => useConversations(), { wrapper: Wrapper });
+}
 
 describe('useConversations - workspace expansion', () => {
   beforeEach(() => {
@@ -130,7 +157,7 @@ describe('useConversations - workspace expansion', () => {
   it('should auto-expand all workspaces on first load when localStorage is empty', async () => {
     testState.sections = makeWorkspaceSection(['/ws/a', '/ws/b']);
 
-    const { result } = renderHook(() => useConversations());
+    const { result } = renderConversationHook();
     await act(async () => {});
 
     expect(result.current.expandedWorkspaces).toEqual(expect.arrayContaining(['/ws/a', '/ws/b']));
@@ -141,7 +168,7 @@ describe('useConversations - workspace expansion', () => {
     storageMap.set(STORAGE_KEY, JSON.stringify(['/ws/a']));
     testState.sections = makeWorkspaceSection(['/ws/a', '/ws/b']);
 
-    const { result } = renderHook(() => useConversations());
+    const { result } = renderConversationHook();
     await act(async () => {});
 
     // Should keep only the stored value, not auto-expand all
@@ -151,7 +178,7 @@ describe('useConversations - workspace expansion', () => {
   it('should toggle workspace expansion on handleToggleWorkspace', async () => {
     testState.sections = makeWorkspaceSection(['/ws/a', '/ws/b']);
 
-    const { result } = renderHook(() => useConversations());
+    const { result } = renderConversationHook();
     await act(async () => {});
     expect(result.current.expandedWorkspaces).toContain('/ws/a');
 
@@ -172,7 +199,7 @@ describe('useConversations - workspace expansion', () => {
   it('should persist expansion state to localStorage', async () => {
     testState.sections = makeWorkspaceSection(['/ws/a', '/ws/b']);
 
-    const { result } = renderHook(() => useConversations());
+    const { result } = renderConversationHook();
     await act(async () => {});
 
     act(() => {
@@ -188,7 +215,7 @@ describe('useConversations - workspace expansion', () => {
     storageMap.set(STORAGE_KEY, JSON.stringify(['/ws/a', '/ws/stale']));
     testState.sections = makeWorkspaceSection(['/ws/a', '/ws/b']);
 
-    const { result } = renderHook(() => useConversations());
+    const { result } = renderConversationHook();
     await act(async () => {});
 
     expect(result.current.expandedWorkspaces).not.toContain('/ws/stale');
@@ -198,7 +225,7 @@ describe('useConversations - workspace expansion', () => {
   it('should not re-expand workspaces after user manually collapses all (#1156)', async () => {
     testState.sections = makeWorkspaceSection(['/ws/a']);
 
-    const { result } = renderHook(() => useConversations());
+    const { result } = renderConversationHook();
     await act(async () => {});
     expect(result.current.expandedWorkspaces).toEqual(['/ws/a']);
 
@@ -225,7 +252,7 @@ describe('useConversations - IPC channel conversation refresh', () => {
   });
 
   it('should subscribe to conversationChanged IPC event on mount', async () => {
-    renderHook(() => useConversations());
+    renderConversationHook();
     await act(async () => {});
 
     expect(mockConversationChangedOn).toHaveBeenCalledTimes(1);
@@ -236,7 +263,7 @@ describe('useConversations - IPC channel conversation refresh', () => {
     const conversations = [{ id: 'conv-1', name: 'DingTalk Chat', source: 'dingtalk', updated_at: Date.now() }];
     mockInvoke.mockResolvedValue([]);
 
-    renderHook(() => useConversations());
+    renderConversationHook();
     await act(async () => {});
 
     // Initial load
@@ -253,7 +280,7 @@ describe('useConversations - IPC channel conversation refresh', () => {
   });
 
   it('should still respond to chat.history.refresh renderer event', async () => {
-    renderHook(() => useConversations());
+    renderConversationHook();
     await act(async () => {});
 
     expect(mockAddEventListener).toHaveBeenCalledWith('chat.history.refresh', expect.any(Function));
@@ -271,7 +298,7 @@ describe('useConversations - IPC channel conversation refresh', () => {
   });
 
   it('should unsubscribe from IPC event on unmount', async () => {
-    const { unmount } = renderHook(() => useConversations());
+    const { unmount } = renderConversationHook();
     await act(async () => {});
 
     // Should have registered a listener
@@ -283,4 +310,18 @@ describe('useConversations - IPC channel conversation refresh', () => {
     // Cleanup should have been called, removing the listener
     expect(conversationChangedCallback).toBeNull();
   });
+});
+
+it('merges external history without adding it to the shared native conversation source', async () => {
+  storageMap.clear();
+  testState.sections = [];
+  const native = { id: 'native-session', type: 'acp', name: 'Native', createTime: Date.now(), extra: { backend: 'scode' } };
+  mockInvoke.mockResolvedValue([native]);
+  const external = externalSessionView({ id: 'remote-session', agent_id: 'published', agent_name: 'External', title: 'External history', created_at: Date.now(), updated_at: Date.now(), active_task_id: null });
+  externalHistoryState.conversations = [external];
+  const { result } = renderConversationHook();
+  await act(async () => {});
+  expect(result.current.conversations).toEqual([native]);
+  expect(result.current.timelineSections.flatMap((section) => section.items).map((item) => item.conversation)).toContainEqual(external);
+  expect(result.current.agentGroups).toEqual([]);
 });

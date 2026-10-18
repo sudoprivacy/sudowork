@@ -1,48 +1,11 @@
 /**
- * @license
- * Copyright 2025 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- */
-
-/**
- * FuseTSupervisor — closes the lazy FUSE-T install loop.
- *
- * Sudowork PR #916 stood up `FuseTInstallService.ensureInstalled()` +
- * its IPC bridge; the lazy contract was "ready but unreached" because
- * nothing on disk read the fuse plugin's `dispatch("status")` and
- * decided when to invoke the installer. This module is that consumer.
- *
- * Flow on `runLazyInstallProbe()`:
- *
- *   1. Probe `fuse.status` via [[FusePluginClient]].
- *   2. If `mounted` / `unmounted` / `unknown` — return; no install
- *      decision the supervisor can make from those states. (The
- *      cluster being unreachable is `unknown` and intentionally does
- *      NOT trigger an admin-password prompt.)
- *   3. If `fuse-t-missing` — call
- *      `fuseTInstallService.ensureInstalled()`. Surfaces one admin
- *      password prompt (the install service's `osascript` step).
- *   4. After install, restart `nexusd-cluster` so the plugin's
- *      `create` runs again and this time clears
- *      `prereq_missing = Some("fuse-t")`. The plugin doesn't expose
- *      a "re-probe in place" dispatch method (that would require a
- *      new admin-method on the Rust side); restarting the cluster
- *      re-runs `nexus_service_create` and is the smallest change that
- *      ends in `status == "mounted"`. The cluster's own restart cost
- *      is bounded (single-node, no Raft peers to rejoin on a
- *      laptop dev setup) so the latency hit is acceptable for a
- *      one-shot install.
- *   5. Re-probe `fuse.status`; return the final outcome.
- *
- * Triggering is ALWAYS opt-in via `ipcBridge.fuseT.runLazyInstallProbe`.
- * Nothing in this module fires on bridge init, app startup, or as a
- * side-effect of importing it elsewhere; the "no eager
- * `ensureInstalled` call" invariant the integration test guards is
- * preserved.
+ * Probes filesystem driver prerequisites through Sudocode.
+ * An explicit user action installs FUSE-T and asks Sudocode to refresh its services.
+ * The final driver probe supplies the frontend's mount status.
  */
 
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
-import { dynamicNexusVfsService } from '@process/services/nexus-vfs/DynamicNexusVfsService';
+import { scodeRuntimeService } from '@process/services/scode/ScodeRuntimeService';
 import { fuseTInstallService, type FuseTProgressCallback } from '@process/services/fuset/FuseTInstallService';
 import { getFusePluginClient, type FusePluginClient, type FusePluginStatus } from '@process/services/nexus-vfs/FusePluginClient';
 
@@ -69,10 +32,7 @@ interface InstallServiceLike {
 
 /** Minimum surface needed to provision the deferred plugin and restart the cluster. */
 interface ClusterControlLike {
-  stop(): Promise<void>;
-  install(): Promise<void>;
-  start(): Promise<void>;
-  readonly isRunning: boolean;
+  restart(): Promise<void>;
 }
 
 export interface FuseTSupervisorDeps {
@@ -97,7 +57,7 @@ export class FuseTSupervisor {
   constructor(deps: FuseTSupervisorDeps = {}) {
     this.pluginClient = deps.pluginClient ?? getFusePluginClient();
     this.installService = deps.installService ?? fuseTInstallService;
-    this.cluster = deps.cluster ?? dynamicNexusVfsService;
+    this.cluster = deps.cluster ?? scodeRuntimeService;
     this.platform = deps.platform ?? process.platform;
     this.onInstallProgress = deps.onInstallProgress;
   }
@@ -160,14 +120,7 @@ export class FuseTSupervisor {
     // new dispatch verb on the Rust side); restart is the smallest
     // change that ends in `status == "mounted"`.
     try {
-      if (this.cluster.isRunning) {
-        mainLog(TAG, 'stopping nexusd-cluster to re-run plugin create() with FUSE-T present');
-        await this.cluster.stop();
-      }
-      // The optional plugin was deferred on machines without the FUSE library.
-      await this.cluster.install();
-      mainLog(TAG, 'starting nexusd-cluster post-install');
-      await this.cluster.start();
+      await this.cluster.restart();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       mainWarn(TAG, `cluster restart failed post-install: ${msg}`);

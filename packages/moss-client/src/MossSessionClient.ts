@@ -3,16 +3,20 @@ import {
   MossContextResponseSchema,
   MossCreateSessionResponseSchema,
   MossResumeResponseSchema,
+  MossSessionActivitySchema,
   MossSessionListResponseSchema,
   MossSessionSummarySchema,
   MossWorkspaceNodeSchema,
   type MossSessionSummary,
+  type MossSessionActivity,
 } from '@sudowork/contracts/conversations'
 import { type MossCallContext, type MossFetch } from './MossHttpClient.js'
 
 // Workspace I/O may wait for a cold container and then run a bounded pod exec.
 // Keep ordinary metadata requests on the shorter HTTP client's default timeout.
 const WORKSPACE_TIMEOUT_MS = 90_000
+// Runtime provisioning and K8s readiness can take longer than metadata reads.
+const RUNTIME_START_TIMEOUT_MS = 180_000
 
 /**
  * Moss Session REST 端口（计划 Task 5）：
@@ -26,7 +30,7 @@ export interface MossSessionPort {
   get(ctx: MossCallContext, sessionId: string): Promise<MossSessionSummary | null>
   create(
     ctx: MossCallContext,
-    input: { assistantName: string; enabledSkills: string[] },
+    input: { assistantName: string; templateRef?: string; enabledSkills: string[] },
   ): Promise<{
     sessionId: string
     taskId?: string
@@ -45,6 +49,7 @@ export interface MossSessionPort {
     ctx: MossCallContext,
   ): Promise<{ modelId: string | null; systemDefaultModel: string | null }>
   context(ctx: MossCallContext, sessionId: string): Promise<unknown>
+  activity(ctx: MossCallContext, sessionId: string): Promise<MossSessionActivity>
   resume(
     ctx: MossCallContext,
     sessionId: string,
@@ -100,18 +105,23 @@ export function createMossSessionPort(mossFetch: MossFetch): MossSessionPort {
     },
 
     async create(ctx, input) {
-      const json = await mossFetch(ctx.baseUrl, {
-        method: 'POST',
-        path: '/api/v1/sessions',
-        accessToken: ctx.accessToken,
-        body: {
-          assistant_name: input.assistantName,
-          enabled_skills: input.enabledSkills,
-          // 对齐桌面端 MossWsConnection 默认（false）：工具执行走 control_request 审批，
-          // 而非跳过权限。moss 服务端缺省值不可考，显式传递以确定行为。
-          dangerously_skip_permissions: false,
+      const json = await mossFetch(
+        ctx.baseUrl,
+        {
+          method: 'POST',
+          path: '/api/v1/sessions',
+          accessToken: ctx.accessToken,
+          body: {
+            assistant_name: input.assistantName,
+            ...(input.templateRef ? { template_ref: input.templateRef } : {}),
+            enabled_skills: input.enabledSkills,
+            // 对齐桌面端 MossWsConnection 默认（false）：工具执行走 control_request 审批，
+            // 而非跳过权限。moss 服务端缺省值不可考，显式传递以确定行为。
+            dangerously_skip_permissions: false,
+          },
         },
-      })
+        RUNTIME_START_TIMEOUT_MS,
+      )
       const parsed = MossCreateSessionResponseSchema.parse(json)
       return {
         sessionId: parsed.session_id,
@@ -172,12 +182,26 @@ export function createMossSessionPort(mossFetch: MossFetch): MossSessionPort {
       return MossContextResponseSchema.parse(json)
     },
 
+    async activity(ctx, sessionId) {
+      return MossSessionActivitySchema.parse(
+        await mossFetch(ctx.baseUrl, {
+          method: 'GET',
+          path: `/api/v1/sessions/${encodeSegment(sessionId)}/activity`,
+          accessToken: ctx.accessToken,
+        }),
+      )
+    },
+
     async resume(ctx, sessionId) {
-      const json = await mossFetch(ctx.baseUrl, {
-        method: 'POST',
-        path: `/api/v1/sessions/${encodeSegment(sessionId)}/resume`,
-        accessToken: ctx.accessToken,
-      })
+      const json = await mossFetch(
+        ctx.baseUrl,
+        {
+          method: 'POST',
+          path: `/api/v1/sessions/${encodeSegment(sessionId)}/resume`,
+          accessToken: ctx.accessToken,
+        },
+        RUNTIME_START_TIMEOUT_MS,
+      )
       const parsed = MossResumeResponseSchema.parse(json)
       return { session: parsed.session, wsUrl: parsed.ws_url }
     },

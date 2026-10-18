@@ -6,6 +6,7 @@ import { defineConfig, externalizeDepsPlugin } from 'electron-vite';
 import react from '@vitejs/plugin-react';
 import UnoCSS from 'unocss/vite';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
+import { browserPageViewAlias, browserSessionContractAlias } from '../../scripts/browser-view-alias.mjs';
 import unoConfig from './uno.config.ts';
 
 const nodeRequire = createRequire(import.meta.url);
@@ -51,27 +52,9 @@ function iconParkPlugin() {
 // module). Everything else under @common / @/common has moved to @sudowork/common
 // (packages/common). commonAliasEntries() routes the stayed modules back to the
 // desktop tree via exact-match regex, and routes the rest to the package source.
-const DESKTOP_ONLY_COMMON = [
-  'ClientFactory',
-  'adapters/index',
-  'enterpriseDebugConfig',
-  'imagePricingSource',
-  'index',
-  'navigation/NavigationInterceptor',
-  'navigation/index',
-  'nexus/generated/nexus/secrets/v1/secrets_pb',
-  'nexus/index',
-  'nexus/moss-secret-client-factory',
-  'nexus/nexus-secret-client',
-  'nexus/nexus-secret-resilient',
-  'nexus/nexus-vfs-client',
-  'nexus/nexusVfsGrpcClient',
-  'nexus/secret-cache',
-  'nexus/secret-migration',
-  'presets/assistantPresets',
-];
+const DESKTOP_ONLY_COMMON = ['ClientFactory', 'adapters/index', 'enterpriseDebugConfig', 'imagePricingSource', 'index', 'navigation/NavigationInterceptor', 'navigation/index', 'nexus/moss-secret-client-factory', 'nexus/secret-cache', 'nexus/secret-migration', 'presets/assistantPresets'];
 // Split directories whose barrel index stays in the desktop tree (siblings moved).
-const DESKTOP_ONLY_COMMON_DIRS = ['nexus', 'navigation', 'adapters'];
+const DESKTOP_ONLY_COMMON_DIRS = ['navigation', 'adapters'];
 
 // Alias entries (regex, evaluated first-match-wins) shared by main/preload/renderer
 // so both `@common/*` and `@/common/*` resolve correctly across the split.
@@ -82,6 +65,7 @@ function commonAliasEntries() {
   const entries: { find: RegExp; replacement: string }[] = [];
   // Bare barrel (`@common` / `@/common`) -> desktop index.ts
   entries.push({ find: /^@\/?common$/, replacement: deskCommon });
+  entries.push({ find: /^@\/?common\/scode\/(.*)$/, replacement: `${deskCommon}/scode/$1` });
   // Stayed modules + split-dir barrels (exact match) -> desktop tree
   for (const m of [...DESKTOP_ONLY_COMMON, ...DESKTOP_ONLY_COMMON_DIRS]) {
     entries.push({ find: new RegExp('^@\\/?common\\/' + esc(m) + '$'), replacement: `${deskCommon}/${m}` });
@@ -103,6 +87,7 @@ const mainAliases = [
   // Bundle the shared workspace packages from source (see externalizeDepsPlugin
   // exclude below) so the packaged/dev main process never depends on a prior
   // `dist` build of them.
+  { find: '@sudowork/moss-client/external-providers', replacement: resolve('../../packages/moss-client/src/MossExternalProviderClient.ts') },
   { find: '@sudowork/moss-client/agents', replacement: resolve('../../packages/moss-client/src/MossAgentClient.ts') },
   { find: '@sudowork/moss-client', replacement: resolve('../../packages/moss-client/src/index.ts') },
   { find: /^@sudowork\/ontology-common\/(.*)$/, replacement: resolve('../../packages/ontology-common/src') + '/$1' },
@@ -111,6 +96,10 @@ const mainAliases = [
   { find: /^@sudowork\/ontology-engine$/, replacement: resolve('../../packages/ontology-engine/src/index.ts') },
   { find: '@sudowork/contracts/auth', replacement: resolve('../../packages/contracts/src/auth.ts') },
   { find: '@sudowork/contracts/conversations', replacement: resolve('../../packages/contracts/src/conversations.ts') },
+  browserSessionContractAlias,
+  { find: '@sudowork/contracts/external-provider', replacement: resolve('../../packages/contracts/src/external-provider.gen.ts') },
+  { find: '@sudowork/contracts/task', replacement: resolve('../../packages/contracts/src/task.gen.ts') },
+  { find: '@sudowork/contracts/agent-federation', replacement: resolve('../../packages/contracts/src/agent-federation.gen.ts') },
   { find: /^@sudowork\/host-bridge\/(.*)$/, replacement: resolve('../../packages/host-bridge/src') + '/$1' },
   { find: /^@sudowork\/host-bridge$/, replacement: resolve('../../packages/host-bridge/src/index.ts') },
   { find: '@', replacement: resolve('src') },
@@ -246,7 +235,13 @@ export default defineConfig(({ mode }) => {
       },
       resolve: {
         alias: [
+          browserPageViewAlias,
+          browserSessionContractAlias,
           ...commonAliasEntries(),
+          { find: '@sudowork/moss-client/external-providers', replacement: resolve('../../packages/moss-client/src/MossExternalProviderClient.ts') },
+          { find: '@sudowork/contracts/external-provider', replacement: resolve('../../packages/contracts/src/external-provider.gen.ts') },
+          { find: '@sudowork/contracts/task', replacement: resolve('../../packages/contracts/src/task.gen.ts') },
+          { find: '@sudowork/contracts/agent-federation', replacement: resolve('../../packages/contracts/src/agent-federation.gen.ts') },
           { find: '@renderer', replacement: resolve('../../packages/renderer/src') },
           { find: '@process', replacement: resolve('src/process') },
           { find: '@worker', replacement: resolve('src/worker') },

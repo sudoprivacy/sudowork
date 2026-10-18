@@ -14,6 +14,7 @@ import { createWebSession } from '@server/features/auth/sessionRepository'
 import { digestToken, generateSessionToken } from '@server/security/sessionToken'
 import { encryptToken } from '@server/security/tokenCipher'
 import { createTestDatabase, destroyTestDatabase } from './helpers'
+import type { MossSessionSummary } from '@sudowork/contracts/conversations'
 
 const HMAC_KEY = Buffer.from('integration-test-hmac-key-32-bytes-ok!')
 const AES_KEY = Buffer.alloc(32, 7)
@@ -33,7 +34,7 @@ const testConfig: AppConfig = {
 }
 
 /** Moss session 桩：A 用户两个会话 + B 用户一个会话（测强制过滤）。 */
-const SESSIONS = [
+const SESSIONS: MossSessionSummary[] = [
   {
     sessionId: 'sess-a1',
     userId: 'moss-a',
@@ -107,6 +108,9 @@ function createFakeMossSession(): MossSessionPort {
         },
       }
     },
+    async activity() {
+      return { attemptId: null, state: 'unavailable' }
+    },
     async resume(_tk, sessionId) {
       const session = SESSIONS.find((s) => s.sessionId === sessionId)
       if (!session) throw new MossHttpError(404, '', '')
@@ -168,6 +172,7 @@ const fakeMossAuth: MossAuthPort = {
 }
 
 describe('conversation REST (real PostgreSQL + fake moss)', () => {
+  const runtimeRequests: { path: string; method?: string; accessToken?: string }[] = []
   let pool: Pool
   let principalA: Principal
   let principalB: Principal
@@ -178,7 +183,14 @@ describe('conversation REST (real PostgreSQL + fake moss)', () => {
     const app = createApp({ publicOrigin: testConfig.publicOrigin })
     const auth = { pool, config: testConfig, mossAuth: fakeMossAuth }
     const coordinator = new ConversationCoordinator({ pool, config: testConfig, auth, moss })
-    const mossFetch = async (_base: string, req: { path: string }): Promise<unknown> => {
+    const mossFetch = async (
+      _base: string,
+      req: { path: string; method?: string; accessToken?: string },
+    ): Promise<unknown> => {
+      if (req.path === '/api/v1/agent-runtimes/moss-a/upgrade') {
+        runtimeRequests.push(req)
+        return { runtime: { ownerId: 'moss-a', privateConnection: 'must-not-leak' } }
+      }
       if (req.path === '/api/v1/agent-templates/installed')
         return [{ name: 'helper' }, { name: 'builtin-agent', isBuiltin: true }]
       if (req.path === '/api/v1/skills/installed') return [{ name: 'known-skill' }]
@@ -255,6 +267,166 @@ describe('conversation REST (real PostgreSQL + fake moss)', () => {
       .set('Cookie', cookieB)
     expect(res.status).toBe(200)
     expect((res.body.conversations as { id: string }[]).map((c) => c.id)).toEqual(['sess-b1'])
+  })
+
+  test('browser file routes require authentication and reject another owner before transferring bytes', async () => {
+    const app = await buildApp()
+    const fileId = 'a'.repeat(32)
+    const upload = '/api/conversations/sess-b1/browser/files/upload'
+    const anonymous = await request(app)
+      .post(upload)
+      .set('Origin', testConfig.publicOrigin)
+      .set('Content-Type', 'application/octet-stream')
+      .send(Buffer.from('anonymous'))
+    expect(anonymous.status).toBe(401)
+    const foreign = await request(app)
+      .post(upload)
+      .set('Origin', testConfig.publicOrigin)
+      .set('Cookie', cookieA)
+      .set('Content-Type', 'application/octet-stream')
+      .set('X-Browser-File-Name', 'review.txt')
+      .set('X-Browser-Control-Epoch', '1')
+      .set('X-Browser-Target-Epoch', '0')
+      .send(Buffer.from('foreign'))
+    expect(foreign.status).toBe(403)
+    const read = await request(app)
+      .get(`/api/conversations/sess-b1/browser/files/${fileId}`)
+      .set('Cookie', cookieA)
+    expect(read.status).toBe(403)
+    const missingEpoch = await request(app)
+      .post('/api/conversations/sess-a1/browser/files/upload')
+      .set('Origin', testConfig.publicOrigin)
+      .set('Cookie', cookieA)
+      .set('Content-Type', 'application/octet-stream')
+      .set('X-Browser-File-Name', 'review.txt')
+      .send(Buffer.from('missing observation'))
+    expect(missingEpoch.status).toBe(400)
+  })
+
+  test('runtime updates require the authenticated owner, an authorized Session and the trusted Origin', async () => {
+    const app = await buildApp()
+    runtimeRequests.length = 0
+    const own = '/api/conversations/sess-a1/runtime/upgrade'
+    expect(
+      (await request(app).post(own).set('Origin', testConfig.publicOrigin).send({})).status,
+    ).toBe(401)
+    expect((await request(app).post(own).set('Cookie', cookieA).send({})).status).toBe(403)
+    expect(
+      (
+        await request(app)
+          .post(own)
+          .set('Origin', testConfig.publicOrigin)
+          .set('Cookie', cookieA)
+          .send({ ownerId: 'moss-b' })
+      ).status,
+    ).toBe(400)
+    expect(
+      (
+        await request(app)
+          .post('/api/conversations/sess-b1/runtime/upgrade')
+          .set('Origin', testConfig.publicOrigin)
+          .set('Cookie', cookieA)
+          .send({})
+      ).status,
+    ).toBe(403)
+    expect(runtimeRequests).toHaveLength(0)
+    const updated = await request(app)
+      .post(own)
+      .set('Origin', testConfig.publicOrigin)
+      .set('Cookie', cookieA)
+      .send({})
+    expect(updated.status).toBe(200)
+    expect(updated.body).toEqual({ success: true })
+    expect(runtimeRequests).toHaveLength(1)
+    expect(runtimeRequests[0]).toMatchObject({
+      path: '/api/v1/agent-runtimes/moss-a/upgrade',
+      method: 'POST',
+    })
+    expect(runtimeRequests[0]!.accessToken).toBeTruthy()
+  })
+
+  test('a manager workbench uses a verified grant while retaining the Agent owner', async () => {
+    const managed: MossSessionSummary = {
+      sessionId: 'manager-owned-by-b',
+      userId: 'moss-b',
+      orgId: 'org-1',
+      status: 'active',
+      source: 'agent-manager',
+      assistantName: 'moss-agent:nexus:cGVyc2lzdGVudA',
+      clientMetadata: {
+        agent_manager_actor_id: 'moss-a',
+        agent_manager_agent_name: 'persistent',
+        agent_manager_display_name: 'Persistent Agent',
+        agent_manager_owner_name: 'Owner B',
+      },
+    }
+    SESSIONS.push(managed)
+    try {
+      await upsertConversationModel(pool, principalB.id, managed.sessionId, 'gpt-4o-mini')
+      await upsertConversationModel(pool, principalA.id, managed.sessionId, 'manager-preference')
+      const app = await buildApp()
+      const listed = await request(app).get('/api/conversations').set('Cookie', cookieA)
+      expect(listed.status).toBe(200)
+      expect(
+        listed.body.conversations.find((item: { id: string }) => item.id === managed.sessionId)
+          ?.managementContext,
+      ).toEqual({
+        ownerId: 'moss-b',
+        ownerName: 'Owner B',
+        agentName: 'persistent',
+        displayName: 'Persistent Agent',
+      })
+      expect(
+        (
+          await request(app)
+            .get(`/api/conversations/${managed.sessionId}/context`)
+            .set('Cookie', cookieA)
+        ).status,
+      ).toBe(200)
+      const model = await request(app)
+        .get(`/api/conversations/${managed.sessionId}/model`)
+        .set('Cookie', cookieA)
+      expect(model.body.modelId).toBe('gpt-4o-mini')
+      const context = await request(app)
+        .get(`/api/conversations/${managed.sessionId}/context`)
+        .set('Cookie', cookieA)
+      expect(context.body.modelId).toBe('gpt-4o-mini')
+      expect(
+        (
+          await request(app)
+            .get(`/api/conversations/${managed.sessionId}/model`)
+            .set('Cookie', cookieA)
+        ).status,
+      ).toBe(200)
+      managed.clientMetadata = {
+        ...managed.clientMetadata,
+        agent_manager_actor_id: 'another-manager',
+      }
+      expect(
+        (
+          await request(app)
+            .get(`/api/conversations/${managed.sessionId}/context`)
+            .set('Cookie', cookieA)
+        ).status,
+      ).toBe(403)
+      expect(
+        (
+          await request(app)
+            .get(`/api/conversations/${managed.sessionId}/context`)
+            .set('Cookie', cookieB)
+        ).status,
+      ).toBe(200)
+      managed.orgId = 'another-org'
+      expect(
+        (
+          await request(app)
+            .get(`/api/conversations/${managed.sessionId}/context`)
+            .set('Cookie', cookieB)
+        ).status,
+      ).toBe(403)
+    } finally {
+      SESSIONS.pop()
+    }
   })
 
   test('GET context sanitizes cwd and enforces ownership', async () => {

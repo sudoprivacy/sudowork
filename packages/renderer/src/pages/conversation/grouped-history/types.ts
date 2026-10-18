@@ -5,6 +5,7 @@
  */
 
 import type { TChatConversation } from '@sudowork/common/storage';
+import type { IMyAgent } from '@sudowork/common/personalAgents';
 import type { CronJobStatusEnums } from '@renderer/utils/enum';
 
 /**
@@ -32,7 +33,7 @@ export type AgentGroup = {
   /** Stable identity from the server; display names are presentation only. */
   ref: string;
   displayName: string;
-  kind: 'default' | 'own' | 'template';
+  kind: IMyAgent['kind'] | 'managed';
   conversations: ConversationItem[];
 };
 
@@ -55,26 +56,15 @@ export type TimelineSection = {
   items: TimelineItem[];
 };
 
-export type SidebarTabKey = 'timeline' | 'scheduled';
+export type SidebarTabKey = 'agents' | 'timeline' | 'scheduled';
 
 export type GroupedHistoryResult = {
   pinnedTimeline: ConversationItem[];
   pinnedScheduled: ConversationItem[];
   timelineSections: TimelineSection[];
   scheduledGroups: ScheduledGroup[];
-  /**
-   * Grouped by the agent each conversation belongs to. Empty until the agent
-   * list has loaded, so the sidebar falls back to the timeline rather than
-   * flashing an ungrouped list.
-   */
+  /** Persistent Agents and their sessions, including pinned sessions. */
   agentGroups: AgentGroup[];
-  /**
-   * The most recent conversations across every agent, newest first.
-   *
-   * Grouping only by agent would make "find the one from last week" start with
-   * "remember whose it was". This keeps the by-time route open.
-   */
-  recent: ConversationItem[];
 };
 
 export type ExportZipFile = {
@@ -87,6 +77,7 @@ export type ExportTask = { mode: 'single'; conversation: TChatConversation } | {
 
 export type ConversationRowProps = {
   conversation: ConversationItem;
+  agentDisplayName?: string;
   collapsed: boolean;
   tooltipEnabled: boolean;
   batchMode: boolean;

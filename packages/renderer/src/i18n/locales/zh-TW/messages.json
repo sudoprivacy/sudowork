@@ -57,5 +57,6 @@
     "yesAlwaysAllowTool": "是，始終允許來自伺服器 \"{{serverName}}\" 的工具 \"{{toolName}}\"",
     "yesAlwaysAllowServer": "是，始終允許來自伺服器 \"{{serverName}}\" 的所有工具",
     "no": "否 (esc)"
-  }
+  },
+  "openFileFailed": "无法打开文件，请确认文件仍在当前会话的工作空间中，并检查网络连接。"
 }

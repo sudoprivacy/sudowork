@@ -86,6 +86,7 @@ export interface IConfigStorageRefer {
   'migration.promptsI18nAdded'?: boolean;
   /** Locally hidden remote cron execution sessions keyed by Moss session ID. */
   'remote.hiddenCronSessionIds'?: Record<string, number>;
+  'remote.hiddenSessionIds'?: Record<string, Record<string, number>>;
   /** Migration flag: skill subdirectory restructuring completed */
   'migration.skillSubdirectoriesMigrated'?: boolean;
   /** Migration flag: channel agent migrated to scode (Sudo Code) */
@@ -329,6 +330,7 @@ export type TChatConversation =
           enabledSkills?: string[];
           /** 预设助手 ID，用于在会话面板显示助手名称和头像 / Preset assistant ID for displaying name and avatar in conversation panel */
           presetAssistantId?: string;
+          templateRef?: string;
           /** 是否置顶会话 / Whether this conversation is pinned */
           pinned?: boolean;
           /** 置顶时间戳（毫秒）/ Pin timestamp in milliseconds */
@@ -428,6 +430,7 @@ export type TChatConversation =
           cliPath?: string;
           /** 预设助手 ID / Preset assistant ID */
           presetAssistantId?: string;
+          templateRef?: string;
           /** 启用的 skills 列表 / Enabled skills list */
           enabledSkills?: string[];
           /** Persisted session mode for resume support / 持久化的会话模式，用于恢复 */
@@ -449,6 +452,12 @@ export type TChatConversation =
           /** Whether Moss session is pending creation (lazy creation pattern) / Moss session 是否待创建（延迟创建模式） */
           mossSessionPending?: boolean;
           mossAssistantRef?: string;
+          agentManagement?: {
+            ownerId: string;
+            ownerName: string;
+            agentName: string;
+            displayName: string;
+          };
           /** Display name override for workspace */
           workspaceDisplayName?: string;
           /** Cron job ID that created this conversation */

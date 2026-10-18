@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Message } from '@arco-design/web-react';
+import { useTranslation } from 'react-i18next';
 import { useCallback, useState } from 'react';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { joinPath } from '@sudowork/common/chatLib';
@@ -63,6 +65,7 @@ interface PreviewLaunchOptions {
  * @returns {{ launchPreview: Function, loading: boolean }}
  */
 export const usePreviewLauncher = () => {
+  const { t } = useTranslation();
   const conversationContext = useConversationContextSafe();
   const workspace = conversationContext?.workspace;
   const { openPreview } = usePreviewContext();
@@ -105,7 +108,8 @@ export const usePreviewLauncher = () => {
       }
 
       try {
-        if (remoteConversationId && relativePath) {
+        if (remoteConversationId) {
+          if (!relativePath) throw new Error('Remote file path is required');
           const response = await ipcBridge.conversation.previewRemoteWorkspaceFile.invoke({ conversation_id: remoteConversationId, path: relativePath });
           if (!response?.success || !response.data) throw new Error(response?.msg || 'Remote preview unavailable');
           const file = response.data;
@@ -181,13 +185,15 @@ export const usePreviewLauncher = () => {
             return;
           }
         }
+        if (!hasOpened) Message.error(t('messages.openFileFailed'));
       } catch (error) {
+        Message.error(t('messages.openFileFailed'));
         console.error('[usePreviewLauncher] Failed to open preview:', error);
       } finally {
         setLoading(false);
       }
     },
-    [workspace, openPreview]
+    [workspace, openPreview, t]
   );
 
   return { launchPreview, loading };

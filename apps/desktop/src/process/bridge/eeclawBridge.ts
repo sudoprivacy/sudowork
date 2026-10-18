@@ -6,6 +6,7 @@
 
 import { net } from 'electron';
 import { hasValidLoginIdentity } from '@sudowork/common/authLogin';
+import { externalProviderPort } from '@process/services/mossExternalProviders';
 import { ipcBridge } from '@/common';
 // Match renderer SMS requests: Chromium honors system proxies and certificate settings.
 import { ProcessConfig } from '@process/initStorage';
@@ -16,6 +17,24 @@ import { createMossPersonalAgent, listMossPersonalAgents } from '@process/servic
 import { resetConversationProvider } from '../providers';
 
 let refreshPromise: Promise<string> | null = null;
+
+function readNonEmptyString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value : undefined;
+}
+
+function isMachineErrorCode(value: string): boolean {
+  return /^[A-Za-z][A-Za-z0-9_.:-]*$/.test(value);
+}
+
+function normalizeLoginFailure(data: unknown): { error: string; msg?: string } {
+  const body = data && typeof data === 'object' ? (data as Record<string, unknown>) : {};
+  const code = readNonEmptyString(body.code);
+  const error = readNonEmptyString(body.error);
+  const message = readNonEmptyString(body.msg) ?? readNonEmptyString(body.message);
+  if (message) return { error: code ?? error ?? 'login_failed', msg: message };
+  if (error && !isMachineErrorCode(error)) return { error: code ?? 'auth_request_rejected', msg: error };
+  return { error: code ?? error ?? 'login_failed' };
+}
 
 // Serializes every mutation of eeclaw.authStorage (login, logout, refresh).
 // Without this, a logout/login race can persist an already-revoked token as
@@ -364,8 +383,7 @@ export function initEeclawBridge(): void {
       if (!response.ok) {
         return {
           success: false,
-          error: (data?.code || data?.error || 'login_failed') as string,
-          msg: (data?.msg || data?.message) as string | undefined,
+          ...normalizeLoginFailure(data),
           data: undefined,
         };
       }
@@ -515,6 +533,147 @@ export function initEeclawBridge(): void {
    * it knows which of the three kinds a stored reference is and where each
    * kind's name lives.
    */
+  ipcBridge.externalProviders.context.provider(async () => {
+    const server = ProcessConfig.getSync('eeclaw.serverUrl');
+    const scope = ProcessConfig.getSync('eeclaw.accountScope');
+    const auth = ProcessConfig.getSync('eeclaw.authStorage');
+    const isAvailable = Boolean(server && scope && auth?.access_token);
+    return { success: true, data: { isAvailable, identity: isAvailable ? JSON.stringify([server, scope]) : '' } };
+  });
+  ipcBridge.externalProviders.access.provider(async () => {
+    try {
+      return { success: true, data: await externalProviderPort.access() };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'EXTERNAL_TASK_REQUEST_FAILED' };
+    }
+  });
+  ipcBridge.externalProviders.policy.provider(async () => {
+    try {
+      return { success: true, data: await externalProviderPort.policy() };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'EXTERNAL_TASK_REQUEST_FAILED' };
+    }
+  });
+  ipcBridge.externalProviders.savePolicy.provider(async (input) => {
+    try {
+      return { success: true, data: await externalProviderPort.savePolicy(input) };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'EXTERNAL_TASK_REQUEST_FAILED' };
+    }
+  });
+  ipcBridge.externalProviders.adminAgents.provider(async () => {
+    try {
+      return { success: true, data: await externalProviderPort.adminAgents() };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'EXTERNAL_TASK_REQUEST_FAILED' };
+    }
+  });
+  ipcBridge.externalProviders.members.provider(async () => {
+    try {
+      return { success: true, data: await externalProviderPort.members() };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'EXTERNAL_TASK_REQUEST_FAILED' };
+    }
+  });
+  ipcBridge.externalProviders.inspect.provider(async (input) => {
+    try {
+      return { success: true, data: await externalProviderPort.inspect(input) };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'EXTERNAL_TASK_REQUEST_FAILED' };
+    }
+  });
+  ipcBridge.externalProviders.onboard.provider(async (input) => {
+    try {
+      return { success: true, data: await externalProviderPort.onboard(input) };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'EXTERNAL_TASK_REQUEST_FAILED' };
+    }
+  });
+  ipcBridge.externalProviders.update.provider(async (input) => {
+    try {
+      return { success: true, data: await externalProviderPort.update(input.agentId, input.input) };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'EXTERNAL_TASK_REQUEST_FAILED' };
+    }
+  });
+  ipcBridge.externalProviders.rotate.provider(async (input) => {
+    try {
+      return { success: true, data: await externalProviderPort.rotate(input.agentId, { revision: input.revision, api_key: input.api_key }) };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'EXTERNAL_TASK_REQUEST_FAILED' };
+    }
+  });
+  ipcBridge.externalProviders.archive.provider(async (input) => {
+    try {
+      return { success: true, data: await externalProviderPort.archive(input.agentId, input.revision) };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'EXTERNAL_TASK_REQUEST_FAILED' };
+    }
+  });
+  ipcBridge.externalProviders.testAgent.provider(async (input) => {
+    try {
+      return { success: true, data: await externalProviderPort.testAgent(input.agentId) };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'EXTERNAL_TASK_REQUEST_FAILED' };
+    }
+  });
+  ipcBridge.externalProviders.review.provider(async (input) => {
+    try {
+      return { success: true, data: await externalProviderPort.review(input.agentId, { approved: input.approved, revision: input.revision, review_days: input.review_days }) };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'EXTERNAL_TASK_REQUEST_FAILED' };
+    }
+  });
+  ipcBridge.externalProviders.agents.provider(async () => {
+    try {
+      return { success: true, data: await externalProviderPort.agents() };
+    } catch {
+      return { success: false, msg: 'EXTERNAL_TASK_REQUEST_FAILED' };
+    }
+  });
+  ipcBridge.externalProviders.sessions.provider(async () => {
+    try {
+      return { success: true, data: await externalProviderPort.sessions() };
+    } catch {
+      return { success: false, msg: 'EXTERNAL_TASK_REQUEST_FAILED' };
+    }
+  });
+  ipcBridge.externalProviders.versions.provider(async (input) => {
+    try {
+      return { success: true, data: await externalProviderPort.versions(input.agentId, input.after) };
+    } catch {
+      return { success: false, msg: 'EXTERNAL_TASK_REQUEST_FAILED' };
+    }
+  });
+  ipcBridge.externalProviders.evidence.provider(async (input) => {
+    try {
+      return { success: true, data: await externalProviderPort.evidence(input.taskId) };
+    } catch {
+      return { success: false, msg: 'EXTERNAL_TASK_REQUEST_FAILED' };
+    }
+  });
+  ipcBridge.externalProviders.history.provider(async (input) => {
+    try {
+      return { success: true, data: await externalProviderPort.history(input.sessionId) };
+    } catch {
+      return { success: false, msg: 'EXTERNAL_TASK_REQUEST_FAILED' };
+    }
+  });
+  ipcBridge.externalProviders.create.provider(async (input) => {
+    try {
+      return { success: true, data: await externalProviderPort.create(input) };
+    } catch {
+      return { success: false, msg: 'EXTERNAL_TASK_REQUEST_FAILED' };
+    }
+  });
+  ipcBridge.externalProviders.events.provider(async (input) => {
+    try {
+      return { success: true, data: await externalProviderPort.events(input.taskId, input.cursor) };
+    } catch {
+      return { success: false, msg: 'EXTERNAL_TASK_REQUEST_FAILED' };
+    }
+  });
+
   ipcBridge.eeclaw.getMyAgents.provider(async () => {
     try {
       if (!ProcessConfig.getSync('eeclaw.serverUrl')) return { success: true, data: [] };

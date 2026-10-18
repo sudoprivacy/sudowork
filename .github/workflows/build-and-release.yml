@@ -37,7 +37,7 @@ jobs:
   # Dev branch (manual): all platforms
   prepare-matrix:
     name: Prepare Build Matrix
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
       build_branch: ${{ steps.context.outputs.build_branch }}
@@ -97,11 +97,19 @@ jobs:
       skip_code_quality: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_code_quality || startsWith(github.ref, 'refs/tags/') }}
     secrets: inherit
 
-  # WebUI is released as an amd64 Docker image bundle. The archive includes
+  # WebUI is released as native amd64 and arm64 bundles. Each archive includes
   # PostgreSQL so the same assets can be used for an offline installation.
   webui-release-build:
-    name: Build WebUI Release
-    runs-on: ubuntu-latest
+    name: Build WebUI Release (${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            os: ubuntu-24.04
+          - arch: arm64
+            os: ubuntu-24.04-arm
     timeout-minutes: 45
     needs: prepare-matrix
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
@@ -111,6 +119,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: ${{ needs.prepare-matrix.outputs.build_branch }}
+          submodules: true
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -131,12 +140,12 @@ jobs:
         shell: bash
         run: |
           bash apps/webui/deploy/package-release.sh \
-            "${{ steps.release.outputs.release_tag }}" amd64 webui-release
+            "${{ steps.release.outputs.release_tag }}" '${{ matrix.arch }}' webui-release
 
       - name: Upload WebUI release package
         uses: actions/upload-artifact@v7
         with:
-          name: webui-release-amd64
+          name: webui-release-${{ matrix.arch }}
           path: webui-release/*
           if-no-files-found: error
           retention-days: 7
@@ -144,7 +153,7 @@ jobs:
   # 自动重试 workflow（当构建失败时）
   auto-retry-workflow:
     name: Auto Retry on Build Failure
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [build-pipeline, webui-release-build]
     # 关键：只在首次失败时触发，避免无限循环
     if: |
@@ -200,7 +209,7 @@ jobs:
   # 自动创建 tag（仅手动触发 dev 构建时）
   create-tag:
     name: Create Dev Tag
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [prepare-matrix, build-pipeline, webui-release-build]
     # 【变更】仅手动触发构建 dev 分支时才创建 dev-* 标签
     if: success() && needs.prepare-matrix.outputs.is_manual_dev == 'true'
@@ -250,7 +259,7 @@ jobs:
   # 发布到 GitHub Releases
   release:
     name: Create Release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [prepare-matrix, build-pipeline, webui-release-build, create-tag]
     # 【变更】手动触发 dev 构建后 create-tag 成功，或正式 tag 推送时触发
     if: |
@@ -306,7 +315,10 @@ jobs:
         run: |
           bash apps/desktop/scripts/prepare-release-assets.sh build-artifacts release-assets
           mkdir -p release-assets/webui
-          cp -f build-artifacts/webui-release-amd64/* release-assets/webui/
+          cmp build-artifacts/webui-release-amd64/install.sh build-artifacts/webui-release-arm64/install.sh
+          cp build-artifacts/webui-release-amd64/install.sh release-assets/webui/
+          cp build-artifacts/webui-release-*/*.tar.gz release-assets/webui/
+          cat build-artifacts/webui-release-*/SHA256SUMS | sort -k2 > release-assets/webui/SHA256SUMS
           chmod 755 release-assets/webui/install.sh
           (cd release-assets/webui && sha256sum -c SHA256SUMS)
 
@@ -355,19 +367,25 @@ jobs:
           bash scripts/publish-release-to-cos.sh ../../release-assets
 
       - name: Publish WebUI installer to Tencent COS
-        # Immutable assets and latest/install.sh are published only for stable releases.
-        if: steps.version.outputs.is_dev == 'false' && steps.version.outputs.is_rc == 'false' && env.TENCENT_SECRET_ID != '' && env.TENCENT_SECRET_KEY != ''
+        # RC tags publish immutable assets; only stable releases advance latest/install.sh.
+        if: steps.version.outputs.is_dev == 'false' && env.TENCENT_SECRET_ID != '' && env.TENCENT_SECRET_KEY != ''
         env:
           TENCENT_SECRET_ID: ${{ secrets.TENCENT_SECRET_ID }}
           TENCENT_SECRET_KEY: ${{ secrets.TENCENT_SECRET_KEY }}
           COS_BUCKET: sudowork-release-1309794936
           COS_ROOT_PATH: sudowork/webui
           COS_PUBLIC_BASE_URL: https://sudowork-release-1309794936.cos.accelerate.myqcloud.com
+          IS_RC: ${{ steps.version.outputs.is_rc }}
         run: |
+          pip install coscmd
+          coscmd config -a "$TENCENT_SECRET_ID" -s "$TENCENT_SECRET_KEY" -b "$COS_BUCKET" -e cos.accelerate.myqcloud.com
+          MODE=--all
+          if [ "$IS_RC" = true ]; then MODE=--release-only; fi
           bash apps/webui/scripts/publish-release-to-cos.sh \
-            release-assets/webui "${{ steps.version.outputs.tag_name }}" --all
+            release-assets/webui "${{ steps.version.outputs.tag_name }}" "$MODE"
 
       - name: Cleanup Old Releases on Public Repo
+        if: steps.version.outputs.is_rc == 'false'
         run: |
           IS_DEV="${{ steps.version.outputs.is_dev }}"
 

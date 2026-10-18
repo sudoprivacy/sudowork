@@ -5,6 +5,7 @@
  */
 
 import dayjs from 'dayjs';
+import { isManualCronSchedule, MANUAL_CRON_AT_MS } from '@sudowork/common/cronSchedule';
 import type { TFunction } from 'i18next';
 import type { ICronJob, ICronSchedule } from '@sudowork/host-bridge/ipcBridge';
 import type { FrequencyPreset, IFrequencyScheduleOptions, IScheduleFrequency } from '@renderer/pages/cron/types';
@@ -40,6 +41,7 @@ export function formatSchedule(job: ICronJob): string {
 
 /** Describe the frequency independently of the user-entered task description. */
 export function formatScheduleFrequency(schedule: ICronSchedule, t?: TFunction): string {
+  if (isManualCronSchedule(schedule)) return t ? t('cron.create.frequency.manual') : '手动';
   if (schedule.kind !== 'cron') return schedule.description;
   const parsed = scheduleToFrequency(schedule);
   const presetSchedule = frequencyToSchedule(parsed.preset, parsed, t);
@@ -73,7 +75,7 @@ export const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'] as con
  * Convert frequency preset + options to a CronSchedule.
  * Pass a `t` function from `useTranslation()` to get i18n-aware descriptions.
  */
-export function frequencyToSchedule(preset: FrequencyPreset, options?: IFrequencyScheduleOptions, t?: TFunction): ICronSchedule | null {
+export function frequencyToSchedule(preset: FrequencyPreset, options?: IFrequencyScheduleOptions, t?: TFunction): ICronSchedule {
   const hour = options?.hour ?? 9;
   const minute = options?.minute ?? 0;
   const timeStr = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
@@ -82,7 +84,7 @@ export function frequencyToSchedule(preset: FrequencyPreset, options?: IFrequenc
 
   switch (preset) {
     case 'manual':
-      return null;
+      return { kind: 'at', atMs: MANUAL_CRON_AT_MS, description: label('cron.create.frequency.manual', '手动') };
     case 'hourly':
       return { kind: 'cron', expr: '0 * * * *', description: label('cron.create.frequency.hourly', '每小时整点') };
     case 'daily':
@@ -101,18 +103,21 @@ export function frequencyToSchedule(preset: FrequencyPreset, options?: IFrequenc
  * Try to parse an existing CronSchedule back into a frequency preset
  */
 export function scheduleToFrequency(schedule: ICronSchedule): IScheduleFrequency {
+  if (isManualCronSchedule(schedule)) return { preset: 'manual', hour: 9, minute: 0, weekday: 'MON' };
   if (schedule.kind !== 'cron') {
     return { preset: 'daily', hour: 9, minute: 0, weekday: 'MON' };
   }
 
-  const parts = schedule.expr.split(' ');
+  const parts = schedule.expr.trim().split(/\s+/);
   if (parts.length !== 5) {
     return { preset: 'daily', hour: 9, minute: 0, weekday: 'MON' };
   }
 
   const [min, hr, , , dow] = parts;
-  const minute = parseInt(min) || 0;
-  const hour = parseInt(hr) || 9;
+  const parsedMinute = Number.parseInt(min, 10);
+  const parsedHour = Number.parseInt(hr, 10);
+  const minute = Number.isNaN(parsedMinute) ? 0 : parsedMinute;
+  const hour = Number.isNaN(parsedHour) ? 9 : parsedHour;
 
   if (min === '0' && hr === '*') {
     return { preset: 'hourly', hour: 0, minute: 0, weekday: 'MON' };

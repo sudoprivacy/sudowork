@@ -1,3 +1,4 @@
+import { isGeneratedFilesOnlyMessage } from '@sudowork/common/generatedFiles';
 import { isOntologyConversation } from '@sudowork/common/conversationPurpose';
 /**
  * @license
@@ -21,6 +22,7 @@ import { uuid } from '@/common/utils';
 import type { IConversationProvider, IProviderConfig } from './types';
 
 const HIDDEN_CRON_SESSIONS_KEY = 'remote.hiddenCronSessionIds';
+const HIDDEN_REMOTE_SESSIONS_KEY = 'remote.hiddenSessionIds';
 
 /**
  * Remote Conversation Provider
@@ -35,8 +37,7 @@ const HIDDEN_CRON_SESSIONS_KEY = 'remote.hiddenCronSessionIds';
  *   - createConversation: 只入库，不调用 Moss API
  * - Moss session is created on first sendMessage (via RemoteAgent.initAgent)
  *   - Moss session 在首次 sendMessage 时创建（通过 RemoteAgent.initAgent）
- * - Session list is maintained locally, never calls Moss list API
- *   - 会话列表维护在本地，不调用 Moss 会话列表 API
+ * - Moss owns cloud sessions; the local database caches the current owner's list.
  *
  * Local database caches conversation metadata (name) for sidebar display.
  * 本地数据库缓存会话元数据（名称）用于侧边栏显示。
@@ -156,6 +157,7 @@ export class RemoteConversationProvider implements IConversationProvider {
         runtimeType: this.config.runtimeType,
         agentName: params.extra?.agentName || params.extra?.presetAssistantId,
         presetAssistantId: params.extra?.presetAssistantId,
+        templateRef: params.extra?.templateRef,
         enabledSkills: params.extra?.enabledSkills,
         mossAssistantRef: params.extra?.mossAssistantRef,
         dangerouslySkipPermissions: params.extra?.dangerouslySkipPermissions ?? false,
@@ -254,7 +256,6 @@ export class RemoteConversationProvider implements IConversationProvider {
       const existing = db.getConversation(id);
       const extra = existing.data?.extra as { mossSessionPending?: boolean; mossSessionId?: string } | undefined;
       const mossSessionId = extra?.mossSessionId || (existing.success && existing.data ? existing.data.id : id);
-      const isCronSession = !!(existing.data?.extra as { cronJobId?: string } | undefined)?.cronJobId;
 
       // Try to terminate Moss session if exists (optional, failure should not block local delete)
       // 尝试终止 Moss session（可选，失败不应阻止本地删除）
@@ -270,8 +271,9 @@ export class RemoteConversationProvider implements IConversationProvider {
         }
       }
 
-      if (isCronSession && mossSessionId) {
-        await this.hideCronSession(mossSessionId);
+      const scope = (existing.data?.extra as { mossAccountScope?: string } | undefined)?.mossAccountScope;
+      if (scope && mossSessionId && !extra?.mossSessionPending) {
+        await this.hideRemoteSession(scope, mossSessionId);
       }
 
       // Delete from local database (always attempt this)
@@ -294,14 +296,11 @@ export class RemoteConversationProvider implements IConversationProvider {
     }
   }
 
-  private async hideCronSession(mossSessionId: string): Promise<void> {
-    try {
-      const hidden = ((await ProcessConfig.get(HIDDEN_CRON_SESSIONS_KEY)) || {}) as Record<string, number>;
-      hidden[mossSessionId] = Date.now();
-      await ProcessConfig.set(HIDDEN_CRON_SESSIONS_KEY, hidden);
-    } catch (error) {
-      mainError('RemoteProvider', `Failed to remember hidden cron session ${mossSessionId}: ${error instanceof Error ? error.message : String(error)}`);
-    }
+  /** Persist this device's dismissal under the conversation's account. */
+  private async hideRemoteSession(scope: string, mossSessionId: string): Promise<void> {
+    const hidden = (await ProcessConfig.get(HIDDEN_REMOTE_SESSIONS_KEY)) || {};
+    hidden[scope] = { ...hidden[scope], [mossSessionId]: Date.now() };
+    await ProcessConfig.set(HIDDEN_REMOTE_SESSIONS_KEY, hidden);
   }
 
   private isCronSessionHidden(mossSessionId: string): boolean {
@@ -309,45 +308,17 @@ export class RemoteConversationProvider implements IConversationProvider {
     return Object.prototype.hasOwnProperty.call(hidden, mossSessionId);
   }
 
-  /**
-   * List conversations - ONLY from local database, never calls Moss API
-   * 列出会话 - 只从本地数据库获取，不调用 Moss API
-   */
+  /** Discover the current owner's cloud sessions and return their local metadata cache. */
   async listConversations(page = 0, pageSize = 10000): Promise<TChatConversation[]> {
     const db = getDatabase();
-    await this.syncCronSessions().catch((error) => {
-      mainError('RemoteProvider', `Failed to sync cron sessions: ${error instanceof Error ? error.message : String(error)}`);
+    await this.syncOwnedSessions().catch((error) => {
+      mainError('RemoteProvider', `Failed to sync cloud sessions: ${error instanceof Error ? error.message : String(error)}`);
     });
     const result = db.getUserConversations(undefined, page, pageSize, 'general');
 
     if (!result.data || result.data.length === 0) {
       mainLog('RemoteProvider', 'No conversations found in local DB');
       return [];
-    }
-
-    // Adopt legacy cloud records only after Moss confirms the same owner and organization.
-    const scope = ProcessConfig.getSync('eeclaw.accountScope');
-    const user = ProcessConfig.getSync('eeclaw.userInfo');
-    const serverUrl = ProcessConfig.getSync('eeclaw.serverUrl');
-    const legacy = result.data.filter((conversation) => {
-      const extra = conversation.extra as { mossAccountScope?: string; mossServerUrl?: string };
-      return conversation.type === 'remote-agent' && !extra.mossAccountScope && extra.mossServerUrl?.replace(/\/+$/, '') === serverUrl?.replace(/\/+$/, '');
-    });
-    if (scope && user?.id && legacy.length) {
-      try {
-        const sessions = await (await this.ensureMossApi()).listSessions();
-        const ownedIds = new Set(sessions.filter((session) => session.userId === user.id && session.orgId === user.orgId).map((session) => session.sessionId || session.session_id));
-        if (ProcessConfig.getSync('eeclaw.accountScope') === scope) {
-          for (const conversation of legacy) {
-            const sessionId = (conversation.extra as { mossSessionId?: string }).mossSessionId || conversation.id;
-            if (!ownedIds.has(sessionId)) continue;
-            const extra = { ...conversation.extra, ...getConversationExecutionExtra('remote') };
-            if (db.updateConversation(conversation.id, { extra } as Partial<TChatConversation>).success) conversation.extra = extra as TChatConversation['extra'];
-          }
-        }
-      } catch (error) {
-        mainError('RemoteProvider', 'Could not verify legacy cloud conversation ownership:', error);
-      }
     }
 
     // Filter for remote-agent type conversations.
@@ -371,47 +342,43 @@ export class RemoteConversationProvider implements IConversationProvider {
     }
   }
 
-  private findLocalConversationByMossSessionId(mossSessionId: string): TChatConversation | null {
-    const db = getDatabase();
-    const direct = db.getConversation(mossSessionId);
-    if (direct.success && direct.data) {
-      return direct.data;
-    }
-
-    const conversations = db.getUserConversations(undefined, 0, 10000);
-    return (
-      conversations.data?.find((conversation) => {
-        const extra = conversation.extra as { mossSessionId?: string } | undefined;
-        return extra?.mossSessionId === mossSessionId;
-      }) ?? null
-    );
-  }
-
-  private async syncCronSessions(): Promise<void> {
+  /** Use one ownership-checked import path for ordinary, managed and scheduled sessions. */
+  private async syncOwnedSessions(): Promise<void> {
+    const scope = ProcessConfig.getSync('eeclaw.accountScope');
+    const user = ProcessConfig.getSync('eeclaw.userInfo');
+    const serverUrl = ProcessConfig.getSync('eeclaw.serverUrl');
+    if (!scope || !user?.id || !user.orgId || !ProcessConfig.getSync('eeclaw.authStorage') || serverUrl?.replace(/\/+$/, '') !== this.config.mossServerUrl?.replace(/\/+$/, '')) return;
     const api = await this.ensureMossApi();
-    const sessions = await api.listSessions({ source: 'cron' });
-    if (sessions.length === 0) return;
+    const sessions = await api.listSessions();
+    if (ProcessConfig.getSync('eeclaw.accountScope') !== scope || !ProcessConfig.getSync('eeclaw.authStorage')) return;
 
     const db = getDatabase();
+    const conversations = db.getUserConversations(undefined, 0, 10000, 'general').data || [];
+    const bySession = new Map<string, TChatConversation>();
+    const byId = new Map(conversations.map((conversation) => [conversation.id, conversation]));
+    for (const conversation of conversations) {
+      const extra = conversation.extra as { mossSessionId?: string; mossAccountScope?: string; mossServerUrl?: string };
+      if (conversation.type !== 'remote-agent' || (extra.mossAccountScope && extra.mossAccountScope !== scope) || extra.mossServerUrl?.replace(/\/+$/, '') !== serverUrl?.replace(/\/+$/, '')) continue;
+      bySession.set(extra.mossSessionId || conversation.id, conversation);
+    }
     for (const session of sessions) {
+      if (session.userId !== user.id || session.orgId !== user.orgId) continue;
       const mossSessionId = session.sessionId || session.session_id;
       if (!mossSessionId) continue;
 
       const cronSource = this.parseCronSource(session.source);
-      if (!cronSource?.cronJobId) continue;
-      if (this.isCronSessionHidden(mossSessionId)) continue;
+      const hidden = ProcessConfig.getSync(HIDDEN_REMOTE_SESSIONS_KEY);
+      if (hidden?.[scope]?.[mossSessionId] || (cronSource && this.isCronSessionHidden(mossSessionId))) continue;
 
-      const existingConversation = this.findLocalConversationByMossSessionId(mossSessionId);
+      const existingConversation = bySession.get(mossSessionId);
+      if (!existingConversation && byId.has(mossSessionId)) continue;
       const now = Date.now();
       const modifyTime = session.lastActiveAt || session.last_active_at || session.updatedAt || session.updated_at || now;
       const createTime = existingConversation?.createTime || session.createdAt || session.created_at || modifyTime;
       const existingExtra = existingConversation?.extra as Record<string, unknown> | undefined;
 
-      // Extract Moss workDir (remote container path)
+      // Server workspace paths remain remote; preserve any client attachment directory.
       const mossWorkDir = session.workDir || session.work_dir || session.cwd;
-
-      // Check if workDir is a remote container path
-      const isRemotePath = isRemoteContainerPath(mossWorkDir);
 
       // Build extra - save remote paths to mossWorkDir, preserve existing workspace
       const extra: Record<string, unknown> = {
@@ -423,50 +390,44 @@ export class RemoteConversationProvider implements IConversationProvider {
         authToken: undefined,
         runtimeType: this.config.runtimeType,
         agentName: session.assistantName || session.assistant_name,
+        templateRef: typeof session.clientMetadata?.session_template_ref === 'string' ? session.clientMetadata.session_template_ref : undefined,
         ...getConversationExecutionExtra('remote'),
         sessionMode: 'remote',
         mossSessionId,
         mossSessionPending: false,
         mossSessionUpdatedAt: modifyTime,
-        cronJobId: cronSource.cronJobId,
-        cronJobName: cronSource.cronJobName,
-        cronRunId: cronSource.cronRunId,
+        ...(cronSource ? { cronJobId: cronSource.cronJobId, cronJobName: cronSource.cronJobName, cronRunId: cronSource.cronRunId } : {}),
       };
 
-      if (isRemotePath) {
-        // Remote container path - save to mossWorkDir, preserve existing workspace
+      if (mossWorkDir) {
         extra.mossWorkDir = mossWorkDir;
-        // Preserve existing workspace if present
-        if (existingExtra?.workspace) {
-          extra.workspace = existingExtra.workspace;
-        }
-      } else if (mossWorkDir) {
-        // Local path - safe to set as workspace
-        extra.workspace = mossWorkDir;
-      } else if (existingExtra?.workspace) {
-        // No new workDir, preserve existing workspace
-        extra.workspace = existingExtra.workspace;
       }
 
       const conversation: TChatConversation = {
         id: existingConversation?.id || mossSessionId,
-        name: existingConversation?.name || this.formatCronSessionTitle(cronSource.cronJobName, createTime),
+        name: existingConversation?.name || session.title || (cronSource ? this.formatCronSessionTitle(cronSource.cronJobName, createTime) : 'New Remote Session'),
         type: 'remote-agent',
         createTime,
         modifyTime,
-        status: session.status === 'ended' || session.status === 'terminated' ? 'finished' : 'running',
+        // Imported history starts idle; live processing belongs to the session stream.
+        status: existingConversation?.status || 'finished',
         source: 'sudowork',
         extra,
       };
 
       if (existingConversation) {
-        void db.updateConversation(existingConversation.id, {
+        if (existingConversation.modifyTime === conversation.modifyTime && existingConversation.status === conversation.status && JSON.stringify(existingExtra) === JSON.stringify(extra)) continue;
+        const result = db.updateConversation(existingConversation.id, {
           modifyTime: conversation.modifyTime,
           status: conversation.status,
           extra: conversation.extra,
         });
+        if (result.success) Object.assign(existingConversation, conversation);
       } else {
-        void db.createConversation(conversation);
+        if (db.createConversation(conversation).success) {
+          bySession.set(mossSessionId, conversation);
+          byId.set(conversation.id, conversation);
+        }
       }
     }
   }
@@ -613,6 +574,15 @@ export class RemoteConversationProvider implements IConversationProvider {
       const allMessages = contextData.context.messages;
       const { messages, foundModel } = convertMossMessagesToTMessages(allMessages, conversationId, mossSessionId);
 
+      // Cloud history does not contain client-generated deliverable markers.
+      // Preserve those records when replacing the mirrored conversation history.
+      const remoteIds = new Set(messages.map((message) => message.id));
+      for (let page = 0; page < 50; page++) {
+        const local = db.getConversationMessages(conversationId, page, 200, 'ASC');
+        messages.push(...local.data.filter((message) => isGeneratedFilesOnlyMessage(message) && !remoteIds.has(message.id)));
+        if (!local.hasMore) break;
+      }
+
       // Clear existing local messages to avoid duplicates / 清除现有本地消息避免重复
       db.deleteConversationMessages(conversationId);
 
@@ -742,6 +712,7 @@ export class RemoteConversationProvider implements IConversationProvider {
         acpWsUrl: wsUrl,
         mossSessionPending: false,
         agentName: sessionData.assistantName || sessionData.assistant_name,
+        templateRef: typeof sessionData.clientMetadata?.session_template_ref === 'string' ? sessionData.clientMetadata.session_template_ref : undefined,
       };
 
       if (isRemotePath) {

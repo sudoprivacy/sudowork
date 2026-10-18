@@ -5,6 +5,7 @@ import type { IMcpServer } from '@sudowork/common/storageTypes';
 import { getNodeBinaryPath } from '@process/services/claudeCli/NodeRuntimeService';
 import { ScodeMcpAgent } from '@process/services/mcpServices/agents/ScodeMcpAgent';
 import { ensureOntologyWriteBridge } from './OntologyWriteBridge';
+import { ONTOLOGY_RUNTIME_MCP_NAME } from './ontologyToolNames';
 
 function getOntologyMcpScriptPath(): string {
   if (app.isPackaged) return path.join(process.resourcesPath, 'ontology-mcp', 'index.js');
@@ -22,12 +23,29 @@ export function ontologyMcpServerName(blueprintId: string): string {
 
 export const ONTOLOGY_BUILDER_MCP_SERVER_NAME = 'ontology-builder';
 
-export async function installOntologyMcpServer(input: IOntologyMcpRegistrationInput): Promise<void> {
+/** Build fresh, version-bound tools for an ACP session without changing global MCP settings. */
+export async function createOntologyRuntimeMcpConfig(input: IOntologyMcpRegistrationInput): Promise<IOntologyBuilderMcpConfig> {
   const scriptPath = getOntologyMcpScriptPath();
   if (!existsSync(scriptPath)) throw new Error('Ontology MCP server bundle is unavailable. Rebuild the desktop resources and try again.');
   const nodePath = getNodeBinaryPath();
   if (!existsSync(nodePath)) throw new Error('Sudowork Node runtime is unavailable.');
-  const bridge = await ensureOntologyWriteBridge();
+  const bridge = await ensureOntologyWriteBridge({ workspaceId: input.workspaceId, versionId: input.versionId, role: 'runtime' });
+  return {
+    name: ONTOLOGY_RUNTIME_MCP_NAME,
+    command: nodePath,
+    args: [scriptPath],
+    env: [
+      { name: 'ONTOLOGY_EXPORT_FILE', value: input.exportFile },
+      { name: 'ONTOLOGY_VERSION_ID', value: input.versionId },
+      { name: 'ONTOLOGY_RUNTIME_BASE_URL', value: `http://127.0.0.1:${bridge.port}` },
+      { name: 'ONTOLOGY_RUNTIME_TOKEN', value: bridge.token },
+      { name: 'ONTOLOGY_WORKSPACE_ID', value: input.workspaceId },
+    ],
+  };
+}
+
+export async function installOntologyMcpServer(input: IOntologyMcpRegistrationInput): Promise<void> {
+  const config = await createOntologyRuntimeMcpConfig(input);
   const now = Date.now();
   const server: IMcpServer = {
     id: ontologyMcpServerName(input.blueprintId),
@@ -37,15 +55,9 @@ export async function installOntologyMcpServer(input: IOntologyMcpRegistrationIn
     status: 'disconnected',
     transport: {
       type: 'stdio',
-      command: nodePath,
-      args: [scriptPath],
-      env: {
-        ONTOLOGY_EXPORT_FILE: input.exportFile,
-        ONTOLOGY_VERSION_ID: input.versionId,
-        ONTOLOGY_RUNTIME_BASE_URL: `http://127.0.0.1:${bridge.port}`,
-        ONTOLOGY_RUNTIME_TOKEN: bridge.token,
-        ONTOLOGY_WORKSPACE_ID: input.workspaceId,
-      },
+      command: config.command,
+      args: config.args,
+      env: Object.fromEntries(config.env.map(({ name, value }) => [name, value])),
     },
     createdAt: now,
     updatedAt: now,

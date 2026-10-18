@@ -5,8 +5,10 @@
  */
 
 import os from 'node:os';
+import fs from 'node:fs/promises';
 import { execSync } from 'node:child_process';
 import * as pty from '@lydell/node-pty';
+import { getDatabase } from '../database';
 import { ipcBridge } from '../../common';
 import { getSystemDir } from '../initStorage';
 import { mainLog } from '../utils/mainLogger';
@@ -190,15 +192,29 @@ export function initTerminalBridge(): void {
       return { success: false, msg: `Global PTY limit reached (${GLOBAL_PTY_HARD_LIMIT}). Close some terminals and try again.` };
     }
 
+    if (conversationId) {
+      const conversation = getDatabase().getConversation(conversationId);
+      if (conversation.data?.type === 'remote-agent') {
+        return { success: false, msg: 'Remote terminal is not supported.' };
+      }
+    }
+
     const sessionId = `terminal_${Date.now()}_${Math.random().toString(16).slice(2)}`;
     const defaultCwd = getSystemDir().workDir || os.homedir();
-    const term = pty.spawn(shell || defaultShell(), [], {
-      name: 'xterm-256color',
-      cols: 120,
-      rows: 30,
-      cwd: cwd || defaultCwd,
-      env: process.env as Record<string, string>,
-    });
+    const resolvedCwd = cwd || defaultCwd;
+    let term: pty.IPty;
+    try {
+      if (!(await fs.stat(resolvedCwd)).isDirectory()) throw new Error('Working directory is not a directory');
+      term = pty.spawn(shell || defaultShell(), [], {
+        name: 'xterm-256color',
+        cols: 120,
+        rows: 30,
+        cwd: resolvedCwd,
+        env: process.env as Record<string, string>,
+      });
+    } catch (error) {
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
 
     term.onData((data) => {
       ipcBridge.terminal.output.emit({ sessionId, data });

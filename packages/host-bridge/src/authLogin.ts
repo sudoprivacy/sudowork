@@ -1,6 +1,7 @@
 import { LoginError, type IAuthenticatedLogin, type ILoginPort, type LoginRequest } from '@sudowork/common/authLogin';
 import { getAuthServerBaseUrl } from './authServer.js';
 import { eeclaw } from './ipcBridge.js';
+import { prepareWebAgentWorkspace, resetWebAgentWorkspace } from './agentWorkspace.js';
 
 export const WEB_SESSION_TOKEN = 'web-session';
 
@@ -25,17 +26,21 @@ function webRequest(request: LoginRequest): { path: string; body: Record<string,
 /** Web keeps real tokens on the server; a verified cookie session supplies its identity. */
 export const webLoginPort: ILoginPort = {
   async authenticate(request, _deviceId, attempt) {
+    resetWebAgentWorkspace();
     const { path, body } = webRequest(request);
     const result = await attempt.step('web-authenticate', async (signal) => {
       const response = await fetch(path, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal });
       const data = (await response.json().catch((): null => null)) as { ok?: boolean; error?: string; message?: string } | null;
       if (!response.ok || data?.ok !== true) {
         const isUnavailable = response.status >= 500 || data?.error === 'MOSS_UNAVAILABLE';
-        throw new LoginError(isUnavailable ? 'networkError' : 'invalidCredentials', data?.error, data?.message);
+        const isAuthRejected = data?.error === 'AUTH_REQUEST_REJECTED';
+        throw new LoginError(isUnavailable ? 'networkError' : isAuthRejected ? 'authRejected' : 'invalidCredentials', data?.error, data?.message);
       }
       return data;
     });
     if (!result) throw new LoginError('invalidResponse');
+    resetWebAgentWorkspace();
+    await attempt.step('web-agent-workspace', () => prepareWebAgentWorkspace());
     const data = await attempt.step('web-session', async (signal) => {
       const response = await fetch('/api/auth/session', { method: 'GET', credentials: 'include', signal });
       if (!response.ok) throw new LoginError('invalidResponse');

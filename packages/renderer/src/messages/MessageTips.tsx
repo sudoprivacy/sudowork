@@ -7,8 +7,11 @@
 import { Attention, CheckOne } from '@icon-park/react';
 import { theme } from '@office-ai/platform';
 import classNames from 'classnames';
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import type { IMessageTips } from '@sudowork/common/chatLib';
+import { Button, Message } from '@arco-design/web-react';
+import { useTranslation } from 'react-i18next';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import MarkdownView from '../components/Markdown';
 import CollapsibleContent from '../components/CollapsibleContent';
 import RuntimeErrorBanner from './RuntimeErrorBanner';
@@ -42,6 +45,7 @@ const MessageTips: React.FC<{ message: IMessageTips }> = ({ message }) => {
   // Falls back to the legacy text tip if the renderer doesn't recognise
   // the errorClass (RuntimeErrorBanner handles that defensively).
   if (type === 'error' && errorClass) {
+    if (errorClass === 'runtime_update_required') return <RuntimeUpdateTip message={message} />;
     return <RuntimeErrorBanner errorClass={errorClass} errorBytes={errorBytes} fallbackContent={content} />;
   }
 
@@ -74,3 +78,43 @@ const MessageTips: React.FC<{ message: IMessageTips }> = ({ message }) => {
 };
 
 export default MessageTips;
+
+function RuntimeUpdateTip({ message }: IRuntimeUpdateTipProps) {
+  const { t } = useTranslation();
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [isUpdated, setIsUpdated] = useState(false);
+  const isPending = useRef(false);
+  const onUpdate = async () => {
+    if (isPending.current || isUpdated) return;
+    isPending.current = true;
+    setIsUpdating(true);
+    try {
+      const result = await ipcBridge.moss.upgradeRuntime.invoke({ conversationId: message.conversation_id });
+      if (!result.success) throw new Error('Runtime update was not confirmed');
+      setIsUpdated(true);
+    } catch {
+      Message.error(t('runtimeError.runtime_update_required.failed'));
+    } finally {
+      isPending.current = false;
+      setIsUpdating(false);
+    }
+  };
+  return (
+    <div className='w-full'>
+      <RuntimeErrorBanner errorClass='runtime_update_required' fallbackContent={message.content.content} />
+      {isUpdated ? (
+        <div role='status' className='text-foreground mt-2'>
+          {t('runtimeError.runtime_update_required.updated')}
+        </div>
+      ) : (
+        <Button className='mt-2' loading={isUpdating} disabled={isUpdating} onClick={() => void onUpdate()}>
+          {t('runtimeError.runtime_update_required.cta')}
+        </Button>
+      )}
+    </div>
+  );
+}
+
+interface IRuntimeUpdateTipProps {
+  message: IMessageTips;
+}

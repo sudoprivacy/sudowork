@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module'
+import { browserPageViewAlias } from '../../scripts/browser-view-alias.mjs'
 import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vitest/config'
 
@@ -17,6 +18,23 @@ const requireFromHostBridge = createRequire(abs('../../packages/host-bridge/pack
 const officeAiPlatformEntry = requireFromHostBridge.resolve('@office-ai/platform')
 
 const bridgeAlias = [
+  browserPageViewAlias,
+  {
+    find: '@sudowork/contracts/browser-session',
+    replacement: abs('../../packages/contracts/src/browserSession.ts'),
+  },
+  {
+    find: '@sudowork/moss-client/external-providers',
+    replacement: abs('../../packages/moss-client/src/MossExternalProviderClient.ts'),
+  },
+  {
+    find: '@sudowork/contracts/external-provider',
+    replacement: abs('../../packages/contracts/src/external-provider.gen.ts'),
+  },
+  {
+    find: '@sudowork/contracts/task',
+    replacement: abs('../../packages/contracts/src/task.gen.ts'),
+  },
   {
     find: '@sudowork/moss-client/agents',
     replacement: abs('../../packages/moss-client/src/MossAgentClient.ts'),
@@ -38,8 +56,14 @@ const bridgeAlias = [
 
 export default defineConfig({
   test: {
+    // Bound Windows worker startup and DOM contention without extending test deadlines.
+    maxWorkers: process.platform === 'win32' ? 2 : undefined,
+    coverage: {
+      include: ['src/**/*.{ts,tsx}'],
+    },
     projects: [
       {
+        extends: true,
         resolve: { alias: bridgeAlias },
         test: {
           name: 'unit',
@@ -49,6 +73,7 @@ export default defineConfig({
         },
       },
       {
+        extends: true,
         resolve: { alias },
         test: {
           name: 'integration',
@@ -58,6 +83,7 @@ export default defineConfig({
         },
       },
       {
+        extends: true,
         resolve: { alias },
         test: {
           name: 'contract',

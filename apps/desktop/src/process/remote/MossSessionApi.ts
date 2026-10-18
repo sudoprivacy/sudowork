@@ -6,6 +6,8 @@
 
 import WebSocket from 'ws';
 import type { IResponseMessage, MossSessionAvailableSkill, MossWorkspaceFilePreview, MossWorkspaceNode } from '@sudowork/host-bridge/ipcBridge';
+import { BrowserSessionActionSchema, BrowserSessionReplySchema, type BrowserSessionAction, type BrowserSessionReply } from '@sudowork/contracts/browser-session';
+import { uploadBrowserFile, downloadBrowserFile, upgradeMossRuntime, MossHttpError, isMossRuntimeUpdateRequired } from '@sudowork/moss-client';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 import { getValidToken } from '@process/bridge/eeclawBridge';
 import { ProcessConfig } from '@process/initStorage';
@@ -27,6 +29,47 @@ export class MossSessionApi {
 
   constructor(serverUrl: string) {
     this.serverUrl = serverUrl;
+  }
+
+  /** Apply the owner's existing guarded rollout without sending or replaying a prompt. */
+  async upgradeSessionRuntime(sessionId: string): Promise<void> {
+    const session = await this.getSession(sessionId);
+    if (!session?.userId) throw new Error('Session owner is unavailable');
+    await upgradeMossRuntime(
+      async (baseUrl, request, timeoutMs) => {
+        const response = await this.fetchWithRetry(new URL(request.path, baseUrl).toString(), {
+          method: request.method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(request.body),
+          signal: AbortSignal.timeout(timeoutMs ?? 180_000),
+        });
+        const text = await response.text();
+        if (!response.ok) throw new MossHttpError(response.status, text, request.path);
+        return JSON.parse(text) as unknown;
+      },
+      { baseUrl: this.serverUrl, accessToken: await this.ensureAuthenticated() },
+      session.userId
+    );
+  }
+
+  async uploadBrowserFile(sessionId: string, input: { name: string; controlEpoch: number; targetEpoch: number; data: Uint8Array }) {
+    return uploadBrowserFile({ baseUrl: this.serverUrl, accessToken: await this.ensureAuthenticated() }, sessionId, input, input.data);
+  }
+
+  async downloadBrowserFile(sessionId: string, fileId: string) {
+    return downloadBrowserFile({ baseUrl: this.serverUrl, accessToken: await this.ensureAuthenticated() }, sessionId, fileId);
+  }
+
+  async invokeBrowserSession(sessionId: string, action: BrowserSessionAction): Promise<BrowserSessionReply> {
+    const token = await this.ensureAuthenticated();
+    const response = await fetch(`${this.serverUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/browser`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(BrowserSessionActionSchema.parse(action)),
+      signal: AbortSignal.timeout(action.kind === 'start' || action.kind === 'restart' ? 90_000 : 30_000),
+    });
+    if (!response.ok) throw new Error(`Browser session request failed (${response.status})`);
+    return BrowserSessionReplySchema.parse(await response.json());
   }
 
   /**
@@ -98,13 +141,7 @@ export class MossSessionApi {
    * Get all sessions from Moss Server
    * GET /api/v1/sessions
    *
-   * WARNING: This API is NOT for sudowork client session list.
-   * Session list metadata is maintained locally in client SQLite.
-   * 警告：此 API 不用于 sudowork 客户端会话列表。
-   * 会话列表元数据维护在本地客户端 SQLite。
-   *
-   * This method is kept for future administrative/debugging purposes only.
-   * 此方法仅保留用于未来的管理/调试目的。
+   * The server applies visibility; callers select their owner's sessions for local caches.
    */
   async listSessions(params?: { source?: string }): Promise<MossSession[]> {
     const query = params?.source ? `?source=${encodeURIComponent(params.source)}` : '';
@@ -412,6 +449,8 @@ export class MossSessionApi {
 
     if (!response.ok) {
       const text = await response.text();
+      const error = new MossHttpError(response.status, text, `/api/v1/sessions/${encodeURIComponent(sessionId)}/resume`);
+      if (isMossRuntimeUpdateRequired(error)) throw error;
       throw new Error(`Failed to resume session: ${response.status} ${text}`);
     }
 
@@ -1271,6 +1310,7 @@ export interface MossSession {
   /** Assistant name */
   assistant_name?: string;
   assistantName?: string;
+  clientMetadata?: Record<string, unknown>;
   /** Runtime configuration */
   runtime?: {
     type: string;
@@ -1299,6 +1339,7 @@ export interface MossSession {
   role?: string;
   scopes?: string[];
   source?: string;
+  title?: string | null;
 }
 
 /**

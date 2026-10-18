@@ -3,7 +3,9 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import MossCatalogBrowser from '@renderer/components/MossCatalogBrowser';
 
-const state = vi.hoisted(() => ({ user: { id: 'a', enterprise_code: 'org' }, list: vi.fn(), installed: vi.fn(), install: vi.fn(), detail: vi.fn(), remove: vi.fn(), navigate: vi.fn(), error: vi.fn() }));
+const state = vi.hoisted(() => ({ user: { id: 'a', enterprise_code: 'org' }, list: vi.fn(), installed: vi.fn(), install: vi.fn(), detail: vi.fn(), remove: vi.fn(), navigate: vi.fn(), error: vi.fn(), history: vi.fn(), emit: vi.fn() }));
+vi.mock('@renderer/pages/conversation/context/ConversationHistoryContext', () => ({ useConversationHistory: () => ({ scopeKey: `${state.user.id}:${state.user.enterprise_code}`, getFreshConversations: state.history }) }));
+vi.mock('@renderer/utils/emitter', () => ({ emitter: { emit: state.emit } }));
 vi.mock('@renderer/context/AuthContext', () => ({ useAuth: () => ({ user: state.user }) }));
 vi.mock('react-router-dom', () => ({ useNavigate: () => state.navigate }));
 vi.mock('react-i18next', () => {
@@ -52,7 +54,7 @@ vi.mock('@arco-design/web-react', async () => {
     Spin: Box,
     Switch: () => null,
     Tag: Box,
-    Typography: { Paragraph: Box },
+    Typography: { Paragraph: Box, Title: Box },
     Modal: ({ visible, children }: { visible: boolean; children: React.ReactNode }) => (visible ? <div>{children}</div> : null),
     Alert: ({ content }: { content: string }) => <div role='alert'>{content}</div>,
     Message: { success: vi.fn(), error: state.error },
@@ -65,6 +67,7 @@ beforeEach(() => {
   state.user = { id: 'a', enterprise_code: 'org' };
   state.list.mockResolvedValue({ success: true, data: { items: [remote], categories: [], nextCursor: null } });
   state.installed.mockResolvedValue({ success: true, data: [] });
+  state.history.mockResolvedValue([]);
   state.detail.mockResolvedValue({ success: true, data: { ...remote, content: '# Published instructions' } });
 });
 
@@ -92,6 +95,22 @@ it('opens My resource details from the downloaded version and displays failures'
 });
 afterEach(cleanup);
 
+it('opens the installed server identity latest Session through the shared Agent entry', async () => {
+  state.install.mockResolvedValue({ success: true, data: { id: 'a1', runtimeName: 'Agent' } });
+  state.history.mockResolvedValue([{ id: 'previous-session', createTime: 1, modifyTime: 1, extra: { mossAssistantRef: 'a1' } }]);
+  render(<MossCatalogBrowser {...props} />);
+  fireEvent.click(await screen.findByText('use'));
+  await waitFor(() => expect(state.navigate).toHaveBeenCalledWith('/conversation/previous-session'));
+  expect(state.emit).toHaveBeenCalledWith('guid.reset');
+});
+
+it('opens a draft for an installed Agent without history', async () => {
+  state.install.mockResolvedValue({ success: true, data: { id: 'a1', runtimeName: 'Agent' } });
+  render(<MossCatalogBrowser {...props} />);
+  fireEvent.click(await screen.findByText('use'));
+  await waitFor(() => expect(state.navigate).toHaveBeenCalledWith('/guid?assistant=a1'));
+});
+
 it('shows the server catalog before any download, and My contains only local records', async () => {
   render(<MossCatalogBrowser {...props} />);
   await screen.findByText('Catalog agent');
@@ -99,6 +118,20 @@ it('shows the server catalog before any download, and My contains only local rec
   fireEvent.click(screen.getByText('myAgents'));
   expect(screen.queryByText('Catalog agent')).toBeNull();
   expect(screen.getByText('Local custom')).toBeTruthy();
+});
+
+it('shows organization-published agents only in the exclusive directory', async () => {
+  render(<MossCatalogBrowser {...props} publishedContent={(query) => <div>Organization agent: {query}</div>} />);
+  await screen.findByText('Catalog agent');
+  expect(screen.queryByText('Organization agent:')).toBeNull();
+  fireEvent.click(screen.getByText('exclusiveAgents'));
+  expect(screen.getByText('Organization agent:')).toBeTruthy();
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Dify' } });
+  expect(screen.getByText('Organization agent: Dify')).toBeTruthy();
+  fireEvent.click(screen.getByText('myAgents'));
+  expect(screen.queryByText(/Organization agent:/)).toBeNull();
+  expect(screen.getByText('Local custom')).toBeTruthy();
+  expect(state.install).not.toHaveBeenCalled();
 });
 
 it('does not enter a conversation or show an installation when preparation fails', async () => {

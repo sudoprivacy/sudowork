@@ -25,6 +25,7 @@ import { initializeSudoworkLogUploader } from './utils/sudoworkLogUploader';
 // Crash bridge must be initialized early to handle renderer errors before other bridges
 import { initCrashBridge } from './bridge/crashBridge';
 
+/** Register storage and IPC before any application renderer loads. */
 export const initializeProcess = async () => {
   const totalStart = Date.now();
   mainLog('Process', 'Initializing process...');
@@ -63,8 +64,16 @@ export const initializeProcess = async () => {
     mainLog('Process', 'Bridge initialized successfully');
   } catch (error) {
     mainError('Process', 'Bridge initialization failed', error);
+    throw error;
   }
   perfLog('initBridge', Date.now() - bridgeStart);
+
+  perfLog('process_bridge', Date.now() - totalStart);
+};
+
+/** Start background services after the application window can use IPC. */
+export const startProcessServices = async () => {
+  const totalStart = Date.now();
 
   // ffmpeg is provisioned on demand when an ffmpeg-needing skill is installed
   // (skill-gated, not shipped to everyone). At boot only re-provision if a prior
@@ -111,6 +120,6 @@ export const initializeProcess = async () => {
   // “离线使用”时才切到本地模式。两条路径最终都由
   // eeclawBridge.setAppMode.provider 启动核心服务。
 
-  perfLog('total_startup', Date.now() - totalStart);
-  mainLog('Process', `Initialization complete in ${Date.now() - totalStart}ms`);
+  perfLog('process_services', Date.now() - totalStart);
+  mainLog('Process', `Service initialization complete in ${Date.now() - totalStart}ms`);
 };

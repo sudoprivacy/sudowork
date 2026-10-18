@@ -58,7 +58,7 @@ trustProxy/moss/session/upload 段；环境变量优先。
 前置条件：Docker 20.10+、Docker Compose v2，以及已经启用的 Moss Server。生产环境需要
 一个由 Nginx/Caddy 等反向代理提供 HTTPS 的 WebUI 域名。
 
-在 Linux amd64 服务器上执行，不需要下载源码：
+在 Linux amd64 或 arm64 服务器上执行（ARM64 需要包含对应产物的新版本 Release），不需要下载源码：
 
 ```bash
 curl -fsSL https://sudowork-release-1309794936.cos.accelerate.myqcloud.com/sudowork/webui/latest/install.sh | sudo bash
@@ -109,8 +109,12 @@ sudo ./sudowork-webui-offline/install.sh --offline
 ```
 
 CI 在版本发布时生成 `install.sh`、`SHA256SUMS` 和
-`sudowork-webui-<version>-linux-amd64.tar.gz`，同时附加到 GitHub Release；稳定版还会同步到
-COS 的不可变版本目录，并在校验通过后更新上述 `latest/install.sh`。
+`sudowork-webui-<version>-linux-<amd64|arm64>.tar.gz`，同时附加到 GitHub Release。版本标签发布的
+稳定版和 RC 版都会同步到 COS 的不可变版本目录；只有稳定版在校验通过后更新上述 `latest/install.sh`。
+
+安装器按主机架构选择离线包，并验证 WebUI/PostgreSQL 镜像架构。预下载其他架构时可用
+`WEBUI_ARCH=arm64 bash install.sh --download ./offline-arm64`；安装时架构必须与主机一致。
+发布 CI 在两种原生 runner 上加载 PTY 扩展后才导出镜像。
 
 从源码部署仍可在仓库中执行 `cd apps/webui && bun run deploy`。该模式使用当前源码构建镜像，
 配置保存在 `apps/webui/.env.deploy`，适合开发验证，不等同于 CI 发布包安装。
@@ -173,17 +177,71 @@ E2E_TEST_PREFIX=webui-e2e-<unique>
 - 当前上游 WS 协议不发射 thinking 事件、不支持 turn 级 interrupt：WebUI 保留协议兼容位，
   不伪造这两类交互；终止会话走 REST terminate。
 - 登录限流为进程内存存储（单实例约束）。
-- 会话右侧面板仅工作区（只读树 + 文本/图片预览）与交付物；浏览器 tab（Electron `<webview>` 专属）
-  与终端 tab（产品决策隐藏）在 Web 端不出现。工作区上传子功能与 html/pdf/office/媒体预览不支持
-  （依赖本地磁盘，与 console 现状一致）。
+- The shared browser panel and independent authenticated viewer operate the same cloud Chrome session and persistent profile. They support explicit launch modes, human handoff and session-bound file transfer. See [the browser session design](../../docs/sudowork-browser-sessions.md) for deployment and acceptance status.
+- The terminal tab is hidden in WebUI. Workspace upload and HTML/PDF/Office/media previews still depend on local filesystem integration.
 - 助手编辑入口在 Web 端隐藏（Moss meta 端点无法回写 renderer 的 I18n/prompt 字段）；创建仍可用。
 - Agent 启停开关在 Web 端隐藏（Moss 无对应端点）；Agent/Skill 的创建/卸载、Skill 启停对非
   `admin:settings` 用户隐藏控件（服务端强制）。
 
 ## 范围外（首版明确不做）
 
-Local 会话/终端/浏览器面板/本地知识库/频道/团队/安全中心/充值/成员管理/企业管理/扩展设置；
+Local conversations and terminals, local extension relay, local knowledge base, channels, teams, security center, billing, member/enterprise management and extension settings;
 多实例、Redis、分布式锁、审计平台、outbox、MCP SSE relay、性能压测平台。
+
+## Static assets across upgrades
+
+Compose retains built client assets in the `webui-assets` volume. Before the
+server starts, the one-time `publish-assets` job adds the new image's assets.
+The server mounts that volume read-only. The current image still supplies its
+own HTML entry point, while previously opened pages can request older chunks.
+Publishing an identical release is idempotent; an existing asset name with
+different bytes fails publication without overwriting the retained file.
+
+For source Compose, set `WEBUI_IMAGE` when deploying a published image. The
+release installer pins the migration, asset publisher and server to its selected
+release. These three services must use the same application image. A normal `docker compose up -d`
+includes the asset prerequisite. An app-only cutover with `--no-deps` must run
+the target image's publisher first.
+
+The release installer exports the previous container's assets into its upgrade
+backup and imports them before replacing the application. If publication fails,
+it restores the previous configuration before any application or database change.
+
+When enabling retention on an existing source deployment, export its previous
+public `dist/client/assets` directory before replacing the old container.
+Import those files together with the new image's assets:
+
+```sh
+docker compose run --rm --no-deps \
+  --volume /opt/sudowork/previous-assets:/previous-assets:ro \
+  publish-assets node dist/server/publishAssets.js \
+  --target /retained-assets /app/apps/webui/dist/client/assets /previous-assets
+docker compose up -d
+```
+
+Keep the asset volume through subsequent upgrades and app-only rollbacks.
+Rolling back to an older image does not require restoring the database. Older
+images without the publisher can use the already prepared asset volume via an
+app-only rollback. Asset garbage collection requires a separate retention
+decision; deployment does not delete older files.
+
+If an upgrade fails to start, the installer restores the previous application
+configuration and keeps the current database, including writes made after the
+backup. It never restores a database automatically. If a migration prevents the
+previous image from starting, inspect the failure before explicitly running
+`restore.sh`; that operation replaces newer data with the selected backup.
+
+The existing Docker smoke test seeds an older chunk, publishes the actual new
+build, and boots the packaged server with both source Compose and the release
+installer's generated Compose. It requires old and current JavaScript to remain
+available, and checks that conflicting publication preserves the original HTTP
+response.
+
+PostgreSQL readiness uses TCP. Its temporary initialization server only accepts
+Unix sockets and must not release migrations early. The real container test
+holds initialization, verifies that the configured health command remains
+unready, then releases initialization and requires successful migration and HTTP
+responses.
 
 ## License
 

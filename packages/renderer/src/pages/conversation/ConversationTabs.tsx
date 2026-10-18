@@ -4,15 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Dropdown, Menu, Message } from '@arco-design/web-react';
+import { Button, Dropdown, Menu, Message } from '@arco-design/web-react';
 import { Close, Plus, Robot } from '@icon-park/react';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { updateWorkspaceTime } from '@renderer/utils/workspaceHistory';
 import { cleanupSiderTooltips } from '@renderer/utils/siderTooltip';
 import { emitter } from '@renderer/utils/emitter';
+import { resetGuidDraft } from '@renderer/pages/guid/hooks/useGuidDraft';
 import { getAgentLogo } from '@renderer/utils/agentLogo';
 import { CUSTOM_AVATAR_IMAGE_MAP } from '@renderer/pages/guid/utils/constants';
 import { formatSessionTime } from '@renderer/utils/messageTime';
@@ -20,6 +21,8 @@ import { buildCliEngineParams, buildPresetAssistantParams } from './utils/create
 import { applyDefaultConversationName } from './utils/newConversationName';
 import { useConversationAgents } from './hooks/useConversationAgents';
 import { useConversationTabs } from './context/ConversationTabsContext';
+import { useConversationHistory } from './context/ConversationHistoryContext';
+import { getConversationAgentName, getSelectableConversationAgentRef } from './utils/agentIdentity';
 
 const TAB_OVERFLOW_THRESHOLD = 10;
 
@@ -91,6 +94,11 @@ const ConversationTabs: React.FC = () => {
   const [tabFadeState, setTabFadeState] = useState<TabFadeState>({ left: false, right: false });
 
   const { cliEngines, presetAssistants, isLoading } = useConversationAgents();
+  const { conversations, agents, isLoading: isHistoryLoading, isLoadFailed } = useConversationHistory();
+  const conversationById = useMemo(() => new Map(conversations.map((conversation) => [conversation.id, conversation])), [conversations]);
+  const activeConversation = activeTabId ? conversationById.get(activeTabId) : undefined;
+  const activeAgentRef = activeConversation && getSelectableConversationAgentRef(activeConversation, agents);
+  const visibleTabs = openTabs.filter((tab) => conversationById.has(tab.id));
   const defaultConversationName = t('conversation.welcome.newConversation');
   // 更新 Tab 溢出状态
   const updateTabOverflow = useCallback(() => {
@@ -158,7 +166,7 @@ const ConversationTabs: React.FC = () => {
       // 如果关闭的是当前 tab，导航将由 context 自动处理（切换到最后一个）
       // 如果没有 tab 了，导航到欢迎页
       if (openTabs.length === 1 && tabId === activeTabId) {
-        emitter.emit('guid.reset');
+        resetGuidDraft();
         void navigate('/guid');
       }
     },
@@ -170,7 +178,7 @@ const ConversationTabs: React.FC = () => {
     async (key: string) => {
       const currentTab = openTabs.find((tab) => tab.id === activeTabId);
       if (!currentTab?.workspace) {
-        emitter.emit('guid.reset');
+        resetGuidDraft();
         void navigate('/guid');
         return;
       }
@@ -275,7 +283,7 @@ const ConversationTabs: React.FC = () => {
             switch (key) {
               case 'close-all':
                 closeAllTabs();
-                emitter.emit('guid.reset');
+                resetGuidDraft();
                 void navigate('/guid');
                 break;
               case 'close-left':
@@ -310,11 +318,11 @@ const ConversationTabs: React.FC = () => {
   const { left: showLeftFade, right: showRightFade } = tabFadeState;
   // 检查当前激活的 tab 是否在 openTabs 中
   // Check if current active tab is in openTabs
-  const isActiveTabInList = openTabs.some((tab) => tab.id === activeTabId);
+  const isActiveTabInList = visibleTabs.some((tab) => tab.id === activeTabId);
 
   // 如果没有打开的 tabs，或者当前激活的会话不在 tabs 中（说明切换到了非工作空间会话），不显示此组件
   // If no open tabs, or active conversation is not in tabs (switched to non-workspace chat), hide component
-  if (openTabs.length === 0 || !isActiveTabInList) {
+  if (visibleTabs.length === 0 || !isActiveTabInList) {
     return null;
   }
 
@@ -325,12 +333,12 @@ const ConversationTabs: React.FC = () => {
       <div className='relative flex items-center h-40px w-full border-t border-x border-solid border-default'>
         {/* Tabs 滚动区域 */}
         <div ref={tabsContainerRef} className='flex items-center h-full flex-1 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden'>
-          {openTabs.map((tab) => {
+          {visibleTabs.map((tab) => {
             const tabTime = tab.modifyTime || tab.createTime;
             const tabTimeLabel = tabTime ? formatSessionTime(tabTime, i18n.language, t('conversation.history.yesterday')) : '';
             const tabViewProps = {
               tabId: tab.id,
-              tabName: tab.name,
+              tabName: getSelectableConversationAgentRef(conversationById.get(tab.id)!, agents) ? `${getConversationAgentName(conversationById.get(tab.id)!, agents, t('conversation.sidebar.myAgent'))} · ${tab.name}` : tab.name,
               isActive: tab.id === activeTabId,
               contextMenu: getContextMenu(tab.id),
               timeLabel: tabTimeLabel,
@@ -341,8 +349,21 @@ const ConversationTabs: React.FC = () => {
           })}
         </div>
 
-        {/* 新建会话按钮 - 点击显示 Agent 下拉选择 */}
-        <CreateConversationTrigger disabled={isDropdownDisabled} title={t('conversation.workspace.createNewConversation')} menu={renderAgentDropdownMenu()} />
+        {activeAgentRef ? (
+          <Button
+            type='text'
+            className='shrink-0 !w-10 !h-10'
+            aria-label={t('conversation.agentSessions.new')}
+            disabled={isHistoryLoading || isLoadFailed}
+            icon={<Plus size={16} />}
+            onClick={() => {
+              resetGuidDraft();
+              void navigate(`/guid?assistant=${encodeURIComponent(activeAgentRef)}`);
+            }}
+          />
+        ) : (
+          <CreateConversationTrigger disabled={isDropdownDisabled} title={t('conversation.workspace.createNewConversation')} menu={renderAgentDropdownMenu()} />
+        )}
 
         {/* 左侧渐变指示器 */}
         {showLeftFade && <div className='pointer-events-none absolute left-0 top-0 bottom-0 w-32px [background:linear-gradient(90deg,var(--bg-2)_0%,transparent_100%)]' />}

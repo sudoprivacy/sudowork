@@ -92,8 +92,8 @@ describe('pwdLogin / pwdAdapters', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Service-level tests with mocked NexusSecretClient (gRPC), python runtime,
-// electron, and logger. The secret read now uses NexusSecretClient.getSecret
+// Service-level tests with mocked ScodeSecretsClient (gRPC), python runtime,
+// electron, and logger. The secret read now uses ScodeSecretsClient.getSecret
 // (nexusd-cluster :12022 is gRPC-only — the old HTTP /api/v2/password_vault
 // path was removed). The python runtime is mocked as not-installed so the real
 // dispatchPwdFill fails fast with adapter_error (no browser/filler in units).
@@ -136,8 +136,13 @@ vi.mock('@/process/initStorage', () => ({
   },
 }));
 
-vi.mock('@/common/nexus/nexus-secret-client', () => ({
-  getNexusSecretClient: () => ({
+vi.mock('@/common/scode/secretsClient', () => ({
+  getSecretOrEmpty: (namespace: string, key: string) => {
+    getSecretCalls.push({ namespace, key });
+    if (mockSecretThrow) throw mockSecretThrow;
+    return secretStore.get(`${namespace}/${key}`) ?? mockSecretValue ?? '';
+  },
+  getScodeSecretsClient: () => ({
     getSecret: (namespace: string, key: string) => {
       getSecretCalls.push({ namespace, key });
       if (getSecretMethodMissing) throw methodNotFound('secret_get');
@@ -161,7 +166,7 @@ vi.mock('@/common/nexus/nexus-secret-client', () => ({
     batchPut: (secrets: Array<{ namespace: string; key: string; value: string; description?: string }>) => {
       batchPutCalls.push(secrets);
       for (const s of secrets) secretStore.set(`${s.namespace}/${s.key}`, s.value);
-      // Mirror the real NexusSecretClient.batchPut return shape — putSecretResilient
+      // Mirror the real ScodeSecretsClient.batchPut return shape — putSecret
       // reads the first element to surface metadata to its caller.
       return secrets.map((s) => ({ namespace: s.namespace, key: s.key, currentVersion: 1, deleted: false, description: s.description }));
     },
@@ -332,29 +337,10 @@ describe('pwdLogin / vault resilience + security invariants', () => {
     __resetPwdLoginApprovalsForTest();
   });
 
-  it('reads the credential via batchGet when secret_get is method-not-found', async () => {
-    await savePwdLoginCredential('github', 'admin', 'pw'); // stored (putSecret works here)
-    getSecretMethodMissing = true; // deployed plugin missing secret_get
-    const r = await handlePwdLogin({ title: 'github', optionId: 'allow_once' });
-    // Reaching the (python-off) fill dispatch means the read+parse succeeded via batch.
-    expect(r.error).toBe(PwdLoginErrorCode.AdapterError);
-    expect(batchGetCalls.length).toBeGreaterThan(0);
-  });
-
-  it('saves the credential via batchPut when secret_put is method-not-found', async () => {
-    putSecretMethodMissing = true; // deployed plugin missing secret_put
+  it('stores a credential in the password login namespace', async () => {
     await savePwdLoginCredential('github', 'admin', 'pw');
-    expect(batchPutCalls.length).toBe(1);
     // Stored as JSON {username,password} at the pwd_login namespace.
     expect(JSON.parse(secretStore.get('service:pwdlogin/github') as string)).toEqual({ username: 'admin', password: 'pw' });
-  });
-
-  it('round-trips creds through the batch fallback (save → start reads back)', async () => {
-    putSecretMethodMissing = true;
-    getSecretMethodMissing = true;
-    await savePwdLoginCredential('github', 'admin', 'pw');
-    const r = await handlePwdLogin({ title: 'github', optionId: 'allow_once' });
-    expect(r.error).toBe(PwdLoginErrorCode.AdapterError); // read+parse via batchGet worked
   });
 
   it('hasCredential reflects a saved cred via listSecrets (not secret_get)', async () => {

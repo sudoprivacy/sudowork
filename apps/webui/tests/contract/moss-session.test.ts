@@ -13,6 +13,31 @@ const BASE = 'http://moss.test'
 const CTX = { accessToken: 'tk', baseUrl: BASE }
 
 describe('MossSessionPort request shapes (contract vs baseline)', () => {
+  test('keeps the actual HTTP attemptId from resume for live activity reconciliation', async () => {
+    const mock = vi.fn().mockResolvedValue({
+      session: {
+        sessionId: 's1',
+        userId: 'owner',
+        orgId: 'org',
+        status: 'active',
+        attemptId: 'a1',
+      },
+      ws_url: 'ws://moss.test/ws/sessions/s1',
+    })
+    expect((await createMossSessionPort(mock).resume(CTX, 's1')).session.attemptId).toBe('a1')
+  })
+  test('activity reads a generation-bound live observation and rejects incomplete replies', async () => {
+    const mock = vi.fn().mockResolvedValue({ attemptId: 'a1', state: 'idle' })
+    const port = createMossSessionPort(mock)
+    await expect(port.activity(CTX, 's/1')).resolves.toEqual({ attemptId: 'a1', state: 'idle' })
+    expect(mock).toHaveBeenCalledWith(BASE, {
+      method: 'GET',
+      path: '/api/v1/sessions/s%2F1/activity',
+      accessToken: 'tk',
+    })
+    mock.mockResolvedValue({ state: 'idle' })
+    await expect(port.activity(CTX, 's1')).rejects.toThrow()
+  })
   test('list calls GET /api/v1/sessions', async () => {
     const mock = vi.fn().mockResolvedValue({ sessions: [] })
     const port = createMossSessionPort(mock)
@@ -40,16 +65,20 @@ describe('MossSessionPort request shapes (contract vs baseline)', () => {
       attemptId: 'a1',
       wsUrl: 'ws://moss.test/ws/sessions/s1',
     })
-    expect(mock).toHaveBeenCalledWith(BASE, {
-      method: 'POST',
-      path: '/api/v1/sessions',
-      accessToken: 'tk',
-      body: {
-        assistant_name: 'helper',
-        enabled_skills: ['a', 'b'],
-        dangerously_skip_permissions: false,
+    expect(mock).toHaveBeenCalledWith(
+      BASE,
+      {
+        method: 'POST',
+        path: '/api/v1/sessions',
+        accessToken: 'tk',
+        body: {
+          assistant_name: 'helper',
+          enabled_skills: ['a', 'b'],
+          dangerously_skip_permissions: false,
+        },
       },
-    })
+      180_000,
+    )
   })
 
   test('setUserModel puts /api/v1/users/me/model with { modelId }', async () => {
@@ -132,11 +161,15 @@ describe('MossSessionPort request shapes (contract vs baseline)', () => {
     })
 
     await port.resume(CTX, 's1')
-    expect(mock).toHaveBeenLastCalledWith(BASE, {
-      method: 'POST',
-      path: '/api/v1/sessions/s1/resume',
-      accessToken: 'tk',
-    })
+    expect(mock).toHaveBeenLastCalledWith(
+      BASE,
+      {
+        method: 'POST',
+        path: '/api/v1/sessions/s1/resume',
+        accessToken: 'tk',
+      },
+      180_000,
+    )
 
     await port.terminate(CTX, 's1')
     expect(mock).toHaveBeenLastCalledWith(BASE, {
@@ -158,8 +191,8 @@ describe('MossSessionPort request shapes (contract vs baseline)', () => {
     )
   })
 
-  test.each(['tree', 'read', 'write'] as const)(
-    'workspace %s waits for cold runtime readiness',
+  test.each(['tree', 'read', 'write', 'create', 'resume'] as const)(
+    '%s waits for cold runtime readiness beyond the metadata timeout',
     async (operation) => {
       vi.useFakeTimers()
       vi.stubGlobal(
@@ -173,6 +206,9 @@ describe('MossSessionPort request shapes (contract vs baseline)', () => {
                     new Response(
                       JSON.stringify({
                         root: { name: 'workspace', relativePath: '', isFile: false, isDir: true },
+                        session_id: 's1',
+                        session: { sessionId: 's1', userId: 'u', orgId: 'o', status: 'active' },
+                        ws_url: 'ws://moss.test/ws/sessions/s1',
                       }),
                     ),
                   ),
@@ -196,7 +232,11 @@ describe('MossSessionPort request shapes (contract vs baseline)', () => {
             ? port.workspaceTree(CTX, 's1', '')
             : operation === 'read'
               ? port.workspaceFileGet(CTX, 's1', 'note.txt')
-              : port.workspaceFilePost(CTX, 's1', 'note.txt', 'b2s=')
+              : operation === 'write'
+                ? port.workspaceFilePost(CTX, 's1', 'note.txt', 'b2s=')
+                : operation === 'create'
+                  ? port.create(CTX, { assistantName: 'helper', enabledSkills: [] })
+                  : port.resume(CTX, 's1')
         const assertion = expect(pending).resolves.toBeDefined()
         await vi.advanceTimersByTimeAsync(20_000)
         await assertion
@@ -217,6 +257,46 @@ describe('MossSessionPort request shapes (contract vs baseline)', () => {
     const port = createMossSessionPort(mock)
 
     await expect(port.context(CTX, 's1')).resolves.toEqual(context)
+  })
+
+  test('context preserves conversation history containing persisted artifact frames', async () => {
+    // Real Moss transcripts append artifacts after each completed model turn.
+    const context = {
+      context: {
+        messages: [
+          { type: 'user', uuid: 'user-1', content: 'Review the shared browser' },
+          { type: 'tool_use', uuid: 'tool-1', name: 'browser_observe', input: {} },
+          { type: 'tool_result', uuid: 'result-1', content: 'Human review 12345678' },
+          { type: 'assistant', uuid: 'assistant-1', content: 'Human review 12345678' },
+          {
+            type: 'artifacts',
+            uuid: 'artifacts-1',
+            v: 1,
+            workspace: '/workspace',
+            records: [
+              {
+                sessionId: 's1',
+                relativePath: 'review.txt',
+                intent: 'final',
+                origin: 'generated',
+                size: 21,
+              },
+            ],
+          },
+          { type: 'artifacts', uuid: 'artifacts-2', v: 1, records: [] },
+        ],
+      },
+    }
+    const port = createMossSessionPort(vi.fn().mockResolvedValue(context))
+
+    await expect(port.context(CTX, 's1')).resolves.toEqual(context)
+  })
+
+  test('context still rejects unknown transcript message types', async () => {
+    const port = createMossSessionPort(
+      vi.fn().mockResolvedValue({ context: { messages: [{ type: 'unknown-frame' }] } }),
+    )
+    await expect(port.context(CTX, 's1')).rejects.toThrow()
   })
 
   test('session ids are uri-encoded once', async () => {

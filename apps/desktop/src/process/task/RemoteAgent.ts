@@ -6,15 +6,18 @@
 
 import * as nodePath from 'node:path';
 import * as fs from 'node:fs';
+import { appendGeneratedFilesMarker } from '@sudowork/common/generatedFiles';
 import type { IResponseMessage } from '@sudowork/host-bridge/ipcBridge';
 import type { AcpQuestionAnswerItem, TMessage } from '@sudowork/common/chatLib';
 import { mossControlRequestToConfirmation } from '@sudowork/common/mossResponse';
 import type { TChatConversation } from '@sudowork/common/storage';
 import { isRemoteContainerPath } from '@sudowork/common/utils/workspaceSkillSync';
+import { isMossRuntimeUpdateRequired } from '@sudowork/moss-client';
 import { MossWsConnection, type MossWsConnectionConfig, type MossWsCallbacks } from '@/agent/remote/MossWsConnection';
 import { ipcBridge } from '@/common';
 import type { AcpQuestionResponseAnswer } from '@/types/acpTypes';
 import { uuid } from '@/common/utils';
+import { readRemoteWorkspaceSnapshot, diffRemoteDeliverables, type RemoteWorkspaceSnapshot } from '../services/deliverables/remoteDeliverables';
 import { mainLog, mainError, mainWarn } from '../utils/mainLogger';
 import { getDatabase } from '../database/export';
 import { addOrUpdateMessage } from '../message';
@@ -83,6 +86,7 @@ export interface RemoteAgentData {
   password?: string;
   /** Agent name (corresponds to Moss assistant_name) */
   assistantName?: string;
+  templateRef?: string;
   /** Skip permission confirmation */
   dangerouslySkipPermissions?: boolean;
   /** Runtime type */
@@ -140,6 +144,8 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
    * agent's "created" narration is shown while nothing is created and the
    * client_cron_enabled gate never runs. See processFinishedCronCommands.
    */
+  private remoteDeliverablesPromise: Promise<void> = Promise.resolve();
+  private remoteTurnSnapshot: RemoteWorkspaceSnapshot | null = null;
   private currentTurnText = '';
   private currentTurnMsgId: string | null = null;
 
@@ -198,6 +204,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
           password: this.options.password,
           cwd: this.workspace,
           assistantName: this.options.assistantName,
+          templateRef: this.options.templateRef,
           dangerouslySkipPermissions: this.options.dangerouslySkipPermissions ?? this.yoloMode,
           runtimeType: this.options.runtimeType,
           // No wsUrl - will create new session
@@ -219,27 +226,20 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
         };
 
         this.connection = new MossWsConnection(config, callbacks);
-        await this.connection.connect();
-
-        // Get created session info
-        // 获取创建的 session 信息
-        this.mossSessionId = this.connection.getSessionId();
-        this.mossWsUrl = this.connection.getWsUrl();
-        if (this.mossSessionId && this.mossWsUrl) {
-          // Keep the in-memory options aligned with the persisted DB update.
-          // After an idle detach, the same RemoteAgent instance may handle the
-          // next sendMessage. Without these fields, initAgent would re-enter
-          // lazy creation and create a second Moss session instead of resuming.
-          this.options.sessionId = this.mossSessionId;
-          this.options.wsUrl = this.mossWsUrl;
-          this.options.mossSessionPending = false;
+        try {
+          await this.connection.connect();
+        } finally {
+          // Creation commits identity before transport readiness. Keep it even
+          // when startup or the first WebSocket handshake is refused.
+          this.mossSessionId = this.connection.getSessionId();
+          this.mossWsUrl = this.connection.getWsUrl();
+          if (this.mossSessionId && this.mossWsUrl) {
+            this.options.sessionId = this.mossSessionId;
+            this.options.wsUrl = this.mossWsUrl;
+            this.options.mossSessionPending = false;
+            await this.updateConversationWithMossSession();
+          }
         }
-
-        mainLog('RemoteAgent', `Moss session created: sessionId=${this.mossSessionId}, wsUrl=${this.mossWsUrl}`);
-
-        // Update local database with Moss session info
-        // 更新本地数据库的 Moss session 信息
-        await this.updateConversationWithMossSession();
       } else if (hasExistingWsUrl) {
         // RESUME/ATTACH MODE: Use existing wsUrl
         // 恢复/附加模式：使用已有的 wsUrl
@@ -261,6 +261,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
             this.options.wsUrl = resumed.wsUrl;
           }
         } catch (lookupError) {
+          if (isMossRuntimeUpdateRequired(lookupError)) throw lookupError;
           mainLog('RemoteAgent', `resumeSession lookup failed (${lookupError instanceof Error ? lookupError.message : String(lookupError)}), falling back to stored wsUrl`);
         }
 
@@ -507,6 +508,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
   }
 
   async sendMessage(data: { content: string; files?: string[]; msg_id?: string; skills?: string[] }): Promise<{ success: boolean; msg?: string }> {
+    await this.remoteDeliverablesPromise;
     mainLog('RemoteAgent', `sendMessage called for conversation ${this.conversation_id}`);
     mainLog('RemoteAgent', `content length: ${data.content?.length || 0}, files: ${data.files?.length || 0}`);
     // Activity: cancel any pending idle detach before we start work.
@@ -549,9 +551,9 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
         throw new Error('Connection not ready');
       }
 
-      // Emit user message to UI
+      // Persist the prompt through the same path as streamed replies.
       if (data.msg_id && data.content) {
-        ipcBridge.conversation.responseStream.emit({
+        this.handleStreamMessage({
           type: 'user_content',
           conversation_id: this.conversation_id,
           msg_id: data.msg_id,
@@ -731,6 +733,16 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
         if (current.success && current.data?.type === 'remote-agent') db.updateConversation(this.conversation_id, { ...current.data, extra: { ...current.data.extra, enabledSkills: this.options.enabledSkills } });
       }
 
+      // Capture after uploads so input attachments are not reported as outputs.
+      this.remoteTurnSnapshot = null;
+      if (this.mossSessionId) {
+        try {
+          this.remoteTurnSnapshot = await readRemoteWorkspaceSnapshot(initMossApi(this.options.serverUrl), this.mossSessionId);
+        } catch (error) {
+          mainLog('RemoteAgent', `Unable to snapshot remote workspace: ${String(error)}`);
+        }
+      }
+
       // Send to Moss Server
       const result = this.connection.sendMessage({
         content: contentToSend,
@@ -749,7 +761,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
       this.turnActive = false;
       this.processingStartTime = undefined;
       const errorMsg = error instanceof Error ? error.message : String(error);
-      this.emitErrorMessage(errorMsg);
+      this.emitErrorMessage(error);
       return { success: false, msg: errorMsg };
     }
   }
@@ -791,7 +803,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
       this.turnActive = false;
       this.processingStartTime = undefined;
       const errorMsg = error instanceof Error ? error.message : String(error);
-      this.emitErrorMessage(errorMsg);
+      this.emitErrorMessage(error);
       return { success: false, msg: errorMsg };
     }
   }
@@ -1075,6 +1087,11 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
     // 只有收到 'finish' 消息才设置 finished 状态
     // 'content' 消息是流式的，不代表会话结束
     if (msg.type === 'finish') {
+      const snapshot = this.remoteTurnSnapshot;
+      this.remoteTurnSnapshot = null;
+      if (snapshot && this.mossSessionId && !this.userCancelled) {
+        this.remoteDeliverablesPromise = this.recordRemoteDeliverables(snapshot, this.mossSessionId);
+      }
       this.status = 'finished';
       this.turnActive = false;
       this.processingStartTime = undefined;
@@ -1146,10 +1163,31 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
     }
   }
 
-  /**
-   * Track file operations from tool calls
-   * 追踪工具调用中的文件操作
-   */
+  /** Persist cloud outputs without reopening the completed response stream. */
+  private async recordRemoteDeliverables(before: RemoteWorkspaceSnapshot, sessionId: string): Promise<void> {
+    const createdAt = Date.now();
+    try {
+      const after = await readRemoteWorkspaceSnapshot(initMossApi(this.options.serverUrl), sessionId);
+      const files = diffRemoteDeliverables(before, after, createdAt);
+      if (!files.length) return;
+      const content = appendGeneratedFilesMarker('', files);
+      const msgId = uuid();
+      addOrUpdateMessage(this.conversation_id, {
+        id: msgId,
+        msg_id: msgId,
+        conversation_id: this.conversation_id,
+        type: 'text',
+        position: 'left',
+        createdAt,
+        status: 'finish',
+        content: { content },
+      });
+      ipcBridge.deliverables.changed.emit({ conversationId: this.conversation_id, files });
+    } catch (error) {
+      mainError('RemoteAgent', `Failed to record remote deliverables: ${String(error)}`);
+    }
+  }
+
   private trackFileOperation(toolCallData: any): void {
     if (!toolCallData) return;
 
@@ -1427,7 +1465,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
 
   private handleError(err: Error): void {
     mainError('RemoteAgent', `Moss connection error: ${err.message}`);
-    this.emitErrorMessage(err.message);
+    this.emitErrorMessage(err);
   }
 
   // ========== Message emission ==========
@@ -1450,12 +1488,14 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
     });
   }
 
-  private emitErrorMessage(error: string): void {
+  private emitErrorMessage(error: unknown): void {
+    const isUpdateRequired = isMossRuntimeUpdateRequired(error);
     ipcBridge.conversation.responseStream.emit({
       type: 'error',
       conversation_id: this.conversation_id,
       msg_id: uuid(36),
-      data: error,
+      data: isUpdateRequired ? 'RUNTIME_UPDATE_REQUIRED' : error instanceof Error ? error.message : String(error),
+      ...(isUpdateRequired ? { errorClass: 'runtime_update_required' as const } : {}),
     });
     // After error, must emit finish to end the session
     // 发送错误后必须发送 finish 结束会话

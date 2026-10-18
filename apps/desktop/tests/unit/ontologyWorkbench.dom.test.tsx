@@ -115,6 +115,19 @@ function createApi(): IOntologyWorkbenchApi {
     },
   ];
   snapshot.publishedVersions.push({ ...snapshot.publishedVersions[0], id: 'version-2', version: 'v2' }, { ...snapshot.publishedVersions[0], id: 'version-3', version: 'v3' });
+  snapshot.skillBlueprints = snapshot.publishedVersions.map((version) => ({
+    id: `skill-${version.id}`,
+    name: `${snapshot.draft.title} ${version.version} skill`,
+    description: 'Customer operations',
+    status: 'published',
+    ontologyVersionId: version.id,
+    version: '1.0.0',
+    entityIds: ['customer'],
+    toolManifest: [],
+    registeredSkillId: `ontology-skill-${version.id}`,
+    createdAt: 1,
+    updatedAt: 1,
+  }));
   snapshot.stats = recalculateOntologyStats(snapshot);
   const summary = summarizeOntologyWorkbenchSnapshot(snapshot);
   const mutationResult = { snapshot, summaries: [summary], activeWorkspaceId: snapshot.workspaceId };
@@ -285,8 +298,16 @@ function createDeferred<T>() {
   return { promise, resolve, reject };
 }
 
+async function renderWorkbench(api: IOntologyWorkbenchApi) {
+  let view!: ReturnType<typeof render>;
+  await act(async () => {
+    view = render(<OntologyWorkbench api={api} />);
+  });
+  return view;
+}
+
 async function openGuidedBuilder(api: IOntologyWorkbenchApi, method: 'document' | 'asset' = 'document') {
-  render(<OntologyWorkbench api={api} />);
+  await renderWorkbench(api);
   await screen.findAllByText(translate('ontology.console.views.connections.title'));
   fireEvent.click(screen.getAllByText(translate('ontology.console.views.ontology.title'))[0]);
   fireEvent.click((await screen.findAllByText(translate('ontology.list.detail')))[0]);
@@ -305,7 +326,7 @@ function onSelectDocumentForExtraction() {
 }
 
 async function openObjectEditor(api: IOntologyWorkbenchApi) {
-  render(<OntologyWorkbench api={api} />);
+  await renderWorkbench(api);
   await screen.findAllByText('ontology.console.views.connections.title');
   fireEvent.click(screen.getAllByText('ontology.console.views.ontology.title')[0]);
   fireEvent.click(await screen.findByText('ontology.list.detail'));
@@ -372,18 +393,12 @@ function expectParentBlocked(parent: HTMLElement) {
 }
 
 async function onCloseModal(button: HTMLElement) {
-  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-  try {
-    await act(async () => {
-      fireEvent.click(button);
-    });
-    // Arco registers its 400ms exit timer after the asynchronous save commits.
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(400);
-    });
-  } finally {
-    vi.useRealTimers();
-  }
+  const dialog = button.closest('[role="dialog"]');
+  expect(dialog).not.toBeNull();
+  await act(async () => {
+    fireEvent.click(button);
+  });
+  await waitFor(() => expect(dialog).not.toBeVisible());
 }
 
 async function openNewConnector(category = 'database') {
@@ -404,7 +419,9 @@ function getConnectorField(dialog: HTMLElement, field: string) {
 
 async function openConnectorTypeOptions(dialog: HTMLElement) {
   fireEvent.click(getConnectorFormItem(dialog, 'type').querySelector('.arco-select-view') as HTMLElement);
-  return screen.findAllByRole('option');
+  const listbox = await screen.findByRole('listbox');
+  expect(listbox).toBeVisible();
+  return within(listbox).findAllByRole('option', { hidden: true });
 }
 
 async function openDeleteConfirmation(parent: HTMLElement, name = 'Customer ID') {
@@ -441,7 +458,7 @@ describe('OntologyWorkbench', () => {
       const snapshot = await api.getWorkbench();
       snapshot.draft.title = name;
       vi.mocked(api.listWorkbenches).mockResolvedValue({ activeWorkspaceId: snapshot.workspaceId, items: [{ ...summarizeOntologyWorkbenchSnapshot(snapshot), name }] });
-      render(<OntologyWorkbench api={api} />);
+      await renderWorkbench(api);
 
       fireEvent.click((await screen.findAllByText(`ontology.console.views.${view}.title`))[0]);
       const title = (await screen.findByText(name || 'ontology.list.defaultName')).closest('.arco-typography');
@@ -463,13 +480,15 @@ describe('OntologyWorkbench', () => {
         connector: { ...connector, id: 'new-postgresql', metadata: connector.metadata ?? {}, probeStatus: 'reachable', createdAt: 1, updatedAt: 1 },
         assets: [],
       }));
-      render(<OntologyWorkbench api={api} />);
+      await renderWorkbench(api);
       const dialog = await openNewConnector();
       expect(getConnectorField(dialog, 'category')).toHaveValue('ontology.console.connectionPicker.categories.database.title');
       expect(getConnectorFormItem(dialog, 'type')).toHaveTextContent('ontology.connectorType.mysql');
       const options = await openConnectorTypeOptions(dialog);
       expect.soft(options.map((option) => option.textContent)).toEqual(['ontology.connectorType.mysql', 'ontology.connectorType.postgresql']);
-      fireEvent.click(screen.getByRole('option', { name: 'ontology.connectorType.postgresql' }));
+      await act(async () => {
+        fireEvent.click(screen.getByRole('option', { name: 'ontology.connectorType.postgresql' }));
+      });
       expect(getConnectorField(dialog, 'port')).toHaveValue('5432');
       const fields = { name: 'Reporting database', host: 'postgres.example.invalid', port: '15432', database: 'reporting', username: 'test_reader', password: 'fake-test-password', poolSize: '6', rateLimitQps: '35', description: 'Reporting connection' };
       for (const [field, value] of Object.entries(fields)) {
@@ -511,7 +530,7 @@ describe('OntologyWorkbench', () => {
         const connector = { id: `legacy-${sourceType}`, name: `${sourceType}::stored-name`, sourceType, kind: 'database' as const, ...fields, metadata, probeStatus: 'reachable' as const, createdAt: 1, updatedAt: 1 };
         snapshot.connectors = [connector];
         vi.mocked(api.probeConnector).mockResolvedValue({ snapshot, connector, assets: [] });
-        render(<OntologyWorkbench api={api} />);
+        await renderWorkbench(api);
         const row = (await screen.findByText(metadata.displayName)).closest('tr') as HTMLElement;
         fireEvent.click(within(row).getByRole('button', { name: 'ontology.editor.edit' }));
         const dialog = await screen.findByRole('dialog', { name: 'ontology.console.connectionForm.editTitle' });
@@ -549,7 +568,7 @@ describe('OntologyWorkbench', () => {
     );
 
     it.each(['ftp', 'sftp'])('keeps file transfer options and %s fields available', async (sourceType) => {
-      render(<OntologyWorkbench api={createApi()} />);
+      await renderWorkbench(createApi());
       const dialog = await openNewConnector('file_transfer');
       expect(getConnectorField(dialog, 'category')).toHaveValue('ontology.console.connectionPicker.categories.file_transfer.title');
       const options = await openConnectorTypeOptions(dialog);
@@ -748,8 +767,7 @@ describe('OntologyWorkbench', () => {
       const child = await openAttributeEditor(parent, mode === 'edit' ? 'Customer ID' : undefined);
       expectParentBlocked(parent);
       changeEditorFields(child, { name: 'Discarded attribute', code: 'discarded', description: 'Discarded description' });
-      fireEvent.click(within(child).getByRole('button', { name: 'ontology.reset.cancel' }));
-      await waitFor(() => expect(child).not.toBeVisible());
+      await onCloseModal(within(child).getByRole('button', { name: 'ontology.reset.cancel' }));
 
       expectEditorFields(parent, basicFields);
       expectAttributeCount(parent, 1);
@@ -964,6 +982,21 @@ describe('OntologyWorkbench', () => {
   it('validates quality rule expressions and displays execution results', async () => {
     const api = createApi();
     const snapshot = await api.getWorkbench();
+    snapshot.skillBlueprints = [
+      {
+        id: 'skill-version-2',
+        name: 'Customer skill',
+        description: 'Customer operations',
+        status: 'published',
+        ontologyVersionId: 'version-2',
+        version: '1.0.0',
+        entityIds: [],
+        toolManifest: [],
+        registeredSkillId: 'ontology-skill-version-2',
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ];
     snapshot.objects[0].attributes = [createAttribute()];
     snapshot.qualityRules = [
       {
@@ -997,7 +1030,7 @@ describe('OntologyWorkbench', () => {
         },
       ],
     });
-    render(<OntologyWorkbench api={api} />);
+    await renderWorkbench(api);
 
     await screen.findAllByText('ontology.console.views.connections.title');
     fireEvent.click(screen.getAllByText('ontology.console.views.ontology.title')[0]);
@@ -1055,7 +1088,7 @@ describe('OntologyWorkbench', () => {
         updatedAt: Date.now(),
       },
     ];
-    render(<OntologyWorkbench api={api} />);
+    await renderWorkbench(api);
 
     await screen.findAllByText('ontology.console.views.connections.title');
     fireEvent.click(screen.getAllByText('ontology.console.views.ontology.title')[0]);
@@ -1107,6 +1140,8 @@ describe('OntologyWorkbench', () => {
         code: 'customer_lookup',
         name: 'Customer Lookup',
         description: 'Look up customers.',
+        displayName: '客户查询',
+        displayDescription: '查询客户记录。',
         runtime: 'typescript',
         objectIds: ['customer'],
         signature: 'customerLookup(query)',
@@ -1121,13 +1156,13 @@ describe('OntologyWorkbench', () => {
       },
     ];
     snapshot.stats = recalculateOntologyStats(snapshot);
-    render(<OntologyWorkbench api={api} />);
+    await renderWorkbench(api);
 
     await screen.findAllByText('ontology.console.views.connections.title');
     fireEvent.click(screen.getAllByText('ontology.console.views.ontology.title')[0]);
     fireEvent.click(await screen.findByText('ontology.list.detail'));
     fireEvent.click(await screen.findByText('ontology.detail.tabs.runtime'));
-    const functionRow = (await screen.findByText('Customer Lookup')).closest('.rounded') as HTMLElement;
+    const functionRow = (await screen.findByText('客户查询')).closest('.rounded') as HTMLElement;
     fireEvent.click(within(functionRow).getByRole('button', { name: 'ontology.runtime.run' }));
 
     const dialog = await screen.findByRole('dialog', { name: 'ontology.runtime.runTitle' });
@@ -1153,6 +1188,8 @@ describe('OntologyWorkbench', () => {
         executor: 'notification',
         objectIds: ['customer'],
         description: 'Notify an account owner.',
+        displayName: '客户负责人通知',
+        displayDescription: '通知客户记录的负责人。',
         configuration: { title: 'Customer', message: 'Customer {{customerId}} requires attention.' },
         parameters: [{ name: 'customerId', type: 'string', required: true }],
         outputSchema: [{ name: 'delivered', type: 'boolean' }],
@@ -1163,13 +1200,13 @@ describe('OntologyWorkbench', () => {
       },
     ];
     snapshot.stats = recalculateOntologyStats(snapshot);
-    render(<OntologyWorkbench api={api} />);
+    await renderWorkbench(api);
 
     await screen.findAllByText('ontology.console.views.connections.title');
     fireEvent.click(screen.getAllByText('ontology.console.views.ontology.title')[0]);
     fireEvent.click(await screen.findByText('ontology.list.detail'));
     fireEvent.click(await screen.findByText('ontology.detail.tabs.runtime'));
-    const actionRow = (await screen.findByText('Notify Customer')).closest('.rounded') as HTMLElement;
+    const actionRow = (await screen.findByText('客户负责人通知')).closest('.rounded') as HTMLElement;
     fireEvent.click(within(actionRow).getByRole('button', { name: 'ontology.editor.edit' }));
     const editor = await screen.findByRole('dialog', { name: 'ontology.runtime.editAction' });
     expect(within(editor).getByText('ontology.runtime.parametersJson')).toBeInTheDocument();
@@ -1191,7 +1228,7 @@ describe('OntologyWorkbench', () => {
 
   it('opens the active ontology detail and exposes object modeling controls', async () => {
     const api = createApi();
-    const { container } = render(<OntologyWorkbench api={api} />);
+    const { container } = await renderWorkbench(api);
 
     await screen.findAllByText('ontology.console.views.connections.title');
     expect(container.querySelector('.lucide-circle-x')).toBeInTheDocument();
@@ -1228,7 +1265,7 @@ describe('OntologyWorkbench', () => {
 
   it('opens the ontology creation form with labeled and empty fields every time', async () => {
     const api = createApi();
-    render(<OntologyWorkbench api={api} />);
+    await renderWorkbench(api);
 
     await screen.findAllByText('ontology.console.views.connections.title');
     fireEvent.click(screen.getAllByText('ontology.console.views.ontology.title')[0]);
@@ -1257,7 +1294,7 @@ describe('OntologyWorkbench', () => {
 
   it('opens the Agent creation form with an empty name every time', async () => {
     const api = createApi();
-    render(<OntologyWorkbench api={api} />);
+    await renderWorkbench(api);
 
     await screen.findAllByText('ontology.console.views.connections.title');
     fireEvent.click(screen.getAllByText('ontology.console.views.agent.title')[0]);
@@ -1279,7 +1316,7 @@ describe('OntologyWorkbench', () => {
     const api = createApi();
     const snapshot = await api.getWorkbench();
     vi.mocked(api.createAgentBlueprint).mockResolvedValue({ snapshot });
-    render(<OntologyWorkbench api={api} />);
+    await renderWorkbench(api);
 
     await screen.findAllByText('ontology.console.views.connections.title');
     fireEvent.click(screen.getAllByText('ontology.console.views.agent.title')[0]);
@@ -1299,7 +1336,7 @@ describe('OntologyWorkbench', () => {
     await waitFor(() =>
       expect(api.createAgentBlueprint).toHaveBeenCalledWith({
         name: 'Versioned Agent',
-        ontologyVersionId: 'version-2',
+        skillBlueprintId: 'skill-version-2',
         workspaceId: 'customer_domain',
         promptTemplate: 'ontology.agent.defaultPrompt',
       })
@@ -1372,7 +1409,7 @@ describe('OntologyWorkbench', () => {
     vi.mocked(api.selectWorkbench).mockImplementation(async ({ workspaceId }) => (workspaceId === secondarySnapshot.workspaceId ? secondarySnapshot : primarySnapshot));
     vi.mocked(api.approvePublishedVersion).mockResolvedValue(secondarySnapshot);
     vi.mocked(api.rejectPublishedVersion).mockResolvedValue(secondarySnapshot);
-    render(<OntologyWorkbench api={api} />);
+    await renderWorkbench(api);
 
     await screen.findAllByText('ontology.console.views.connections.title');
     fireEvent.click(screen.getAllByText('ontology.console.views.publish.title')[0]);
@@ -1439,7 +1476,7 @@ describe('OntologyWorkbench', () => {
         isActive: false,
       },
     });
-    render(<OntologyWorkbench api={api} />);
+    await renderWorkbench(api);
 
     await screen.findAllByText('ontology.console.views.connections.title');
     fireEvent.click(screen.getAllByText('ontology.console.views.publish.title')[0]);
@@ -1462,7 +1499,7 @@ describe('OntologyWorkbench', () => {
       activeWorkspaceId: snapshot.workspaceId,
       items: [summarizeOntologyWorkbenchSnapshot(snapshot)],
     });
-    render(<OntologyWorkbench api={api} />);
+    await renderWorkbench(api);
 
     await screen.findAllByText('ontology.console.views.connections.title');
     fireEvent.click(screen.getAllByText('ontology.console.views.ontology.title')[0]);
@@ -1497,7 +1534,7 @@ describe('OntologyWorkbench', () => {
         updatedAt: Date.now(),
       },
     ];
-    render(<OntologyWorkbench api={api} />);
+    await renderWorkbench(api);
 
     await screen.findAllByText('ontology.console.views.connections.title');
     fireEvent.click(screen.getAllByText('ontology.console.views.agent.title')[0]);
@@ -1514,7 +1551,7 @@ describe('OntologyWorkbench', () => {
 
   it('does not display counters beside workbench navigation items', async () => {
     const api = createApi();
-    render(<OntologyWorkbench api={api} />);
+    await renderWorkbench(api);
 
     const publishLabel = (await screen.findAllByText('ontology.console.views.publish.title'))[0];
     expect(publishLabel.closest('button')).toHaveTextContent('ontology.console.views.publish.title');
@@ -1523,7 +1560,7 @@ describe('OntologyWorkbench', () => {
 
   it('merges ontology publishing and service capabilities into one page', async () => {
     const api = createApi();
-    render(<OntologyWorkbench api={api} />);
+    await renderWorkbench(api);
 
     await screen.findAllByText('ontology.console.views.connections.title');
     fireEvent.click(screen.getAllByText('ontology.console.views.ontology.title')[0]);
@@ -1550,7 +1587,7 @@ describe('OntologyWorkbench', () => {
       snapshot,
       files: [{ id: 'template_asset', name: 'template.json', path: '/tmp/template.json', sizeBytes: 128, extension: '.json' }],
     });
-    render(<OntologyWorkbench api={api} />);
+    await renderWorkbench(api);
 
     await screen.findAllByText('ontology.console.views.connections.title');
     fireEvent.click(screen.getAllByText('ontology.console.views.ontology.title')[0]);
@@ -1869,7 +1906,7 @@ describe('OntologyWorkbench', () => {
 
   it('runs the complete manual modeling workflow', async () => {
     const api = createApi();
-    render(<OntologyWorkbench api={api} />);
+    await renderWorkbench(api);
 
     await screen.findAllByText('ontology.console.views.connections.title');
     fireEvent.click(screen.getAllByText('ontology.console.views.ontology.title')[0]);

@@ -1,4 +1,8 @@
 {
+  "interrupted": {
+    "title": "Yürütme bağlantısı kesildi",
+    "body": "Önceki işlem uygulanmış olabilir. Aracıdan devam etmesini istemeden önce sonuçları kontrol edin. Yürütmenin durduğu doğrulandıktan sonra yeni bir mesaj gönderebilirsiniz."
+  },
   "database_open_failed": {
     "title": "Veritabanı açılamadı",
     "body": "Verileriniz güvende — diskteki veritabanı dosyaları değiştirilmedi veya silinmedi. Bu açılışta Sudowork yerel veritabanını açamadı, bu nedenle geçmişiniz görünmeyebilir. Lütfen uygulamayı yeniden başlatın; sorun devam ederse Sudowork'ü yeniden yükleyin veya onarın. Verilerin tutarlı kalması için sorun çözülene kadar yeni sohbet oluşturmaktan kaçının."
@@ -39,5 +43,12 @@
   "timeout": {
     "title": "İstek zaman aşımına uğradı",
     "body": "İstek zaman aşımına uğradı; lütfen kısa süre sonra yeniden deneyin."
+  },
+  "runtime_update_required": {
+    "title": "Çalışma ortamının güncellenmesi gerekiyor",
+    "body": "Geçerli yapılandırmayı kullanmak için bulut çalışma ortamınızı güncelleyin. Önce diğer çalışan oturumların bitmesi gerekir. Bu işlem mesajları veya araçları yeniden çalıştırmaz.",
+    "cta": "Çalışma ortamını güncelle",
+    "updated": "Çalışma ortamı güncellendi. Devam etmek için yeni bir mesaj gönderin.",
+    "failed": "Güncelleme doğrulanamadı. Diğer çalışan oturumları bitirip tekrar deneyin."
   }
 }

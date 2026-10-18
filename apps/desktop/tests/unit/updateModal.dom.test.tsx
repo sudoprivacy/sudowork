@@ -157,15 +157,22 @@ describe('update availability', () => {
   });
 
   it('restores a startup update on the login page and keeps one listener across login', async () => {
-    location.hash = '#/login';
+    history.replaceState(null, '', '#/login');
+    // Route chunk loading is a fixture prerequisite for the subscription check.
+    await Promise.all([import('@renderer/pages/login'), import('@renderer/pages/guid')]);
     state.getStatus.mockResolvedValue({ success: true, data: { status: 'available', version: '0.2.27' } });
-    const { rerender } = render(<PanelRoute layout={<Outlet />} />);
-    expect(await screen.findByText('Login page')).toBeTruthy();
-    expect(await screen.findByRole('button', { name: 'update.downloadAndInstall' })).toBeTruthy();
+    let view!: ReturnType<typeof render>;
+    await act(async () => {
+      view = render(<PanelRoute layout={<Outlet />} />);
+    });
+    expect(screen.getByText('Login page')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'update.downloadAndInstall' })).toBeTruthy();
     expect(state.statusListeners.size).toBe(1);
-    state.authStatus = 'authenticated';
-    rerender(<PanelRoute layout={<Outlet />} />);
-    expect(await screen.findByText('Home page')).toBeTruthy();
+    await act(async () => {
+      state.authStatus = 'authenticated';
+      view.rerender(<PanelRoute layout={<Outlet />} />);
+    });
+    expect(screen.getByText('Home page')).toBeTruthy();
     expect(state.statusListeners.size).toBe(1);
     expect(screen.getByRole('button', { name: 'update.downloadAndInstall' })).toBeTruthy();
   });

@@ -21,6 +21,7 @@ const esbuild = require('esbuild');
 
 const SRC = path.join(__dirname, '..', 'resources', 'browser-panel-mcp', 'src', 'index.ts');
 const OUT = path.join(__dirname, '..', 'resources', 'browser-panel-mcp', 'index.js');
+const SHARED_SRC = path.join(__dirname, '..', 'resources', 'browser-panel-mcp', 'src', 'shared.ts');
 
 async function main() {
   if (!fs.existsSync(SRC)) {
@@ -28,12 +29,12 @@ async function main() {
     process.exit(1);
   }
   await esbuild.build({
-    entryPoints: [SRC],
+    entryPoints: [SRC, SHARED_SRC],
     bundle: true,
     platform: 'node',
     target: ['node22'],
     format: 'cjs',
-    outfile: OUT,
+    outdir: path.dirname(OUT),
     minify: true,
     sourcemap: false,
     legalComments: 'none',

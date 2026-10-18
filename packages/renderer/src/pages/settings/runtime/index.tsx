@@ -41,7 +41,6 @@ export default function RuntimeSettings() {
   const [claudeLoad, setClaudeLoad] = useState<LoadState>('idle');
   const [claudePhase, setClaudePhase] = useState<'downloading' | 'extracting' | 'configuring' | undefined>(undefined);
 
-  const [nexusPort, setNexusPort] = useState<number | undefined>(undefined);
   const [nexusRunning, setNexusRunning] = useState<boolean>(false);
   const [nexusInstalled, setNexusInstalled] = useState<boolean>(false);
   const [nexusStatusResolved, setNexusStatusResolved] = useState<boolean>(false);
@@ -468,12 +467,10 @@ export default function RuntimeSettings() {
       const res = await nexusIpc.getStatus.invoke();
       if (res?.success && res.data) {
         setNexusRunning(res.data.running);
-        setNexusPort(res.data.port);
         setNexusInstalled(res.data.installed);
         setNexusVersion(res.data.version);
       } else {
         setNexusRunning(false);
-        setNexusPort(undefined);
         setNexusInstalled(false);
         setNexusVersion(undefined);
       }
@@ -766,7 +763,6 @@ export default function RuntimeSettings() {
       badge: 'NX',
       status: nexusInstalled ? { installed: true, source: 'managed', version: nexusVersion } : null,
       statusResolved: nexusStatusResolved,
-      nexusPort,
       nexusRunning,
       nexusInstalled,
       loadState: nexusLoad,

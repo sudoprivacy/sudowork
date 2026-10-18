@@ -7,7 +7,7 @@
 /**
  * Integration test for `handleSecretsRequest` — the authProxy /secrets
  * route handler that external skill subprocesses hit. Covers the
- * regression surface that pure-unit tests of `NexusSecretClient` miss:
+ * regression surface that pure-unit tests of `ScodeSecretsClient` miss:
  * URL parsing, method dispatch, body validation, JSON shape, error
  * mapping, and the cross-handler data flow (PUT → LIST sees the key
  * → DELETE → LIST no longer sees the key) — the actual user journey
@@ -113,13 +113,9 @@ const mockClient = {
 //     handler logic. The handler's job is route → client; the cache,
 //     config, and bridge layers have their own tests. ─────────────────
 
-vi.mock('@common/nexus/nexus-secret-client', () => ({
-  getNexusSecretClient: () => mockClient,
+vi.mock('@common/scode/secretsClient', () => ({
+  getScodeSecretsClient: () => mockClient,
 }));
-vi.mock('@common/nexus/nexus-secret-resilient', async () => {
-  const { putSecretResilient: realPut } = await import('../../../src/common/nexus/nexus-secret-resilient');
-  return { putSecretResilient: realPut };
-});
 vi.mock('@common/nexus/secret-cache', () => ({
   cachePut: vi.fn(),
   cacheDelete: vi.fn(),
@@ -309,34 +305,5 @@ describe('handleSecretsRequest — input validation & error mapping', () => {
     const res = await invoke('PUT', '/secrets/ns/k', { value: 'v' });
     expect(res.statusCode).toBe(500);
     expect(parseBody(res).msg).toMatch(/version mismatch/);
-  });
-});
-
-// ─── The 进二 bug class — fallback resilience at the handler level ─
-
-describe('handleSecretsRequest — vault method-missing resilience', () => {
-  it('PUT succeeds via batch_put fallback when secret_put is method-not-found', async () => {
-    // Vault dylib missing secret_put — the recurring 进二 bug class
-    mockClient.putSecret.mockImplementationOnce(() => {
-      throw new Error('method not found');
-    });
-    mockClient.batchPut.mockReturnValueOnce([{ namespace: 'service:shareone', key: 'api_key', currentVersion: 1, deleted: false, description: undefined }]);
-
-    const res = await invoke('PUT', '/secrets/service:shareone/api_key', { value: 'sk-test' });
-
-    expect(res.statusCode).toBe(200);
-    expect(parseBody(res).success).toBe(true);
-    expect(mockClient.batchPut).toHaveBeenCalledWith([{ namespace: 'service:shareone', key: 'api_key', value: 'sk-test', description: undefined }]);
-  });
-
-  it('PUT succeeds via batch_put fallback for UNIMPLEMENTED gRPC status too', async () => {
-    mockClient.putSecret.mockImplementationOnce(() => {
-      throw new Error('14 UNIMPLEMENTED: no method password-vault.secret_put');
-    });
-    mockClient.batchPut.mockReturnValueOnce([{ namespace: 'ns', key: 'k', currentVersion: 1, deleted: false, description: undefined }]);
-
-    const res = await invoke('PUT', '/secrets/ns/k', { value: 'v' });
-    expect(res.statusCode).toBe(200);
-    expect(mockClient.batchPut).toHaveBeenCalled();
   });
 });

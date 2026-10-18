@@ -1168,6 +1168,8 @@ export class OntologyDatabase implements IOntologyRepository {
           {
             code: fn.code,
             signature: fn.signature,
+            displayName: fn.displayName,
+            displayDescription: fn.displayDescription,
             origin: fn.origin,
             configuration: fn.configuration,
           },
@@ -1197,6 +1199,8 @@ export class OntologyDatabase implements IOntologyRepository {
         code: typeof tagCode === 'string' ? tagCode : row.name,
         name: row.name,
         description: row.description ?? '',
+        displayName: stringValue(metadata?.displayName) ?? row.name,
+        displayDescription: stringValue(metadata?.displayDescription) ?? row.description ?? '',
         runtime: row.logic_type === 'python' || row.logic_type === 'sql' ? row.logic_type : 'typescript',
         objectIds: parseJson<string[]>(row.entity_ids, []),
         signature: typeof metadata?.signature === 'string' ? metadata.signature : '',
@@ -1231,6 +1235,8 @@ export class OntologyDatabase implements IOntologyRepository {
         toJson({
           code: action.code,
           objectIds: action.objectIds,
+          displayName: action.displayName,
+          displayDescription: action.displayDescription,
           configuration: action.configuration,
           origin: action.origin,
           executionCount: action.executionCount,
@@ -1258,6 +1264,8 @@ export class OntologyDatabase implements IOntologyRepository {
         executor: actionExecutor(row.action_type),
         objectIds: Array.isArray(config.objectIds) ? config.objectIds.filter(isString) : row.entity_id ? [row.entity_id] : [],
         description: row.description ?? '',
+        displayName: stringValue(config.displayName) ?? row.name,
+        displayDescription: stringValue(config.displayDescription) ?? row.description ?? '',
         configuration: isRecord(config.configuration) ? connectorConfigRecord(config.configuration) : {},
         parameters: parseJson<IOntologyActionDefinition['parameters']>(row.parameters_json, []),
         outputSchema: parseJson<IOntologyActionDefinition['outputSchema']>(row.output_schema, []),
@@ -1549,6 +1557,7 @@ export class OntologyDatabase implements IOntologyRepository {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     );
     for (const blueprint of snapshot.agentBlueprints) {
+      const skill = snapshot.skillBlueprints.find((item) => item.id === blueprint.skillBlueprintId);
       statement.run(
         blueprint.id,
         blueprint.name,
@@ -1557,12 +1566,13 @@ export class OntologyDatabase implements IOntologyRepository {
         null,
         blueprint.promptTemplate,
         toJson([]),
-        toJson(blueprint.entityIds),
+        toJson(skill?.entityIds || []),
         blueprint.ontologyVersionId,
         0,
         toJson({}),
         toJson({
-          toolManifest: blueprint.toolManifest,
+          skillBlueprintId: blueprint.skillBlueprintId,
+          toolManifest: skill?.toolManifest || [],
           status: blueprint.status,
           registeredAssistantId: blueprint.registeredAssistantId,
           registeredAt: blueprint.registeredAt,
@@ -1587,12 +1597,11 @@ export class OntologyDatabase implements IOntologyRepository {
         id: row.id,
         name: row.name,
         status: agentBlueprintStatus(config.status),
+        skillBlueprintId: stringValue(config.skillBlueprintId) ?? '',
         ontologyVersionId: row.ontology_version_id ?? '',
         registeredAssistantId: stringValue(config.registeredAssistantId) ?? row.api_key ?? undefined,
         registeredAt: numberValue(config.registeredAt),
-        entityIds: parseJson<string[]>(row.entity_ids, []),
         promptTemplate: row.system_prompt ?? '',
-        toolManifest: Array.isArray(config.toolManifest) ? (config.toolManifest as IOntologyAgentBlueprint['toolManifest']) : [],
         createdAt: fromDbTime(row.created_at),
         updatedAt: fromDbTime(row.updated_at),
       };
@@ -1989,6 +1998,8 @@ function fallbackVersionFunction(row: IVersionComponentRow, createdAt: number): 
     code: row.name,
     name: row.name,
     description: row.description ?? '',
+    displayName: row.name,
+    displayDescription: row.description ?? '',
     runtime: 'typescript',
     objectIds: [],
     signature: '',
@@ -2011,6 +2022,8 @@ function fallbackVersionAction(row: IVersionComponentRow, createdAt: number): IO
     executor: 'function',
     objectIds: [],
     description: row.description ?? '',
+    displayName: row.name,
+    displayDescription: row.description ?? '',
     configuration: {},
     parameters: [],
     outputSchema: [],

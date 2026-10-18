@@ -33,6 +33,7 @@ const execAsync = promisify(exec);
 // Update this version constant when a new Python stable release is available.
 // Download page: https://www.python.org/downloads/
 const PYTHON_VERSION = '3.13.4';
+const BROWSER_WORKER_VERSION = '0.57.5';
 
 interface PythonStatus {
   installed: boolean;
@@ -45,6 +46,39 @@ export type InstallPhase = 'downloading' | 'installing' | 'configuring' | 'clean
 export type ProgressCallback = (phase: InstallPhase, percent?: number) => void;
 
 export class PythonRuntimeService {
+  private browserWorkerSetup: Promise<string> | undefined;
+
+  /** Prepare an app-owned interpreter without changing the user's Python packages. */
+  async prepareBrowserWorkerRuntime(): Promise<string> {
+    this.browserWorkerSetup ??= this.prepareBrowserWorkerRuntimeInternal().catch((error) => {
+      this.browserWorkerSetup = undefined;
+      throw error;
+    });
+    return this.browserWorkerSetup;
+  }
+
+  private async prepareBrowserWorkerRuntimeInternal(): Promise<string> {
+    const root = path.join(app.getPath('userData'), 'browser-runtime', BROWSER_WORKER_VERSION);
+    const python = path.join(root, process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python');
+    const env = { ...process.env, PYTHONPATH: '', PYTHONNOUSERSITE: '1' };
+    if (!fs.existsSync(python)) {
+      const installed = await this.checkInstalled();
+      if (!installed.installed || !installed.path) throw new Error('Install Python from Settings before starting the local browser');
+      await execFileAsync(installed.path, ['-m', 'venv', root], { timeout: 120_000, env });
+    }
+    const verify = `from importlib.metadata import version; assert version('ai-dev-browser') == '${BROWSER_WORKER_VERSION}'; import ai_dev_browser.remote.worker`;
+    try {
+      await execFileAsync(python, ['-c', verify], { timeout: 15_000, env });
+      return python;
+    } catch {
+      // Only this app-owned virtual environment is changed. The model and the
+      // renderer cannot choose a package, version, interpreter or profile path.
+    }
+    await execFileAsync(python, ['-m', 'pip', '--isolated', 'install', '--index-url', 'https://pypi.org/simple', `ai-dev-browser[remote]==${BROWSER_WORKER_VERSION}`], { timeout: 300_000, env });
+    await execFileAsync(python, ['-c', verify], { timeout: 15_000, env });
+    return python;
+  }
+
   async checkInstalled(): Promise<PythonStatus> {
     if (process.platform === 'darwin') {
       return this.checkInstalledMac();

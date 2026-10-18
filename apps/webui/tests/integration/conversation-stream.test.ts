@@ -15,6 +15,7 @@ import { createWebSession } from '@server/features/auth/sessionRepository.js'
 import { digestToken, generateSessionToken } from '@server/security/sessionToken.js'
 import { encryptToken } from '@server/security/tokenCipher.js'
 import { createTestDatabase, destroyTestDatabase } from './helpers'
+import { TerminalManager } from '@server/features/terminal/terminalManager.js'
 
 const HMAC_KEY = Buffer.from('integration-test-hmac-key-32-bytes-ok!')
 const AES_KEY = Buffer.alloc(32, 7)
@@ -35,11 +36,17 @@ function sleep(ms: number): Promise<void> {
 
 type WsEvent = Record<string, unknown>
 
-/** 消息收集器：预先挂监听，避免逐条 await 丢失快速连续到达的事件。 */
-function collector(ws: WebSocket): {
+interface IWsEventCollector {
   events: WsEvent[]
-  waitFor: (pred: (e: WsEvent) => boolean, timeoutMs?: number) => Promise<WsEvent>
-} {
+  waitFor: (pred: (event: WsEvent) => boolean, timeoutMs?: number) => Promise<WsEvent>
+}
+
+const collectors = new WeakMap<WebSocket, IWsEventCollector>()
+
+/** 消息收集器：预先挂监听，避免逐条 await 丢失快速连续到达的事件。 */
+function collector(ws: WebSocket): IWsEventCollector {
+  const existing = collectors.get(ws)
+  if (existing) return existing
   const events: WsEvent[] = []
   ws.on('message', (data) => {
     try {
@@ -48,7 +55,7 @@ function collector(ws: WebSocket): {
       // ignore non-json
     }
   })
-  return {
+  const result: IWsEventCollector = {
     events,
     waitFor: (pred, timeoutMs = 8000) =>
       new Promise<WsEvent>((resolve, reject) => {
@@ -68,6 +75,8 @@ function collector(ws: WebSocket): {
         void check()
       }),
   }
+  collectors.set(ws, result)
+  return result
 }
 
 describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)', () => {
@@ -75,6 +84,10 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
   let principal: Principal
   let cookie1 = ''
   let cookie2 = ''
+  let ownerCookie = ''
+  let isManagerSession = false
+  let managerActorId = 'moss-a'
+  let mossAccessRefusal: number | undefined
   let app: Express
   let browserServer: Server
   let browserPort = 0
@@ -83,17 +96,24 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
   let coordinator: ConversationCoordinator
 
   /** upstream 行为：auto=收到消息立即回完整 turn；hold=保持 running */
-  let upstreamMode: 'auto' | 'hold' = 'auto'
+  let upstreamMode: 'auto' | 'hold' | 'runner' = 'auto'
   /** When set, `resume` hands back this ws_url instead of the matching one — used to exercise rejection. */
   let upstreamWsUrlOverride: string | null = null
+  let upstreamAttemptId = 'fixture-attempt'
+  const upstreamConnections: WebSocket[] = []
   const upstreamReceived: WsEvent[] = []
   const upstreamAuthHeaders: string[] = []
+  const terminalWrites: string[] = []
+  let terminalDisposals = 0
+  let isRemoteTerminalAvailable = true
 
   function browserWs(cookie: string): Promise<WebSocket> {
     return new Promise((resolve, reject) => {
       const ws = new WebSocket(`ws://127.0.0.1:${browserPort}/ws/conversations/${SID}`, {
         headers: { cookie, origin: 'http://localhost:5273' },
       })
+      // The upgrade response can contain the first lock frame in the same packet.
+      collector(ws)
       ws.once('open', () => resolve(ws))
       ws.once('error', reject)
     })
@@ -118,8 +138,29 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
       }
       upstreamAuthHeaders.push(String(req.headers.authorization ?? ''))
       upstreamWss.handleUpgrade(req, socket, head, (ws) => {
+        upstreamConnections.push(ws)
         ws.on('message', (data) => {
-          upstreamReceived.push(JSON.parse(data.toString('utf8')) as WsEvent)
+          const message = JSON.parse(data.toString('utf8')) as WsEvent
+          upstreamReceived.push(message)
+          if (upstreamMode === 'runner') {
+            const control = message.request as { subtype?: string; model_id?: string } | undefined
+            const frames =
+              control?.subtype === 'set_model'
+                ? [{ type: 'system', subtype: 'model_changed', model: control.model_id }]
+                : [
+                    {
+                      type: 'assistant',
+                      uuid: 'runner-reply',
+                      message: {
+                        role: 'assistant',
+                        content: [{ type: 'text', text: 'Runner reply' }],
+                      },
+                    },
+                    { type: 'result', session_id: SID, status: 'success' },
+                  ]
+            for (const frame of frames)
+              ws.send(JSON.stringify({ type: 'stdout', line: JSON.stringify(frame) + '\n' }))
+          }
           if (upstreamMode === 'auto') {
             ws.send(JSON.stringify({ type: 'hello', session_id: SID, runtimeType: 'host' }))
             ws.send(
@@ -145,10 +186,10 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
     upstreamPort = await listen(upstreamServer)
 
     // cookies 在上游端口确定后创建（mossBaseUrl 需指向 fake 上游的实际 host）
-    const mkCookie = async (accessToken: string): Promise<string> => {
+    const mkCookie = async (accessToken: string, principalId = principal.id): Promise<string> => {
       const token = generateSessionToken()
       await createWebSession(pool, {
-        principalId: principal.id,
+        principalId,
         tokenDigest: digestToken(token, HMAC_KEY),
         encrypted: encryptToken(
           JSON.stringify({ accessToken, refreshToken: 'rt', expiresAt: Date.now() + 3600_000 }),
@@ -164,6 +205,12 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
     }
     cookie1 = await mkCookie('at-stream')
     cookie2 = await mkCookie('at-stream-2')
+    const owner = await upsertPrincipal(pool, {
+      mossUserId: 'moss-b',
+      orgId: 'org-1',
+      username: 'owner_b',
+    })
+    ownerCookie = await mkCookie('at-owner', owner.id)
 
     // ---- WebUI app ----
     const testConfig: AppConfig = {
@@ -212,6 +259,16 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
         return []
       },
       async get(_tk, id) {
+        if (mossAccessRefusal) throw new MossHttpError(mossAccessRefusal, '', '')
+        if (isManagerSession)
+          return {
+            sessionId: id,
+            userId: 'moss-b',
+            orgId: 'org-1',
+            status: 'active',
+            source: 'agent-manager',
+            clientMetadata: { agent_manager_actor_id: managerActorId },
+          }
         return { sessionId: id, userId: 'moss-a', orgId: 'org-1', status: 'active' }
       },
       async create(_input) {
@@ -224,9 +281,18 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
       async context() {
         return { context: { messages: [] } }
       },
+      async activity() {
+        return { attemptId: null, state: 'unavailable' }
+      },
       async resume(_tk, id) {
         return {
-          session: { sessionId: id, userId: 'moss-a', orgId: 'org-1', status: 'active' },
+          session: {
+            sessionId: id,
+            userId: 'moss-a',
+            orgId: 'org-1',
+            status: 'active',
+            attemptId: upstreamAttemptId,
+          },
           wsUrl: upstreamWsUrlOverride ?? `ws://127.0.0.1:${upstreamPort}/ws/sessions/${id}`,
         }
       },
@@ -262,7 +328,28 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
     })
 
     browserServer = createServer(app)
-    attachConversationWebSocket(browserServer, { config: testConfig, pool, coordinator })
+    const terminals = {
+      create(conversationId: string) {
+        if (!isRemoteTerminalAvailable)
+          return new TerminalManager().create(
+            conversationId,
+            () => {},
+            () => {},
+          )
+        return {
+          terminalId: 'fixture-terminal',
+          conversationId,
+          write: (text: string) => {
+            terminalWrites.push(text)
+          },
+          resize: () => {},
+          dispose: () => {
+            terminalDisposals++
+          },
+        }
+      },
+    } as unknown as TerminalManager
+    attachConversationWebSocket(browserServer, { config: testConfig, pool, coordinator, terminals })
     browserPort = await listen(browserServer)
   })
 
@@ -291,12 +378,9 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
     const result = await c1.waitFor(
       (e) => e.kind === 'upstream' && (e.event as { type?: string })?.type === 'result',
     )
-    // The initial idle event predates this turn. Wait for the database-backed
-    // unlock after its result before asking the observer to take over.
-    await c1.waitFor(
-      (e) =>
-        e.kind === 'lock' && e.state === 'idle' && c1.events.indexOf(e) > c1.events.indexOf(result),
-    )
+    // Completion reaches the browser only after the turn's database-backed unlock.
+    const beforeResult = c1.events.slice(0, c1.events.indexOf(result))
+    expect(beforeResult.filter((e) => e.kind === 'lock').at(-1)?.state).toBe('idle')
 
     // observer 看到输出与 writer:false
     await c2.waitFor(
@@ -338,6 +422,43 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
     ws1.close()
     ws2.close()
     await sleep(150)
+  }, 20_000)
+
+  test('runner stdout envelopes persist model changes and release the writer after a turn', async () => {
+    upstreamMode = 'runner'
+    const ws = await browserWs(cookie1)
+    const events = collector(ws)
+    try {
+      ws.send(JSON.stringify({ kind: 'set_model', modelId: 'gpt-4o-mini' }))
+      await events.waitFor(
+        (event) =>
+          event.kind === 'upstream' &&
+          (event.event as { subtype?: string })?.subtype === 'model_changed',
+      )
+      await vi.waitFor(async () => {
+        const response = await request(app)
+          .get(`/api/conversations/${SID}/model`)
+          .set('Cookie', cookie1)
+        expect(response.status).toBe(200)
+        expect(response.body.modelId).toBe('gpt-4o-mini')
+      })
+      ws.send(JSON.stringify({ kind: 'send', text: 'Runner turn', images: [] }))
+      const result = await events.waitFor(
+        (event) =>
+          event.kind === 'upstream' && (event.event as { type?: string })?.type === 'result',
+      )
+      const beforeResult = events.events.slice(0, events.events.indexOf(result))
+      expect(beforeResult.filter((event) => event.kind === 'lock').at(-1)?.state).toBe('idle')
+      const context = await request(app)
+        .get(`/api/conversations/${SID}/context`)
+        .set('Cookie', cookie1)
+      expect(context.status).toBe(200)
+      expect(context.body.modelId).toBe('gpt-4o-mini')
+    } finally {
+      ws.close()
+      upstreamMode = 'auto'
+      await sleep(150)
+    }
   }, 20_000)
 
   test('stop (writer) forwards interrupt control_request to upstream; non-writer rejected', async () => {
@@ -407,20 +528,51 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
     try {
       await c1.waitFor((e) => e.kind === 'lock')
       // ws1 成为 writer 并 running；ws2 为非 writer 观察者
+      const promptStart = upstreamReceived.length
       ws1.send(JSON.stringify({ kind: 'send', text: 'needs approval', images: [] }))
       await c1.waitFor((e) => e.kind === 'lock' && e.state === 'running')
+      await vi.waitFor(() =>
+        expect(upstreamReceived.slice(promptStart).some((frame) => frame.type === 'user')).toBe(
+          true,
+        ),
+      )
 
       // 审批回批不做 writer 校验（回批者必为会话拥有者；审批可能跨越锁边界）——
       // 非 writer 的 ws2 发 control_response 也能转发；上游收到与桌面端
       // respondToPermissionRequest 同形状的帧
       const before = upstreamReceived.length
-      ws2.send(
-        JSON.stringify({ kind: 'control_response', requestId: 'perm-1', optionId: 'allow_once' }),
+      upstreamConnections.at(-1)!.send(
+        JSON.stringify({
+          type: 'control_request',
+          request_id: 'perm-1',
+          request: { tool_name: 'Bash' },
+        }),
       )
-      await sleep(300)
+      const approval = await collector(ws2).waitFor(
+        (event) =>
+          event.kind === 'upstream' &&
+          (event.event as { type?: string })?.type === 'control_request',
+      )
+      ws2.send(
+        JSON.stringify({
+          kind: 'control_response',
+          requestId: (approval.event as { request_id: string }).request_id,
+          optionId: 'allow_once',
+        }),
+      )
+      await vi.waitFor(() =>
+        expect(
+          upstreamReceived.slice(before).some((frame) => frame.type === 'control_response'),
+        ).toBe(true),
+      )
       const frames = upstreamReceived
         .slice(before)
         .filter((e) => (e as { type?: string }).type === 'control_response')
+      await c1.waitFor(
+        (event) =>
+          event.kind === 'permission_resolved' &&
+          event.requestId === (approval.event as { request_id: string }).request_id,
+      )
       expect(frames.length).toBe(1)
       expect(frames[0]).toEqual({
         type: 'control_response',
@@ -442,6 +594,255 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
     }
   }, 20_000)
 
+  test.each([false, true])(
+    'reconnects an approval only to its original execution (attempt changed: %s)',
+    async (isAttemptChanged) => {
+      await coordinator.terminate(principal.id, SID)
+      upstreamMode = 'hold'
+      const ws = await browserWs(cookie1)
+      const events = collector(ws)
+      const before = upstreamReceived.length
+      try {
+        ws.send(JSON.stringify({ kind: 'send', text: 'One explicit tool request' }))
+        await vi.waitFor(() =>
+          expect(
+            upstreamReceived.slice(before).filter((event) => event.type === 'user'),
+          ).toHaveLength(1),
+        )
+        const previous = upstreamConnections.at(-1)!
+        previous.send(
+          JSON.stringify({
+            type: 'control_request',
+            request_id: 'reused-permission-id',
+            request: { tool_name: 'Bash', input: { command: 'original-command' } },
+          }),
+        )
+        const oldApproval = await events.waitFor(
+          (event) =>
+            event.kind === 'upstream' &&
+            (event.event as { type?: string })?.type === 'control_request',
+        )
+        previous.close()
+        await events.waitFor((event) => event.kind === 'lock' && event.state === 'uncertain')
+        if (isAttemptChanged) upstreamAttemptId = 'replacement-attempt'
+        ws.send(
+          JSON.stringify({
+            kind: 'control_response',
+            requestId: (oldApproval.event as { request_id: string }).request_id,
+            optionId: 'allow_once',
+          }),
+        )
+        if (isAttemptChanged) {
+          await events.waitFor((event) => event.kind === 'permissions_cleared')
+          await events.waitFor(
+            (event) => event.kind === 'error' && event.code === 'PERMISSION_EXPIRED',
+          )
+          expect(
+            upstreamReceived.slice(before).filter((event) => event.type === 'control_response'),
+          ).toHaveLength(0)
+          const freshRequest = {
+            type: 'control_request',
+            request_id: 'reused-permission-id',
+            request: { tool_name: 'Bash', input: { command: 'different-command' } },
+          }
+          upstreamConnections.at(-1)!.send(JSON.stringify(freshRequest))
+          const freshApproval = await events.waitFor(
+            (event) =>
+              event.kind === 'upstream' &&
+              (event.event as { request?: { input?: { command?: string } } })?.request?.input
+                ?.command === 'different-command',
+          )
+          const oldId = (oldApproval.event as { request_id: string }).request_id
+          const freshId = (freshApproval.event as { request_id: string }).request_id
+          expect(freshId).not.toBe(oldId)
+          const afterFreshRequest = events.events.length
+          ws.send(
+            JSON.stringify({ kind: 'control_response', requestId: oldId, optionId: 'allow_once' }),
+          )
+          await events.waitFor(
+            (event) =>
+              event.kind === 'error' &&
+              event.code === 'PERMISSION_EXPIRED' &&
+              events.events.indexOf(event) >= afterFreshRequest,
+          )
+          expect(
+            upstreamReceived.slice(before).filter((event) => event.type === 'control_response'),
+          ).toHaveLength(0)
+          ws.send(
+            JSON.stringify({
+              kind: 'control_response',
+              requestId: freshId,
+              optionId: 'reject',
+            }),
+          )
+        }
+        await vi.waitFor(() =>
+          expect(
+            upstreamReceived.slice(before).filter((event) => event.type === 'control_response'),
+          ).toHaveLength(1),
+        )
+        expect(upstreamConnections.at(-1)).not.toBe(previous)
+        expect(
+          upstreamReceived.slice(before).filter((event) => event.type === 'user'),
+        ).toHaveLength(1)
+        expect(upstreamReceived.at(-1)).toMatchObject({
+          type: 'control_response',
+          response: { response: { behavior: isAttemptChanged ? 'reject' : 'allow_once' } },
+        })
+      } finally {
+        ws.close()
+        await coordinator.terminate(principal.id, SID)
+        upstreamAttemptId = 'fixture-attempt'
+        upstreamMode = 'auto'
+      }
+    },
+    20_000,
+  )
+
+  test('the manager and Agent owner share one writer lock and one upstream session', async () => {
+    isManagerSession = true
+    upstreamMode = 'hold'
+    const manager = await browserWs(cookie1)
+    const owner = await browserWs(ownerCookie)
+    const managerEvents = collector(manager)
+    const ownerEvents = collector(owner)
+    try {
+      await managerEvents.waitFor((event) => event.kind === 'lock')
+      const before = upstreamReceived.length
+      manager.send(JSON.stringify({ kind: 'send', text: 'manager turn', images: [] }))
+      await ownerEvents.waitFor((event) => event.kind === 'lock' && event.state === 'running')
+      await vi.waitFor(() =>
+        expect(
+          upstreamReceived.slice(before).filter((event) => event.type === 'user'),
+        ).toHaveLength(1),
+      )
+      owner.send(JSON.stringify({ kind: 'send', text: 'concurrent owner turn', images: [] }))
+      await ownerEvents.waitFor(
+        (event) => event.kind === 'error' && event.code === 'CONVERSATION_BUSY',
+      )
+      expect(upstreamReceived.slice(before).filter((event) => event.type === 'user')).toHaveLength(
+        1,
+      )
+      managerActorId = 'another-manager'
+      await expect(browserWs(cookie2)).rejects.toThrow('403')
+      manager.send(JSON.stringify({ kind: 'send', text: 'revoked manager turn', images: [] }))
+      await managerEvents.waitFor(
+        (event) => event.kind === 'error' && event.code === 'SESSION_FORBIDDEN',
+      )
+      expect(upstreamReceived.slice(before).filter((event) => event.type === 'user')).toHaveLength(
+        1,
+      )
+      managerActorId = 'moss-a'
+    } finally {
+      manager.close()
+      owner.close()
+      managerActorId = 'moss-a'
+      await request(app)
+        .post(`/api/conversations/${SID}/terminate`)
+        .set('Cookie', cookie1)
+        .set('Origin', 'http://localhost:5273')
+      isManagerSession = false
+      upstreamMode = 'auto'
+    }
+  }, 20_000)
+
+  test('an idle management subscriber is disconnected after its grant is revoked', async () => {
+    isManagerSession = true
+    const ws = await browserWs(cookie1)
+    const events = collector(ws)
+    try {
+      managerActorId = 'another-manager'
+      await events.waitFor((event) => event.kind === 'error' && event.code === 'SESSION_FORBIDDEN')
+      await vi.waitFor(() => expect(ws.readyState).toBe(WebSocket.CLOSED))
+    } finally {
+      ws.close()
+      managerActorId = 'moss-a'
+      isManagerSession = false
+    }
+  }, 10_000)
+
+  test.each([401, 403])(
+    'Moss refusal %s blocks another turn on an established upstream socket',
+    async (status) => {
+      upstreamMode = 'hold'
+      const ws = await browserWs(cookie1)
+      const events = collector(ws)
+      const before = upstreamReceived.length
+      try {
+        ws.send(JSON.stringify({ kind: 'send', text: 'authorized turn', images: [] }))
+        await vi.waitFor(() =>
+          expect(
+            upstreamReceived.slice(before).filter((event) => event.type === 'user'),
+          ).toHaveLength(1),
+        )
+        mossAccessRefusal = status
+        ws.send(JSON.stringify({ kind: 'send', text: 'revoked turn', images: [] }))
+        await events.waitFor(
+          (event) =>
+            event.kind === 'error' &&
+            event.code === (status === 401 ? 'MOSS_UNAUTHORIZED' : 'SESSION_FORBIDDEN'),
+        )
+        expect(
+          upstreamReceived.slice(before).filter((event) => event.type === 'user'),
+        ).toHaveLength(1)
+      } finally {
+        mossAccessRefusal = undefined
+        ws.close()
+        await request(app)
+          .post(`/api/conversations/${SID}/terminate`)
+          .set('Cookie', cookie1)
+          .set('Origin', 'http://localhost:5273')
+        upstreamMode = 'auto'
+      }
+    },
+  )
+
+  test('a terminal without an owner-runtime provider is refused explicitly', async () => {
+    isRemoteTerminalAvailable = false
+    const ws = new WebSocket(`ws://127.0.0.1:${browserPort}/ws/terminal?conversation=${SID}`, {
+      headers: { cookie: cookie1, origin: 'http://localhost:5273' },
+    })
+    const events = collector(ws)
+    try {
+      await events.waitFor(
+        (event) => event.type === 'error' && event.code === 'REMOTE_TERMINAL_UNAVAILABLE',
+      )
+      await vi.waitFor(() => expect(ws.readyState).toBe(WebSocket.CLOSED))
+    } finally {
+      ws.close()
+      isRemoteTerminalAvailable = true
+    }
+  })
+
+  test('terminal frames ignore JSON null, preserve input order and stop after a management grant is revoked', async () => {
+    isManagerSession = true
+    const ws = new WebSocket(`ws://127.0.0.1:${browserPort}/ws/terminal?conversation=${SID}`, {
+      headers: { cookie: cookie1, origin: 'http://localhost:5273' },
+    })
+    const events = collector(ws)
+    const before = terminalWrites.length
+    const disposedBefore = terminalDisposals
+    try {
+      await new Promise<void>((resolve, reject) => {
+        ws.once('open', resolve)
+        ws.once('error', reject)
+      })
+      ws.send('null')
+      ws.send(JSON.stringify({ type: 'input', data: 'first' }))
+      ws.send(JSON.stringify({ type: 'input', data: 'second' }))
+      await vi.waitFor(() => expect(terminalWrites.slice(before)).toEqual(['first', 'second']))
+      managerActorId = 'another-manager'
+      ws.send(JSON.stringify({ type: 'input', data: 'revoked command' }))
+      await events.waitFor((event) => event.type === 'error' && event.code === 'TERMINAL_FORBIDDEN')
+      expect(terminalWrites.slice(before)).toEqual(['first', 'second'])
+      expect(terminalDisposals).toBe(disposedBefore + 1)
+    } finally {
+      ws.close()
+      managerActorId = 'moss-a'
+      isManagerSession = false
+    }
+  })
+
   test('writer disconnect during running marks uncertain and blocks other writers', async () => {
     upstreamMode = 'hold'
     const ws1 = await browserWs(cookie1)
@@ -449,10 +850,16 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
     const c1 = collector(ws1)
     const c2 = collector(ws2)
 
+    const promptStart = upstreamReceived.length
     ws1.send(JSON.stringify({ kind: 'send', text: 'long task', images: [] }))
     await c1.waitFor((e) => e.kind === 'lock' && e.state === 'running')
     await c1.waitFor((e) => e.kind === 'writer' && e.isWriter === true)
     await c2.waitFor((e) => e.kind === 'lock' && e.state === 'running')
+
+    // The lock reserves delivery; acceptance requires the actual upstream frame.
+    await vi.waitFor(() =>
+      expect(upstreamReceived.slice(promptStart).some((frame) => frame.type === 'user')).toBe(true),
+    )
 
     // writer 断线 → uncertain 广播给 observer
     ws1.close()
@@ -583,6 +990,21 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
       const logged = warn.mock.calls.map((args) => args.map(String).join(' ')).join('\n')
       expect(logged).toContain('does not match configured moss.wsBaseUrl host')
       expect(logged).toContain('[coordinator] send failed')
+      const lock = await pool.query<{ state: string }>(
+        'SELECT state FROM conversation_locks WHERE principal_id=$1 AND moss_session_id=$2',
+        [principal.id, SID],
+      )
+      expect(lock.rows[0]?.state).toBe('idle')
+      upstreamWsUrlOverride = null
+      const before = upstreamReceived.length
+      ws1.send(JSON.stringify({ kind: 'send', text: 'Explicit retry after refused connection' }))
+      await c1.waitFor(
+        (event) =>
+          event.kind === 'upstream' && (event.event as { type?: string })?.type === 'result',
+      )
+      expect(upstreamReceived.slice(before).filter((frame) => frame.type === 'user')).toHaveLength(
+        1,
+      )
     } finally {
       warn.mockRestore()
       upstreamWsUrlOverride = null

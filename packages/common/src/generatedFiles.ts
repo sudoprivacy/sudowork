@@ -156,3 +156,12 @@ export function extractExtension(filePath: string): string {
   if (dot <= 0) return '';
   return basename.slice(dot + 1).toLowerCase();
 }
+
+/** Identify client-generated marker messages that must survive cloud history sync. */
+export function isGeneratedFilesOnlyMessage(message: { type: string; position?: string; content: unknown }): boolean {
+  if (message.type !== 'text' || message.position !== 'left') return false;
+  const content = (message.content as { content?: unknown } | null)?.content;
+  if (typeof content !== 'string') return false;
+  const parsed = parseGeneratedFilesMarker(content);
+  return parsed.ok && parsed.files.length > 0 && !parsed.textBefore.trim();
+}

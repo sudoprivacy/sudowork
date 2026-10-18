@@ -36,6 +36,7 @@ const ENV_KEYS = [
   'WEBUI_ENV_FILE',
   'WEBUI_NON_INTERACTIVE',
   'WEBUI_RELEASE_TAG',
+  'WEBUI_ARCH',
   'WEBUI_INSTALL_DIR',
   'WEBUI_DOWNLOAD_BASE',
   'WEBUI_INSTALLER_URL',
@@ -261,26 +262,44 @@ describe('WebUI one-click deploy script', () => {
     expect(compose).not.toContain('build:')
   })
 
-  test('stamps and checksums release assets', () => {
+  test.each(['amd64', 'arm64'])('stamps and checksums %s release assets', (arch) => {
     const directory = createTemporaryDirectory()
     const archive = resolve(directory, 'images.tar.gz')
     const output = resolve(directory, 'release')
     writeFileSync(archive, 'mock docker image archive')
 
-    execFileSync('bash', [PREPARE_RELEASE_SCRIPT, 'v1.2.3', 'amd64', archive, output])
+    execFileSync('bash', [PREPARE_RELEASE_SCRIPT, 'v1.2.3', arch, archive, output])
 
-    const releasedArchive = resolve(output, 'sudowork-webui-1.2.3-linux-amd64.tar.gz')
+    const releasedArchive = resolve(output, `sudowork-webui-1.2.3-linux-${arch}.tar.gz`)
     expect(existsSync(releasedArchive)).toBe(true)
     expect(readFileSync(resolve(output, 'install.sh'), 'utf8')).toContain(
       'RELEASE_TAG="${WEBUI_RELEASE_TAG:-v1.2.3}"',
     )
     expect(readFileSync(resolve(output, 'SHA256SUMS'), 'utf8')).toContain(
-      'sudowork-webui-1.2.3-linux-amd64.tar.gz',
+      `sudowork-webui-1.2.3-linux-${arch}.tar.gz`,
     )
     execFileSync('shasum', ['-a', '256', '-c', 'SHA256SUMS'], { cwd: output })
   })
 
-  test('packages Docker images into the release asset layout', () => {
+  test('retains checksums for both architectures when assembling a release', () => {
+    const directory = createTemporaryDirectory()
+    const archive = resolve(directory, 'images.tar.gz')
+    const output = resolve(directory, 'release')
+    writeFileSync(archive, 'mock image')
+    for (const arch of ['amd64', 'arm64']) {
+      execFileSync('bash', [PREPARE_RELEASE_SCRIPT, 'v1.2.3', arch, archive, output])
+    }
+    const sums = readFileSync(resolve(output, 'SHA256SUMS'), 'utf8')
+    expect(sums).toContain('linux-amd64.tar.gz')
+    expect(sums).toContain('linux-arm64.tar.gz')
+    execFileSync('shasum', ['-a', '256', '-c', 'SHA256SUMS'], { cwd: output })
+  })
+
+  test.each([
+    ['amd64', 'amd64'],
+    ['arm64', 'arm64'],
+    ['arm64', 'amd64'],
+  ])('packages %s images reported as %s', (arch, actualArch) => {
     const directory = createTemporaryDirectory()
     const fakeBin = resolve(directory, 'bin')
     const dockerLog = resolve(directory, 'docker.log')
@@ -291,6 +310,7 @@ describe('WebUI one-click deploy script', () => {
       docker,
       `#!/bin/sh
 printf '%s\n' "$*" >> "$DOCKER_LOG"
+if [ "\${1:-}" = image ]; then echo linux/${actualArch}; exit 0; fi
 if [ "\${1:-}" = save ]; then printf 'mock docker image stream'; fi
 exit 0
 `,
@@ -300,44 +320,54 @@ exit 0
     env.PATH = `${fakeBin}:${env.PATH}`
     env.DOCKER_LOG = dockerLog
 
-    const result = spawnSync('bash', [PACKAGE_RELEASE_SCRIPT, 'v1.2.3', 'amd64', output], {
+    const result = spawnSync('bash', [PACKAGE_RELEASE_SCRIPT, 'v1.2.3', arch, output], {
       encoding: 'utf8',
       env,
     })
 
+    if (arch !== actualArch) {
+      expect(result.status).not.toBe(0)
+      expect(result.stderr).toContain('Image architecture differs')
+      expect(readFileSync(dockerLog, 'utf8')).not.toContain('save ')
+      expect(existsSync(output)).toBe(false)
+      return
+    }
     expect(result.status, result.stderr).toBe(0)
     expect(existsSync(resolve(output, 'install.sh'))).toBe(true)
     expect(existsSync(resolve(output, 'SHA256SUMS'))).toBe(true)
-    execFileSync('gzip', ['-t', resolve(output, 'sudowork-webui-1.2.3-linux-amd64.tar.gz')])
+    execFileSync('gzip', ['-t', resolve(output, `sudowork-webui-1.2.3-linux-${arch}.tar.gz`)])
     const commands = readFileSync(dockerLog, 'utf8')
-    expect(commands).toContain('buildx build --platform linux/amd64 --load')
-    expect(commands).toContain('pull --platform linux/amd64 postgres:16-alpine')
+    expect(commands).toContain(`buildx build --platform linux/${arch} --load`)
+    expect(commands).toContain(`pull --platform linux/${arch} postgres:16-alpine`)
     expect(commands).toContain('save sudowork-webui:1.2.3 postgres:16-alpine')
   })
 
-  test('installs an offline release bundle and writes management scripts', () => {
-    const directory = createTemporaryDirectory()
-    const bundle = resolve(directory, 'bundle')
-    const installDirectory = resolve(directory, 'installed')
-    const fakeBin = resolve(directory, 'bin')
-    const dockerLog = resolve(directory, 'docker.log')
-    const archive = resolve(directory, 'images.tar.gz')
-    mkdirSync(fakeBin)
-    writeFileSync(archive, execFileSync('gzip', ['-c'], { input: 'mock docker archive' }))
-    execFileSync('bash', [PREPARE_RELEASE_SCRIPT, 'v1.2.3', 'amd64', archive, bundle])
+  test.each(['amd64', 'arm64'])(
+    'installs an offline %s release bundle and writes management scripts',
+    (arch) => {
+      const directory = createTemporaryDirectory()
+      const bundle = resolve(directory, 'bundle')
+      const installDirectory = resolve(directory, 'installed')
+      const fakeBin = resolve(directory, 'bin')
+      const dockerLog = resolve(directory, 'docker.log')
+      const archive = resolve(directory, 'images.tar.gz')
+      mkdirSync(fakeBin)
+      writeFileSync(archive, execFileSync('gzip', ['-c'], { input: 'mock docker archive' }))
+      execFileSync('bash', [PREPARE_RELEASE_SCRIPT, 'v1.2.3', arch, archive, bundle])
 
-    const commands: Record<string, string> = {
-      docker: `#!/bin/sh
+      const commands: Record<string, string> = {
+        docker: `#!/bin/sh
 printf '%s\n' "$*" >> "$DOCKER_LOG"
+if [ "\${1:-}" = image ]; then echo linux/${arch}; exit 0; fi
 if [ "\${1:-}" = load ]; then cat >/dev/null; exit 0; fi
 if [ "\${1:-}" = inspect ]; then echo healthy; exit 0; fi
 case " $* " in *" ps -q webui "*) echo webui-container;; esac
 exit 0
 `,
-      getent: `#!/bin/sh
+        getent: `#!/bin/sh
 printf 'tester:x:1000:1000::%s:/bin/sh\n' "$HOME"
 `,
-      id: `#!/bin/sh
+        id: `#!/bin/sh
 case "\${1:-}" in
   -u) echo 0 ;;
   -un) echo tester ;;
@@ -345,144 +375,190 @@ case "\${1:-}" in
   *) echo tester ;;
 esac
 `,
-      uname: `#!/bin/sh
+        uname: `#!/bin/sh
 case "\${1:-}" in
   -s) echo Linux ;;
-  -m) echo x86_64 ;;
+  -m) echo ${arch === 'arm64' ? 'aarch64' : 'x86_64'} ;;
   *) echo Linux ;;
 esac
 `,
-    }
-    for (const [name, contents] of Object.entries(commands)) {
-      const path = resolve(fakeBin, name)
-      writeFileSync(path, contents)
-      chmodSync(path, 0o755)
-    }
+      }
+      for (const [name, contents] of Object.entries(commands)) {
+        const path = resolve(fakeBin, name)
+        writeFileSync(path, contents)
+        chmodSync(path, 0o755)
+      }
 
-    const env = installerEnv()
-    env.PATH = `${fakeBin}:${env.PATH}`
-    env.HOME = directory
-    env.DOCKER_LOG = dockerLog
-    env.WEBUI_INSTALL_USER = 'tester'
-    const result = spawnSync(
-      'bash',
-      [
-        resolve(bundle, 'install.sh'),
-        '--offline',
-        '--non-interactive',
-        '--skip-moss-check',
-        '--public-origin',
-        'https://webui.example.com',
-        '--moss-url',
-        'http://10.0.1.206:43127',
-        '--install-dir',
-        installDirectory,
-      ],
-      { encoding: 'utf8', env },
-    )
+      const env = installerEnv()
+      env.PATH = `${fakeBin}:${env.PATH}`
+      env.HOME = directory
+      env.DOCKER_LOG = dockerLog
+      env.WEBUI_INSTALL_USER = 'tester'
+      const result = spawnSync(
+        'bash',
+        [
+          resolve(bundle, 'install.sh'),
+          '--offline',
+          '--non-interactive',
+          '--skip-moss-check',
+          '--public-origin',
+          'https://webui.example.com',
+          '--moss-url',
+          'http://10.0.1.206:43127',
+          '--install-dir',
+          installDirectory,
+        ],
+        { encoding: 'utf8', env },
+      )
 
-    expect(result.status, result.stderr).toBe(0)
-    expect(readFileSync(resolve(installDirectory, 'release-tag'), 'utf8').trim()).toBe('v1.2.3')
-    expect(readFileSync(resolve(installDirectory, 'docker-compose.yml'), 'utf8')).toContain(
-      'image: sudowork-webui:1.2.3',
-    )
-    expect(statSync(resolve(installDirectory, '.env')).mode & 0o777).toBe(0o600)
-    expect(statSync(resolve(installDirectory, 'status.sh')).mode & 0o111).not.toBe(0)
-    expect(statSync(resolve(installDirectory, 'backup.sh')).mode & 0o111).not.toBe(0)
-    expect(statSync(resolve(installDirectory, 'restore.sh')).mode & 0o111).not.toBe(0)
-    execFileSync('bash', ['-n', resolve(installDirectory, 'backup.sh')])
-    execFileSync('bash', ['-n', resolve(installDirectory, 'restore.sh')])
-    expect(readFileSync(resolve(installDirectory, 'backup.sh'), 'utf8')).toContain('pg_dump')
-    expect(readFileSync(resolve(installDirectory, 'restore.sh'), 'utf8')).toContain(
-      'DROP SCHEMA public CASCADE',
-    )
-    expect(readFileSync(dockerLog, 'utf8')).toContain('load')
-    expect(readFileSync(dockerLog, 'utf8')).toContain('up -d')
-  })
+      expect(result.status, result.stderr).toBe(0)
+      expect(readFileSync(resolve(installDirectory, 'release-tag'), 'utf8').trim()).toBe('v1.2.3')
+      expect(readFileSync(resolve(installDirectory, 'docker-compose.yml'), 'utf8')).toContain(
+        'image: sudowork-webui:1.2.3',
+      )
+      expect(statSync(resolve(installDirectory, '.env')).mode & 0o777).toBe(0o600)
+      expect(statSync(resolve(installDirectory, 'status.sh')).mode & 0o111).not.toBe(0)
+      expect(statSync(resolve(installDirectory, 'backup.sh')).mode & 0o111).not.toBe(0)
+      expect(statSync(resolve(installDirectory, 'restore.sh')).mode & 0o111).not.toBe(0)
+      execFileSync('bash', ['-n', resolve(installDirectory, 'backup.sh')])
+      execFileSync('bash', ['-n', resolve(installDirectory, 'restore.sh')])
+      expect(readFileSync(resolve(installDirectory, 'backup.sh'), 'utf8')).toContain('pg_dump')
+      expect(readFileSync(resolve(installDirectory, 'restore.sh'), 'utf8')).toContain(
+        'DROP SCHEMA public CASCADE',
+      )
+      expect(readFileSync(dockerLog, 'utf8')).toContain('load')
+      expect(readFileSync(dockerLog, 'utf8')).toContain('up -d')
+    },
+  )
 
-  test('backs up an existing database and deployment files before an upgrade', () => {
-    const directory = createTemporaryDirectory()
-    const bundle = resolve(directory, 'bundle')
-    const installDirectory = resolve(directory, 'installed')
-    const fakeBin = resolve(directory, 'bin')
-    const dockerLog = resolve(directory, 'docker.log')
-    const archive = resolve(directory, 'images.tar.gz')
-    mkdirSync(fakeBin)
-    mkdirSync(installDirectory)
-    writeFileSync(archive, execFileSync('gzip', ['-c'], { input: 'mock docker archive' }))
-    execFileSync('bash', [PREPARE_RELEASE_SCRIPT, 'v1.2.3', 'amd64', archive, bundle])
-    writeFileSync(
-      resolve(installDirectory, '.env'),
-      [
-        'POSTGRES_USER=postgres',
-        'POSTGRES_PASSWORD=old-password',
-        'POSTGRES_DB=sudowork_webui',
-        'SESSION_HMAC_KEY=' + 'a'.repeat(64),
-        'TOKEN_AES_KEY=' + 'b'.repeat(64),
-        'PUBLIC_ORIGIN=https://old-webui.example.com',
-        'TRUST_PROXY=true',
-        'MOSS_BASE_URL=http://10.0.1.206:43127',
-        'MOSS_WS_BASE_URL=ws://10.0.1.206:43127',
-        'MOSS_ALLOWED_ORIGINS=',
-        'CSP_IMG_SRC_ORIGINS=',
-        'WEBUI_PORT=26808',
-      ].join('\n') + '\n',
-    )
-    writeFileSync(resolve(installDirectory, 'docker-compose.yml'), 'old-compose\n')
-    writeFileSync(resolve(installDirectory, 'release-tag'), 'v1.2.2\n')
+  test.each([false, true])(
+    'preserves durable writes when upgrading (startup failure: %s)',
+    (isStartupFailure) => {
+      const directory = createTemporaryDirectory()
+      const bundle = resolve(directory, 'bundle')
+      const installDirectory = resolve(directory, 'installed')
+      const fakeBin = resolve(directory, 'bin')
+      const dockerLog = resolve(directory, 'docker.log')
+      const archive = resolve(directory, 'images.tar.gz')
+      const durableFile = resolve(directory, 'durable-fact.txt')
+      writeFileSync(durableFile, 'database backup')
+      mkdirSync(fakeBin)
+      mkdirSync(installDirectory)
+      writeFileSync(archive, execFileSync('gzip', ['-c'], { input: 'mock docker archive' }))
+      execFileSync('bash', [PREPARE_RELEASE_SCRIPT, 'v1.2.3', 'amd64', archive, bundle])
+      writeFileSync(
+        resolve(installDirectory, '.env'),
+        [
+          'POSTGRES_USER=postgres',
+          'POSTGRES_PASSWORD=old-password',
+          'POSTGRES_DB=sudowork_webui',
+          'SESSION_HMAC_KEY=' + 'a'.repeat(64),
+          'TOKEN_AES_KEY=' + 'b'.repeat(64),
+          'PUBLIC_ORIGIN=https://old-webui.example.com',
+          'TRUST_PROXY=true',
+          'MOSS_BASE_URL=http://10.0.1.206:43127',
+          'MOSS_WS_BASE_URL=ws://10.0.1.206:43127',
+          'MOSS_ALLOWED_ORIGINS=',
+          'CSP_IMG_SRC_ORIGINS=',
+          'WEBUI_PORT=26808',
+        ].join('\n') + '\n',
+      )
+      writeFileSync(resolve(installDirectory, 'docker-compose.yml'), 'old-compose\n')
+      writeFileSync(resolve(installDirectory, 'release-tag'), 'v1.2.2\n')
 
-    const docker = resolve(fakeBin, 'docker')
-    writeFileSync(
-      docker,
-      `#!/bin/sh
+      const docker = resolve(fakeBin, 'docker')
+      writeFileSync(
+        docker,
+        `#!/bin/sh
 printf '%s\n' "$*" >> "$DOCKER_LOG"
 case "$*" in
   *pg_dump*) printf 'database backup'; exit 0 ;;
   *pg_isready*) exit 0 ;;
+  *'DROP SCHEMA'*) printf '' > "$DURABLE_FILE"; exit 0 ;;
+  *pg_restore*) cat > "$DURABLE_FILE"; exit 0 ;;
 esac
+case " $* " in
+  *" up -d "*)
+    if [ "$FAIL_NEW_STARTUP" = 1 ] && grep -q 'image: sudowork-webui:1.2.3' "$DEPLOYMENT_COMPOSE"; then
+      printf 'durable write after backup' > "$DURABLE_FILE"
+      exit 1
+    fi ;;
+esac
+if [ "\${1:-}" = image ]; then echo linux/amd64; exit 0; fi
 if [ "\${1:-}" = load ]; then cat >/dev/null; exit 0; fi
 if [ "\${1:-}" = inspect ]; then echo healthy; exit 0; fi
-case " $* " in *" ps -q webui "*) echo webui-container;; esac
+if [ "\${1:-}" = cp ]; then
+  mkdir -p "$3"
+  printf 'previous asset' > "$3/previous-A1b2C3d4.js"
+  exit 0
+fi
+case " $* " in *" ps -q webui "*|*" ps -a -q webui "*) echo webui-container;; esac
 exit 0
 `,
-    )
-    chmodSync(docker, 0o755)
-    for (const [name, contents] of Object.entries({
-      getent: `#!/bin/sh\nprintf 'tester:x:1000:1000::%s:/bin/sh\n' "$HOME"\n`,
-      id: `#!/bin/sh\ncase "\${1:-}" in -u) echo 0;; -un|-gn) echo tester;; *) echo tester;; esac\n`,
-      uname: `#!/bin/sh\ncase "\${1:-}" in -s) echo Linux;; -m) echo x86_64;; *) echo Linux;; esac\n`,
-    })) {
-      const path = resolve(fakeBin, name)
-      writeFileSync(path, contents)
-      chmodSync(path, 0o755)
-    }
+      )
+      chmodSync(docker, 0o755)
+      for (const [name, contents] of Object.entries({
+        getent: `#!/bin/sh\nprintf 'tester:x:1000:1000::%s:/bin/sh\n' "$HOME"\n`,
+        id: `#!/bin/sh\ncase "\${1:-}" in -u) echo 0;; -un|-gn) echo tester;; *) echo tester;; esac\n`,
+        uname: `#!/bin/sh\ncase "\${1:-}" in -s) echo Linux;; -m) echo x86_64;; *) echo Linux;; esac\n`,
+      })) {
+        const path = resolve(fakeBin, name)
+        writeFileSync(path, contents)
+        chmodSync(path, 0o755)
+      }
 
-    const env = installerEnv()
-    env.PATH = `${fakeBin}:${env.PATH}`
-    env.HOME = directory
-    env.DOCKER_LOG = dockerLog
-    env.WEBUI_INSTALL_USER = 'tester'
-    const result = spawnSync(
-      'bash',
-      [
-        resolve(bundle, 'install.sh'),
-        '--offline',
-        '--non-interactive',
-        '--skip-moss-check',
-        '--install-dir',
-        installDirectory,
-      ],
-      { encoding: 'utf8', env },
-    )
+      const env = installerEnv()
+      env.PATH = `${fakeBin}:${env.PATH}`
+      env.HOME = directory
+      env.DOCKER_LOG = dockerLog
+      env.WEBUI_INSTALL_USER = 'tester'
+      env.FAIL_NEW_STARTUP = isStartupFailure ? '1' : '0'
+      env.DURABLE_FILE = durableFile
+      env.DEPLOYMENT_COMPOSE = resolve(installDirectory, 'docker-compose.yml')
+      const result = spawnSync(
+        'bash',
+        [
+          resolve(bundle, 'install.sh'),
+          '--offline',
+          '--non-interactive',
+          '--skip-moss-check',
+          '--install-dir',
+          installDirectory,
+        ],
+        { encoding: 'utf8', env },
+      )
 
-    expect(result.status, result.stderr).toBe(0)
-    const backups = readdirSync(resolve(installDirectory, 'backups'))
-    expect(backups).toHaveLength(1)
-    const backupDirectory = resolve(installDirectory, 'backups', backups[0]!)
-    expect(readFileSync(resolve(backupDirectory, 'database.dump'), 'utf8')).toBe('database backup')
-    expect(readFileSync(resolve(backupDirectory, 'docker-compose.yml'), 'utf8')).toBe(
-      'old-compose\n',
-    )
-    expect(readFileSync(resolve(backupDirectory, 'release-tag'), 'utf8')).toBe('v1.2.2\n')
-  })
+      expect(result.status, result.stderr).toBe(isStartupFailure ? 1 : 0)
+      const backups = readdirSync(resolve(installDirectory, 'backups'))
+      expect(backups).toHaveLength(1)
+      const backupDirectory = resolve(installDirectory, 'backups', backups[0]!)
+      expect(readFileSync(resolve(backupDirectory, 'database.dump'), 'utf8')).toBe(
+        'database backup',
+      )
+      expect(readFileSync(resolve(backupDirectory, 'docker-compose.yml'), 'utf8')).toBe(
+        'old-compose\n',
+      )
+      expect(readFileSync(resolve(backupDirectory, 'release-tag'), 'utf8')).toBe('v1.2.2\n')
+      expect(
+        readFileSync(resolve(backupDirectory, 'previous-assets/previous-A1b2C3d4.js'), 'utf8'),
+      ).toBe('previous asset')
+      const commands = readFileSync(dockerLog, 'utf8')
+      expect(readFileSync(durableFile, 'utf8')).toBe(
+        isStartupFailure ? 'durable write after backup' : 'database backup',
+      )
+      expect(commands).not.toContain('DROP SCHEMA')
+      expect(commands).not.toContain('pg_restore')
+      if (isStartupFailure) {
+        expect(readFileSync(resolve(installDirectory, 'docker-compose.yml'), 'utf8')).toBe(
+          'old-compose\n',
+        )
+        expect(readFileSync(resolve(installDirectory, 'release-tag'), 'utf8')).toBe('v1.2.2\n')
+        expect(result.stderr).toContain('keeping the current database')
+      }
+      expect(commands).toContain('cp webui-container:/app/apps/webui/dist/client/assets/.')
+      expect(commands).toContain(
+        'publish-assets node dist/server/publishAssets.js --target /retained-assets /app/apps/webui/dist/client/assets /previous-assets',
+      )
+    },
+  )
 })

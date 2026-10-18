@@ -121,7 +121,9 @@
     },
     "terminal": {
       "tab": "Terminal",
-      "newTab": "New Terminal"
+      "newTab": "New Terminal",
+      "remoteUnavailable": "Interactive terminals are not available for cloud sessions. Ask the agent to run commands in chat, or use a local session.",
+      "createFailed": "Could not start the terminal. Check the working directory and system shell, then create a new terminal."
     }
   },
   "layout": {
@@ -332,8 +334,87 @@
   },
   "userCancelled": "Request cancelled by user",
   "sidebar": {
+    "agents": "Agents",
+    "sessions": "Sessions",
     "recent": "Recent",
     "myAgent": "My agent",
     "agentHasNoConversations": "No conversations yet"
+  },
+  "agentSessions": {
+    "ownerBilling": "Model account and billing owner: {{owner}}",
+    "select": "Choose a session for this agent",
+    "new": "New session for this agent",
+    "messages": "Jump to message"
+  },
+  "browserSession": {
+    "controls": "Browser controls",
+    "viewMode": "Browser view",
+    "windowView": "Chrome window",
+    "pageView": "Page only",
+    "dialog": "Browser dialog",
+    "dialogText": "Dialog response",
+    "acceptDialog": "Accept",
+    "dismissDialog": "Dismiss",
+    "errors": {
+      "browser_profile_in_use": "Another conversation is using your browser profile. End that conversation before opening it here.",
+      "stale_browser_operation": "The browser changed. Wait for the current view before trying again.",
+      "browser_disconnected": "Browser connection lost. Reconnect and check the page before repeating an action.",
+      "browser_dialog_requires_response": "Respond to the browser dialog before continuing.",
+      "browser_window_view_unavailable": "The full window view is unavailable. Switch to the page view.",
+      "browser_restart_requires_observation": "Restart the browser, check its page, then explicitly return control to AI.",
+      "browser_control_held_by_user": "Human control is active. Return control when you want AI to continue.",
+      "browser_return_notification_failed": "Browser control was returned. Send a chat message to continue; the automatic notification was not acknowledged.",
+      "browser_restart_required": "Take control and restart the browser to change its launch mode.",
+      "browser_restart_acknowledgement_required": "Confirm the restart before changing browser mode.",
+      "browser_stop_uncertain": "Shutdown was not confirmed. Reconnect and inspect the browser before another action.",
+      "managed_browser_reconnect_required": "Reconnect to the browser and check its state before continuing.",
+      "browser_not_enabled_for_owner": "The shared browser feature is not enabled for your account."
+    },
+    "start": "Start browser",
+    "launchMode": "Browser launch mode",
+    "transport": "Browser connection",
+    "extension": "Managed Chrome extension",
+    "cdp": "Standalone Chrome (CDP)",
+    "take": "Take control",
+    "return": "Return to AI",
+    "transferring": "Transferring browser control…",
+    "headless": "Headless",
+    "headful": "Windowed",
+    "openViewer": "Open viewer tab",
+    "unavailable": "The browser session is unavailable. Reconnect to continue.",
+    "waiting": "The browser will appear when the agent starts it.",
+    "disconnected": "Connection lost. AI browser actions remain paused until you reconnect and explicitly return control.",
+    "tab": "Browser tab",
+    "closeTab": "Close browser tab",
+    "back": "Go back",
+    "forward": "Go forward",
+    "reload": "Reload",
+    "address": "Page address",
+    "page": "Remote browser page",
+    "text": "Text to enter in the page",
+    "insert": "Insert text",
+    "note": "Tell AI what you changed (optional)",
+    "state": {
+      "stopped": "Browser is not running",
+      "ai": "AI is controlling this browser",
+      "pausing": "Waiting for AI operations to stop",
+      "human": "Human control · AI browser actions are paused",
+      "observing": "AI is observing the updated page",
+      "error": "Browser control needs recovery"
+    },
+    "stop": "Stop browser",
+    "restart": "Restart browser",
+    "stopConfirmTitle": "Stop this browser?",
+    "stopConfirmBody": "Chrome and its tabs will close. Unsubmitted page changes can be lost; your profile and login cookies remain. AI browser actions stay paused until you return control.",
+    "restartConfirmTitle": "Restart this browser?",
+    "restartConfirmBody": "Restart in {{mode}} using {{transport}}. Unsubmitted page changes can be lost; your profile and login cookies remain. You keep control after the restart.",
+    "stoppedHuman": "Browser stopped. AI browser actions remain paused until you return control.",
+    "chooseFilesPrompt": "This page requested a file. Take control to upload from your device.",
+    "chooseFiles": "Choose files",
+    "fileLimit": "Choose up to 20 files, no more than 16 MB each.",
+    "fileChooserChanged": "The browser changed while choosing files. Open the file picker again.",
+    "fileTransferFailed": "File transfer failed. Check the page before trying again.",
+    "downloads": "Browser downloads",
+    "downloadFile": "Download {{name}}"
   }
 }

@@ -10,12 +10,14 @@ import remarkGfm from 'remark-gfm';
 import { COS_HUB_BASE } from '@sudowork/common/cos';
 import styles from './MossCatalogBrowser.module.css';
 import { useAuth } from '@renderer/context/AuthContext';
+import { useAgentEntry } from '@renderer/pages/conversation/hooks/useAgentEntry';
 
 const itemKey = (item: { source: string; id: string }) => `${item.source}:${item.id}`;
 
-export default function MossCatalogBrowser({ kind, customContent, builtinContent, onCreate, onInstalled }: IMossCatalogBrowserProps) {
+export default function MossCatalogBrowser({ kind, customContent, builtinContent, publishedContent, onCreate, onInstalled }: IMossCatalogBrowserProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { onOpenAgent } = useAgentEntry();
   const { user } = useAuth();
   const [tab, setTab] = useState<'hub' | 'tenant' | 'installed'>('hub');
   const [source, setSource] = useState('all');
@@ -108,7 +110,8 @@ export default function MossCatalogBrowser({ kind, customContent, builtinContent
       if (identityRef.current !== token) return;
       if (isUse) {
         setDetail(null);
-        void navigate(`/guid?${kind === 'agents' ? 'assistant' : 'skill'}=${encodeURIComponent(kind === 'agents' ? result.data.id : result.data.runtimeName)}`);
+        if (kind === 'agents') await onOpenAgent(result.data.id);
+        else void navigate(`/guid?skill=${encodeURIComponent(result.data.runtimeName)}`);
       } else Message.success(t('settings.mossCatalog.downloaded'));
     } catch (cause) {
       if (identityRef.current === token) Message.error(cause instanceof Error ? cause.message : String(cause));
@@ -198,6 +201,8 @@ export default function MossCatalogBrowser({ kind, customContent, builtinContent
       {isCached && tab !== 'installed' && <Alert type='warning' content={label('cached')} />}
       {error && <Alert type='error' content={error} />}
       <div className='flex-1 min-h-0 overflow-auto pb-4'>
+        {tab === 'tenant' && publishedContent?.(query)}
+        {tab === 'tenant' && kind === 'agents' && <Typography.Title heading={5}>{t('agent.external.published.nativeTitle')}</Typography.Title>}
         {tab === 'installed' ? (
           <>
             <div className={styles.grid}>
@@ -352,7 +357,7 @@ export default function MossCatalogBrowser({ kind, customContent, builtinContent
                 <Spin />
               </div>
             )}
-            {!isLoading && !items.length && !error && <Typography.Paragraph>{label('empty')}</Typography.Paragraph>}
+            {!isLoading && !items.length && !error && <Typography.Paragraph>{tab === 'tenant' && kind === 'agents' ? t('agent.external.published.nativeEmpty') : label('empty')}</Typography.Paragraph>}
             {cursor && (
               <Button
                 disabled={isLoading}
@@ -492,6 +497,7 @@ interface IMossCatalogBrowserProps {
   kind: MossCatalogKind;
   customContent: React.ReactNode;
   builtinContent?: React.ReactNode;
+  publishedContent?: (query: string) => React.ReactNode;
   onCreate: () => void;
   onInstalled: () => Promise<void>;
 }

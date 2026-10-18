@@ -1,3 +1,8 @@
+import type * as ExternalContract from '@sudowork/contracts/external-provider'
+import {
+  createMossExternalProviderPort,
+  withExternalRequestDeadline,
+} from '@sudowork/moss-client/external-providers'
 /**
  * @license
  * Copyright 2026 SudoPrivacy
@@ -28,6 +33,13 @@
  */
 
 import { bridge } from '@office-ai/platform'
+import { prepareWebAgentWorkspace } from '@sudowork/host-bridge/agentWorkspace'
+import {
+  mossSecretPath,
+  mossSecretResult,
+  type MossSecretEntry,
+  type MossResponse,
+} from '@sudowork/common/nexus/moss-secret-client'
 import { createMossAgentPort } from '@sudowork/moss-client/agents'
 // Canonical wire shape — one definition shared with the renderer + main, not a
 // parallel copy.
@@ -178,7 +190,45 @@ if (typeof window !== 'undefined' && storageGet('agent.config', 'eeclaw.serverUr
 // Same-origin HTTP to the apps/webui server (cookie session auth).
 // ---------------------------------------------------------------------------
 
+let externalIdentity = ''
+let externalContextGeneration = 0
+let externalContextAppliedGeneration = 0
+export async function readExternalContext(signal: AbortSignal) {
+  const generation = ++externalContextGeneration
+  const context = await apiFetch<{
+    success: boolean
+    data?: { isAvailable: boolean; identity: string }
+  }>('/api/v1/external-context', { signal })
+  signal.throwIfAborted()
+  const identity = context.success && context.data?.isAvailable ? context.data.identity : ''
+  if (generation < externalContextAppliedGeneration && identity !== externalIdentity)
+    throw new Error('EXTERNAL_IDENTITY_CHANGED')
+  if (generation >= externalContextAppliedGeneration) {
+    externalContextAppliedGeneration = generation
+    externalIdentity = identity
+  }
+  return context
+}
+export const externalBrowserPort = createMossExternalProviderPort((request) =>
+  withExternalRequestDeadline(async (signal) => {
+    if (!externalIdentity) await readExternalContext(signal)
+    const identity = externalIdentity
+    if (!identity) throw new Error('EXTERNAL_IDENTITY_CHANGED')
+    const result = await apiFetch(request.path, {
+      method: request.method,
+      signal,
+      headers: { 'X-Sudo-External-Identity': identity },
+      ...(request.body === undefined ? {} : { body: JSON.stringify(request.body) }),
+    })
+    signal.throwIfAborted()
+    if (identity !== externalIdentity) throw new Error('EXTERNAL_IDENTITY_CHANGED')
+    return result
+  }),
+)
+const externalProviderPort = externalBrowserPort
+
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  await prepareWebAgentWorkspace()
   const res = await fetch(path, {
     credentials: 'include',
     ...init,
@@ -253,6 +303,8 @@ async function nameLegacyConversation(
 // ---------------------------------------------------------------------------
 
 const openStreams = new Map<string, WebSocket>()
+const subscribedStreams = new WeakSet<WebSocket>()
+const pendingTurns = new WeakSet<WebSocket>()
 const syncedHistory = new Map<string, string>()
 
 // Per-session interactive state (browser memory, mirrors the desktop main-process
@@ -270,6 +322,20 @@ const pendingQuestions = new Map<
 //   lifecycle; here the reset point is the next outbound send)
 const abortedSessions = new Set<string>()
 
+/** Keep the live permission inventory and its displayed cards in sync. */
+function removePendingConfirmations(sessionId: string, id?: string): void {
+  const list = pendingConfirmations.get(sessionId)
+  if (!list) return
+  const remaining = id === undefined ? [] : list.filter((confirmation) => confirmation.id !== id)
+  if (remaining.length) pendingConfirmations.set(sessionId, remaining)
+  else pendingConfirmations.delete(sessionId)
+  for (const confirmation of list) {
+    if (id === undefined || confirmation.id === id) {
+      emitterRef?.emit('confirmation.remove', { conversation_id: sessionId, id: confirmation.id })
+    }
+  }
+}
+
 let __mid = 0
 function nextMsgId(): string {
   __mid += 1
@@ -281,18 +347,51 @@ function wsUrlFor(sessionId: string): string {
   return `${proto}//${location.host}/ws/conversations/${encodeURIComponent(sessionId)}`
 }
 
+/** End local loading while keeping the server's uncertain execution boundary intact. */
+function emitStreamFailure(sessionId: string, code: string): void {
+  for (const type of ['error', 'finish'] as const) {
+    const message = {
+      type,
+      msg_id: nextMsgId(),
+      conversation_id: sessionId,
+      data: type === 'error' ? code : {},
+    }
+    emitterRef?.emit('chat.response.stream', message)
+    emitterRef?.emit('moss.response-stream', message)
+  }
+}
+
 function ensureSessionStream(sessionId: string): WebSocket | null {
   if (!sessionId) return null
   const existing = openStreams.get(sessionId)
   if (existing) return existing
   const ws = new WebSocket(wsUrlFor(sessionId))
+  let isUncertain = false
   openStreams.set(sessionId, ws)
   ws.addEventListener('message', (ev) => {
-    let frame: { kind?: string; event?: unknown; code?: string | number }
+    if (openStreams.get(sessionId) !== ws) return
+    let frame: {
+      kind?: string
+      event?: unknown
+      code?: string | number
+      state?: string
+      requestId?: unknown
+    }
     try {
       frame = JSON.parse(String(ev.data))
     } catch {
       return
+    }
+    if (frame.kind === 'lock' || frame.kind === 'writer') subscribedStreams.add(ws)
+    if (frame.kind === 'permissions_cleared') removePendingConfirmations(sessionId)
+    if (frame.kind === 'permission_resolved' && typeof frame.requestId === 'string')
+      removePendingConfirmations(sessionId, frame.requestId)
+    if (frame.kind === 'lock') {
+      if (frame.state === 'uncertain' && !isUncertain)
+        emitStreamFailure(sessionId, 'LOCK_UNCERTAIN')
+      isUncertain = frame.state === 'uncertain'
+      if (frame.state === 'running') pendingTurns.add(ws)
+      else pendingTurns.delete(ws)
     }
     // The server wraps the moss stream in { kind: 'upstream', event }, where
     // `event` is an anthropic-style moss message. The renderer expects
@@ -304,6 +403,11 @@ function ensureSessionStream(sessionId: string): WebSocket | null {
         request?: unknown
         request_id?: string
       }
+      if (event.type === 'result') {
+        pendingTurns.delete(ws)
+        removePendingConfirmations(sessionId)
+        pendingQuestions.delete(sessionId)
+      }
 
       // Permission prompt → renderer confirmation card (mirrors desktop
       // RemoteAgent.handlePermissionRequest via the shared converter).
@@ -313,9 +417,11 @@ function ensureSessionStream(sessionId: string): WebSocket | null {
           conversation_id: sessionId,
         }
         const list = pendingConfirmations.get(sessionId) ?? []
-        list.push(confirmation)
+        const index = list.findIndex((item) => item.id === confirmation.id)
+        if (index < 0) list.push(confirmation)
+        else list[index] = confirmation
         pendingConfirmations.set(sessionId, list)
-        emitterRef?.emit('confirmation.add', confirmation)
+        emitterRef?.emit(index < 0 ? 'confirmation.add' : 'confirmation.update', confirmation)
         return
       }
 
@@ -371,19 +477,18 @@ function ensureSessionStream(sessionId: string): WebSocket | null {
         if (msg.type === 'finish') void refreshDeliverables(sessionId)
       }
     } else if (frame && frame.kind === 'error') {
-      emitterRef?.emit('chat.response.stream', {
-        type: 'error',
-        msg_id: nextMsgId(),
-        conversation_id: sessionId,
-        data: String(frame.code ?? 'error'),
-      })
+      pendingTurns.delete(ws)
+      emitStreamFailure(sessionId, String(frame.code ?? 'error'))
     }
   })
   ws.addEventListener('close', () => {
+    if (openStreams.get(sessionId) !== ws) return
     openStreams.delete(sessionId)
-    pendingConfirmations.delete(sessionId)
+    removePendingConfirmations(sessionId)
     pendingQuestions.delete(sessionId)
     abortedSessions.delete(sessionId)
+    if (pendingTurns.has(ws)) emitStreamFailure(sessionId, 'CONNECTION_CLOSED')
+    pendingTurns.delete(ws)
   })
   ws.addEventListener('error', () => {
     try {
@@ -395,9 +500,46 @@ function ensureSessionStream(sessionId: string): WebSocket | null {
   return ws
 }
 
+/** A transport open alone does not acknowledge the authenticated subscription. */
+async function waitForSessionSubscription(sessionId: string): Promise<void> {
+  const ws = ensureSessionStream(sessionId)
+  if (!ws) throw new Error('browser_return_stream_unavailable')
+  if (subscribedStreams.has(ws)) return
+  await new Promise<void>((resolve, reject) => {
+    const cleanup = () => {
+      clearTimeout(timer)
+      ws.removeEventListener('message', onMessage)
+      ws.removeEventListener('close', onFailure)
+      ws.removeEventListener('error', onFailure)
+    }
+    const onFailure = () => {
+      cleanup()
+      reject(new Error('browser_return_stream_unavailable'))
+    }
+    const onMessage = () => {
+      if (subscribedStreams.has(ws)) {
+        cleanup()
+        resolve()
+      }
+    }
+    const timer = setTimeout(onFailure, 15_000)
+    ws.addEventListener('message', onMessage)
+    ws.addEventListener('close', onFailure)
+    ws.addEventListener('error', onFailure)
+    if (ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) onFailure()
+  })
+}
+
 function sendOverStream(sessionId: string, payload: unknown): boolean {
   const ws = ensureSessionStream(sessionId)
   if (!ws) return false
+  if (
+    payload &&
+    typeof payload === 'object' &&
+    'kind' in payload &&
+    (payload.kind === 'send' || payload.kind === 'answer_question')
+  )
+    pendingTurns.add(ws)
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify(payload))
     return true
@@ -623,8 +765,15 @@ interface ConversationListItem {
   taskId?: string | null
   status?: string
   assistantName?: string | null
+  templateRef?: string | null
   /** Display label for a pending creation; never replaces its identity. */
   displayName?: string
+  managementContext?: {
+    ownerId: string
+    ownerName: string
+    agentName: string
+    displayName: string
+  } | null
   source?: string | null
   createdAt?: number | null
   lastActiveAt?: number | null
@@ -659,6 +808,7 @@ function toChatConversation(
   displayName?: string,
 ): Record<string, unknown> {
   const agentName =
+    item.managementContext?.displayName ??
     displayName ??
     item.displayName ??
     (isPersonalAgentRef(item.assistantName ?? undefined)
@@ -711,9 +861,11 @@ function toChatConversation(
       backend: 'scode',
       agentName,
       mossAssistantRef: item.assistantName ?? undefined,
+      templateRef: item.templateRef ?? undefined,
       pinned: item.pinned ?? false,
       pinnedAt: item.pinnedAt ?? undefined,
       mossSessionId: item.id,
+      ...(item.managementContext ? { agentManagement: item.managementContext } : {}),
       ...(cronJobId ? { cronJobId } : {}),
     },
     model: { platform: '', name: '', useModel: '', id: '' },
@@ -1008,6 +1160,7 @@ function cronCreateBody(req: AnyReq): Record<string, unknown> {
     payloadMessage: String(req?.message ?? ''),
   }
   if (schedule) body.schedule = rendererScheduleToServer(schedule)
+  if (typeof req?.enabled === 'boolean') body.enabled = req.enabled
   if (req?.conversationMode === 'new' || req?.conversationMode === 'reuse') {
     body.conversationMode = req.conversationMode
   }
@@ -1315,6 +1468,100 @@ function ensureChannelEventsSocket(): void {
 }
 
 const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
+  'browser-session:upload-file': async (req) => {
+    try {
+      const result = await apiFetch<{ file: unknown }>(
+        `/api/conversations/${encodeURIComponent(String(req.conversationId || ''))}/browser/files/upload`,
+        {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/octet-stream',
+            'X-Browser-File-Name': encodeURIComponent(String(req.name || '')),
+            'X-Browser-Control-Epoch': String(req.controlEpoch),
+            'X-Browser-Target-Epoch': String(req.targetEpoch),
+          },
+          body: new Uint8Array(req.data as Uint8Array).buffer,
+          signal: AbortSignal.timeout(90_000),
+        },
+      )
+      return ok(result.file)
+    } catch (error) {
+      return fail(errMessage(error))
+    }
+  },
+  'browser-session:download-file': async (req) => {
+    try {
+      const response = await fetch(
+        `/api/conversations/${encodeURIComponent(String(req.conversationId || ''))}/browser/files/${encodeURIComponent(String(req.fileId || ''))}`,
+        {
+          credentials: 'include',
+          redirect: 'error',
+          signal: AbortSignal.timeout(90_000),
+        },
+      )
+      if (!response.ok) throw new Error('browser_file_not_found')
+      return ok(new Uint8Array(await response.arrayBuffer()))
+    } catch (error) {
+      return fail(errMessage(error))
+    }
+  },
+  'browser-session:invoke': async (req) => {
+    try {
+      if ((req.action as { kind?: string })?.kind === 'return') {
+        await waitForSessionSubscription(String(req.conversationId || ''))
+      }
+      const data = await apiFetch(
+        `/api/conversations/${encodeURIComponent(String(req.conversationId || ''))}/browser`,
+        {
+          method: 'POST',
+          body: JSON.stringify(req.action),
+        },
+      )
+      return ok(data)
+    } catch (error) {
+      return fail(errMessage(error))
+    }
+  },
+  'secret.get': async (req) => {
+    const path = mossSecretPath(String(req.namespace), String(req.key))
+    const data = mossSecretResult(await apiFetch<MossResponse<{ value: string }>>(path))
+    return ok(data?.value ?? null)
+  },
+  'secret.put': async (req) => {
+    const path = mossSecretPath(String(req.namespace), String(req.key))
+    mossSecretResult(
+      await apiFetch<MossResponse<void>>(path, {
+        method: 'PUT',
+        body: JSON.stringify({ value: req.value }),
+      }),
+    )
+    return { success: true }
+  },
+  'secret.delete': async (req) => {
+    const path = mossSecretPath(String(req.namespace), String(req.key))
+    mossSecretResult(await apiFetch<MossResponse<void>>(path, { method: 'DELETE' }))
+    return ok(true)
+  },
+  'secret.restore': async (req) => {
+    const path = mossSecretPath(String(req.namespace), String(req.key), 'enable')
+    mossSecretResult(await apiFetch<MossResponse<void>>(path, { method: 'POST', body: '{}' }))
+    return ok(true)
+  },
+  'secret.list': async (req) => {
+    const entries = mossSecretResult(
+      await apiFetch<MossResponse<MossSecretEntry[]>>('/api/v1/me/secrets'),
+    )
+    return ok(
+      (entries ?? [])
+        .filter((entry) => entry.namespace === req.namespace)
+        .map((entry) => ({
+          namespace: entry.namespace,
+          key: entry.key,
+          currentVersion: entry.version,
+          deleted: !entry.enabled,
+        })),
+    )
+  },
   'get-file-metadata': async (req) => {
     const path = String(req.path ?? '')
     const file = window.__sudoworkWebFileStaging?.get(path)
@@ -1461,6 +1708,87 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
   // of the three kinds a stored reference is and where each kind's name lives;
   // doing it here would put the template-is-not-an-agent distinction into the
   // browser and give it a reason to read the organization catalog.
+  'external-providers.context': async () => withExternalRequestDeadline(readExternalContext),
+  'external-providers.access': async () => {
+    return ok(await externalProviderPort.access())
+  },
+  'external-providers.policy': async () => {
+    return ok(await externalProviderPort.policy())
+  },
+  'external-providers.savePolicy': async (req) => {
+    const input = req as unknown as ExternalContract.ExternalPilotPolicy
+    return ok(await externalProviderPort.savePolicy(input))
+  },
+  'external-providers.adminAgents': async () => {
+    return ok(await externalProviderPort.adminAgents())
+  },
+  'external-providers.members': async () => {
+    return ok(await externalProviderPort.members())
+  },
+  'external-providers.inspect': async (req) => {
+    const input = req as unknown as ExternalContract.InspectExternalConnection
+    return ok(await externalProviderPort.inspect(input))
+  },
+  'external-providers.onboard': async (req) => {
+    const input = req as unknown as ExternalContract.OnboardExternalAgent
+    return ok(await externalProviderPort.onboard(input))
+  },
+  'external-providers.update': async (req) => {
+    const input = req as unknown as { agentId: string; input: ExternalContract.UpdateExternalAgent }
+    return ok(await externalProviderPort.update(input.agentId, input.input))
+  },
+  'external-providers.rotate': async (req) => {
+    const input = req as unknown as { agentId: string; revision: number; api_key: string }
+    return ok(
+      await externalProviderPort.rotate(input.agentId, {
+        revision: input.revision,
+        api_key: input.api_key,
+      }),
+    )
+  },
+  'external-providers.archive': async (req) => {
+    const input = req as unknown as { agentId: string; revision: number }
+    return ok(await externalProviderPort.archive(input.agentId, input.revision))
+  },
+  'external-providers.testAgent': async (req) => {
+    const input = req as unknown as { agentId: string }
+    return ok(await externalProviderPort.testAgent(input.agentId))
+  },
+  'external-providers.review': async (req) => {
+    const input = req as unknown as {
+      agentId: string
+      approved: boolean
+      revision: number
+      review_days?: number
+    }
+    return ok(
+      await externalProviderPort.review(input.agentId, {
+        approved: input.approved,
+        revision: input.revision,
+        review_days: input.review_days,
+      }),
+    )
+  },
+  'external-providers.agents': async () => ok(await externalProviderPort.agents()),
+  'external-providers.sessions': async () => ok(await externalProviderPort.sessions()),
+  'external-providers.versions': async (req) => {
+    const input = req as { agentId: string; after?: string }
+    return ok(await externalProviderPort.versions(input.agentId, input.after))
+  },
+  'external-providers.evidence': async (req) =>
+    ok(await externalProviderPort.evidence((req as { taskId: string }).taskId)),
+  'external-providers.history': async (req) =>
+    ok(await externalProviderPort.history((req as { sessionId: string }).sessionId)),
+  'external-providers.create': async (req) =>
+    ok(
+      await externalProviderPort.create(
+        req as unknown as import('@sudowork/contracts/external-provider').CreateExternalTask,
+      ),
+    ),
+  'external-providers.events': async (req) => {
+    const input = req as { taskId: string; cursor: number }
+    return ok(await externalProviderPort.events(input.taskId, input.cursor))
+  },
   'eeclaw.get-my-agents': async () => {
     return ok(await listMyAgents())
   },
@@ -1477,7 +1805,7 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     // isSelectableCloudAssistant filter (it drops rows without them).
     return ok(
       (Array.isArray(agents) ? agents : []).map((a) => ({
-        key: a.name,
+        key: a.id || a.name,
         name: String(a.displayName ?? a.display_name ?? a.name),
         avatar: typeof a.avatar === 'string' ? a.avatar : undefined,
         emoji: typeof a.emoji === 'string' ? a.emoji : undefined,
@@ -1722,7 +2050,7 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     ).catch(() => null)
     if (model?.modelId)
       conv.extra = { ...(conv.extra as Record<string, unknown>), currentModelId: model.modelId }
-    if (found.assistantName && !isPersonal) {
+    if (found.assistantName && !isPersonal && !found.managementContext) {
       const agents = await apiFetch<MossAgentItem[]>('/api/agent-templates').catch(() => [])
       const agent = agents.find(
         (item) => item.name === found.assistantName || item.id === found.assistantName,
@@ -1806,6 +2134,7 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     const extra = req?.extra as
       | {
           presetAssistantId?: unknown
+          templateRef?: unknown
           agentName?: unknown
           enabledSkills?: unknown
           nameIsFirstMessage?: unknown
@@ -1818,6 +2147,7 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
       method: 'POST',
       body: JSON.stringify({
         assistantName: agent,
+        ...(typeof extra?.templateRef === 'string' ? { templateRef: extra.templateRef } : {}),
         enabledSkills: extra?.enabledSkills ?? req?.enabledSkills ?? [],
       }),
     })
@@ -1879,6 +2209,16 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     const sessionId = String(req?.sessionId ?? '')
     ensureSessionStream(sessionId)
     return ok({ wsUrl: wsUrlFor(sessionId), session: toMossSession({ id: sessionId }) })
+  },
+  'moss.upgrade-runtime': async (req) => {
+    await apiFetch(
+      `/api/conversations/${encodeURIComponent(String(req?.conversationId ?? ''))}/runtime/upgrade`,
+      {
+        method: 'POST',
+        body: '{}',
+      },
+    )
+    return ok()
   },
   'moss.update-session': async (req) => {
     const sessionId = String(req?.sessionId ?? '')
@@ -2085,16 +2425,7 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     ) {
       return fail('NO_SESSION')
     }
-    const list = pendingConfirmations.get(sessionId)
-    if (list)
-      pendingConfirmations.set(
-        sessionId,
-        list.filter((c) => c.id !== req?.msg_id),
-      )
-    emitterRef?.emit('confirmation.remove', {
-      conversation_id: sessionId,
-      id: String(req?.msg_id ?? ''),
-    })
+    removePendingConfirmations(sessionId, String(req?.msg_id ?? ''))
     return ok()
   },
 

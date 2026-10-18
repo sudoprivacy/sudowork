@@ -1,20 +1,18 @@
 /**
- * Published daemon -> production NexusAcpTransport -> published scode -> real API.
+ * Published daemon -> production ScodeAcpTransport -> published scode -> real API.
  * Opt in with SUDOWORK_ACP_TUNNEL_E2E=1 (protocol) or
  * SUDOWORK_ACP_TUNNEL_LIVE=1 (also spends API credits). See acp-tunnel-live.md.
  * No transport, daemon, agent, or model is substituted. Only Electron's shell
  * is supplied by the repository's shared Node test setup.
  */
-import { spawn, execFileSync, type ChildProcess } from 'child_process';
+import { execFileSync } from 'child_process';
 import { randomUUID } from 'crypto';
 import fs from 'fs';
-import net from 'net';
 import os from 'os';
 import path from 'path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { NexusVfsClient } from '@nexus-ai-fs/vfs-client';
-import { NexusAcpTransport } from '../../src/agent/acp/transport';
-import { killChild } from '../../src/agent/acp/utils';
+import { ScodeAcpTransport } from '../../src/agent/acp/transport';
+import { configureScodeService, getScodeServiceClient } from '../../src/common/scode/serviceClient';
 import versions from '../../src/shared/runtime-versions.json';
 
 const isLive = process.env.SUDOWORK_ACP_TUNNEL_LIVE === '1';
@@ -32,22 +30,20 @@ interface IRpcMessage {
 
 /** Drive the actual transport; reject outstanding requests on disconnect. */
 class TunnelClient {
-  readonly transport: NexusAcpTransport;
+  readonly transport: ScodeAcpTransport;
   readonly updates: IRpcMessage[] = [];
   private nextId = 1;
   private readonly pending = new Map<number, { resolve: (value: Record<string, unknown>) => void; reject: (error: Error) => void }>();
   error: Error | undefined;
 
-  constructor(endpoint: string, scode: string, cwd: string, configHome: string) {
+  constructor(scode: string, cwd: string, configHome: string) {
     // scode's shell tool invokes `sh`. Windows CI/dev installs Git Bash, but
     // its bin directory need not be in the parent terminal's PATH.
     const shellDir = process.env.SUDOWORK_ACP_SHELL_DIR || (process.platform === 'win32' ? path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Git', 'bin') : '');
     const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => key.toLowerCase() !== 'path'));
     env.PATH = [shellDir, process.env.PATH].filter(Boolean).join(path.delimiter);
     if (isLive) execFileSync('sh', ['-lc', 'exit 0'], { env, timeout: 10_000, windowsHide: true });
-    this.transport = new NexusAcpTransport({
-      endpoint,
-      authToken: '',
+    this.transport = new ScodeAcpTransport({
       agentId: `sudowork-e2e-${randomUUID()}`,
       spawnSpec: {
         cmd: scode,
@@ -123,35 +119,20 @@ async function waitFor(check: () => boolean | Promise<boolean>, label: string, t
   throw new Error(`Timed out: ${label}`);
 }
 
-async function freePort(): Promise<number> {
-  const server = net.createServer();
-  await new Promise<void>((resolve, reject) => {
-    server.once('error', reject);
-    server.listen(0, '127.0.0.1', resolve);
-  });
-  const port = (server.address() as net.AddressInfo).port;
-  await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
-  return port;
-}
-
 suite('published scode over the real ACP tunnel', () => {
   let root: string;
   let workspace: string;
   let configHome: string;
-  let endpoint: string;
   let scode: string;
-  let daemon: ChildProcess | undefined;
-  let daemonLog = '';
+  let originalServiceRoot = process.env.SCODE_SERVICE_ROOT;
+  let isServiceConfigured = false;
+  let isServiceStarted = false;
   const clients: TunnelClient[] = [];
 
   beforeAll(async () => {
     const suffix = process.platform === 'win32' ? '.exe' : '';
     scode = process.env.SCODE_BIN || path.join(os.homedir(), '.nexus', 'sudowork', 'sudocode', `scode${suffix}`);
-    const cluster = process.env.NEXUS_CLUSTER_BIN || path.join(os.homedir(), '.nexus-vfs', 'bin', `nexusd-cluster${suffix}`);
-    for (const [binary, version] of [
-      [scode, process.env.SUDOWORK_ACP_SCODE_VERSION || versions.scode],
-      [cluster, versions['nexusd-cluster']],
-    ]) {
+    for (const [binary, version] of [[scode, process.env.SUDOWORK_ACP_SCODE_VERSION || versions.scode]]) {
       expect(fs.existsSync(binary), `Missing published binary: ${binary}`).toBe(true);
       const banner = execFileSync(binary, ['--version'], { encoding: 'utf8', timeout: 10_000, windowsHide: true }).trim();
       expect(banner, 'Binary must match runtime-versions.json').toMatch(new RegExp(`(?:^|\\s)v?${version.replaceAll('.', '\\.')}\\b`));
@@ -175,34 +156,16 @@ suite('published scode over the real ACP tunnel', () => {
     }
     fs.writeFileSync(path.join(configHome, 'sudocode.json'), JSON.stringify({ auth_modes: { proxy: { e2e: account } }, models: { [model]: { name: model, providers: { proxy: { model } } } } }), { mode: 0o600 });
     fs.writeFileSync(path.join(configHome, 'settings.json'), JSON.stringify({ auth_profile: 'e2e', model }));
-    endpoint = `127.0.0.1:${await freePort()}`;
-    daemon = spawn(cluster, ['--bind-addr', endpoint, '--data-dir', path.join(root, 'daemon'), '--no-tls', '--insecure-no-auth'], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, env: { ...process.env, NEXUS_IDENTITY_DIR: path.join(root, 'identity'), NEXUS_PEERS: '' } });
-    daemon.stdout!.on('data', (chunk: Buffer) => {
-      daemonLog = (daemonLog + chunk.toString()).slice(-12_000);
-    });
-    daemon.stderr!.on('data', (chunk: Buffer) => {
-      daemonLog = (daemonLog + chunk.toString()).slice(-12_000);
-    });
-    let spawnError: Error | undefined;
-    daemon.on('error', (error) => {
-      spawnError = error;
-    });
-    const probe = new NexusVfsClient(endpoint, { connectTimeoutMs: 1000 });
-    try {
-      await waitFor(async () => {
-        if (spawnError) throw spawnError;
-        if (daemon?.exitCode !== null) throw new Error(`Daemon exited: ${daemonLog}`);
-        try {
-          const info = await probe.serverInfo('');
-          return Boolean(info.zone_id);
-        } catch {
-          return false;
-        }
-      }, 'daemon serverInfo');
-    } finally {
-      probe.close();
-    }
-  }, 60_000);
+    originalServiceRoot = process.env.SCODE_SERVICE_ROOT;
+    process.env.SCODE_SERVICE_ROOT = path.join(root, 'service');
+    configureScodeService(() => scode);
+    isServiceConfigured = true;
+    await getScodeServiceClient().request('service.install', {}, 600_000);
+    const status = await getScodeServiceClient().request<{ running: boolean; zone_id: string }>('service.start');
+    isServiceStarted = status.running;
+    expect(status.running).toBe(true);
+    expect(status.zone_id).toEqual(expect.any(String));
+  }, 660_000);
 
   afterAll(async () => {
     try {
@@ -221,13 +184,23 @@ suite('published scode over the real ACP tunnel', () => {
       }
       for (const client of clients) await client.close();
     } finally {
-      if (daemon) await killChild(daemon, false);
+      if (root && isServiceStarted) {
+        // Cancellation acknowledges the signal before the daemon reaps /proc.
+        // Observe actual retirement before requesting its protected shutdown.
+        await waitFor(async () => (await getScodeServiceClient().request<unknown[]>('files.list', { path: '/proc/' })).length === 0, 'managed agent runtimes retired', 15_000);
+        await getScodeServiceClient().request('service.shutdown');
+        getScodeServiceClient().close();
+        await waitFor(() => !fs.existsSync(path.join(root, 'service', 'run', 'service.json')), 'service stopped');
+      }
+      if (isServiceConfigured) getScodeServiceClient().close();
+      if (originalServiceRoot === undefined) delete process.env.SCODE_SERVICE_ROOT;
+      else process.env.SCODE_SERVICE_ROOT = originalServiceRoot;
       if (root) fs.rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
     }
   }, 30_000);
 
   async function openSession(): Promise<{ client: TunnelClient; sessionId: string }> {
-    const client = new TunnelClient(endpoint, scode, workspace, configHome);
+    const client = new TunnelClient(scode, workspace, configHome);
     clients.push(client);
     await client.transport.connect();
     expect(client.transport.pid).toBeGreaterThan(0);

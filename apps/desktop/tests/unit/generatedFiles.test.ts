@@ -1,12 +1,5 @@
-import {
-  appendGeneratedFilesMarker,
-  extractExtension,
-  mimeForExtension,
-  NEXUS_GENERATED_FILES_MARKER,
-  parseGeneratedFilesMarker,
-  stripGeneratedFilesMarker,
-  type GeneratedFileEntry,
-} from '@/common/generatedFiles';
+import { isGeneratedFilesOnlyMessage } from '@sudowork/common/generatedFiles';
+import { appendGeneratedFilesMarker, extractExtension, mimeForExtension, NEXUS_GENERATED_FILES_MARKER, parseGeneratedFilesMarker, stripGeneratedFilesMarker, type GeneratedFileEntry } from '@/common/generatedFiles';
 
 const entry = (overrides: Partial<GeneratedFileEntry> = {}): GeneratedFileEntry => ({
   path: '/workspace/hello.html',
@@ -128,5 +121,14 @@ describe('mimeForExtension', () => {
 
   it('returns undefined for unknown extensions', () => {
     expect(mimeForExtension('totallymadeup')).toBeUndefined();
+  });
+});
+
+describe('cloud history marker preservation', () => {
+  it('preserves generated-file records while excluding input attachments and prose', () => {
+    const content = appendGeneratedFilesMarker('', [entry()]);
+    expect(isGeneratedFilesOnlyMessage({ type: 'text', position: 'left', content: { content } })).toBe(true);
+    expect(isGeneratedFilesOnlyMessage({ type: 'text', position: 'right', content: { content } })).toBe(false);
+    expect(isGeneratedFilesOnlyMessage({ type: 'text', position: 'left', content: { content: 'Example: ' + content } })).toBe(false);
   });
 });

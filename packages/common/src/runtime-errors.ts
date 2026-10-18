@@ -20,7 +20,7 @@
  * burden. Add a class only when its CTA / copy meaningfully differs from
  * the default "请重试" UX.
  */
-export type RuntimeErrorClass = 'context_window_exceeded' | 'single_request_too_large' | 'request_body_too_large' | 'quota' | 'rate_limit' | 'auth' | 'network' | 'timeout';
+export type RuntimeErrorClass = 'context_window_exceeded' | 'single_request_too_large' | 'request_body_too_large' | 'quota' | 'rate_limit' | 'auth' | 'network' | 'timeout' | 'interrupted' | 'runtime_update_required';
 
 /**
  * Structured runtime error payload carried alongside IMessageTips.
@@ -55,6 +55,8 @@ export function toRuntimeErrorClass(llmClass: string): RuntimeErrorClass | null 
     case 'auth':
     case 'network':
     case 'timeout':
+    case 'interrupted':
+    case 'runtime_update_required':
       return llmClass;
     default:
       return null;
@@ -94,10 +96,13 @@ export function ctaKey(cls: RuntimeErrorClass): string | null {
       return 'runtimeError.quota.cta';
     case 'auth':
       return 'runtimeError.auth.cta';
+    case 'runtime_update_required':
+      return 'runtimeError.runtime_update_required.cta';
     // rate_limit / network / timeout: no specific CTA, just informational
     case 'rate_limit':
     case 'network':
     case 'timeout':
+    case 'interrupted':
       return null;
   }
 }

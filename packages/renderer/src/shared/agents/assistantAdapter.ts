@@ -24,6 +24,7 @@ export function toBackendConfig(info: IAssistantInfo): AcpBackendConfig {
   const isPreset = info.isBuiltin || info.isHubInstalled;
   return {
     id,
+    serverId: info.id,
     name: meta.nameI18n?.['zh-CN'] || meta.nameI18n?.['en-US'] || meta.display_name || meta.name || meta.id || info.name,
     nameI18n: meta.nameI18n,
     descriptionI18n: meta.descriptionI18n,
@@ -31,6 +32,7 @@ export function toBackendConfig(info: IAssistantInfo): AcpBackendConfig {
     avatar: meta.avatar,
     enabled: info.enabled,
     isPreset,
+    ...(meta.ontologyBinding ? { ontologyBinding: meta.ontologyBinding } : {}),
     presetAgentType: meta.presetAgentType,
     promptsI18n: meta.promptsI18n,
     enabledSkills: meta.enabledSkills ?? meta.defaultEnabledSkills,
@@ -70,4 +72,9 @@ export async function fetchVisibleAssistantsAsConfigs(accessToken: string | null
 /** Resolve the lookup name for an assistant from its AcpBackendConfig id. */
 export function resolveAssistantName(configId: string): string {
   return configId.startsWith('builtin-') ? configId.slice('builtin-'.length) : configId;
+}
+
+/** Keep cloud history and execution on the server identity while local presets use their lookup name. */
+export function resolveAssistantEntryReference(assistant: Pick<AcpBackendConfig, 'id' | 'serverId'>, isRemote: boolean): string {
+  return isRemote && assistant.serverId ? assistant.serverId : resolveAssistantName(assistant.id);
 }

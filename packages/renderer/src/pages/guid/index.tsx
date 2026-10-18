@@ -34,6 +34,7 @@ import { CUSTOM_AVATAR_IMAGE_MAP } from './utils/constants';
 import { AgentPillBarSkeleton, AssistantsSkeleton } from './components/GuidSkeleton';
 import GuidActionRow from './components/GuidActionRow';
 import AgentPillBar from './components/AgentPillBar';
+import ExecutionModeSelector from './components/ExecutionModeSelector';
 import GuidInputCard from './components/GuidInputCard';
 import GuidModelSelector from './components/GuidModelSelector';
 import MentionDropdown from './components/MentionDropdown';
@@ -42,12 +43,16 @@ import PromptTemplates from './components/PromptTemplates';
 import QuickActionButtons from './components/QuickActionButtons';
 import { useGuidAgentSelection } from './hooks/useGuidAgentSelection';
 import { useGuidInput } from './hooks/useGuidInput';
+import { useGuidEntryPrompt } from './hooks/useGuidEntryPrompt';
 import { useGuidMention } from './hooks/useGuidMention';
 import { useGuidModelSelection } from './hooks/useGuidModelSelection';
 import { useGuidSend } from './hooks/useGuidSend';
 import { useTypewriterPlaceholder } from './hooks/useTypewriterPlaceholder';
 import { getGuidDraft, setGuidDraft } from './hooks/useGuidDraft';
 import type { AcpBackendConfig } from './types';
+import { isPersonalAgentRef } from '@sudowork/common/personalAgents';
+import { useConversationHistory } from '@renderer/pages/conversation/context/ConversationHistoryContext';
+import SessionCompositionSelector from './components/SessionCompositionSelector';
 
 const GuidPage: React.FC = () => {
   const draft = getGuidDraft();
@@ -64,8 +69,6 @@ const GuidPage: React.FC = () => {
   const [installedSkillsLoaded, setInstalledSkillsLoaded] = useState(false);
 
   const textareaRef = useRef<RefTextAreaType>(null);
-  // Last assistantParam prefilled for; each "去使用" navigation changes it.
-  const prevAssistantParamRef = useRef<string | null>(null);
 
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
@@ -80,6 +83,11 @@ const GuidPage: React.FC = () => {
   const searchParams = new URLSearchParams(location.search);
   const skillParam = searchParams.get('skill');
   const assistantParam = searchParams.get('assistant');
+  const { agents: personalAgents, scopeKey } = useConversationHistory();
+  const [personalSelection, setPersonalSelection] = useState<{ scope: string | null; ref: string }>();
+  const personalAgentRef = personalSelection?.scope === scopeKey ? personalSelection.ref : isPersonalAgentRef(assistantParam || undefined) ? assistantParam! : personalAgents.find((agent) => agent.kind === 'default')?.ref;
+  const selectedPersonalAgent = personalAgents.find((agent) => agent.ref === personalAgentRef && agent.kind !== 'template');
+  const isOntologyEntry = searchParams.get('source') === 'ontology' && assistantParam?.startsWith('ontology-') === true;
 
   // --- Hooks ---
   const modelSelection = useGuidModelSelection();
@@ -89,7 +97,9 @@ const GuidPage: React.FC = () => {
     isGoogleAuth: modelSelection.isGoogleAuth,
     localeKey,
     assistantFromUrl: assistantParam,
+    isOntologyEntry,
   });
+  const selectedTemplateRef = agentSelection.selectedAgentInfo?.customAgentId && !isPersonalAgentRef(agentSelection.selectedAgentInfo.customAgentId) ? agentSelection.selectedAgentInfo.customAgentId : undefined;
 
   const guidInput = useGuidInput({
     locationState: location.state as { workspace?: string } | null,
@@ -131,7 +141,8 @@ const GuidPage: React.FC = () => {
     modelBackendKey: agentSelection.modelBackendKey,
     selectedAgentInfo: agentSelection.selectedAgentInfo,
     isPresetAgent: agentSelection.isPresetAgent,
-    isAgentSelectionPending: Boolean(assistantParam && agentSelection.selectedAgentInfo?.customAgentId !== assistantParam && agentSelection.selectedAgentInfo?.name !== assistantParam),
+    isAgentSelectionPending: agentSelection.isAgentSelectionPending,
+    ...(isEnterprise && !isOntologyEntry ? { personalAgentRef, personalAgentName: selectedPersonalAgent?.displayName, templateRef: selectedTemplateRef, isCompositionPending: !selectedPersonalAgent } : {}),
     selectedMode: agentSelection.selectedMode,
     selectedAcpModel: agentSelection.selectedAcpModel,
     currentModel: modelSelection.currentModel,
@@ -309,21 +320,16 @@ const GuidPage: React.FC = () => {
     setGuidDraft({ selectedSkills });
   }, [selectedSkills]);
 
-  // Pre-fill the URL-selected assistant's defaultInitPrompt on each "去使用".
-  // 跨路由重挂载时 guidInput 经 guidDraftStore 持久化会恢复上次输入，故须按
-  // assistantParam 变化无条件覆盖（无 defaultInitPrompt 则清空），不依赖输入框是否为空。
-  useEffect(() => {
-    if (!assistantParam || !agentSelection.customAgents || agentSelection.customAgents.length === 0) return;
-    if (prevAssistantParamRef.current === assistantParam) return;
-    const target = agentSelection.customAgents.find((a) => a.name === assistantParam || a.id === assistantParam);
-    if (!target) return; // customAgents 尚未加载到目标，不更新 ref，等加载后重跑
-    prevAssistantParamRef.current = assistantParam;
-    guidInput.setInput(target.defaultInitPrompt || '');
-  }, [assistantParam, agentSelection.customAgents, guidInput]);
+  const onResetEntryDraft = useGuidEntryPrompt({
+    selectionKey: assistantParam ? (isOntologyEntry ? `ontology:${assistantParam}` : assistantParam) : null,
+    getInputRevision: guidInput.getInputRevision,
+    prompt: !agentSelection.isAgentSelectionPending && selectedAssistantConfig ? selectedAssistantConfig.defaultInitPrompt || '' : undefined,
+    setInput: guidInput.setInput,
+  });
 
-  // Listen for guid.reset event to reset agent/mention state only
+  // Start a fresh entry when either New Session action is invoked.
   const handleGuidReset = useCallback(() => {
-    setGuidDraft({ input: '' });
+    onResetEntryDraft();
     agentSelection.resetSelection();
     setCursorPosition(0);
     mention.setMentionOpen(false);
@@ -331,7 +337,7 @@ const GuidPage: React.FC = () => {
     mention.setMentionSelectorVisible(false);
     mention.setMentionSelectorOpen(false);
     mention.setMentionActiveIndex(0);
-  }, [agentSelection, mention]);
+  }, [agentSelection, mention, onResetEntryDraft]);
 
   useAddEventListener('guid.reset', handleGuidReset, [handleGuidReset]);
 
@@ -604,7 +610,20 @@ const GuidPage: React.FC = () => {
     <PageWrapper contentClassName='!max-w-[70%] h-full f-center flex-col'>
       {/* Normal/Assistant conversation area */}
       <div className='w-full px-4 box-border mx-auto mt-[-5vh]'>
-        {isAssistantMode ? (
+        {isEnterprise && !isOntologyEntry && (
+          <SessionCompositionSelector
+            agents={personalAgents}
+            templates={agentSelection.customAgents}
+            personalAgentRef={personalAgentRef}
+            templateRef={selectedTemplateRef}
+            onPersonalAgentChange={(ref) => {
+              setPersonalSelection({ scope: scopeKey, ref });
+              if (!selectedTemplateRef) agentSelection.setSelectedAgentKey(`custom:${ref}`);
+            }}
+            onTemplateChange={(ref) => agentSelection.setSelectedAgentKey(`custom:${ref || personalAgentRef || ''}`)}
+          />
+        )}
+        {isAssistantMode && (!isEnterprise || isOntologyEntry) ? (
           /* ========== Selected Assistant Mode ========== */
           <>
             {/* Assistant Header: back + avatar + name + edit + agent dropdown */}
@@ -654,6 +673,7 @@ const GuidPage: React.FC = () => {
             <div className='w-full px-4 py-3 mb-4 rd-2xl text-sm border box-border animate-fade-in animate-duration-400 animate-ease-out'>
               {selectedAssistantConfig.descriptionI18n?.[localeKey] || selectedAssistantConfig.description || t('settings.assistantDescriptionPlaceholder', { defaultValue: 'No description' })}
             </div>
+            {isEnterprise && !isOntologyEntry && <ExecutionModeSelector sessionMode={agentSelection.sessionMode} isLocalAvailable={user?.localModeAvailable ?? false} onSessionModeChange={agentSelection.setSessionMode} />}
           </>
         ) : (
           /* ========== Normal Mode ========== */

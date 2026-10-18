@@ -258,24 +258,14 @@ body,
   overflow: hidden;
 }
 
-/* 用 Arco Tabs line 仅当切换器，无内容面板 */
-.sidebar-tabs.arco-tabs .arco-tabs-content {
-  display: none;
+.history-view-selector.arco-radio-group {
+  display: flex;
 }
-.sidebar-tabs.arco-tabs .arco-tabs-header-nav-line::before {
-  display: none;
-}
-.sidebar-tabs.arco-tabs .arco-tabs-header-title-active,
-.sidebar-tabs.arco-tabs .arco-tabs-header-title-active:hover {
-  color: var(--ui-accent-orange);
-}
-.sidebar-tabs.arco-tabs .arco-tabs-header-ink {
-  background-color: var(--ui-accent-orange);
-}
-/* Arco 用标题文字的 ::before 画圆角 hover 高亮，并向两侧各撑出 8px。headerPadding 关闭后首个标题无左边距，
-   -8px 溢出会戳出 overflow:hidden 的 .arco-tabs 容器、左角被裁。此切换器只需橙字+下划线，直接去掉高亮。 */
-.sidebar-tabs.arco-tabs .arco-tabs-header-title-text::before {
-  display: none !important;
+.history-view-selector .arco-radio-button {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  padding-inline: 8px;
 }
 
 .batch-actions-popover .arco-popover-content {

@@ -1,3 +1,5 @@
+import ExternalConversationPage from '@renderer/pages/external-agents/ExternalConversationPage';
+import { isExternalConversationId } from '@renderer/pages/external-agents/navigation';
 import { isOntologyConversation, ontologyConversationPath } from '@sudowork/common/conversationPurpose';
 /**
  * @license
@@ -18,6 +20,7 @@ import { useAppMode } from '@renderer/hooks/useAppMode';
 import { isWebBridgeAvailable } from '@renderer/utils/platform';
 import ChatConversation from './ChatConversation';
 import { useConversationTabs } from './context/ConversationTabsContext';
+import { useConversationHistory } from './context/ConversationHistoryContext';
 
 const ChatConversationIndex: React.FC = () => {
   const { t } = useTranslation();
@@ -25,6 +28,7 @@ const ChatConversationIndex: React.FC = () => {
   const { isEnterprise } = useAppMode();
   const { closePreview } = usePreviewContext();
   const { openTab } = useConversationTabs();
+  const { conversations } = useConversationHistory();
   const previousConversationIdRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
@@ -186,9 +190,16 @@ const ChatConversationIndex: React.FC = () => {
 
   const ontologyPath = data ? ontologyConversationPath(data) : undefined;
   if (ontologyPath) return <Navigate to={ontologyPath} replace />;
-  if (isLoading) return <Spin loading></Spin>;
-  if (error && !data) {
-    return (
+  const selectedConversation = data ?? conversations.find((conversation) => conversation.id === id);
+  let content: React.ReactNode;
+  if (isLoading) {
+    content = (
+      <div className='flex-1 f-center' role='status' aria-label={t('common.loading')}>
+        <Spin loading />
+      </div>
+    );
+  } else if (error && !data) {
+    content = (
       <Result
         status='error'
         title={t('common.errorBoundaryTitle')}
@@ -200,9 +211,15 @@ const ChatConversationIndex: React.FC = () => {
         }
       />
     );
-  }
-  if (!data) return <Navigate to='/guid' replace />;
-  return <ChatConversation conversation={data}></ChatConversation>;
+  } else if (!data) return <Navigate to='/guid' replace />;
+  return (
+    <ChatConversation conversation={selectedConversation} conversationId={id}>
+      {content}
+    </ChatConversation>
+  );
 };
 
-export default ChatConversationIndex;
+export default function ConversationPage() {
+  const { id } = useParams();
+  return isExternalConversationId(id) ? <ExternalConversationPage /> : <ChatConversationIndex />;
+}
