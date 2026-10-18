@@ -452,10 +452,10 @@ jobs:
           CI: true
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
-      - name: Verify NSIS update installation directory (Windows)
+      - name: Verify NSIS installation paths (Windows)
         if: startsWith(matrix.platform, 'windows') && steps.windows-build.outputs.result == 'success'
         shell: pwsh
-        run: bunx vitest run tests/integration/nsis-update-location.test.ts
+        run: bunx vitest run tests/integration/nsis-update-location.test.ts tests/integration/nsis-user-install-root.test.ts
         env:
           ELECTRON_BUILDER_CACHE: ${{ runner.temp }}/.cache/electron-builder
           NSIS_TEST_REQUIRE_COMPILER: "1"
