@@ -556,9 +556,9 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
         throw new Error('Connection not ready');
       }
 
-      // Emit user message to UI
+      // Persist the prompt through the same path as streamed replies.
       if (data.msg_id && data.content) {
-        ipcBridge.conversation.responseStream.emit({
+        this.handleStreamMessage({
           type: 'user_content',
           conversation_id: this.conversation_id,
           msg_id: data.msg_id,
