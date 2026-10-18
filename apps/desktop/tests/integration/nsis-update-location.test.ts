@@ -18,7 +18,7 @@ function compileDirectoryCallback() {
   const script = readFileSync(path.resolve(__dirname, '../../scripts/installer.nsh'), 'utf8');
   const customCallback = script.match(/Function instFilesPreserveUpdateLocationPre\s[\s\S]*?FunctionEnd/)?.[0];
   expect(customCallback).toBeDefined();
-  const builderRequire = createRequire(localRequire.resolve('electron-builder/package.json'));
+  const builderRequire = createRequire(process.env.NSIS_TEST_BUILDER_PACKAGE ?? localRequire.resolve('electron-builder/package.json'));
   const builder = path.dirname(builderRequire.resolve('app-builder-lib/package.json'));
   const upstream = readFileSync(path.join(builder, 'templates/nsis/assistedInstaller.nsh'), 'utf8');
   const upstreamCallback = upstream.match(/Function instFilesPre\s[\s\S]*?FunctionEnd/)?.[0];
