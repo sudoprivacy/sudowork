@@ -291,14 +291,14 @@ jobs:
       matrix:
         include:
           - platform: "macos-arm64"
-            os: "macos-14"
+            os: "macos-15"
             arch: "arm64"
             target: "--mac"
             build_args: "--mac --arm64"
             unpacked_dir: "mac-arm64"
             timeout: 30
           - platform: "macos-x64"
-            os: "macos-14"
+            os: "macos-15"
             arch: "x64"
             target: "--mac"
             build_args: "--mac --x64"
