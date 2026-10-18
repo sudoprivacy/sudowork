@@ -476,7 +476,12 @@ export async function ensureScodeInstalled(options?: { forceReinstall?: boolean;
     setInstalledPermissions(binDir);
 
     // Do not mark an unusable or older archive as a successful installation.
-    const installedVersion = getInstalledScodeVersion();
+    let installedVersion = getInstalledScodeVersion();
+    if (!installedVersion) {
+      mainWarn(TAG, 'New scode binary did not respond to its first version probe; retrying once');
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      installedVersion = getInstalledScodeVersion();
+    }
     if (!installedVersion || semver.lt(installedVersion, getScodeVersion())) {
       throw new Error('Installed scode did not report the required version');
     }
