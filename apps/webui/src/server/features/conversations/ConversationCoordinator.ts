@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import type { Pool } from 'pg'
 import type WebSocket from 'ws'
 import type { AppConfig } from '../../config.js'
@@ -24,9 +25,11 @@ import {
 } from '@sudowork/contracts/conversations'
 import {
   acquireWriteLock,
+  acquireRecoveredWriteLock,
   clearWriterIfIdle,
   deleteLock,
   getLock,
+  getUncertainLockVersion,
   markUncertain,
   releaseToIdle,
   releaseToIdleIfHeld,
@@ -51,13 +54,28 @@ export interface BrowserConnection {
   mossSessionId: string
 }
 
+interface PendingPermission {
+  upstreamRequestId: string
+  browserEvent: Record<string, unknown> & { request_id: string }
+}
+
 interface Entry {
   principalId: string
   mossSessionId: string
   subscribers: Set<BrowserConnection>
   upstream: MossUpstreamSocket | null
   upstreamOwnerWebSessionId: string | null
-  pendingPermissions: Map<string, unknown>
+  upstreamAttemptId: string | null
+  pendingPermissions: Map<string, PendingPermission>
+  pendingDelivery: PendingDelivery | null
+  upstreamOpening: Promise<void> | null
+  events: Promise<void>
+}
+
+interface PendingDelivery {
+  webSessionId: string
+  phase: 'preparing' | 'submitted' | 'cancelled'
+  release?: Promise<void>
 }
 
 export interface CoordinatorDeps {
@@ -100,7 +118,11 @@ export class ConversationCoordinator {
         subscribers: new Set(),
         upstream: null,
         upstreamOwnerWebSessionId: null,
+        upstreamAttemptId: null,
         pendingPermissions: new Map(),
+        pendingDelivery: null,
+        upstreamOpening: null,
+        events: Promise.resolve(),
       }
       this.entries.set(k, entry)
     }
@@ -113,10 +135,62 @@ export class ConversationCoordinator {
     }
   }
 
+  /** Preserve upstream event order without delaying concurrent client rejection. */
+  private serialEvent(entry: Entry, operation: () => Promise<void>): void {
+    const pending = entry.events.then(operation)
+    entry.events = pending.catch((error: unknown) =>
+      console.warn('[coordinator] upstream event failed', error),
+    )
+  }
+
+  private isWriterConnected(entry: Entry, webSessionId: string): boolean {
+    return [...entry.subscribers].some(
+      (conn) => conn.webSession.id === webSessionId && conn.ws.readyState === conn.ws.OPEN,
+    )
+  }
+
+  private isCurrentUpstream(entry: Entry, upstream: MossUpstreamSocket): boolean {
+    return (
+      this.entries.get(this.key(entry.principalId, entry.mossSessionId)) === entry &&
+      entry.upstream === upstream
+    )
+  }
+
+  /** Release only the current reservation whose message has not entered the transport. */
+  private async releasePendingDelivery(entry: Entry, delivery: PendingDelivery): Promise<void> {
+    if (entry.pendingDelivery !== delivery || delivery.phase === 'submitted') return
+    if (delivery.release) return delivery.release
+    delivery.phase = 'cancelled'
+    delivery.release = (async () => {
+      try {
+        const released = await releaseToIdleIfHeld(this.deps.pool, {
+          principalId: entry.principalId,
+          mossSessionId: entry.mossSessionId,
+          webSessionId: delivery.webSessionId,
+        })
+        if (entry.pendingDelivery === delivery) entry.pendingDelivery = null
+        if (released) await this.broadcastLockState(entry)
+      } catch (error) {
+        console.warn('[coordinator] could not release an unsent turn:', (error as Error).message)
+      }
+    })()
+    try {
+      await delivery.release
+    } finally {
+      delivery.release = undefined
+    }
+  }
+
   private broadcast(entry: Entry, event: ServerInboundEvent): void {
     for (const conn of entry.subscribers) {
       this.sendTo(conn.ws, event)
     }
+  }
+
+  private clearPendingPermissions(entry: Entry): void {
+    if (entry.pendingPermissions.size === 0) return
+    entry.pendingPermissions.clear()
+    this.broadcast(entry, { kind: 'permissions_cleared' })
   }
 
   private async broadcastLockState(entry: Entry): Promise<void> {
@@ -145,8 +219,8 @@ export class ConversationCoordinator {
   subscribe(conn: BrowserConnection): void {
     const entry = this.entryFor(conn.principalId, conn.mossSessionId)
     entry.subscribers.add(conn)
-    for (const event of entry.pendingPermissions.values()) {
-      this.sendTo(conn.ws, { kind: 'upstream', event })
+    for (const permission of entry.pendingPermissions.values()) {
+      this.sendTo(conn.ws, { kind: 'upstream', event: permission.browserEvent })
     }
     // 不发 WebUI 自制 hello；上游 hello 事件会作为首帧转发
     void this.broadcastLockState(entry)
@@ -157,6 +231,10 @@ export class ConversationCoordinator {
     const authorized = await this.authorize(webSession, sessionId)
     const entry = this.entries.get(this.key(authorized.ownerPrincipalId, sessionId))
     if (!entry) return false
+    if (entry.pendingDelivery?.phase === 'cancelled')
+      await this.releasePendingDelivery(entry, entry.pendingDelivery)
+    if (entry.pendingDelivery && entry.pendingDelivery.phase !== 'submitted')
+      throw new Error('browser_return_conversation_busy')
     const observer = [...entry.subscribers].find(
       (conn) => conn.webSession.id === webSession.id && conn.ws.readyState === conn.ws.OPEN,
     )
@@ -166,21 +244,31 @@ export class ConversationCoordinator {
       mossSessionId: sessionId,
     })
     let reserved = false
+    let delivery: PendingDelivery | undefined
     if (!lock || lock.state === 'idle') {
+      if (entry.pendingDelivery) throw new Error('browser_return_conversation_busy')
       const acquired = await acquireWriteLock(this.deps.pool, {
         principalId: entry.principalId,
         mossSessionId: sessionId,
         webSessionId: webSession.id,
+        isExistingTurnAllowed: false,
       })
       if (!acquired.ok) throw new Error('browser_return_conversation_busy')
       reserved = true
+      delivery = { webSessionId: webSession.id, phase: 'preparing' }
+      entry.pendingDelivery = delivery
       await this.broadcastLockState(entry)
     }
     try {
       if (entry.upstream && !entry.upstream.isClosed) await entry.upstream.whenOpen()
       else if (observer) await this.ensureUpstream(entry, observer)
+      if (delivery) {
+        if (entry.pendingDelivery !== delivery || delivery.phase !== 'preparing')
+          throw new Error('browser_return_conversation_busy')
+        delivery.phase = 'submitted'
+      }
     } catch (error) {
-      if (reserved) await this.failBrowserReturn(webSession, sessionId, true)
+      if (delivery) await this.releasePendingDelivery(entry, delivery)
       throw error
     }
     return reserved
@@ -200,8 +288,10 @@ export class ConversationCoordinator {
       mossSessionId: sessionId,
       webSessionId: webSession.id,
     }
-    if (isRejected) await releaseToIdleIfHeld(this.deps.pool, input)
-    else await markUncertain(this.deps.pool, input)
+    if (isRejected) {
+      if (entry.pendingDelivery?.webSessionId === webSession.id) entry.pendingDelivery = null
+      await releaseToIdleIfHeld(this.deps.pool, input)
+    } else await markUncertain(this.deps.pool, input)
     await this.broadcastLockState(entry)
   }
 
@@ -217,19 +307,20 @@ export class ConversationCoordinator {
     })
     const isWriter =
       lock?.writerWebSessionId === conn.webSession.id &&
-      ![...entry.subscribers].some(
-        (other) =>
-          other.webSession.id === conn.webSession.id && other.ws.readyState === other.ws.OPEN,
-      )
+      !this.isWriterConnected(entry, conn.webSession.id)
 
     if (isWriter && lock) {
       if (lock.state === 'running') {
-        // running 断线：uncertain；上游保留让 observer 看到 result（不自动重发）
-        await markUncertain(this.deps.pool, {
-          principalId: conn.principalId,
-          mossSessionId: conn.mossSessionId,
-          webSessionId: conn.webSession.id,
-        })
+        if (entry.pendingDelivery && entry.pendingDelivery.phase !== 'submitted') {
+          await this.releasePendingDelivery(entry, entry.pendingDelivery)
+        } else {
+          // running 断线：uncertain；上游保留让 observer 看到 result（不自动重发）
+          await markUncertain(this.deps.pool, {
+            principalId: conn.principalId,
+            mossSessionId: conn.mossSessionId,
+            webSessionId: conn.webSession.id,
+          })
+        }
       } else {
         await clearWriterIfIdle(this.deps.pool, {
           principalId: conn.principalId,
@@ -263,7 +354,19 @@ export class ConversationCoordinator {
 
   /** writer 首次写入时以其 token resume 并建立上游 WS。 */
   private async ensureUpstream(entry: Entry, conn: BrowserConnection): Promise<void> {
-    if (entry.upstream && !entry.upstream.isClosed) {
+    if (entry.upstreamOpening) await entry.upstreamOpening.catch(() => {})
+    const opening = this.openUpstream(entry, conn)
+    entry.upstreamOpening = opening
+    try {
+      await opening
+    } finally {
+      if (entry.upstreamOpening === opening) entry.upstreamOpening = null
+    }
+  }
+
+  private async openUpstream(entry: Entry, conn: BrowserConnection): Promise<void> {
+    const previous = entry.upstream
+    if (previous && !previous.isClosed) {
       if (entry.upstreamOwnerWebSessionId !== conn.webSession.id) {
         // 仅当前锁持有者可接管旧上游重建（send 路径 acquire 后 writer=conn；
         // set_model/stop 路径调用前已校验 writer）。抑制 onClose：接管关闭不应
@@ -275,9 +378,10 @@ export class ConversationCoordinator {
         if (lock?.writerWebSessionId !== conn.webSession.id) {
           throw new Error('UPSTREAM_OWNER_MISMATCH')
         }
-        entry.upstream.close(true)
+        previous.close(true)
         entry.upstream = null
       } else {
+        await previous.whenOpen()
         return
       }
     }
@@ -292,16 +396,27 @@ export class ConversationCoordinator {
       }
       throw err
     })
+    if (this.entries.get(this.key(entry.principalId, entry.mossSessionId)) !== entry)
+      throw new Error('Conversation subscriber disconnected before upstream attach')
 
-    entry.upstream = new MossUpstreamSocket(
+    const attemptId = resumed.session.attemptId ?? null
+    if (!attemptId || attemptId !== entry.upstreamAttemptId) this.clearPendingPermissions(entry)
+    entry.upstreamAttemptId = attemptId
+
+    const upstream = new MossUpstreamSocket(
       resumed.wsUrl,
       ctx.accessToken,
       entry.mossSessionId,
       // WS 校验基准用会话生效地址（自定义 moss 会话的 ws 在其自定义 host）
       deriveWsBaseUrl(ctx.baseUrl),
       {
-        onEvent: (event) => void this.handleUpstreamEvent(entry, event),
-        onClose: () => void this.handleUpstreamClose(entry),
+        onEvent: (event) => {
+          this.serialEvent(entry, async () => {
+            if (this.isCurrentUpstream(entry, upstream))
+              await this.handleUpstreamEvent(entry, event)
+          })
+        },
+        onClose: () => this.serialEvent(entry, () => this.handleUpstreamClose(entry, upstream)),
         onError: (err) => {
           console.warn(
             `[coordinator] upstream ws error (principal=${entry.principalId.slice(0, 8)} session=${entry.mossSessionId.slice(0, 8)}): ${err.message}`,
@@ -309,6 +424,7 @@ export class ConversationCoordinator {
         },
       },
     )
+    entry.upstream = upstream
     entry.upstreamOwnerWebSessionId = conn.webSession.id
     await entry.upstream.whenOpen()
   }
@@ -320,10 +436,23 @@ export class ConversationCoordinator {
       const type = payload.type
       if (typeof type !== 'string' || !UPSTREAM_EVENT_TYPES.has(type)) continue
       if (type === 'control_request' && typeof payload.request_id === 'string') {
-        entry.pendingPermissions.set(payload.request_id, payload)
+        const existing = [...entry.pendingPermissions.values()].find(
+          (permission) => permission.upstreamRequestId === payload.request_id,
+        )
+        const browserRequestId = existing?.browserEvent.request_id ?? randomUUID()
+        const browserEvent = { ...payload, request_id: browserRequestId }
+        entry.pendingPermissions.set(browserRequestId, {
+          upstreamRequestId: payload.request_id,
+          browserEvent,
+        })
+        this.broadcast(entry, { kind: 'upstream', event: browserEvent })
+        continue
       }
-      if (type === 'result') entry.pendingPermissions.clear()
-      this.broadcast(entry, { kind: 'upstream', event: payload })
+      if (type === 'result') {
+        if (entry.pendingDelivery && entry.pendingDelivery.phase !== 'submitted') continue
+        this.clearPendingPermissions(entry)
+      }
+      if (payload.type !== 'result') this.broadcast(entry, { kind: 'upstream', event: payload })
       if (payload.type === 'system') {
         const subtype = payload.subtype
         const model = payload.model
@@ -342,35 +471,42 @@ export class ConversationCoordinator {
       }
 
       if (payload.type === 'result') {
+        const delivery = entry.pendingDelivery
         await releaseToIdle(this.deps.pool, {
           principalId: entry.principalId,
           mossSessionId: entry.mossSessionId,
         })
         await this.broadcastLockState(entry)
+        this.broadcast(entry, { kind: 'upstream', event: payload })
+        if (entry.pendingDelivery === delivery) entry.pendingDelivery = null
         this.closeUnusedEntry(entry)
       }
     }
   }
 
-  private async handleUpstreamClose(entry: Entry): Promise<void> {
+  private async handleUpstreamClose(entry: Entry, upstream: MossUpstreamSocket): Promise<void> {
+    if (!this.isCurrentUpstream(entry, upstream)) return
+    const writerWebSessionId = entry.upstreamOwnerWebSessionId
+    entry.upstream = null
+    entry.upstreamOwnerWebSessionId = null
+    const delivery = entry.pendingDelivery
+    if (delivery && delivery.phase !== 'submitted') {
+      await this.releasePendingDelivery(entry, delivery)
+      this.closeUnusedEntry(entry)
+      return
+    }
     const lock = await getLock(this.deps.pool, {
       principalId: entry.principalId,
       mossSessionId: entry.mossSessionId,
     })
-    if (lock?.state === 'running') {
+    if (lock?.state === 'running' && writerWebSessionId) {
       // 上游在 running 断开：无法收到 result，保守转 uncertain（计划 3.8）
-      await this.deps.pool
-        .query(
-          `UPDATE conversation_locks SET state='uncertain', writer_web_session_id=NULL, updated_at=now()
-           WHERE principal_id=$1 AND moss_session_id=$2 AND state='running'`,
-          [entry.principalId, entry.mossSessionId],
-        )
-        .catch(() => {})
+      await markUncertain(this.deps.pool, {
+        principalId: entry.principalId,
+        mossSessionId: entry.mossSessionId,
+        webSessionId: writerWebSessionId,
+      }).catch(() => {})
       await this.broadcastLockState(entry)
-    }
-    if (entry.upstream?.isClosed) {
-      entry.upstream = null
-      entry.upstreamOwnerWebSessionId = null
     }
   }
 
@@ -382,21 +518,70 @@ export class ConversationCoordinator {
     }
     const msg = parsed.data
     const entry = this.entryFor(conn.principalId, conn.mossSessionId)
+    let delivery: PendingDelivery | undefined
 
     try {
       // An existing upstream socket does not retain a revoked management grant.
       const authorized = await this.authorize(conn.webSession, entry.mossSessionId)
       if (authorized.ownerPrincipalId !== conn.principalId) throw new SessionForbiddenError()
       if (msg.kind === 'send' || msg.kind === 'answer_question') {
-        const acquired = await acquireWriteLock(this.deps.pool, {
+        if (entry.pendingDelivery?.phase === 'cancelled')
+          await this.releasePendingDelivery(entry, entry.pendingDelivery)
+        if (
+          entry.pendingDelivery &&
+          (msg.kind === 'send' || entry.pendingDelivery.phase !== 'submitted')
+        ) {
+          const lock = await getLock(this.deps.pool, {
+            principalId: entry.principalId,
+            mossSessionId: entry.mossSessionId,
+          })
+          if (lock?.state !== 'uncertain' || entry.pendingDelivery.phase !== 'submitted') {
+            this.sendTo(conn.ws, {
+              kind: 'error',
+              code: lock?.state === 'uncertain' ? 'LOCK_UNCERTAIN' : 'CONVERSATION_BUSY',
+            })
+            return
+          }
+        }
+        let acquired = await acquireWriteLock(this.deps.pool, {
           principalId: conn.principalId,
           mossSessionId: entry.mossSessionId,
           webSessionId: conn.webSession.id,
+          isExistingTurnAllowed: msg.kind === 'answer_question',
         })
+        if (!acquired.ok && acquired.reason === 'UNCERTAIN' && msg.kind === 'send') {
+          const input = {
+            principalId: conn.principalId,
+            mossSessionId: entry.mossSessionId,
+            webSessionId: conn.webSession.id,
+          }
+          const version = await getUncertainLockVersion(this.deps.pool, input)
+          if (version) {
+            const resumed = await this.deps.moss.resume(authorized, entry.mossSessionId)
+            const activity = await this.deps.moss.activity(authorized, entry.mossSessionId)
+            if (
+              activity.state === 'idle' &&
+              activity.attemptId &&
+              activity.attemptId === resumed.session.attemptId &&
+              (await acquireRecoveredWriteLock(this.deps.pool, { ...input, version }))
+            ) {
+              const previous = entry.upstream
+              entry.upstream = null
+              entry.upstreamOwnerWebSessionId = null
+              this.clearPendingPermissions(entry)
+              previous?.close(true)
+              acquired = { ok: true, state: 'running' }
+            }
+          }
+        }
         if (!acquired.ok) {
           const code = acquired.reason === 'UNCERTAIN' ? 'LOCK_UNCERTAIN' : 'CONVERSATION_BUSY'
           this.sendTo(conn.ws, { kind: 'error', code })
           return
+        }
+        if (msg.kind === 'send') {
+          delivery = { webSessionId: conn.webSession.id, phase: 'preparing' }
+          entry.pendingDelivery = delivery
         }
         await this.broadcastLockState(entry)
 
@@ -414,7 +599,21 @@ export class ConversationCoordinator {
               })
             : buildAnswerQuestionMessage(entry.mossSessionId, msg.parentToolUseId, msg.text)
 
+        if (
+          delivery &&
+          (entry.pendingDelivery !== delivery ||
+            delivery.phase !== 'preparing' ||
+            !this.isWriterConnected(entry, conn.webSession.id))
+        ) {
+          await this.releasePendingDelivery(entry, delivery)
+          return
+        }
+        if (delivery) delivery.phase = 'submitted'
         if (!entry.upstream?.send(payload)) {
+          if (delivery) {
+            delivery.phase = 'cancelled'
+            await this.releasePendingDelivery(entry, delivery)
+          }
           this.sendTo(conn.ws, { kind: 'error', code: 'UPSTREAM_NOT_CONNECTED' })
           return
         }
@@ -492,17 +691,28 @@ export class ConversationCoordinator {
       }
 
       if (msg.kind === 'control_response') {
-        // Permission answers come from an authorized owner or manager. Both share the
-        // owner's writer lock; an answer can cross its uncertain boundary. Requests come from
-        // 当前活跃的上游连接（活着才有请求）——不 ensureUpstream 重建（非 writer 连接会被
-        // UPSTREAM_OWNER_MISMATCH 拒绝，且失联的请求本就无需回批）。
+        const permission = entry.pendingPermissions.get(msg.requestId)
+        if (!permission) {
+          this.sendTo(conn.ws, { kind: 'error', code: 'PERMISSION_EXPIRED' })
+          return
+        }
+        if (!entry.upstream || entry.upstream.isClosed) await this.ensureUpstream(entry, conn)
+        if (entry.pendingPermissions.get(msg.requestId) !== permission) {
+          this.sendTo(conn.ws, { kind: 'error', code: 'PERMISSION_EXPIRED' })
+          return
+        }
         if (
           !entry.upstream ||
           entry.upstream.isClosed ||
-          !entry.upstream.send(buildControlResponseMessage(msg.requestId, msg.optionId))
+          !entry.upstream.send(
+            buildControlResponseMessage(permission.upstreamRequestId, msg.optionId),
+          )
         ) {
           this.sendTo(conn.ws, { kind: 'error', code: 'UPSTREAM_NOT_CONNECTED' })
-        } else entry.pendingPermissions.delete(msg.requestId)
+        } else {
+          entry.pendingPermissions.delete(msg.requestId)
+          this.broadcast(entry, { kind: 'permission_resolved', requestId: msg.requestId })
+        }
         return
       }
 
@@ -521,6 +731,15 @@ export class ConversationCoordinator {
         }
       }
     } catch (err) {
+      if (delivery) {
+        if (delivery.phase !== 'submitted') await this.releasePendingDelivery(entry, delivery)
+        else
+          await markUncertain(this.deps.pool, {
+            principalId: conn.principalId,
+            mossSessionId: entry.mossSessionId,
+            webSessionId: conn.webSession.id,
+          })
+      }
       if (
         err instanceof SessionForbiddenError ||
         err instanceof MossUnauthorizedError ||

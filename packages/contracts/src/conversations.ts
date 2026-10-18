@@ -15,7 +15,7 @@ export const MossSessionSummarySchema = z
   .object({
     sessionId: z.string(),
     taskId: z.string().optional(),
-    currentAttemptId: z.string().nullable().optional(),
+    attemptId: z.string().nullable().optional(),
     userId: z.string(),
     orgId: z.string(),
     status: z.string(),
@@ -46,6 +46,13 @@ export const MossResumeResponseSchema = z
     ws_url: z.string(),
   })
   .passthrough()
+
+/** A live execution observation, bound to the current runner attempt. */
+export const MossSessionActivitySchema = z.object({
+  attemptId: z.string().min(1).nullable(),
+  state: z.enum(['idle', 'busy', 'unavailable']),
+})
+export type MossSessionActivity = z.infer<typeof MossSessionActivitySchema>
 
 export const MossContextResponseSchema = z.object({
   session: MossSessionSummarySchema.optional(),
@@ -226,6 +233,8 @@ export type ClientOutboundMessage = z.infer<typeof ClientOutboundMessageSchema>
 /** WebUI → 浏览器：上游事件白名单转发 + WebUI 控制事件 */
 export const ServerInboundEventSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('upstream'), event: z.unknown() }),
+  z.object({ kind: z.literal('permissions_cleared') }),
+  z.object({ kind: z.literal('permission_resolved'), requestId: z.string() }),
   z.object({ kind: z.literal('writer'), isWriter: z.boolean() }),
   z.object({
     kind: z.literal('lock'),

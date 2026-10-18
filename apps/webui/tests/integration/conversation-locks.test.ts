@@ -7,6 +7,8 @@ import { digestToken, generateSessionToken } from '@server/security/sessionToken
 import { encryptToken } from '@server/security/tokenCipher'
 import {
   acquireWriteLock,
+  acquireRecoveredWriteLock,
+  getUncertainLockVersion,
   clearWriterIfIdle,
   deleteLock,
   getLock,
@@ -85,6 +87,28 @@ describe('conversation_locks（计划 3.8）', () => {
     expect(res).toEqual({ ok: true, state: 'running' })
   })
 
+  test('concurrent new turns from the same writer share one atomic reservation', async () => {
+    const sid = `new-turn-${randomUUID()}`
+    const claim = () =>
+      acquireWriteLock(pool, {
+        principalId,
+        mossSessionId: sid,
+        webSessionId: W1,
+        isExistingTurnAllowed: false,
+      })
+    const attempts = await Promise.all([claim(), claim()])
+    expect(attempts.filter((attempt) => attempt.ok)).toHaveLength(1)
+    expect(attempts.filter((attempt) => !attempt.ok)).toEqual([
+      { ok: false, reason: 'BUSY', holderWebSessionId: W1 },
+    ])
+    expect(
+      await acquireWriteLock(pool, { principalId, mossSessionId: sid, webSessionId: W1 }),
+    ).toEqual({ ok: true, state: 'running' })
+    await releaseToIdle(pool, { principalId, mossSessionId: sid })
+    expect(await claim()).toEqual({ ok: true, state: 'running' })
+    await deleteLock(pool, { principalId, mossSessionId: sid })
+  })
+
   test('result releases to idle but keeps writer; idle disconnect clears writer; next device takes over', async () => {
     await releaseToIdle(pool, { principalId, mossSessionId: SID })
     expect(await getLock(pool, { principalId, mossSessionId: SID })).toEqual({
@@ -150,5 +174,21 @@ describe('conversation_locks（计划 3.8）', () => {
       webSessionId: W2,
     })
     expect(res).toEqual({ ok: true, state: 'running' })
+  })
+
+  test('an idle observation can acquire only the exact uncertain transition it observed', async () => {
+    const input = { principalId, mossSessionId: 'recover-uncertain', webSessionId: W1 }
+    await acquireWriteLock(pool, input)
+    await markUncertain(pool, input)
+    const version = await getUncertainLockVersion(pool, input)
+    expect(version).toBeTypeOf('string')
+    expect(await acquireRecoveredWriteLock(pool, { ...input, version: version! })).toBe(true)
+    await markUncertain(pool, input)
+    expect(await acquireRecoveredWriteLock(pool, { ...input, version: version! })).toBe(false)
+    const next = await getUncertainLockVersion(pool, input)
+    expect(
+      await acquireRecoveredWriteLock(pool, { ...input, webSessionId: W2, version: next! }),
+    ).toBe(true)
+    expect(await getLock(pool, input)).toEqual({ state: 'running', writerWebSessionId: W2 })
   })
 })

@@ -3,10 +3,12 @@ import {
   MossContextResponseSchema,
   MossCreateSessionResponseSchema,
   MossResumeResponseSchema,
+  MossSessionActivitySchema,
   MossSessionListResponseSchema,
   MossSessionSummarySchema,
   MossWorkspaceNodeSchema,
   type MossSessionSummary,
+  type MossSessionActivity,
 } from '@sudowork/contracts/conversations'
 import { type MossCallContext, type MossFetch } from './MossHttpClient.js'
 
@@ -47,6 +49,7 @@ export interface MossSessionPort {
     ctx: MossCallContext,
   ): Promise<{ modelId: string | null; systemDefaultModel: string | null }>
   context(ctx: MossCallContext, sessionId: string): Promise<unknown>
+  activity(ctx: MossCallContext, sessionId: string): Promise<MossSessionActivity>
   resume(
     ctx: MossCallContext,
     sessionId: string,
@@ -177,6 +180,16 @@ export function createMossSessionPort(mossFetch: MossFetch): MossSessionPort {
         accessToken: ctx.accessToken,
       })
       return MossContextResponseSchema.parse(json)
+    },
+
+    async activity(ctx, sessionId) {
+      return MossSessionActivitySchema.parse(
+        await mossFetch(ctx.baseUrl, {
+          method: 'GET',
+          path: `/api/v1/sessions/${encodeSegment(sessionId)}/activity`,
+          accessToken: ctx.accessToken,
+        }),
+      )
     },
 
     async resume(ctx, sessionId) {

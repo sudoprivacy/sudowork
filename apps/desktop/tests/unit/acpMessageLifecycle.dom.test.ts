@@ -52,6 +52,28 @@ afterEach(() => {
 });
 
 describe('ACP turn and transport lifecycle', () => {
+  it('keeps an ended request idle when a late error tip arrives', async () => {
+    const { result } = await mount();
+    deliver('start', { processingStartTime: 123 });
+    deliver('finish');
+    act(() => vi.advanceTimersByTime(1000));
+    deliver('tips', { type: 'error', content: 'api returned 500 Internal Server Error' });
+    expect(result.current.running).toBe(false);
+    expect(result.current.aiProcessing).toBe(false);
+    expect(result.current.processingStartTime).toBeUndefined();
+  });
+
+  it('clears the request timer and thought after an error', async () => {
+    const { result } = await mount();
+    deliver('start', { processingStartTime: 123 });
+    deliver('thought', { subject: 'Reviewing', description: 'Reading the document' });
+    deliver('error', { error: 'Request failed' });
+    expect(result.current.running).toBe(false);
+    expect(result.current.aiProcessing).toBe(false);
+    expect(result.current.processingStartTime).toBeUndefined();
+    expect(result.current.thought).toEqual({ subject: '', description: '' });
+  });
+
   it('keeps an idle conversation idle through connection and reconnection', async () => {
     const { result } = await mount();
     for (const status of ['connecting', 'connected', 'authenticated', 'session_active', 'connecting', 'connected']) {

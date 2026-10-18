@@ -225,6 +225,12 @@ images without the publisher can use the already prepared asset volume via an
 app-only rollback. Asset garbage collection requires a separate retention
 decision; deployment does not delete older files.
 
+If an upgrade fails to start, the installer restores the previous application
+configuration and keeps the current database, including writes made after the
+backup. It never restores a database automatically. If a migration prevents the
+previous image from starting, inspect the failure before explicitly running
+`restore.sh`; that operation replaces newer data with the selected backup.
+
 The existing Docker smoke test seeds an older chunk, publishes the actual new
 build, and boots the packaged server with both source Compose and the release
 installer's generated Compose. It requires old and current JavaScript to remain

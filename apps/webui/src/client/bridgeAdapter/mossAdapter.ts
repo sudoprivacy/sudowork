@@ -304,6 +304,7 @@ async function nameLegacyConversation(
 
 const openStreams = new Map<string, WebSocket>()
 const subscribedStreams = new WeakSet<WebSocket>()
+const pendingTurns = new WeakSet<WebSocket>()
 const syncedHistory = new Map<string, string>()
 
 // Per-session interactive state (browser memory, mirrors the desktop main-process
@@ -321,6 +322,20 @@ const pendingQuestions = new Map<
 //   lifecycle; here the reset point is the next outbound send)
 const abortedSessions = new Set<string>()
 
+/** Keep the live permission inventory and its displayed cards in sync. */
+function removePendingConfirmations(sessionId: string, id?: string): void {
+  const list = pendingConfirmations.get(sessionId)
+  if (!list) return
+  const remaining = id === undefined ? [] : list.filter((confirmation) => confirmation.id !== id)
+  if (remaining.length) pendingConfirmations.set(sessionId, remaining)
+  else pendingConfirmations.delete(sessionId)
+  for (const confirmation of list) {
+    if (id === undefined || confirmation.id === id) {
+      emitterRef?.emit('confirmation.remove', { conversation_id: sessionId, id: confirmation.id })
+    }
+  }
+}
+
 let __mid = 0
 function nextMsgId(): string {
   __mid += 1
@@ -332,20 +347,52 @@ function wsUrlFor(sessionId: string): string {
   return `${proto}//${location.host}/ws/conversations/${encodeURIComponent(sessionId)}`
 }
 
+/** End local loading while keeping the server's uncertain execution boundary intact. */
+function emitStreamFailure(sessionId: string, code: string): void {
+  for (const type of ['error', 'finish'] as const) {
+    const message = {
+      type,
+      msg_id: nextMsgId(),
+      conversation_id: sessionId,
+      data: type === 'error' ? code : {},
+    }
+    emitterRef?.emit('chat.response.stream', message)
+    emitterRef?.emit('moss.response-stream', message)
+  }
+}
+
 function ensureSessionStream(sessionId: string): WebSocket | null {
   if (!sessionId) return null
   const existing = openStreams.get(sessionId)
   if (existing) return existing
   const ws = new WebSocket(wsUrlFor(sessionId))
+  let isUncertain = false
   openStreams.set(sessionId, ws)
   ws.addEventListener('message', (ev) => {
-    let frame: { kind?: string; event?: unknown; code?: string | number }
+    if (openStreams.get(sessionId) !== ws) return
+    let frame: {
+      kind?: string
+      event?: unknown
+      code?: string | number
+      state?: string
+      requestId?: unknown
+    }
     try {
       frame = JSON.parse(String(ev.data))
     } catch {
       return
     }
     if (frame.kind === 'lock' || frame.kind === 'writer') subscribedStreams.add(ws)
+    if (frame.kind === 'permissions_cleared') removePendingConfirmations(sessionId)
+    if (frame.kind === 'permission_resolved' && typeof frame.requestId === 'string')
+      removePendingConfirmations(sessionId, frame.requestId)
+    if (frame.kind === 'lock') {
+      if (frame.state === 'uncertain' && !isUncertain)
+        emitStreamFailure(sessionId, 'LOCK_UNCERTAIN')
+      isUncertain = frame.state === 'uncertain'
+      if (frame.state === 'running') pendingTurns.add(ws)
+      else pendingTurns.delete(ws)
+    }
     // The server wraps the moss stream in { kind: 'upstream', event }, where
     // `event` is an anthropic-style moss message. The renderer expects
     // IResponseMessage, so translate (mirrors the desktop MossWsConnection).
@@ -356,6 +403,11 @@ function ensureSessionStream(sessionId: string): WebSocket | null {
         request?: unknown
         request_id?: string
       }
+      if (event.type === 'result') {
+        pendingTurns.delete(ws)
+        removePendingConfirmations(sessionId)
+        pendingQuestions.delete(sessionId)
+      }
 
       // Permission prompt → renderer confirmation card (mirrors desktop
       // RemoteAgent.handlePermissionRequest via the shared converter).
@@ -365,9 +417,11 @@ function ensureSessionStream(sessionId: string): WebSocket | null {
           conversation_id: sessionId,
         }
         const list = pendingConfirmations.get(sessionId) ?? []
-        list.push(confirmation)
+        const index = list.findIndex((item) => item.id === confirmation.id)
+        if (index < 0) list.push(confirmation)
+        else list[index] = confirmation
         pendingConfirmations.set(sessionId, list)
-        emitterRef?.emit('confirmation.add', confirmation)
+        emitterRef?.emit(index < 0 ? 'confirmation.add' : 'confirmation.update', confirmation)
         return
       }
 
@@ -423,19 +477,18 @@ function ensureSessionStream(sessionId: string): WebSocket | null {
         if (msg.type === 'finish') void refreshDeliverables(sessionId)
       }
     } else if (frame && frame.kind === 'error') {
-      emitterRef?.emit('chat.response.stream', {
-        type: 'error',
-        msg_id: nextMsgId(),
-        conversation_id: sessionId,
-        data: String(frame.code ?? 'error'),
-      })
+      pendingTurns.delete(ws)
+      emitStreamFailure(sessionId, String(frame.code ?? 'error'))
     }
   })
   ws.addEventListener('close', () => {
+    if (openStreams.get(sessionId) !== ws) return
     openStreams.delete(sessionId)
-    pendingConfirmations.delete(sessionId)
+    removePendingConfirmations(sessionId)
     pendingQuestions.delete(sessionId)
     abortedSessions.delete(sessionId)
+    if (pendingTurns.has(ws)) emitStreamFailure(sessionId, 'CONNECTION_CLOSED')
+    pendingTurns.delete(ws)
   })
   ws.addEventListener('error', () => {
     try {
@@ -480,6 +533,13 @@ async function waitForSessionSubscription(sessionId: string): Promise<void> {
 function sendOverStream(sessionId: string, payload: unknown): boolean {
   const ws = ensureSessionStream(sessionId)
   if (!ws) return false
+  if (
+    payload &&
+    typeof payload === 'object' &&
+    'kind' in payload &&
+    (payload.kind === 'send' || payload.kind === 'answer_question')
+  )
+    pendingTurns.add(ws)
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify(payload))
     return true
@@ -2355,16 +2415,7 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     ) {
       return fail('NO_SESSION')
     }
-    const list = pendingConfirmations.get(sessionId)
-    if (list)
-      pendingConfirmations.set(
-        sessionId,
-        list.filter((c) => c.id !== req?.msg_id),
-      )
-    emitterRef?.emit('confirmation.remove', {
-      conversation_id: sessionId,
-      id: String(req?.msg_id ?? ''),
-    })
+    removePendingConfirmations(sessionId, String(req?.msg_id ?? ''))
     return ok()
   },
 
