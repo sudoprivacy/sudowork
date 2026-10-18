@@ -323,6 +323,9 @@ export function useAcpMessage(conversation_id: string) {
             runningRef.current = false;
             setAiProcessing(false);
             aiProcessingRef.current = false;
+            setProcessingStartTime(undefined);
+            activeTurnStartTimeRef.current = undefined;
+            setThought({ subject: '', description: '' });
           }
           addOrUpdateMessage(transformedMessage);
           // Log request error
@@ -334,8 +337,9 @@ export function useAcpMessage(conversation_id: string) {
           if (stopPendingRef.current) {
             break;
           }
-          // Auto-recover running state if other messages arrive after finish
-          if (!runningRef.current) {
+          // Only turn activity can reactivate execution. Late tips and usage
+          // metadata may still update the transcript after a request ends.
+          if (!runningRef.current && shouldCancelAcpFinishTimeout(message.type)) {
             setRunning(true);
             runningRef.current = true;
           }
