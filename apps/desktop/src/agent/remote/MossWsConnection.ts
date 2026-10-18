@@ -5,7 +5,8 @@
  */
 
 import WebSocket from 'ws';
-import { buildUserMessage, buildAnswerQuestionMessage, buildInterruptMessage, buildSetModelMessage } from '@sudowork/moss-client';
+import { buildUserMessage, buildAnswerQuestionMessage, buildInterruptMessage, buildSetModelMessage, MossHttpError } from '@sudowork/moss-client';
+import { MossCreateSessionResponseSchema, type MossCreateSessionResponse } from '@sudowork/contracts/conversations';
 import type { IResponseMessage } from '@sudowork/host-bridge/ipcBridge';
 import { mossFrameToResponses, isUserAbortError, extractTextFromContent } from '@sudowork/common/mossResponse';
 import { uuid } from '@/common/utils';
@@ -121,12 +122,15 @@ export class MossWsConnection {
         const sessionData = await this.createMossSession();
         this.sessionId = sessionData.session_id;
         this.wsUrl = sessionData.ws_url;
-        this.workDir = sessionData.work_dir;
+        this.workDir = sessionData.work_dir ?? null;
         // CRITICAL: Persist created session details back to config
         // This ensures reconnects/scheduleReconnect() enter resume mode
         // instead of creating duplicate sessions (the "session storm")
         this.config.wsUrl = sessionData.ws_url;
         this.config.sessionId = sessionData.session_id;
+        if (sessionData.startup) {
+          throw new MossHttpError(503, JSON.stringify({ startup: sessionData.startup }), '/api/v1/sessions');
+        }
         mainLog('MossWsConnection', `Session created: ${this.sessionId}, workDir: ${this.workDir}`);
       }
 
@@ -211,12 +215,7 @@ export class MossWsConnection {
     return data.access_token;
   }
 
-  private async createMossSession(): Promise<{
-    session_id: string;
-    ws_url: string;
-    work_dir: string;
-    runtime: { type: string; configDir?: string };
-  }> {
+  private async createMossSession(): Promise<MossCreateSessionResponse> {
     const body: Record<string, unknown> = {
       dangerously_skip_permissions: this.config.dangerouslySkipPermissions ?? false,
       assistant_name: this.config.assistantName,
@@ -272,7 +271,7 @@ export class MossWsConnection {
       throw new Error(`Failed to create Moss session: ${response.status} ${text}`);
     }
 
-    return await response.json();
+    return MossCreateSessionResponseSchema.parse(await response.json());
   }
 
   private async openWebSocket(): Promise<void> {

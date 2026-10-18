@@ -3,7 +3,7 @@ import { z, ZodError } from 'zod'
 import { getMossContext } from '../auth/authService.js'
 import { findPrincipalById, type Principal } from '../auth/principalRepository.js'
 import { requireSession, type AuthedRequest } from '../auth/sessionMiddleware.js'
-import { MossHttpError, type MossCallContext } from '@sudowork/moss-client'
+import { MossHttpError, upgradeMossRuntime, type MossCallContext } from '@sudowork/moss-client'
 import {
   CreateConversationRequestSchema,
   ReorderPinnedRequestSchema,
@@ -30,6 +30,7 @@ import {
   terminateConversation,
   updateConversationMeta,
   uploadWorkspaceFile,
+  requireAccessibleSession,
   type ConversationDeps,
 } from './conversationService.js'
 import { getDeliverables } from './deliverablesService.js'
@@ -105,6 +106,19 @@ export function createConversationRouter(deps: ConversationDeps): Router {
       if (!principal) return void res.status(401).json({ error: 'SESSION_REQUIRED' })
       const ctx = await resolveCtx(req as AuthedRequest)
       res.status(200).json({ conversations: await listConversations(deps, principal, ctx) })
+    })().catch((err: unknown) => convErrorHandler(err, res, next))
+  })
+
+  router.post('/:id/runtime/upgrade', requireSession, (req, res, next) => {
+    void (async () => {
+      const principal = await resolvePrincipal(req as AuthedRequest)
+      if (!principal) return void res.status(401).json({ error: 'SESSION_REQUIRED' })
+      z.object({}).strict().parse(req.body)
+      const ctx = await resolveCtx(req as AuthedRequest)
+      const session = await requireAccessibleSession(deps, principal, String(req.params.id), ctx)
+      if (session.userId !== principal.mossUserId) throw new SessionForbiddenError()
+      await upgradeMossRuntime(deps.mossFetch, ctx, session.userId)
+      res.status(200).json({ success: true })
     })().catch((err: unknown) => convErrorHandler(err, res, next))
   })
 

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { MossHttpError } from '@sudowork/moss-client';
 import { addOrUpdateMessage } from '@/process/message';
 
 // ---- Mocks ----------------------------------------------------------------
@@ -13,6 +14,7 @@ const confirmationAddEmit = vi.fn();
 const confirmationUpdateEmit = vi.fn();
 const confirmationRemoveEmit = vi.fn();
 const conversationChangedEmit = vi.fn();
+const updateConversationSpy = vi.fn();
 
 vi.mock('@/common', () => ({
   ipcBridge: {
@@ -45,7 +47,7 @@ vi.mock('@/process/utils/mainLogger', () => ({
 vi.mock('@/process/database/export', () => ({
   getDatabase: () => ({
     getConversation: () => ({ success: true, data: { id: 'conv-1', extra: {} } }),
-    updateConversation: vi.fn(),
+    updateConversation: updateConversationSpy,
     createConversation: vi.fn(),
     deleteConversation: vi.fn(() => ({ success: true })),
     getConversationMessages: () => ({ data: [], total: 0, hasMore: false }),
@@ -65,11 +67,12 @@ vi.mock('@/process/task/draftsCleanup', () => ({
 }));
 
 const terminateSessionSpy = vi.fn(async () => {});
+const resumeSessionSpy = vi.fn();
 vi.mock('@/process/remote/MossSessionApi', () => ({
   initMossApi: () => ({
     setAccessToken: vi.fn(),
     ensureAuthenticated: vi.fn(async () => 'token'),
-    resumeSession: vi.fn(),
+    resumeSession: resumeSessionSpy,
     terminateSession: terminateSessionSpy,
   }),
   getMossApi: () => null,
@@ -104,8 +107,10 @@ type FakeCallbacks = {
 
 class FakeMossWsConnection {
   static instances: FakeMossWsConnection[] = [];
+  static nextFailure: Error | null = null;
   static reset() {
     FakeMossWsConnection.instances = [];
+    FakeMossWsConnection.nextFailure = null;
   }
 
   disconnectCalls = 0;
@@ -121,6 +126,11 @@ class FakeMossWsConnection {
   }
 
   async connect() {
+    if (FakeMossWsConnection.nextFailure) {
+      const error = FakeMossWsConnection.nextFailure;
+      FakeMossWsConnection.nextFailure = null;
+      throw error;
+    }
     this.connected = true;
     this.callbacks.onConnected?.();
   }
@@ -223,7 +233,9 @@ describe('RemoteAgent idle detach', () => {
     confirmationUpdateEmit.mockClear();
     confirmationRemoveEmit.mockClear();
     conversationChangedEmit.mockClear();
+    updateConversationSpy.mockClear();
     terminateSessionSpy.mockClear();
+    resumeSessionSpy.mockReset();
     processConfigGetSync.mockReset();
     // Default: 1 minute idle detach for fast test runs.
     processConfigGetSync.mockImplementation((key: string) => (key === 'remote.idleDetachMinutes' ? 1 : undefined));
@@ -258,6 +270,50 @@ describe('RemoteAgent idle detach', () => {
       { position: 'right', msgId: 'user-1' },
       { position: 'left', msgId: 'assistant-1' },
     ]);
+  });
+
+  it('preserves a runtime update refusal instead of falling back to a stale WebSocket URL', async () => {
+    const RemoteAgent = await loadRemoteAgent();
+    const agent = makeAgent(RemoteAgent);
+    resumeSessionSpy.mockRejectedValueOnce(
+      new MossHttpError(
+        503,
+        JSON.stringify({
+          error: 'private configuration details',
+          startup: { code: 'RUNTIME_UPDATE_REQUIRED', isRetryable: false },
+        }),
+        '/private/path'
+      )
+    );
+    expect((await agent.sendMessage({ content: 'must not be delivered', msg_id: 'refused' })).success).toBe(false);
+    expect(FakeMossWsConnection.instances).toHaveLength(0);
+    expect(responseStreamEmit).toHaveBeenCalledWith(expect.objectContaining({ type: 'error', data: 'RUNTIME_UPDATE_REQUIRED', errorClass: 'runtime_update_required' }));
+    expect(JSON.stringify(responseStreamEmit.mock.calls)).not.toContain('private');
+  });
+
+  it('persists a newly committed Session when initial attach fails and resumes it on the next explicit send', async () => {
+    const RemoteAgent = await loadRemoteAgent();
+    const agent = makePendingAgent(RemoteAgent);
+    FakeMossWsConnection.nextFailure = new MossHttpError(
+      503,
+      JSON.stringify({
+        startup: { code: 'RUNTIME_UPDATE_REQUIRED', isRetryable: false },
+      }),
+      '/api/v1/sessions'
+    );
+    expect((await agent.sendMessage({ content: 'not delivered', msg_id: 'first' })).success).toBe(false);
+    expect(updateConversationSpy).toHaveBeenCalledWith(
+      'conv-1',
+      expect.objectContaining({
+        extra: expect.objectContaining({ mossSessionId: 'moss-session-1', mossSessionPending: false }),
+      })
+    );
+    expect(FakeMossWsConnection.instances[0]!.sendMessageCalls).toBe(0);
+    resumeSessionSpy.mockResolvedValueOnce({ wsUrl: 'ws://moss.example/session', session: {} });
+    expect((await agent.sendMessage({ content: 'explicit next message', msg_id: 'second' })).success).toBe(true);
+    expect(resumeSessionSpy).toHaveBeenCalledExactlyOnceWith('moss-session-1');
+    expect(FakeMossWsConnection.instances[1]!.config.sessionId).toBe('moss-session-1');
+    expect(FakeMossWsConnection.instances[1]!.sendMessageCalls).toBe(1);
   });
 
   it('detaches after the idle window when finished', async () => {

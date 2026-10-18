@@ -627,6 +627,8 @@ export const moss = {
   updateSession: bridge.buildProvider<IBridgeResponse<MossSessionInfo>, { sessionId: string; title?: string }>('moss.update-session'),
   /** Resume an existing session to get WebSocket URL */
   resumeSession: bridge.buildProvider<IBridgeResponse<{ wsUrl: string; session: MossSessionInfo }>, { sessionId: string }>('moss.resume-session'),
+  /** Apply a controlled owner runtime update without resending any conversation input. */
+  upgradeRuntime: bridge.buildProvider<IBridgeResponse, { conversationId: string }>('moss.upgrade-runtime'),
   /** Send message to session (WebSocket) */
   sendMessage: bridge.buildProvider<
     IBridgeResponse,

@@ -12,6 +12,7 @@ import type { AcpQuestionAnswerItem, TMessage } from '@sudowork/common/chatLib';
 import { mossControlRequestToConfirmation } from '@sudowork/common/mossResponse';
 import type { TChatConversation } from '@sudowork/common/storage';
 import { isRemoteContainerPath } from '@sudowork/common/utils/workspaceSkillSync';
+import { isMossRuntimeUpdateRequired } from '@sudowork/moss-client';
 import { MossWsConnection, type MossWsConnectionConfig, type MossWsCallbacks } from '@/agent/remote/MossWsConnection';
 import { ipcBridge } from '@/common';
 import type { AcpQuestionResponseAnswer } from '@/types/acpTypes';
@@ -225,27 +226,20 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
         };
 
         this.connection = new MossWsConnection(config, callbacks);
-        await this.connection.connect();
-
-        // Get created session info
-        // 获取创建的 session 信息
-        this.mossSessionId = this.connection.getSessionId();
-        this.mossWsUrl = this.connection.getWsUrl();
-        if (this.mossSessionId && this.mossWsUrl) {
-          // Keep the in-memory options aligned with the persisted DB update.
-          // After an idle detach, the same RemoteAgent instance may handle the
-          // next sendMessage. Without these fields, initAgent would re-enter
-          // lazy creation and create a second Moss session instead of resuming.
-          this.options.sessionId = this.mossSessionId;
-          this.options.wsUrl = this.mossWsUrl;
-          this.options.mossSessionPending = false;
+        try {
+          await this.connection.connect();
+        } finally {
+          // Creation commits identity before transport readiness. Keep it even
+          // when startup or the first WebSocket handshake is refused.
+          this.mossSessionId = this.connection.getSessionId();
+          this.mossWsUrl = this.connection.getWsUrl();
+          if (this.mossSessionId && this.mossWsUrl) {
+            this.options.sessionId = this.mossSessionId;
+            this.options.wsUrl = this.mossWsUrl;
+            this.options.mossSessionPending = false;
+            await this.updateConversationWithMossSession();
+          }
         }
-
-        mainLog('RemoteAgent', `Moss session created: sessionId=${this.mossSessionId}, wsUrl=${this.mossWsUrl}`);
-
-        // Update local database with Moss session info
-        // 更新本地数据库的 Moss session 信息
-        await this.updateConversationWithMossSession();
       } else if (hasExistingWsUrl) {
         // RESUME/ATTACH MODE: Use existing wsUrl
         // 恢复/附加模式：使用已有的 wsUrl
@@ -267,6 +261,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
             this.options.wsUrl = resumed.wsUrl;
           }
         } catch (lookupError) {
+          if (isMossRuntimeUpdateRequired(lookupError)) throw lookupError;
           mainLog('RemoteAgent', `resumeSession lookup failed (${lookupError instanceof Error ? lookupError.message : String(lookupError)}), falling back to stored wsUrl`);
         }
 
@@ -766,7 +761,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
       this.turnActive = false;
       this.processingStartTime = undefined;
       const errorMsg = error instanceof Error ? error.message : String(error);
-      this.emitErrorMessage(errorMsg);
+      this.emitErrorMessage(error);
       return { success: false, msg: errorMsg };
     }
   }
@@ -808,7 +803,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
       this.turnActive = false;
       this.processingStartTime = undefined;
       const errorMsg = error instanceof Error ? error.message : String(error);
-      this.emitErrorMessage(errorMsg);
+      this.emitErrorMessage(error);
       return { success: false, msg: errorMsg };
     }
   }
@@ -1470,7 +1465,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
 
   private handleError(err: Error): void {
     mainError('RemoteAgent', `Moss connection error: ${err.message}`);
-    this.emitErrorMessage(err.message);
+    this.emitErrorMessage(err);
   }
 
   // ========== Message emission ==========
@@ -1493,12 +1488,14 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
     });
   }
 
-  private emitErrorMessage(error: string): void {
+  private emitErrorMessage(error: unknown): void {
+    const isUpdateRequired = isMossRuntimeUpdateRequired(error);
     ipcBridge.conversation.responseStream.emit({
       type: 'error',
       conversation_id: this.conversation_id,
       msg_id: uuid(36),
-      data: error,
+      data: isUpdateRequired ? 'RUNTIME_UPDATE_REQUIRED' : error instanceof Error ? error.message : String(error),
+      ...(isUpdateRequired ? { errorClass: 'runtime_update_required' as const } : {}),
     });
     // After error, must emit finish to end the session
     // 发送错误后必须发送 finish 结束会话

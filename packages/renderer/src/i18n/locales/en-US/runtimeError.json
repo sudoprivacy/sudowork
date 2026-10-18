@@ -43,5 +43,12 @@
   "timeout": {
     "title": "Request timed out",
     "body": "The request timed out; please retry shortly."
+  },
+  "runtime_update_required": {
+    "title": "Runtime update required",
+    "body": "Update your Cloud runtime to use the current configuration. Other running sessions must finish first. Messages and tools are never resent by this action.",
+    "cta": "Update runtime",
+    "updated": "Runtime updated. Send a new message to continue.",
+    "failed": "The update was not confirmed. Finish other running sessions and try again."
   }
 }

@@ -7,7 +7,7 @@
 import WebSocket from 'ws';
 import type { IResponseMessage, MossSessionAvailableSkill, MossWorkspaceFilePreview, MossWorkspaceNode } from '@sudowork/host-bridge/ipcBridge';
 import { BrowserSessionActionSchema, BrowserSessionReplySchema, type BrowserSessionAction, type BrowserSessionReply } from '@sudowork/contracts/browser-session';
-import { uploadBrowserFile, downloadBrowserFile } from '@sudowork/moss-client';
+import { uploadBrowserFile, downloadBrowserFile, upgradeMossRuntime, MossHttpError, isMossRuntimeUpdateRequired } from '@sudowork/moss-client';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 import { getValidToken } from '@process/bridge/eeclawBridge';
 import { ProcessConfig } from '@process/initStorage';
@@ -29,6 +29,27 @@ export class MossSessionApi {
 
   constructor(serverUrl: string) {
     this.serverUrl = serverUrl;
+  }
+
+  /** Apply the owner's existing guarded rollout without sending or replaying a prompt. */
+  async upgradeSessionRuntime(sessionId: string): Promise<void> {
+    const session = await this.getSession(sessionId);
+    if (!session?.userId) throw new Error('Session owner is unavailable');
+    await upgradeMossRuntime(
+      async (baseUrl, request, timeoutMs) => {
+        const response = await this.fetchWithRetry(new URL(request.path, baseUrl).toString(), {
+          method: request.method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(request.body),
+          signal: AbortSignal.timeout(timeoutMs ?? 180_000),
+        });
+        const text = await response.text();
+        if (!response.ok) throw new MossHttpError(response.status, text, request.path);
+        return JSON.parse(text) as unknown;
+      },
+      { baseUrl: this.serverUrl, accessToken: await this.ensureAuthenticated() },
+      session.userId
+    );
   }
 
   async uploadBrowserFile(sessionId: string, input: { name: string; controlEpoch: number; targetEpoch: number; data: Uint8Array }) {
@@ -428,6 +449,8 @@ export class MossSessionApi {
 
     if (!response.ok) {
       const text = await response.text();
+      const error = new MossHttpError(response.status, text, `/api/v1/sessions/${encodeURIComponent(sessionId)}/resume`);
+      if (isMossRuntimeUpdateRequired(error)) throw error;
       throw new Error(`Failed to resume session: ${response.status} ${text}`);
     }
 

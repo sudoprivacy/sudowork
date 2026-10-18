@@ -1,6 +1,6 @@
 import '@arco-design/web-react/lib/_util/react-19-adapter';
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
@@ -71,7 +71,9 @@ async function onCreateOntology() {
   fireEvent.click(await screen.findByRole('button', { name: '新建本体' }));
   const dialog = await screen.findByRole('dialog');
   fireEvent.change(within(dialog).getByRole('textbox', { name: '名称' }), { target: { value: '订单模型' } });
-  fireEvent.click(within(dialog).getByRole('button', { name: /确定|OK/ }));
+  await act(async () => {
+    fireEvent.click(within(dialog).getByRole('button', { name: /确定|OK/ }));
+  });
 }
 
 beforeEach(() => {
@@ -105,7 +107,10 @@ describe('ontology default conversation', () => {
     mount();
     await onCreateOntology();
     await screen.findByTestId('studio-chat');
-    fireEvent.click(await screen.findByRole('button', { name: '先完成建模' }));
+    const deferButton = await screen.findByRole('button', { name: '先完成建模' });
+    await act(async () => {
+      fireEvent.click(deferButton);
+    });
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(bridge.createWorkbench).toHaveBeenCalledTimes(1);
     expect(bridge.ensureBuilderMcp).not.toHaveBeenCalled();
@@ -135,7 +140,9 @@ describe('ontology default conversation', () => {
     const dialog = await screen.findByRole('dialog');
     fireEvent.click(within(dialog).getByRole('button', { name: /确定|OK/ }));
     await waitFor(() => expect(bridge.createWorkbench).toHaveBeenCalledTimes(1));
-    finish({ success: true, data: { snapshot } });
+    await act(async () => {
+      finish({ success: true, data: { snapshot } });
+    });
     await screen.findByTestId('studio-chat');
     expect(bridge.createWorkbench).toHaveBeenCalledTimes(1);
   });

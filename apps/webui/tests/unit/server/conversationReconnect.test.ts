@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 import type { BrowserConnection } from '@server/features/conversations/ConversationCoordinator'
+import { MossHttpError } from '@sudowork/moss-client'
 
 const state = vi.hoisted(() => ({
   lock: null as {
@@ -161,6 +162,27 @@ beforeEach(() => {
 })
 
 describe('conversation reconnect during generation', () => {
+  test('reports a typed runtime update refusal and never delivers the reserved prompt', async () => {
+    const service = coordinator(),
+      browser = connection()
+    service.subscribe(browser)
+    state.resumeFailure = new MossHttpError(
+      503,
+      JSON.stringify({
+        error: 'private upstream details',
+        startup: { code: 'RUNTIME_UPDATE_REQUIRED', isRetryable: false },
+      }),
+      '/private/path',
+    )
+    await service.handleClientMessage(browser, { kind: 'send', text: 'Not delivered' })
+    expect(browser.ws.send).toHaveBeenCalledWith(
+      JSON.stringify({ kind: 'error', code: 'RUNTIME_UPDATE_REQUIRED' }),
+    )
+    expect(state.lock?.state).toBe('idle')
+    expect(state.sockets).toHaveLength(0)
+    expect(JSON.stringify(vi.mocked(browser.ws.send).mock.calls)).not.toContain('private')
+    await service.terminate('principal-a', 'session-a')
+  })
   test('admits a new explicit message after confirming the resumed current execution is idle', async () => {
     const activity = vi.fn(async () => ({ attemptId: 'current', state: 'idle' }))
     const service = coordinator(activity),

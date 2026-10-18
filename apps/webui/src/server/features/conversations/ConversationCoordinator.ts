@@ -8,7 +8,12 @@ import { findPrincipalById, resolveSessionOwnerPrincipalId } from '../auth/princ
 import { requireAccessibleSession, SessionForbiddenError } from './conversationService.js'
 import type { WebSessionRow } from '../auth/sessionRepository.js'
 import type { MossSessionPort } from '@sudowork/moss-client'
-import { MossHttpError, MossNetworkError, deriveWsBaseUrl } from '@sudowork/moss-client'
+import {
+  MossHttpError,
+  MossNetworkError,
+  deriveWsBaseUrl,
+  isMossRuntimeUpdateRequired,
+} from '@sudowork/moss-client'
 import {
   MossUpstreamSocket,
   buildAnswerQuestionMessage,
@@ -753,6 +758,10 @@ export class ConversationCoordinator {
           code: isUnauthorized ? 'MOSS_UNAUTHORIZED' : 'SESSION_FORBIDDEN',
         })
         conn.ws.close(1008, 'Session permission revoked')
+        return
+      }
+      if (isMossRuntimeUpdateRequired(err)) {
+        this.sendTo(conn.ws, { kind: 'error', code: 'RUNTIME_UPDATE_REQUIRED' })
         return
       }
       const known =

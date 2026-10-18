@@ -172,6 +172,7 @@ const fakeMossAuth: MossAuthPort = {
 }
 
 describe('conversation REST (real PostgreSQL + fake moss)', () => {
+  const runtimeRequests: { path: string; method?: string; accessToken?: string }[] = []
   let pool: Pool
   let principalA: Principal
   let principalB: Principal
@@ -182,7 +183,14 @@ describe('conversation REST (real PostgreSQL + fake moss)', () => {
     const app = createApp({ publicOrigin: testConfig.publicOrigin })
     const auth = { pool, config: testConfig, mossAuth: fakeMossAuth }
     const coordinator = new ConversationCoordinator({ pool, config: testConfig, auth, moss })
-    const mossFetch = async (_base: string, req: { path: string }): Promise<unknown> => {
+    const mossFetch = async (
+      _base: string,
+      req: { path: string; method?: string; accessToken?: string },
+    ): Promise<unknown> => {
+      if (req.path === '/api/v1/agent-runtimes/moss-a/upgrade') {
+        runtimeRequests.push(req)
+        return { runtime: { ownerId: 'moss-a', privateConnection: 'must-not-leak' } }
+      }
       if (req.path === '/api/v1/agent-templates/installed')
         return [{ name: 'helper' }, { name: 'builtin-agent', isBuiltin: true }]
       if (req.path === '/api/v1/skills/installed') return [{ name: 'known-skill' }]
@@ -293,6 +301,48 @@ describe('conversation REST (real PostgreSQL + fake moss)', () => {
       .set('X-Browser-File-Name', 'review.txt')
       .send(Buffer.from('missing observation'))
     expect(missingEpoch.status).toBe(400)
+  })
+
+  test('runtime updates require the authenticated owner, an authorized Session and the trusted Origin', async () => {
+    const app = await buildApp()
+    runtimeRequests.length = 0
+    const own = '/api/conversations/sess-a1/runtime/upgrade'
+    expect(
+      (await request(app).post(own).set('Origin', testConfig.publicOrigin).send({})).status,
+    ).toBe(401)
+    expect((await request(app).post(own).set('Cookie', cookieA).send({})).status).toBe(403)
+    expect(
+      (
+        await request(app)
+          .post(own)
+          .set('Origin', testConfig.publicOrigin)
+          .set('Cookie', cookieA)
+          .send({ ownerId: 'moss-b' })
+      ).status,
+    ).toBe(400)
+    expect(
+      (
+        await request(app)
+          .post('/api/conversations/sess-b1/runtime/upgrade')
+          .set('Origin', testConfig.publicOrigin)
+          .set('Cookie', cookieA)
+          .send({})
+      ).status,
+    ).toBe(403)
+    expect(runtimeRequests).toHaveLength(0)
+    const updated = await request(app)
+      .post(own)
+      .set('Origin', testConfig.publicOrigin)
+      .set('Cookie', cookieA)
+      .send({})
+    expect(updated.status).toBe(200)
+    expect(updated.body).toEqual({ success: true })
+    expect(runtimeRequests).toHaveLength(1)
+    expect(runtimeRequests[0]).toMatchObject({
+      path: '/api/v1/agent-runtimes/moss-a/upgrade',
+      method: 'POST',
+    })
+    expect(runtimeRequests[0]!.accessToken).toBeTruthy()
   })
 
   test('a manager workbench uses a verified grant while retaining the Agent owner', async () => {
