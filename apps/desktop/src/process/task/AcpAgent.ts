@@ -1291,14 +1291,7 @@ This identity statement takes priority over the default identity in USER.md.
       }
       return result;
     } catch (e) {
-      this.flushThinkFilters();
-      this.streamTextBuffer.flushAll();
-      cronBusyGuard.setProcessing(this.conversation_id, false);
-      this.status = 'finished';
-      this.turnActive = false;
-      // Clear processingStartTime on error
-      // 错误时清除处理开始时间
-      this.processingStartTime = undefined;
+      this.finishTurnState();
 
       // Telemetry: end conversation tracking (error)
       const errorMsg = e instanceof Error ? e.message : String(e);
@@ -1417,6 +1410,7 @@ This identity statement takes priority over the default identity in USER.md.
           if (ACP_PERF_LOG) mainLog('ACP-PERF', `send: auto-reconnect failed ${Date.now() - reconnectStart}ms`);
           const errorMsg = reconnectError instanceof Error ? reconnectError.message : String(reconnectError);
           this.logAgentError('sendToConnection reconnect failed', reconnectError, { msg_id });
+          this.emitErrorMessage(translateLLMError(errorMsg));
           return {
             success: false,
             error: createAcpError(AcpErrorType.CONNECTION_NOT_READY, `Failed to reconnect: ${errorMsg}`, true),
@@ -3686,8 +3680,10 @@ This identity statement takes priority over the default identity in USER.md.
       return;
     }
 
-    this.flushThinkFilters();
-    this.streamTextBuffer.flushAll();
+    if (v.type !== 'finish') {
+      this.flushThinkFilters();
+      this.streamTextBuffer.flushAll();
+    }
 
     if (v.type === 'acp_permission') {
       const { toolCall, options } = v.data as AcpPermissionRequest;
@@ -3713,16 +3709,7 @@ This identity statement takes priority over the default identity in USER.md.
     }
 
     if (v.type === 'finish') {
-      cronBusyGuard.setProcessing(this.conversation_id, false);
-      this.turnActive = false;
-
-      // Delay clearing processingStartTime to match frontend's 1-second finish delay
-      // This ensures timer can be restored if user switches conversations during the delay
-      // 延迟清除 processingStartTime 以匹配前端 1 秒的 finish 延迟
-      // 这确保在延迟期间切换会话时计时器可以恢复
-      setTimeout(() => {
-        this.processingStartTime = undefined;
-      }, 1500);
+      this.finishTurnState();
 
       await this.archiveCurrentTurnFiles().catch((err) => {
         mainError('AcpAgent', 'Turn archive failed:', err);
@@ -3796,6 +3783,16 @@ This identity statement takes priority over the default identity in USER.md.
   }
 
   // ========== Message Emission Helpers ==========
+
+  /** Complete execution state before clients can restore or start another turn. */
+  private finishTurnState(): void {
+    this.flushThinkFilters();
+    this.streamTextBuffer.flushAll();
+    cronBusyGuard.setProcessing(this.conversation_id, false);
+    this.status = 'finished';
+    this.turnActive = false;
+    this.processingStartTime = undefined;
+  }
 
   get lastConnectionStatus(): string | null {
     return this._lastConnectionStatus;
@@ -3877,6 +3874,7 @@ This identity statement takes priority over the default identity in USER.md.
   }
 
   private emitErrorMessage(error: string, withFinish: boolean = true, classification?: { errorClass: string; errorBytes?: number }): void {
+    if (withFinish) this.finishTurnState();
     const errorMessage: TMessage = {
       id: uuid(),
       conversation_id: this.conversation_id,
@@ -3892,14 +3890,7 @@ This identity statement takes priority over the default identity in USER.md.
     };
     this.emitMessage(errorMessage);
 
-    // Emit finish event to reset frontend processing state (unless skipped)
-    // Clear processingStartTime immediately on error (no delay)
-    // 发送 finish 事件以重置前端处理状态（除非跳过），错误时立即清除 processingStartTime（不延迟）
     if (withFinish) {
-      // Immediately clear processingStartTime on error
-      // 错误时立即清除 processingStartTime
-      this.processingStartTime = undefined;
-
       const finishMessage: IResponseMessage = {
         type: 'finish',
         conversation_id: this.conversation_id,
@@ -3907,6 +3898,7 @@ This identity statement takes priority over the default identity in USER.md.
         data: null,
       };
       ipcBridge.acpConversation.responseStream.emit(finishMessage);
+      channelEventBus.emitAgentMessage(this.conversation_id, finishMessage);
     }
   }
 
