@@ -25,6 +25,12 @@ const state = vi.hoisted(() => ({
 }))
 vi.mock('@server/features/conversations/lockRepository', () => ({
   getLock: vi.fn(async () => state.lock && { ...state.lock }),
+  getUncertainLockVersion: vi.fn(async () => (state.lock?.state === 'uncertain' ? 'v1' : null)),
+  acquireRecoveredWriteLock: vi.fn(async (_pool, input) => {
+    if (state.lock?.state !== 'uncertain') return false
+    state.lock = { state: 'running', writerWebSessionId: input.webSessionId }
+    return true
+  }),
   acquireWriteLock: vi.fn(async (_pool, input) => {
     if (state.lock?.state === 'uncertain') return { ok: false, reason: 'UNCERTAIN' }
     if (
@@ -119,7 +125,7 @@ function connection(): BrowserConnection {
     ws: { readyState: 1, OPEN: 1, send: vi.fn() },
   } as unknown as BrowserConnection
 }
-function coordinator() {
+function coordinator(activity = vi.fn(async () => ({ attemptId: 'current', state: 'busy' }))) {
   return new ConversationCoordinator({
     pool: {} as never,
     config: {} as never,
@@ -135,8 +141,9 @@ function coordinator() {
         state.resumeCalls++
         if (state.resumeGate) await state.resumeGate
         if (state.resumeFailure) throw state.resumeFailure
-        return { wsUrl: 'wss://moss.test/ws' }
+        return { wsUrl: 'wss://moss.test/ws', session: { attemptId: 'current' } }
       }),
+      activity,
     } as never,
   })
 }
@@ -154,6 +161,80 @@ beforeEach(() => {
 })
 
 describe('conversation reconnect during generation', () => {
+  test('admits a new explicit message after confirming the resumed current execution is idle', async () => {
+    const activity = vi.fn(async () => ({ attemptId: 'current', state: 'idle' }))
+    const service = coordinator(activity),
+      browser = connection()
+    service.subscribe(browser)
+    state.lock = { state: 'uncertain', writerWebSessionId: null }
+    await service.handleClientMessage(browser, {
+      kind: 'send',
+      text: 'Check existing results and continue',
+    })
+    expect(activity).toHaveBeenCalledTimes(1)
+    expect(state.sockets).toHaveLength(1)
+    expect(state.sockets[0]!.send).toHaveBeenCalledTimes(1)
+    expect(state.lock?.state).toBe('running')
+    await service.terminate('principal-a', 'session-a')
+  })
+
+  test.each([
+    { attemptId: 'current', state: 'busy' },
+    { attemptId: 'current', state: 'unavailable' },
+    { attemptId: 'old', state: 'idle' },
+    { attemptId: null, state: 'idle' },
+  ])('preserves uncertainty when live activity cannot authorize a new turn: %j', async (reply) => {
+    const service = coordinator(vi.fn(async () => reply) as never),
+      browser = connection()
+    service.subscribe(browser)
+    state.lock = { state: 'uncertain', writerWebSessionId: null }
+    await service.handleClientMessage(browser, { kind: 'send', text: 'New request' })
+    expect(state.sockets).toHaveLength(0)
+    expect(state.lock?.state).toBe('uncertain')
+    expect(browser.ws.send).toHaveBeenCalledWith(
+      JSON.stringify({ kind: 'error', code: 'LOCK_UNCERTAIN' }),
+    )
+    await service.terminate('principal-a', 'session-a')
+  })
+
+  test('does not release a newer running lock while an idle observation is in flight', async () => {
+    const service = coordinator(
+        vi.fn(async () => {
+          state.lock = { state: 'running', writerWebSessionId: 'another-writer' }
+          return { attemptId: 'current', state: 'idle' }
+        }),
+      ),
+      browser = connection()
+    service.subscribe(browser)
+    state.lock = { state: 'uncertain', writerWebSessionId: null }
+    await service.handleClientMessage(browser, { kind: 'send', text: 'New request' })
+    expect(state.sockets).toHaveLength(0)
+    expect(state.lock).toEqual({ state: 'running', writerWebSessionId: 'another-writer' })
+    await service.terminate('principal-a', 'session-a')
+  })
+
+  test('retires stale result and close callbacks before the recovered turn starts', async () => {
+    const service = coordinator(vi.fn(async () => ({ attemptId: 'current', state: 'idle' }))),
+      browser = connection()
+    service.subscribe(browser)
+    await service.handleClientMessage(browser, { kind: 'send', text: 'Original' })
+    const old = state.sockets[0]!
+    old.isClosed = true
+    state.lock = { state: 'uncertain', writerWebSessionId: null }
+    await service.handleClientMessage(browser, { kind: 'send', text: 'New request' })
+    old.onEvent({ type: 'result', result: 'late old completion' })
+    old.onClose()
+    await service.handleClientMessage(browser, {
+      kind: 'control_response',
+      requestId: 'p1',
+      optionId: 'allow_once',
+    })
+    expect(state.sockets).toHaveLength(2)
+    expect(state.lock?.state).toBe('running')
+    expect(browser.ws.send).not.toHaveBeenCalledWith(expect.stringContaining('late old completion'))
+    await service.terminate('principal-a', 'session-a')
+  })
+
   test('finishes the accepted turn before another send or browser return can reserve delivery', async () => {
     const service = coordinator(),
       browser = connection()
@@ -223,7 +304,8 @@ describe('conversation reconnect during generation', () => {
     upstream.onClose()
     await vi.waitFor(() => expect(state.lock?.state).toBe('uncertain'))
     await service.handleClientMessage(browser, { kind: 'send', text: 'Must not be replayed' })
-    expect(state.resumeCalls).toBe(1)
+    expect(state.resumeCalls).toBe(2)
+    expect(upstream.send).toHaveBeenCalledOnce()
     expect(browser.ws.send).toHaveBeenCalledWith(
       JSON.stringify({ kind: 'error', code: 'LOCK_UNCERTAIN' }),
     )
@@ -350,15 +432,26 @@ describe('conversation reconnect during generation', () => {
     expect(upstream.close).not.toHaveBeenCalled()
     const returning = connection()
     service.subscribe(returning)
-    expect(returning.ws.send).toHaveBeenCalledWith(JSON.stringify({ kind: 'upstream', event }))
+    const approval = vi
+      .mocked(returning.ws.send)
+      .mock.calls.map(([raw]) => JSON.parse(String(raw)))
+      .find((frame) => frame.kind === 'upstream')
+    expect(approval.event).toMatchObject({ type: 'control_request', request: event.request })
+    expect(approval.event.request_id).not.toBe(event.request_id)
     await service.handleClientMessage(returning, {
       kind: 'control_response',
-      requestId: 'permission-1',
+      requestId: approval.event.request_id,
       optionId: 'allow_once',
     })
     const another = connection()
     service.subscribe(another)
-    expect(another.ws.send).not.toHaveBeenCalledWith(JSON.stringify({ kind: 'upstream', event }))
+    expect(another.ws.send).not.toHaveBeenCalledWith(JSON.stringify(approval))
+    expect(upstream.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'control_response',
+        response: expect.objectContaining({ request_id: 'permission-1' }),
+      }),
+    )
     upstream.onEvent({ type: 'result', result: 'finished' })
     await vi.waitFor(() => expect(state.lock?.state).toBe('idle'))
     await service.terminate('principal-a', 'session-a')

@@ -154,6 +154,9 @@ function createFakeSessions(): MossSessionPort {
     async context() {
       return { context: { messages: [] } }
     },
+    async activity() {
+      return { attemptId: null, state: 'unavailable' }
+    },
     async resume(_tk, id) {
       return {
         session: { sessionId: id, userId: 'moss-a', orgId: 'org-1', status: 'active' },

@@ -56,11 +56,14 @@ const bridgeAlias = [
 
 export default defineConfig({
   test: {
+    // Bound Windows worker startup and DOM contention without extending test deadlines.
+    maxWorkers: process.platform === 'win32' ? 2 : undefined,
     coverage: {
       include: ['src/**/*.{ts,tsx}'],
     },
     projects: [
       {
+        extends: true,
         resolve: { alias: bridgeAlias },
         test: {
           name: 'unit',
@@ -70,6 +73,7 @@ export default defineConfig({
         },
       },
       {
+        extends: true,
         resolve: { alias },
         test: {
           name: 'integration',
@@ -79,6 +83,7 @@ export default defineConfig({
         },
       },
       {
+        extends: true,
         resolve: { alias },
         test: {
           name: 'contract',

@@ -176,6 +176,132 @@ describe('mossAdapter: session streams', () => {
       await ipc.conversation.confirmation.list.invoke({ conversation_id: 'permission-local' }),
     ).toMatchObject([{ id: 'pending-approval' }])
   })
+
+  it('ends loading on uncertain delivery without replaying the interrupted request', async () => {
+    const messages: IResponseMessage[] = []
+    const off = ipc.conversation.responseStream.on((message) => messages.push(message))
+    try {
+      await ipc.acpConversation.sendMessage.invoke({
+        conversation_id: 'uncertain-turn',
+        input: 'Original request',
+      } as never)
+      const socket = ViewerSocket.instances[0]!
+      messages.length = 0
+      socket.frame({ kind: 'lock', state: 'uncertain' })
+      socket.frame({ kind: 'lock', state: 'uncertain' })
+      expect(messages.map((message) => message.type)).toEqual(['error', 'finish'])
+      expect(messages[0]!.data).toBe('LOCK_UNCERTAIN')
+      expect(socket.sent).toHaveLength(1)
+      messages.length = 0
+      socket.close()
+      expect(messages).toHaveLength(0)
+    } finally {
+      off()
+    }
+  })
+
+  it('ends loading on socket loss and permits only an explicit new request to reconnect', async () => {
+    const messages: IResponseMessage[] = []
+    const off = ipc.conversation.responseStream.on((message) => messages.push(message))
+    try {
+      await ipc.acpConversation.sendMessage.invoke({
+        conversation_id: 'lost-turn',
+        input: 'Original request',
+      } as never)
+      messages.length = 0
+      ViewerSocket.instances[0]!.close()
+      expect(messages.map((message) => message.type)).toEqual(['error', 'finish'])
+      expect(messages[0]!.data).toBe('CONNECTION_CLOSED')
+      expect(ViewerSocket.instances).toHaveLength(1)
+      await ipc.acpConversation.sendMessage.invoke({
+        conversation_id: 'lost-turn',
+        input: 'Check effects and continue',
+      } as never)
+      expect(ViewerSocket.instances).toHaveLength(2)
+      expect(ViewerSocket.instances[1]!.sent).toHaveLength(1)
+      messages.length = 0
+      ViewerSocket.instances[0]!.frame({
+        kind: 'upstream',
+        event: { type: 'result', result: 'late old result' },
+      })
+      expect(messages).toHaveLength(0)
+    } finally {
+      off()
+    }
+  })
+
+  it.each(['permissions_cleared', 'permission_resolved'])(
+    'removes expired approval cards when receiving %s',
+    async (reason) => {
+      const removed = vi.fn()
+      const off = ipc.conversation.confirmation.remove.on(removed)
+      try {
+        await ipc.acpConversation.sendMessage.invoke({
+          conversation_id: 'approval-lifecycle',
+          input: 'Run a tool',
+        } as never)
+        const socket = ViewerSocket.instances[0]!
+        socket.frame({
+          kind: 'upstream',
+          event: {
+            type: 'control_request',
+            request_id: 'approval-1',
+            request: { tool_name: 'Bash', input: { command: 'pwd' } },
+          },
+        })
+        expect(
+          await ipc.conversation.confirmation.list.invoke({
+            conversation_id: 'approval-lifecycle',
+          }),
+        ).toHaveLength(1)
+        if (reason === 'permission_resolved')
+          socket.frame({ kind: reason, requestId: 'approval-1' })
+        else socket.frame({ kind: 'permissions_cleared' })
+        expect(
+          await ipc.conversation.confirmation.list.invoke({
+            conversation_id: 'approval-lifecycle',
+          }),
+        ).toEqual([])
+        expect(removed).toHaveBeenCalledExactlyOnceWith({
+          conversation_id: 'approval-lifecycle',
+          id: 'approval-1',
+        })
+        expect(socket.sent).toHaveLength(1)
+      } finally {
+        off()
+      }
+    },
+  )
+
+  it('retains a live approval while its execution outcome is uncertain', async () => {
+    const removed = vi.fn()
+    const off = ipc.conversation.confirmation.remove.on(removed)
+    try {
+      await ipc.acpConversation.sendMessage.invoke({
+        conversation_id: 'uncertain-approval',
+        input: 'Run a tool',
+      } as never)
+      const socket = ViewerSocket.instances[0]!
+      const request = {
+        kind: 'upstream',
+        event: {
+          type: 'control_request',
+          request_id: 'approval-live',
+          request: { tool_name: 'Bash' },
+        },
+      }
+      socket.frame(request)
+      socket.frame(request)
+      socket.frame({ kind: 'lock', state: 'uncertain' })
+      expect(
+        await ipc.conversation.confirmation.list.invoke({ conversation_id: 'uncertain-approval' }),
+      ).toHaveLength(1)
+      expect(removed).not.toHaveBeenCalled()
+      expect(socket.sent).toHaveLength(1)
+    } finally {
+      off()
+    }
+  })
 })
 
 describe('mossAdapter: user Vault capability', () => {

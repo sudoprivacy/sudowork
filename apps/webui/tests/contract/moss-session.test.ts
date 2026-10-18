@@ -13,6 +13,31 @@ const BASE = 'http://moss.test'
 const CTX = { accessToken: 'tk', baseUrl: BASE }
 
 describe('MossSessionPort request shapes (contract vs baseline)', () => {
+  test('keeps the actual HTTP attemptId from resume for live activity reconciliation', async () => {
+    const mock = vi.fn().mockResolvedValue({
+      session: {
+        sessionId: 's1',
+        userId: 'owner',
+        orgId: 'org',
+        status: 'active',
+        attemptId: 'a1',
+      },
+      ws_url: 'ws://moss.test/ws/sessions/s1',
+    })
+    expect((await createMossSessionPort(mock).resume(CTX, 's1')).session.attemptId).toBe('a1')
+  })
+  test('activity reads a generation-bound live observation and rejects incomplete replies', async () => {
+    const mock = vi.fn().mockResolvedValue({ attemptId: 'a1', state: 'idle' })
+    const port = createMossSessionPort(mock)
+    await expect(port.activity(CTX, 's/1')).resolves.toEqual({ attemptId: 'a1', state: 'idle' })
+    expect(mock).toHaveBeenCalledWith(BASE, {
+      method: 'GET',
+      path: '/api/v1/sessions/s%2F1/activity',
+      accessToken: 'tk',
+    })
+    mock.mockResolvedValue({ state: 'idle' })
+    await expect(port.activity(CTX, 's1')).rejects.toThrow()
+  })
   test('list calls GET /api/v1/sessions', async () => {
     const mock = vi.fn().mockResolvedValue({ sessions: [] })
     const port = createMossSessionPort(mock)

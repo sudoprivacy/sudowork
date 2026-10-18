@@ -6,9 +6,10 @@
 
 import { describe, expect, it } from 'vitest';
 import { bodyKey, ctaKey, formatBytes, showsBytes, titleKey, toRuntimeErrorClass } from '@/common/runtime-errors';
+import { transformMessage } from '@/common/chatLib';
 
 describe('toRuntimeErrorClass', () => {
-  it.each(['context_window_exceeded', 'single_request_too_large', 'request_body_too_large', 'quota', 'rate_limit', 'auth', 'network', 'timeout'])('preserves known runtime class: %s', (cls) => {
+  it.each(['context_window_exceeded', 'single_request_too_large', 'request_body_too_large', 'quota', 'rate_limit', 'auth', 'network', 'timeout', 'interrupted'])('preserves known runtime class: %s', (cls) => {
     expect(toRuntimeErrorClass(cls)).toBe(cls);
   });
 
@@ -31,10 +32,18 @@ describe('i18n key builders', () => {
     expect(ctaKey('rate_limit')).toBeNull();
     expect(ctaKey('network')).toBeNull();
     expect(ctaKey('timeout')).toBeNull();
+    expect(ctaKey('interrupted')).toBeNull();
   });
 
   it.each(['context_window_exceeded', 'single_request_too_large', 'request_body_too_large', 'quota', 'auth'] as const)('classes with actionable CTA return a key: %s', (cls) => {
     expect(ctaKey(cls)).toBe(`runtimeError.${cls}.cta`);
+  });
+});
+
+describe('interrupted execution display', () => {
+  it.each(['LOCK_UNCERTAIN', 'CONNECTION_CLOSED', 'PERMISSION_EXPIRED'])('uses the shared localized interruption banner for %s', (code) => {
+    const message = transformMessage({ type: 'error', msg_id: 'turn-error', conversation_id: 'original-session', data: code });
+    expect(message).toMatchObject({ type: 'tips', conversation_id: 'original-session', content: { type: 'error', errorClass: 'interrupted' } });
   });
 });
 

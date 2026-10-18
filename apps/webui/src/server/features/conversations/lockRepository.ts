@@ -4,7 +4,8 @@ import type { Pool } from 'pg'
  * One prompt delivery gate per Moss control session.
  * New turns require idle; an existing turn can retain its writer.
  * Completion or a known unsent failure restores idle. Losing an accepted turn
- * preserves uncertain delivery until completion or explicit termination.
+ * preserves uncertainty until completion, termination, or a live idle observation
+ * followed by an atomic acquisition of the observed uncertain lock version.
  */
 
 export type LockState = 'idle' | 'running' | 'uncertain'
@@ -75,6 +76,32 @@ export async function releaseToIdleIfHeld(
      WHERE principal_id = $1 AND moss_session_id = $2
        AND state = 'running' AND writer_web_session_id = $3`,
     [input.principalId, input.mossSessionId, input.webSessionId],
+  )
+  return (rowCount ?? 0) > 0
+}
+
+/** Capture the exact uncertain transition before observing the execution. */
+export async function getUncertainLockVersion(
+  pool: Pool,
+  input: { principalId: string; mossSessionId: string },
+): Promise<string | null> {
+  const { rows } = await pool.query<{ version: string }>(
+    `SELECT updated_at::text AS version FROM conversation_locks
+     WHERE principal_id=$1 AND moss_session_id=$2 AND state='uncertain'`,
+    [input.principalId, input.mossSessionId],
+  )
+  return rows[0]?.version ?? null
+}
+
+/** Admit only the new explicit send, if no lock transition occurred during its probe. */
+export async function acquireRecoveredWriteLock(
+  pool: Pool,
+  input: { principalId: string; mossSessionId: string; webSessionId: string; version: string },
+): Promise<boolean> {
+  const { rowCount } = await pool.query(
+    `UPDATE conversation_locks SET state='running', writer_web_session_id=$3, updated_at=now()
+     WHERE principal_id=$1 AND moss_session_id=$2 AND state='uncertain' AND updated_at=$4::timestamptz`,
+    [input.principalId, input.mossSessionId, input.webSessionId, input.version],
   )
   return (rowCount ?? 0) > 0
 }
