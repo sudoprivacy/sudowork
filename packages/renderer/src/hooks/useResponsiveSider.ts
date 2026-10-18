@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 const NARROW_VIEWPORT_QUERY = '(max-width: 767px)';
 
 /** Keep the composer usable on narrow screens, including after navigation. */
-export function useResponsiveSider(pathname: string) {
+export function useResponsiveSider(pathname: string, navigationKey?: string) {
   const [isCollapsed, setIsCollapsed] = useState(() => typeof window !== 'undefined' && Boolean(window.matchMedia?.(NARROW_VIEWPORT_QUERY).matches));
 
   useEffect(() => {
@@ -18,7 +18,7 @@ export function useResponsiveSider(pathname: string) {
 
   useEffect(() => {
     if (window.matchMedia?.(NARROW_VIEWPORT_QUERY).matches) setIsCollapsed(true);
-  }, [pathname]);
+  }, [pathname, navigationKey]);
 
   return { isCollapsed, setIsCollapsed };
 }

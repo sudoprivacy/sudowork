@@ -1,0 +1,15 @@
+.actions .controls > * {
+  flex-shrink: 0;
+  max-width: 100%;
+}
+
+@media (max-width: 767px) {
+  .actions button {
+    min-height: 44px;
+  }
+
+  .actions > button,
+  .controls > span:first-child button {
+    min-width: 44px;
+  }
+}

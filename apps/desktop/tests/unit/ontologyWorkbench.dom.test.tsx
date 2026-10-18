@@ -325,14 +325,32 @@ function onSelectDocumentForExtraction() {
   fireEvent.click(screen.getByText(translate('ontology.objectBuilder.next')));
 }
 
+async function findEditorDialog(title: string) {
+  // Locate the modal title before checking dialog semantics so retained modal
+  // trees do not each require a full accessibility scan on every reopen.
+  const heading = await screen.findByText(title, { selector: '.arco-modal-title', exact: true });
+  const dialog = heading.closest('[role="dialog"]') as HTMLElement;
+  expect(dialog).not.toBeNull();
+  expect(dialog).toHaveAccessibleName(title);
+  await waitFor(() => expect(dialog).toBeVisible());
+  return dialog;
+}
+
+function getObjectTable() {
+  const header = screen.getByText('ontology.generate.columns.attributes').closest('th') as HTMLElement;
+  expect(header).toBeVisible();
+  return { header, table: header.closest('table') as HTMLElement };
+}
+
 async function openObjectEditor(api: IOntologyWorkbenchApi) {
   await renderWorkbench(api);
   await screen.findAllByText('ontology.console.views.connections.title');
   fireEvent.click(screen.getAllByText('ontology.console.views.ontology.title')[0]);
   fireEvent.click(await screen.findByText('ontology.list.detail'));
   fireEvent.click(await screen.findByText('ontology.detail.tabs.objects'));
-  fireEvent.click(await screen.findByRole('button', { name: 'Customer' }));
-  const dialog = await screen.findByRole('dialog', { name: 'ontology.editor.editObject' });
+  await screen.findByText('ontology.generate.columns.attributes');
+  fireEvent.click(within(getObjectTable().table).getByRole('button', { name: 'Customer' }));
+  const dialog = await findEditorDialog('ontology.editor.editObject');
   expect(dialog.closest('.ontology-object-editor')).not.toBeNull();
   return dialog;
 }
@@ -343,7 +361,7 @@ async function openAttributeEditor(parent: HTMLElement, name?: string) {
   } else {
     fireEvent.click(within(parent).getByRole('button', { name: 'ontology.editor.addAttributeShort' }));
   }
-  const dialog = await screen.findByRole('dialog', { name: name ? 'ontology.editor.editAttribute' : 'ontology.editor.addAttribute' });
+  const dialog = await findEditorDialog(name ? 'ontology.editor.editAttribute' : 'ontology.editor.addAttribute');
   expect(dialog.closest('.ontology-attribute-editor')).not.toBeNull();
   return dialog;
 }
@@ -370,9 +388,7 @@ function expectAttributeCount(parent: HTMLElement, count: number) {
   expect(within(parent).getByText(`ontology.objectBuilder.attributes (${count})`)).toBeInTheDocument();
   // Find the table by its visible header before querying roles; a document-wide
   // role query repeatedly walks both retained modal trees in these journeys.
-  const header = screen.getByText('ontology.generate.columns.attributes').closest('th') as HTMLElement;
-  expect(header).toBeVisible();
-  const table = header.closest('table') as HTMLElement;
+  const { header, table } = getObjectTable();
   const columnIndex = within(table).getAllByRole('columnheader').indexOf(header);
   const row = within(table).getByRole('button', { name: 'Customer' }).closest('tr') as HTMLElement;
   expect(within(row).getAllByRole('cell')[columnIndex]).toHaveTextContent(new RegExp(`^${count}$`));
@@ -654,8 +670,8 @@ describe('OntologyWorkbench', () => {
         await waitFor(() => expect(parent).not.toBeVisible());
         expect(api.upsertObject).not.toHaveBeenCalled();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Customer' }));
-        const reopened = await screen.findByRole('dialog', { name: 'ontology.editor.editObject' });
+        fireEvent.click(within(getObjectTable().table).getByRole('button', { name: 'Customer' }));
+        const reopened = await findEditorDialog('ontology.editor.editObject');
         expectEditorFields(reopened, { displayName: 'Customer', englishName: 'customer', description: 'Customer object' });
         expectAttributeCount(reopened, 1);
         const reopenedChild = await openAttributeEditor(reopened, 'Email');
@@ -713,8 +729,8 @@ describe('OntologyWorkbench', () => {
         await onCloseModal(within(parent).getByRole('button', { name: 'ontology.objectEditor.saveBasicInfo' }));
         await waitFor(() => expect(parent).not.toBeVisible());
         expect(api.upsertObject).toHaveBeenCalledExactlyOnceWith({ id: 'customer', name: 'Saved customer', code: 'saved_customer', description: 'Saved description', tier: 2, status: 'warning', namespace: 'crm', sourceAssetIds: ['customers_asset'] });
-        fireEvent.click(screen.getByRole('button', { name: 'Saved customer' }));
-        const reopened = await screen.findByRole('dialog', { name: 'ontology.editor.editObject' });
+        fireEvent.click(within(getObjectTable().table).getByRole('button', { name: 'Saved customer' }));
+        const reopened = await findEditorDialog('ontology.editor.editObject');
         expectEditorFields(reopened, basicFields);
         const reopenedChild = await openAttributeEditor(reopened, 'External ID');
         expectEditorFields(reopenedChild, { ...attributeFields, constraints: JSON.stringify({ minLength: 2, maxLength: 20 }, null, 2) });

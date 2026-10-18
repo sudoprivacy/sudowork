@@ -3,8 +3,7 @@
 
 async def open_browser_panel(page, browser_tab_name):
     tab = page.get_by_role("tab", name=browser_tab_name, exact=True)
-    await tab.wait_for(state="attached", timeout=30000)
-    is_reachable = await tab.evaluate(
+    is_reachable = await tab.count() > 0 and await tab.evaluate(
         """element => {
             const box = element.getBoundingClientRect();
             const top = document.elementFromPoint(
@@ -14,8 +13,14 @@ async def open_browser_panel(page, browser_tab_name):
         }"""
     )
     if not is_reachable:
-        for name in ("Expand workspace", "Toggle workspace"):
-            controls = page.get_by_role("button", name=name, exact=True)
+        openers = [
+            page.locator('button.workspace-header__toggle[aria-expanded="false"]'),
+            *[
+                page.get_by_role("button", name=name, exact=True)
+                for name in ("Expand workspace", "Toggle workspace")
+            ],
+        ]
+        for controls in openers:
             visible = [
                 control
                 for control in await controls.all()
@@ -28,6 +33,7 @@ async def open_browser_panel(page, browser_tab_name):
             raise AssertionError(
                 "The browser tab is blocked and no workspace opener is visible"
             )
+    await tab.wait_for(state="visible", timeout=30000)
     await tab.click()
     panel = page.get_by_test_id("browser-session-panel")
     await panel.wait_for(state="visible")

@@ -60,7 +60,7 @@ function Layout() {
   const { t } = useTranslation();
   const { config } = useTenantConfig(); // 获取租户配置
   const location = useLocation();
-  const { isCollapsed, setIsCollapsed } = useResponsiveSider(location.pathname);
+  const { isCollapsed, setIsCollapsed } = useResponsiveSider(location.pathname, location.key);
   const { onClick } = useDebug();
   const navigate = useNavigate();
   // 点击侧栏顶部 logo / 应用名时回到新会话页，行为与「新会话」按钮一致

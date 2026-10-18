@@ -27,6 +27,7 @@ import { openExternalUrl, isElectronDesktop, isWebBridgeAvailable, resolveExtens
 import { useInputFocusRing } from '@renderer/hooks/useInputFocusRing';
 import ActionChip from '@renderer/components/ui/ActionChip';
 import PageWrapper from '@renderer/components/base/PageWrapper';
+import styles from './GuidPage.module.css';
 import AssistantEditDrawer from './components/AssistantEditDrawer';
 import AssistantSelectionArea from './components/AssistantSelectionArea';
 import AssistantAgentDropdown from './components/AssistantAgentDropdown';
@@ -607,9 +608,9 @@ const GuidPage: React.FC = () => {
   );
 
   return (
-    <PageWrapper contentClassName='!max-w-[70%] h-full f-center flex-col'>
+    <PageWrapper className={styles.page} contentClassName={`${styles.content} h-full f-center flex-col`}>
       {/* Normal/Assistant conversation area */}
-      <div className='w-full px-4 box-border mx-auto mt-[-5vh]'>
+      <div className={`${styles.body} w-full px-4 box-border mx-auto mt-[-5vh]`}>
         {isEnterprise && !isOntologyEntry && (
           <SessionCompositionSelector
             agents={personalAgents}
