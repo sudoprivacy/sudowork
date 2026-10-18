@@ -388,6 +388,7 @@ export const transformMessage = (message: IResponseMessage): TMessage => {
         content: {
           content: message.data as string,
           type: 'error',
+          ...(['LOCK_UNCERTAIN', 'CONNECTION_CLOSED', 'PERMISSION_EXPIRED'].includes(String(message.data)) ? { errorClass: 'interrupted' } : {}),
         },
       };
     }

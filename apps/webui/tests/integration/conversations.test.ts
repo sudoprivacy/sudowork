@@ -108,6 +108,9 @@ function createFakeMossSession(): MossSessionPort {
         },
       }
     },
+    async activity() {
+      return { attemptId: null, state: 'unavailable' }
+    },
     async resume(_tk, sessionId) {
       const session = SESSIONS.find((s) => s.sessionId === sessionId)
       if (!session) throw new MossHttpError(404, '', '')

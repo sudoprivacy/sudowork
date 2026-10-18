@@ -7,6 +7,8 @@ import { digestToken, generateSessionToken } from '@server/security/sessionToken
 import { encryptToken } from '@server/security/tokenCipher'
 import {
   acquireWriteLock,
+  acquireRecoveredWriteLock,
+  getUncertainLockVersion,
   clearWriterIfIdle,
   deleteLock,
   getLock,
@@ -172,5 +174,21 @@ describe('conversation_locks（计划 3.8）', () => {
       webSessionId: W2,
     })
     expect(res).toEqual({ ok: true, state: 'running' })
+  })
+
+  test('an idle observation can acquire only the exact uncertain transition it observed', async () => {
+    const input = { principalId, mossSessionId: 'recover-uncertain', webSessionId: W1 }
+    await acquireWriteLock(pool, input)
+    await markUncertain(pool, input)
+    const version = await getUncertainLockVersion(pool, input)
+    expect(version).toBeTypeOf('string')
+    expect(await acquireRecoveredWriteLock(pool, { ...input, version: version! })).toBe(true)
+    await markUncertain(pool, input)
+    expect(await acquireRecoveredWriteLock(pool, { ...input, version: version! })).toBe(false)
+    const next = await getUncertainLockVersion(pool, input)
+    expect(
+      await acquireRecoveredWriteLock(pool, { ...input, webSessionId: W2, version: next! }),
+    ).toBe(true)
+    expect(await getLock(pool, input)).toEqual({ state: 'running', writerWebSessionId: W2 })
   })
 })

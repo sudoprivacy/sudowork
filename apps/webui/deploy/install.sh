@@ -807,39 +807,14 @@ fi
 rollback_release() {
   [ "$SOURCE_MODE" = 0 ] || return 0
   if [ -n "$UPGRADE_BACKUP_DIR" ] && [ -f "$UPGRADE_BACKUP_DIR/database.dump" ]; then
-    warn "Restoring configuration and database from $UPGRADE_BACKUP_DIR"
+    warn "Restoring the previous program configuration from $UPGRADE_BACKUP_DIR; keeping the current database"
     "${COMPOSE[@]}" stop webui migrate >/dev/null 2>&1 || true
     cp "$UPGRADE_BACKUP_DIR/.env" "$ENV_FILE"
     cp "$UPGRADE_BACKUP_DIR/docker-compose.yml" "$COMPOSE_FILE"
     [ ! -f "$UPGRADE_BACKUP_DIR/release-tag" ] \
       || cp "$UPGRADE_BACKUP_DIR/release-tag" "$INSTALL_DIR/release-tag"
-    "${COMPOSE[@]}" up -d postgres >/dev/null 2>&1 || true
-    DATABASE_READY=0
-    for _attempt in $(seq 1 30); do
-      if "${COMPOSE[@]}" exec -T postgres sh -c \
-        'pg_isready -h 127.0.0.1 --username="$POSTGRES_USER" --dbname="$POSTGRES_DB"' >/dev/null 2>&1; then
-        DATABASE_READY=1
-        break
-      fi
-      sleep 2
-    done
-    if [ "$DATABASE_READY" != 1 ]; then
-      warn 'PostgreSQL did not become ready during rollback; use restore.sh manually'
-      return 0
-    fi
-    if ! "${COMPOSE[@]}" exec -T postgres sh -c \
-      'psql --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" --set=ON_ERROR_STOP=1 --command="DROP SCHEMA public CASCADE; CREATE SCHEMA public"' \
-      >/dev/null 2>&1; then
-      warn 'Could not reset the database schema during rollback; use restore.sh manually'
-      return 0
-    fi
-    if ! "${COMPOSE[@]}" exec -T postgres sh -c \
-      'pg_restore --no-owner --exit-on-error --username="$POSTGRES_USER" --dbname="$POSTGRES_DB"' \
-      < "$UPGRADE_BACKUP_DIR/database.dump" >/dev/null 2>&1; then
-      warn 'Could not restore the database backup; use restore.sh manually'
-      return 0
-    fi
     "${COMPOSE[@]}" up -d >/dev/null 2>&1 || true
+    warn 'If a migration prevents the previous program from starting, inspect it before using restore.sh; restoring a backup replaces newer data'
   elif [ -n "$PREVIOUS_COMPOSE" ] && [ -f "$PREVIOUS_COMPOSE" ]; then
     warn 'Restoring the previous Compose definition'
     cp "$PREVIOUS_COMPOSE" "$COMPOSE_FILE"

@@ -431,45 +431,58 @@ esac
     },
   )
 
-  test('backs up an existing database and deployment files before an upgrade', () => {
-    const directory = createTemporaryDirectory()
-    const bundle = resolve(directory, 'bundle')
-    const installDirectory = resolve(directory, 'installed')
-    const fakeBin = resolve(directory, 'bin')
-    const dockerLog = resolve(directory, 'docker.log')
-    const archive = resolve(directory, 'images.tar.gz')
-    mkdirSync(fakeBin)
-    mkdirSync(installDirectory)
-    writeFileSync(archive, execFileSync('gzip', ['-c'], { input: 'mock docker archive' }))
-    execFileSync('bash', [PREPARE_RELEASE_SCRIPT, 'v1.2.3', 'amd64', archive, bundle])
-    writeFileSync(
-      resolve(installDirectory, '.env'),
-      [
-        'POSTGRES_USER=postgres',
-        'POSTGRES_PASSWORD=old-password',
-        'POSTGRES_DB=sudowork_webui',
-        'SESSION_HMAC_KEY=' + 'a'.repeat(64),
-        'TOKEN_AES_KEY=' + 'b'.repeat(64),
-        'PUBLIC_ORIGIN=https://old-webui.example.com',
-        'TRUST_PROXY=true',
-        'MOSS_BASE_URL=http://10.0.1.206:43127',
-        'MOSS_WS_BASE_URL=ws://10.0.1.206:43127',
-        'MOSS_ALLOWED_ORIGINS=',
-        'CSP_IMG_SRC_ORIGINS=',
-        'WEBUI_PORT=26808',
-      ].join('\n') + '\n',
-    )
-    writeFileSync(resolve(installDirectory, 'docker-compose.yml'), 'old-compose\n')
-    writeFileSync(resolve(installDirectory, 'release-tag'), 'v1.2.2\n')
+  test.each([false, true])(
+    'preserves durable writes when upgrading (startup failure: %s)',
+    (isStartupFailure) => {
+      const directory = createTemporaryDirectory()
+      const bundle = resolve(directory, 'bundle')
+      const installDirectory = resolve(directory, 'installed')
+      const fakeBin = resolve(directory, 'bin')
+      const dockerLog = resolve(directory, 'docker.log')
+      const archive = resolve(directory, 'images.tar.gz')
+      const durableFile = resolve(directory, 'durable-fact.txt')
+      writeFileSync(durableFile, 'database backup')
+      mkdirSync(fakeBin)
+      mkdirSync(installDirectory)
+      writeFileSync(archive, execFileSync('gzip', ['-c'], { input: 'mock docker archive' }))
+      execFileSync('bash', [PREPARE_RELEASE_SCRIPT, 'v1.2.3', 'amd64', archive, bundle])
+      writeFileSync(
+        resolve(installDirectory, '.env'),
+        [
+          'POSTGRES_USER=postgres',
+          'POSTGRES_PASSWORD=old-password',
+          'POSTGRES_DB=sudowork_webui',
+          'SESSION_HMAC_KEY=' + 'a'.repeat(64),
+          'TOKEN_AES_KEY=' + 'b'.repeat(64),
+          'PUBLIC_ORIGIN=https://old-webui.example.com',
+          'TRUST_PROXY=true',
+          'MOSS_BASE_URL=http://10.0.1.206:43127',
+          'MOSS_WS_BASE_URL=ws://10.0.1.206:43127',
+          'MOSS_ALLOWED_ORIGINS=',
+          'CSP_IMG_SRC_ORIGINS=',
+          'WEBUI_PORT=26808',
+        ].join('\n') + '\n',
+      )
+      writeFileSync(resolve(installDirectory, 'docker-compose.yml'), 'old-compose\n')
+      writeFileSync(resolve(installDirectory, 'release-tag'), 'v1.2.2\n')
 
-    const docker = resolve(fakeBin, 'docker')
-    writeFileSync(
-      docker,
-      `#!/bin/sh
+      const docker = resolve(fakeBin, 'docker')
+      writeFileSync(
+        docker,
+        `#!/bin/sh
 printf '%s\n' "$*" >> "$DOCKER_LOG"
 case "$*" in
   *pg_dump*) printf 'database backup'; exit 0 ;;
   *pg_isready*) exit 0 ;;
+  *'DROP SCHEMA'*) printf '' > "$DURABLE_FILE"; exit 0 ;;
+  *pg_restore*) cat > "$DURABLE_FILE"; exit 0 ;;
+esac
+case " $* " in
+  *" up -d "*)
+    if [ "$FAIL_NEW_STARTUP" = 1 ] && grep -q 'image: sudowork-webui:1.2.3' "$DEPLOYMENT_COMPOSE"; then
+      printf 'durable write after backup' > "$DURABLE_FILE"
+      exit 1
+    fi ;;
 esac
 if [ "\${1:-}" = image ]; then echo linux/amd64; exit 0; fi
 if [ "\${1:-}" = load ]; then cat >/dev/null; exit 0; fi
@@ -482,52 +495,70 @@ fi
 case " $* " in *" ps -q webui "*|*" ps -a -q webui "*) echo webui-container;; esac
 exit 0
 `,
-    )
-    chmodSync(docker, 0o755)
-    for (const [name, contents] of Object.entries({
-      getent: `#!/bin/sh\nprintf 'tester:x:1000:1000::%s:/bin/sh\n' "$HOME"\n`,
-      id: `#!/bin/sh\ncase "\${1:-}" in -u) echo 0;; -un|-gn) echo tester;; *) echo tester;; esac\n`,
-      uname: `#!/bin/sh\ncase "\${1:-}" in -s) echo Linux;; -m) echo x86_64;; *) echo Linux;; esac\n`,
-    })) {
-      const path = resolve(fakeBin, name)
-      writeFileSync(path, contents)
-      chmodSync(path, 0o755)
-    }
+      )
+      chmodSync(docker, 0o755)
+      for (const [name, contents] of Object.entries({
+        getent: `#!/bin/sh\nprintf 'tester:x:1000:1000::%s:/bin/sh\n' "$HOME"\n`,
+        id: `#!/bin/sh\ncase "\${1:-}" in -u) echo 0;; -un|-gn) echo tester;; *) echo tester;; esac\n`,
+        uname: `#!/bin/sh\ncase "\${1:-}" in -s) echo Linux;; -m) echo x86_64;; *) echo Linux;; esac\n`,
+      })) {
+        const path = resolve(fakeBin, name)
+        writeFileSync(path, contents)
+        chmodSync(path, 0o755)
+      }
 
-    const env = installerEnv()
-    env.PATH = `${fakeBin}:${env.PATH}`
-    env.HOME = directory
-    env.DOCKER_LOG = dockerLog
-    env.WEBUI_INSTALL_USER = 'tester'
-    const result = spawnSync(
-      'bash',
-      [
-        resolve(bundle, 'install.sh'),
-        '--offline',
-        '--non-interactive',
-        '--skip-moss-check',
-        '--install-dir',
-        installDirectory,
-      ],
-      { encoding: 'utf8', env },
-    )
+      const env = installerEnv()
+      env.PATH = `${fakeBin}:${env.PATH}`
+      env.HOME = directory
+      env.DOCKER_LOG = dockerLog
+      env.WEBUI_INSTALL_USER = 'tester'
+      env.FAIL_NEW_STARTUP = isStartupFailure ? '1' : '0'
+      env.DURABLE_FILE = durableFile
+      env.DEPLOYMENT_COMPOSE = resolve(installDirectory, 'docker-compose.yml')
+      const result = spawnSync(
+        'bash',
+        [
+          resolve(bundle, 'install.sh'),
+          '--offline',
+          '--non-interactive',
+          '--skip-moss-check',
+          '--install-dir',
+          installDirectory,
+        ],
+        { encoding: 'utf8', env },
+      )
 
-    expect(result.status, result.stderr).toBe(0)
-    const backups = readdirSync(resolve(installDirectory, 'backups'))
-    expect(backups).toHaveLength(1)
-    const backupDirectory = resolve(installDirectory, 'backups', backups[0]!)
-    expect(readFileSync(resolve(backupDirectory, 'database.dump'), 'utf8')).toBe('database backup')
-    expect(readFileSync(resolve(backupDirectory, 'docker-compose.yml'), 'utf8')).toBe(
-      'old-compose\n',
-    )
-    expect(readFileSync(resolve(backupDirectory, 'release-tag'), 'utf8')).toBe('v1.2.2\n')
-    expect(
-      readFileSync(resolve(backupDirectory, 'previous-assets/previous-A1b2C3d4.js'), 'utf8'),
-    ).toBe('previous asset')
-    const commands = readFileSync(dockerLog, 'utf8')
-    expect(commands).toContain('cp webui-container:/app/apps/webui/dist/client/assets/.')
-    expect(commands).toContain(
-      'publish-assets node dist/server/publishAssets.js --target /retained-assets /app/apps/webui/dist/client/assets /previous-assets',
-    )
-  })
+      expect(result.status, result.stderr).toBe(isStartupFailure ? 1 : 0)
+      const backups = readdirSync(resolve(installDirectory, 'backups'))
+      expect(backups).toHaveLength(1)
+      const backupDirectory = resolve(installDirectory, 'backups', backups[0]!)
+      expect(readFileSync(resolve(backupDirectory, 'database.dump'), 'utf8')).toBe(
+        'database backup',
+      )
+      expect(readFileSync(resolve(backupDirectory, 'docker-compose.yml'), 'utf8')).toBe(
+        'old-compose\n',
+      )
+      expect(readFileSync(resolve(backupDirectory, 'release-tag'), 'utf8')).toBe('v1.2.2\n')
+      expect(
+        readFileSync(resolve(backupDirectory, 'previous-assets/previous-A1b2C3d4.js'), 'utf8'),
+      ).toBe('previous asset')
+      const commands = readFileSync(dockerLog, 'utf8')
+      expect(readFileSync(durableFile, 'utf8')).toBe(
+        isStartupFailure ? 'durable write after backup' : 'database backup',
+      )
+      expect(commands).not.toContain('DROP SCHEMA')
+      expect(commands).not.toContain('pg_restore')
+      if (isStartupFailure) {
+        expect(readFileSync(resolve(installDirectory, 'docker-compose.yml'), 'utf8')).toBe(
+          'old-compose\n',
+        )
+        expect(readFileSync(resolve(installDirectory, 'release-tag'), 'utf8')).toBe('v1.2.2\n')
+        expect(result.stderr).toContain('keeping the current database')
+      }
+      expect(commands).toContain('cp webui-container:/app/apps/webui/dist/client/assets/.')
+      expect(commands).toContain(
+        'publish-assets node dist/server/publishAssets.js --target /retained-assets /app/apps/webui/dist/client/assets /previous-assets',
+      )
+    },
+  )
 })

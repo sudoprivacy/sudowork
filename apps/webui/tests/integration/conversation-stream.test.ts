@@ -99,6 +99,8 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
   let upstreamMode: 'auto' | 'hold' | 'runner' = 'auto'
   /** When set, `resume` hands back this ws_url instead of the matching one — used to exercise rejection. */
   let upstreamWsUrlOverride: string | null = null
+  let upstreamAttemptId = 'fixture-attempt'
+  const upstreamConnections: WebSocket[] = []
   const upstreamReceived: WsEvent[] = []
   const upstreamAuthHeaders: string[] = []
   const terminalWrites: string[] = []
@@ -136,6 +138,7 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
       }
       upstreamAuthHeaders.push(String(req.headers.authorization ?? ''))
       upstreamWss.handleUpgrade(req, socket, head, (ws) => {
+        upstreamConnections.push(ws)
         ws.on('message', (data) => {
           const message = JSON.parse(data.toString('utf8')) as WsEvent
           upstreamReceived.push(message)
@@ -278,9 +281,18 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
       async context() {
         return { context: { messages: [] } }
       },
+      async activity() {
+        return { attemptId: null, state: 'unavailable' }
+      },
       async resume(_tk, id) {
         return {
-          session: { sessionId: id, userId: 'moss-a', orgId: 'org-1', status: 'active' },
+          session: {
+            sessionId: id,
+            userId: 'moss-a',
+            orgId: 'org-1',
+            status: 'active',
+            attemptId: upstreamAttemptId,
+          },
           wsUrl: upstreamWsUrlOverride ?? `ws://127.0.0.1:${upstreamPort}/ws/sessions/${id}`,
         }
       },
@@ -529,8 +541,24 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
       // 非 writer 的 ws2 发 control_response 也能转发；上游收到与桌面端
       // respondToPermissionRequest 同形状的帧
       const before = upstreamReceived.length
+      upstreamConnections.at(-1)!.send(
+        JSON.stringify({
+          type: 'control_request',
+          request_id: 'perm-1',
+          request: { tool_name: 'Bash' },
+        }),
+      )
+      const approval = await collector(ws2).waitFor(
+        (event) =>
+          event.kind === 'upstream' &&
+          (event.event as { type?: string })?.type === 'control_request',
+      )
       ws2.send(
-        JSON.stringify({ kind: 'control_response', requestId: 'perm-1', optionId: 'allow_once' }),
+        JSON.stringify({
+          kind: 'control_response',
+          requestId: (approval.event as { request_id: string }).request_id,
+          optionId: 'allow_once',
+        }),
       )
       await vi.waitFor(() =>
         expect(
@@ -540,6 +568,11 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
       const frames = upstreamReceived
         .slice(before)
         .filter((e) => (e as { type?: string }).type === 'control_response')
+      await c1.waitFor(
+        (event) =>
+          event.kind === 'permission_resolved' &&
+          event.requestId === (approval.event as { request_id: string }).request_id,
+      )
       expect(frames.length).toBe(1)
       expect(frames[0]).toEqual({
         type: 'control_response',
@@ -560,6 +593,111 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
       await sleep(150)
     }
   }, 20_000)
+
+  test.each([false, true])(
+    'reconnects an approval only to its original execution (attempt changed: %s)',
+    async (isAttemptChanged) => {
+      await coordinator.terminate(principal.id, SID)
+      upstreamMode = 'hold'
+      const ws = await browserWs(cookie1)
+      const events = collector(ws)
+      const before = upstreamReceived.length
+      try {
+        ws.send(JSON.stringify({ kind: 'send', text: 'One explicit tool request' }))
+        await vi.waitFor(() =>
+          expect(
+            upstreamReceived.slice(before).filter((event) => event.type === 'user'),
+          ).toHaveLength(1),
+        )
+        const previous = upstreamConnections.at(-1)!
+        previous.send(
+          JSON.stringify({
+            type: 'control_request',
+            request_id: 'reused-permission-id',
+            request: { tool_name: 'Bash', input: { command: 'original-command' } },
+          }),
+        )
+        const oldApproval = await events.waitFor(
+          (event) =>
+            event.kind === 'upstream' &&
+            (event.event as { type?: string })?.type === 'control_request',
+        )
+        previous.close()
+        await events.waitFor((event) => event.kind === 'lock' && event.state === 'uncertain')
+        if (isAttemptChanged) upstreamAttemptId = 'replacement-attempt'
+        ws.send(
+          JSON.stringify({
+            kind: 'control_response',
+            requestId: (oldApproval.event as { request_id: string }).request_id,
+            optionId: 'allow_once',
+          }),
+        )
+        if (isAttemptChanged) {
+          await events.waitFor((event) => event.kind === 'permissions_cleared')
+          await events.waitFor(
+            (event) => event.kind === 'error' && event.code === 'PERMISSION_EXPIRED',
+          )
+          expect(
+            upstreamReceived.slice(before).filter((event) => event.type === 'control_response'),
+          ).toHaveLength(0)
+          const freshRequest = {
+            type: 'control_request',
+            request_id: 'reused-permission-id',
+            request: { tool_name: 'Bash', input: { command: 'different-command' } },
+          }
+          upstreamConnections.at(-1)!.send(JSON.stringify(freshRequest))
+          const freshApproval = await events.waitFor(
+            (event) =>
+              event.kind === 'upstream' &&
+              (event.event as { request?: { input?: { command?: string } } })?.request?.input
+                ?.command === 'different-command',
+          )
+          const oldId = (oldApproval.event as { request_id: string }).request_id
+          const freshId = (freshApproval.event as { request_id: string }).request_id
+          expect(freshId).not.toBe(oldId)
+          const afterFreshRequest = events.events.length
+          ws.send(
+            JSON.stringify({ kind: 'control_response', requestId: oldId, optionId: 'allow_once' }),
+          )
+          await events.waitFor(
+            (event) =>
+              event.kind === 'error' &&
+              event.code === 'PERMISSION_EXPIRED' &&
+              events.events.indexOf(event) >= afterFreshRequest,
+          )
+          expect(
+            upstreamReceived.slice(before).filter((event) => event.type === 'control_response'),
+          ).toHaveLength(0)
+          ws.send(
+            JSON.stringify({
+              kind: 'control_response',
+              requestId: freshId,
+              optionId: 'reject',
+            }),
+          )
+        }
+        await vi.waitFor(() =>
+          expect(
+            upstreamReceived.slice(before).filter((event) => event.type === 'control_response'),
+          ).toHaveLength(1),
+        )
+        expect(upstreamConnections.at(-1)).not.toBe(previous)
+        expect(
+          upstreamReceived.slice(before).filter((event) => event.type === 'user'),
+        ).toHaveLength(1)
+        expect(upstreamReceived.at(-1)).toMatchObject({
+          type: 'control_response',
+          response: { response: { behavior: isAttemptChanged ? 'reject' : 'allow_once' } },
+        })
+      } finally {
+        ws.close()
+        await coordinator.terminate(principal.id, SID)
+        upstreamAttemptId = 'fixture-attempt'
+        upstreamMode = 'auto'
+      }
+    },
+    20_000,
+  )
 
   test('the manager and Agent owner share one writer lock and one upstream session', async () => {
     isManagerSession = true
