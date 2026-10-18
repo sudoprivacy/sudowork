@@ -9,19 +9,19 @@ export default function SessionCompositionSelector({ agents, templates, personal
   const { t } = useTranslation();
   return (
     <div className='grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4'>
-      <label className='flex flex-col gap-1 min-w-0 text-secondary text-sm'>
-        {t('guid.sessionComposition.agent')}
+      <div className='flex flex-col gap-1 min-w-0 text-secondary text-sm'>
+        <span>{t('guid.sessionComposition.agent')}</span>
         <Select aria-label={t('guid.sessionComposition.agent')} value={personalAgentRef} onChange={onPersonalAgentChange} options={agents.filter((agent) => agent.kind !== 'template' && isPersonalAgentRef(agent.ref)).map((agent) => ({ value: agent.ref, label: agent.displayName }))} />
-      </label>
-      <label className='flex flex-col gap-1 min-w-0 text-secondary text-sm'>
-        {t('guid.sessionComposition.template')}
+      </div>
+      <div className='flex flex-col gap-1 min-w-0 text-secondary text-sm'>
+        <span>{t('guid.sessionComposition.template')}</span>
         <Select
           aria-label={t('guid.sessionComposition.template')}
           value={templateRef || ''}
           onChange={onTemplateChange}
           options={[{ value: '', label: t('guid.sessionComposition.noTemplate') }, ...templates.filter((template) => template.enabled !== false && !isPersonalAgentRef(template.id)).map((template) => ({ value: template.id, label: template.name }))]}
         />
-      </label>
+      </div>
       <div className='sm:col-span-2 text-xs text-secondary'>{t('guid.sessionComposition.engine', { engine: 'Sudo Code' })}</div>
     </div>
   );
