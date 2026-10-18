@@ -76,5 +76,11 @@
     "statusTesting": "正在测试延迟...",
     "statusUnreachable": "不可达",
     "statusAvailable": "可用"
+  },
+  "sessionComposition": {
+    "agent": "我的 Agent",
+    "template": "任务模板",
+    "noTemplate": "不使用模板",
+    "engine": "执行引擎：{{engine}}"
   }
 }

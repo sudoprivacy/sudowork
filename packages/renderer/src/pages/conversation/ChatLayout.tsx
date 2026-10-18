@@ -461,14 +461,14 @@ const ChatLayout: React.FC<{
   const headerBlock = (
     <>
       <ConversationTabs />
-      <ArcoLayout.Header className='min-h-14 flex items-center justify-between px-4 py-2 gap-4 !bg-1 chat-layout-header overflow-hidden'>
-        <div className='shrink-0'>{props.headerLeft}</div>
+      <ArcoLayout.Header className='min-h-16 flex items-center justify-between px-4 py-3 gap-3 !bg-1 chat-layout-header border-b overflow-hidden'>
+        {props.headerLeft && <div className='shrink-0'>{props.headerLeft}</div>}
         <FlexFullContainer className='h-full min-w-0' containerClassName='flex items-center gap-4'>
           <AgentSessionHeader title={props.title} conversationId={conversationId} />
         </FlexFullContainer>
         <div className='flex items-center gap-3 shrink-0'>
           {props.headerExtra}
-          {(backend || agentLogo) && <AgentModeSelector backend={backend} agentName={displayName} agentLogo={agentLogo} agentLogoIsEmoji={agentLogoIsEmoji} compact={false} showLogoInCompact={false} compactLabelType='mode' />}
+          {(backend || agentLogo) && <AgentModeSelector backend={backend} agentName={displayName} agentLogo={agentLogo} agentLogoIsEmoji={agentLogoIsEmoji} conversationId={conversationId} compact showLogoInCompact={false} compactLabelType='mode' />}
           {isWindowsRuntime && workspaceEnabled && (
             <button type='button' className='workspace-header__toggle' aria-label='Toggle workspace' onClick={() => dispatchWorkspaceToggleEvent()}>
               {rightSiderCollapsed ? <ExpandRight size={16} /> : <ExpandLeft size={16} />}

@@ -119,6 +119,8 @@ export default defineConfig({
         '../../packages/renderer/src/pages/conversation/acp/useAcpMessage.ts',
         '../../packages/renderer/src/pages/conversation/context/ConversationHistoryContext.tsx',
         '../../packages/renderer/src/pages/conversation/components/AgentSessionHeader.tsx',
+        '../../packages/renderer/src/pages/conversation/components/HistoryViewSelector.tsx',
+        '../../packages/renderer/src/pages/guid/components/SessionCompositionSelector.tsx',
         '../../packages/renderer/src/pages/conversation/components/NewConversationButton.tsx',
         'src/common/scode/serviceClient.ts',
         'src/common/scode/secretsClient.ts',

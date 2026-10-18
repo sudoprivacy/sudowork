@@ -2062,6 +2062,7 @@ export interface ICreateConversationParams {
       presetContext?: string;
       /** 预设助手 ID，用于在会话面板显示助手名称和头像 / Preset assistant ID for displaying name and avatar in conversation panel */
       presetAssistantId?: string;
+      templateRef?: string;
       /** Initial session mode selected on Guid page (from AgentModeSelector) */
       sessionMode?: string;
       /** Session mode (remote/local) for enterprise mode Provider selection - distinct from sessionMode (yolo/auto) */

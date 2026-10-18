@@ -330,6 +330,7 @@ export type TChatConversation =
           enabledSkills?: string[];
           /** 预设助手 ID，用于在会话面板显示助手名称和头像 / Preset assistant ID for displaying name and avatar in conversation panel */
           presetAssistantId?: string;
+          templateRef?: string;
           /** 是否置顶会话 / Whether this conversation is pinned */
           pinned?: boolean;
           /** 置顶时间戳（毫秒）/ Pin timestamp in milliseconds */
@@ -429,6 +430,7 @@ export type TChatConversation =
           cliPath?: string;
           /** 预设助手 ID / Preset assistant ID */
           presetAssistantId?: string;
+          templateRef?: string;
           /** 启用的 skills 列表 / Enabled skills list */
           enabledSkills?: string[];
           /** Persisted session mode for resume support / 持久化的会话模式，用于恢复 */

@@ -354,7 +354,7 @@ export function initConversationBridge(): void {
         if (!(await ensureScodeInstalled())) throw new Error('Local scode engine is unavailable');
         const assistantReference = params.extra?.presetAssistantId || `moss-agent:user:${runtime.userId}`;
         const personalAgent = isPersonalAgentRef(assistantReference) ? await requireMossPersonalAgent(assistantReference) : undefined;
-        const resources = await prepareMossResources(assistantReference, params.extra?.enabledSkills);
+        const resources = await prepareMossResources(params.extra?.templateRef || assistantReference, params.extra?.enabledSkills);
         finalParams = {
           ...params,
           type: 'acp',
@@ -373,7 +373,8 @@ export function initConversationBridge(): void {
       if (target === 'remote' && ProcessConfig.getSync('eeclaw.accountScope')) {
         const { resolveMossCatalogSelection } = await import('@process/services/mossCatalogSelection');
         const selection = await resolveMossCatalogSelection(params.extra?.presetAssistantId, params.extra?.enabledSkills);
-        finalParams = { ...finalParams, extra: { ...finalParams.extra, mossAssistantRef: selection.assistantReference, enabledSkills: selection.skillReferences } };
+        const template = params.extra?.templateRef ? await resolveMossCatalogSelection(params.extra.templateRef) : undefined;
+        finalParams = { ...finalParams, extra: { ...finalParams.extra, mossAssistantRef: selection.assistantReference, ...(template ? { templateRef: template.assistantReference } : {}), enabledSkills: selection.skillReferences } };
       }
       const provider = getConversationProvider(target);
       const conversation = await provider.createConversation(finalParams);

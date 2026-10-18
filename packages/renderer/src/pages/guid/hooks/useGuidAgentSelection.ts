@@ -339,8 +339,8 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl, isOntologyE
       ipcBridge.eeclaw.setSessionMode.invoke({ mode }).catch(() => {});
       emitter.emit('chat.history.refresh');
 
-      const isPersonalSelection = selectedAgentKeyRef.current.startsWith('custom:') && isPersonalAgentRef(selectedAgentKeyRef.current.slice('custom:'.length));
-      if (isPersonalSelection) return;
+      const isCustomSelection = selectedAgentKeyRef.current.startsWith('custom:');
+      if (isCustomSelection) return;
       setCustomAgents([]);
 
       // Reset selectedAgentKey to the default for the new mode

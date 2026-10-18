@@ -85,6 +85,7 @@ export interface RemoteAgentData {
   password?: string;
   /** Agent name (corresponds to Moss assistant_name) */
   assistantName?: string;
+  templateRef?: string;
   /** Skip permission confirmation */
   dangerouslySkipPermissions?: boolean;
   /** Runtime type */
@@ -202,6 +203,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
           password: this.options.password,
           cwd: this.workspace,
           assistantName: this.options.assistantName,
+          templateRef: this.options.templateRef,
           dangerouslySkipPermissions: this.options.dangerouslySkipPermissions ?? this.yoloMode,
           runtimeType: this.options.runtimeType,
           // No wsUrl - will create new session
