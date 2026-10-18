@@ -216,7 +216,9 @@ describe('organization catalog and local installations', () => {
   });
 });
 
-it('pins an agent dependency across a standalone skill update and rejects incompatible selections', async () => {
+// This journey writes and validates several real archive versions on disk.
+// Cold Windows filesystem scans can exceed the default 10s unit-test deadline.
+it('pins an agent dependency across a standalone skill update and rejects incompatible selections', { timeout: 30_000 }, async () => {
   const { prepareLocalCatalogSelection } = await import('@process/services/mossCatalogSelection');
   const installed = await installMossCatalog(agent);
   const before = await prepareLocalCatalogSelection(installed.id);

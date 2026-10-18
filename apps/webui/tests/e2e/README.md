@@ -1,5 +1,46 @@
 # Live shared-browser acceptance
 
+## Mobile task creation and model selection
+
+`live_mobile_onboarding.py` starts at the real password login screen with an
+isolated acceptance account. At 320, 375 and 390 CSS pixels, it opens the phone
+navigation, starts a new task on the same route, checks the composer width and
+the readable 44px model control, and chooses an actual available model by touch.
+The selection must survive a reload. One visible Send then creates one real
+conversation, the selected model returns a fresh marker, and another reload
+must restore that exact assistant response. The owned test conversation is
+terminated even when a later assertion fails.
+It also checks the desktop composer, verifies that the phone conversation stays
+wide after reload, and opens the workspace and Browser tabs in a full-width
+drawer before returning to chat. It first selects a different available model
+and reloads, then selects the requested model, so a pre-existing preference
+cannot satisfy the selection check. The saved choice is read back through the
+real model-preference API. ACP currently omits model identity from its stream
+and history; this UI test records that limit and verifies a real completed turn.
+It then uses the phone conversation's visible 44px Send control for a second
+fresh turn and checks that both replies survive another reload in the same session.
+
+Use a private configuration with `origin`, `username` and `password`, a real
+model account, and a new evidence directory:
+
+```sh
+python apps/webui/tests/e2e/live_mobile_onboarding.py \
+  --config /private/mobile-acceptance.json \
+  --model gpt-6-luna \
+  --output /private/evidence/mobile-onboarding-001
+```
+
+`--assets-dir apps/webui/dist/client` checks a compiled candidate SPA before
+deployment. It replaces only that browser's document and static asset responses;
+authentication, model preferences, session APIs and WebSockets still use the
+configured real origin. This option does not establish a production deployment.
+Run the same journey without the option after deployment. The script changes
+the isolated account's model preference and sends two real model turns, which
+may incur charges.
+It closes its own viewing browser and retains screenshots and failure evidence.
+An iPhone-sized Chromium context is recorded as emulation; physical iOS Chrome
+and Safari results require their own device runs.
+
 `live_browser_handoff.py` drives the actual WebUI, its real Moss conversation,
 the configured model account, and the browser shared with the user. It does not
 replace the agent or browser with a test double.

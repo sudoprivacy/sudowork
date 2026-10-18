@@ -17,6 +17,7 @@ import BdpanLogo from '@renderer/assets/logos/bdpan.png';
 import BdpanImportFilePicker from '@renderer/components/base/BdpanImportFilePicker';
 import type { AcpBackend, AcpBackendConfig, AvailableAgent } from '../types';
 import PresetAgentTag from './PresetAgentTag';
+import styles from './GuidActionRow.module.css';
 
 type GuidActionRowProps = {
   // File handling
@@ -81,8 +82,8 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
 
   return (
     <>
-      <div className='flex items-center justify-between w-full gap-2 mt-3'>
-        <div className='inline-flex items-center gap-2.5 shrink min-w-0'>
+      <div className={`${styles.actions} flex items-end justify-between w-full gap-2 mt-3`}>
+        <div className={`${styles.controls} flex flex-wrap items-center gap-2.5 flex-1 min-w-0`}>
           <Dropdown
             trigger={'click'}
             popupVisible={fileMenuOpen}
@@ -147,15 +148,15 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
             </span>
           </Dropdown>
 
-          {skillTriggerNode}
-
           {modelSelectorNode}
+
+          {skillTriggerNode}
 
           {supportsModeSwitch(modeBackend) && <AgentModeSelector backend={modeBackend} compact initialMode={selectedMode} onModeSelect={onModeSelect} compactLabelOverride={permissionLabel} compactLeadingIcon={<Shield size={14} color='currentColor' />} modeLabelFormatter={getModeDisplayLabel} />}
 
           {isPresetAgent && selectedAgentInfo && <PresetAgentTag agentInfo={selectedAgentInfo} customAgents={customAgents} localeKey={localeKey} onClose={onClosePresetTag} />}
         </div>
-        <Button aria-label={t('common.send')} shape='circle' type='primary' loading={loading} disabled={isButtonDisabled} icon={<ArrowUp size={16} color='white' />} onClick={onSend} />
+        <Button className='shrink-0' aria-label={t('common.send')} shape='circle' type='primary' loading={loading} disabled={isButtonDisabled} icon={<ArrowUp size={16} color='white' />} onClick={onSend} />
       </div>
 
       <BdpanImportFilePicker

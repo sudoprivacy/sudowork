@@ -30,6 +30,14 @@ afterEach(() => {
 });
 
 describe('responsive sidebar', () => {
+  it('closes the phone menu when starting another task on the same page', () => {
+    viewport(true);
+    const { result, rerender } = renderHook(({ navigationKey }) => useResponsiveSider('/guid', navigationKey), { initialProps: { navigationKey: 'first-task' } });
+    act(() => result.current.setIsCollapsed(false));
+    rerender({ navigationKey: 'new-task' });
+    expect(result.current.isCollapsed).toBe(true);
+  });
+
   it('starts collapsed at phone width and permits opening the menu', () => {
     viewport(true);
     const { result, rerender } = renderHook(({ pathname }) => useResponsiveSider(pathname), { initialProps: { pathname: '/guid' } });

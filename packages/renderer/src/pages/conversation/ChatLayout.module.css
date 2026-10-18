@@ -1,0 +1,42 @@
+.phoneChat textarea {
+  font-size: 16px;
+}
+
+.phoneChat :global(.sendbox-actions) {
+  align-items: flex-end;
+}
+
+.phoneChat :global(.sendbox-actions .sendbox-tools) {
+  flex: 1;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.phoneChat :global(.sendbox-actions .sendbox-tools) > * {
+  max-width: 100%;
+}
+
+.phoneChat :global(.sendbox-actions .sendbox-tools) > div {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.phoneChat :global(.sendbox-actions) > div:last-child {
+  flex-shrink: 0;
+}
+
+.phoneChat :global(.sendbox-actions) button {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.phonePanel :global(.arco-drawer-close-icon) {
+  top: 2px;
+  right: 8px;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
