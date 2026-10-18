@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { addOrUpdateMessage } from '@/process/message';
 
 // ---- Mocks ----------------------------------------------------------------
 //
@@ -217,6 +218,7 @@ describe('RemoteAgent idle detach', () => {
     vi.useFakeTimers();
     FakeMossWsConnection.reset();
     responseStreamEmit.mockClear();
+    vi.mocked(addOrUpdateMessage).mockClear();
     confirmationAddEmit.mockClear();
     confirmationUpdateEmit.mockClear();
     confirmationRemoveEmit.mockClear();
@@ -230,6 +232,32 @@ describe('RemoteAgent idle detach', () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+  });
+
+  it('persists the user prompt before replies when the server does not echo it', async () => {
+    const RemoteAgent = await loadRemoteAgent();
+    const agent = makeAgent(RemoteAgent);
+
+    await agent.sendMessage({ content: 'Keep this prompt in local history', msg_id: 'user-1' });
+
+    expect(addOrUpdateMessage).toHaveBeenCalledExactlyOnceWith(
+      'conv-1',
+      expect.objectContaining({
+        type: 'text',
+        position: 'right',
+        conversation_id: 'conv-1',
+        msg_id: 'user-1',
+        content: { content: 'Keep this prompt in local history' },
+      })
+    );
+    expect(responseStreamEmit).toHaveBeenCalledWith(expect.objectContaining({ type: 'user_content', msg_id: 'user-1' }));
+    const connection = FakeMossWsConnection.instances[0];
+    expect(connection.sendMessageCalls).toBe(1);
+    connection.callbacks.onMessage?.({ type: 'content', conversation_id: 'moss-session-1', msg_id: 'assistant-1', data: 'Saved reply' });
+    expect(vi.mocked(addOrUpdateMessage).mock.calls.map(([, message]) => ({ position: message.position, msgId: message.msg_id }))).toEqual([
+      { position: 'right', msgId: 'user-1' },
+      { position: 'left', msgId: 'assistant-1' },
+    ]);
   });
 
   it('detaches after the idle window when finished', async () => {
