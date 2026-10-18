@@ -6,7 +6,15 @@
 
 import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { transformMessage } from '@sudowork/common/chatLib';
+import { mossFrameToResponses } from '@sudowork/common/mossResponse';
+import type { IMessageTips } from '@sudowork/common/chatTypes';
+
+const runtime = vi.hoisted(() => ({ upgrade: vi.fn(), send: vi.fn() }));
+vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
+  moss: { upgradeRuntime: { invoke: runtime.upgrade }, sendMessage: { invoke: runtime.send } },
+}));
 
 // Stub react-i18next so tests are deterministic — t() echoes the key,
 // with {{bytes}} interpolation simulated.
@@ -23,15 +31,50 @@ vi.mock('react-i18next', () => ({
 // Stub the icon library — @icon-park/react ESM imports can be heavy in jsdom.
 vi.mock('@icon-park/react', () => ({
   Attention: (props: Record<string, unknown>) => <span data-testid='icon-attention' {...props} />,
+  CheckOne: () => <span />,
 }));
 
 vi.mock('@office-ai/platform', () => ({
   theme: { Color: { FunctionalColor: { error: '#f00' } } },
 }));
 
+vi.mock('@renderer/components/Markdown', () => ({ default: () => <span /> }));
+vi.mock('@renderer/components/CollapsibleContent', () => ({ default: () => <span /> }));
+
 import RuntimeErrorBanner from '@renderer/messages/RuntimeErrorBanner';
+import MessageTips from '@renderer/messages/MessageTips';
 
 describe('RuntimeErrorBanner', () => {
+  it('updates only after a click and requires an explicit new message afterward', async () => {
+    let onResolve!: (value: { success: boolean }) => void;
+    runtime.upgrade.mockReset().mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          onResolve = resolve;
+        })
+    );
+    runtime.send.mockClear();
+    const message = transformMessage({ type: 'error', conversation_id: 'owned-session', msg_id: 'update', data: 'RUNTIME_UPDATE_REQUIRED' }) as IMessageTips;
+    render(<MessageTips message={message} />);
+    expect(runtime.upgrade).not.toHaveBeenCalled();
+    const button = screen.getByRole('button', { name: 'runtimeError.runtime_update_required.cta' });
+    fireEvent.click(button);
+    fireEvent.click(button);
+    expect(runtime.upgrade).toHaveBeenCalledExactlyOnceWith({ conversationId: 'owned-session' });
+    await act(async () => onResolve({ success: true }));
+    expect(screen.getByRole('status').textContent).toBe('runtimeError.runtime_update_required.updated');
+    expect(runtime.send).not.toHaveBeenCalled();
+  });
+  it('renders a localized interruption banner from the actual Moss terminal envelope without a retry action', () => {
+    const [response] = mossFrameToResponses({ type: 'result', subtype: 'error_interrupted', is_error: true, errors: ['The execution outcome is unknown.'] }, { sessionId: 'session', nextMsgId: () => 'terminal' });
+    const message = transformMessage(response) as IMessageTips;
+    render(<MessageTips message={message} />);
+    expect(screen.getByTestId('runtime-error-interrupted')).toBeTruthy();
+    expect(screen.getByText('runtimeError.interrupted.title')).toBeTruthy();
+    expect(screen.getByText('runtimeError.interrupted.body')).toBeTruthy();
+    expect(screen.queryByTestId('runtime-error-cta-interrupted')).toBeNull();
+  });
+
   it('renders differentiated banner with data-testid per class (regression: lets e2e select by class)', () => {
     render(<RuntimeErrorBanner errorClass='context_window_exceeded' fallbackContent='raw error msg' />);
     expect(screen.getByTestId('runtime-error-context_window_exceeded')).toBeTruthy();

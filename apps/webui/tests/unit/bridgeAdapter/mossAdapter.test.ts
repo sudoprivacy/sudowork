@@ -59,6 +59,19 @@ describe('mossAdapter: session streams', () => {
     vi.unstubAllGlobals()
   })
 
+  it('updates the selected Session runtime without opening a stream or resending input', async () => {
+    const fetch = stubFetch({ '/runtime/upgrade': { success: true } })
+    expect(await ipc.moss.upgradeRuntime.invoke({ conversationId: 'session/a' })).toMatchObject({
+      success: true,
+    })
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(String(fetch.mock.calls[0]![0])).toContain(
+      '/api/conversations/session%2Fa/runtime/upgrade',
+    )
+    expect(fetch.mock.calls[0]![1]).toMatchObject({ method: 'POST', body: '{}' })
+    expect(ViewerSocket.instances).toHaveLength(0)
+  })
+
   it('waits for the authenticated subscription before triggering an automatic model turn', async () => {
     const fetch = stubFetch({ '/browser': { session: {} } })
     const response = ipc.browserSession.invoke.invoke({

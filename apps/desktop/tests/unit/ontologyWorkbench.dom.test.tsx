@@ -298,8 +298,16 @@ function createDeferred<T>() {
   return { promise, resolve, reject };
 }
 
+async function renderWorkbench(api: IOntologyWorkbenchApi) {
+  let view!: ReturnType<typeof render>;
+  await act(async () => {
+    view = render(<OntologyWorkbench api={api} />);
+  });
+  return view;
+}
+
 async function openGuidedBuilder(api: IOntologyWorkbenchApi, method: 'document' | 'asset' = 'document') {
-  render(<OntologyWorkbench api={api} />);
+  await renderWorkbench(api);
   await screen.findAllByText(translate('ontology.console.views.connections.title'));
   fireEvent.click(screen.getAllByText(translate('ontology.console.views.ontology.title'))[0]);
   fireEvent.click((await screen.findAllByText(translate('ontology.list.detail')))[0]);
@@ -318,7 +326,7 @@ function onSelectDocumentForExtraction() {
 }
 
 async function openObjectEditor(api: IOntologyWorkbenchApi) {
-  render(<OntologyWorkbench api={api} />);
+  await renderWorkbench(api);
   await screen.findAllByText('ontology.console.views.connections.title');
   fireEvent.click(screen.getAllByText('ontology.console.views.ontology.title')[0]);
   fireEvent.click(await screen.findByText('ontology.list.detail'));
@@ -450,7 +458,7 @@ describe('OntologyWorkbench', () => {
       const snapshot = await api.getWorkbench();
       snapshot.draft.title = name;
       vi.mocked(api.listWorkbenches).mockResolvedValue({ activeWorkspaceId: snapshot.workspaceId, items: [{ ...summarizeOntologyWorkbenchSnapshot(snapshot), name }] });
-      render(<OntologyWorkbench api={api} />);
+      await renderWorkbench(api);
 
       fireEvent.click((await screen.findAllByText(`ontology.console.views.${view}.title`))[0]);
       const title = (await screen.findByText(name || 'ontology.list.defaultName')).closest('.arco-typography');
@@ -472,13 +480,15 @@ describe('OntologyWorkbench', () => {
         connector: { ...connector, id: 'new-postgresql', metadata: connector.metadata ?? {}, probeStatus: 'reachable', createdAt: 1, updatedAt: 1 },
         assets: [],
       }));
-      render(<OntologyWorkbench api={api} />);
+      await renderWorkbench(api);
       const dialog = await openNewConnector();
       expect(getConnectorField(dialog, 'category')).toHaveValue('ontology.console.connectionPicker.categories.database.title');
       expect(getConnectorFormItem(dialog, 'type')).toHaveTextContent('ontology.connectorType.mysql');
       const options = await openConnectorTypeOptions(dialog);
       expect.soft(options.map((option) => option.textContent)).toEqual(['ontology.connectorType.mysql', 'ontology.connectorType.postgresql']);
-      fireEvent.click(screen.getByRole('option', { name: 'ontology.connectorType.postgresql' }));
+      await act(async () => {
+        fireEvent.click(screen.getByRole('option', { name: 'ontology.connectorType.postgresql' }));
+      });
       expect(getConnectorField(dialog, 'port')).toHaveValue('5432');
       const fields = { name: 'Reporting database', host: 'postgres.example.invalid', port: '15432', database: 'reporting', username: 'test_reader', password: 'fake-test-password', poolSize: '6', rateLimitQps: '35', description: 'Reporting connection' };
       for (const [field, value] of Object.entries(fields)) {
@@ -520,7 +530,7 @@ describe('OntologyWorkbench', () => {
         const connector = { id: `legacy-${sourceType}`, name: `${sourceType}::stored-name`, sourceType, kind: 'database' as const, ...fields, metadata, probeStatus: 'reachable' as const, createdAt: 1, updatedAt: 1 };
         snapshot.connectors = [connector];
         vi.mocked(api.probeConnector).mockResolvedValue({ snapshot, connector, assets: [] });
-        render(<OntologyWorkbench api={api} />);
+        await renderWorkbench(api);
         const row = (await screen.findByText(metadata.displayName)).closest('tr') as HTMLElement;
         fireEvent.click(within(row).getByRole('button', { name: 'ontology.editor.edit' }));
         const dialog = await screen.findByRole('dialog', { name: 'ontology.console.connectionForm.editTitle' });
@@ -558,7 +568,7 @@ describe('OntologyWorkbench', () => {
     );
 
     it.each(['ftp', 'sftp'])('keeps file transfer options and %s fields available', async (sourceType) => {
-      render(<OntologyWorkbench api={createApi()} />);
+      await renderWorkbench(createApi());
       const dialog = await openNewConnector('file_transfer');
       expect(getConnectorField(dialog, 'category')).toHaveValue('ontology.console.connectionPicker.categories.file_transfer.title');
       const options = await openConnectorTypeOptions(dialog);
@@ -757,8 +767,7 @@ describe('OntologyWorkbench', () => {
       const child = await openAttributeEditor(parent, mode === 'edit' ? 'Customer ID' : undefined);
       expectParentBlocked(parent);
       changeEditorFields(child, { name: 'Discarded attribute', code: 'discarded', description: 'Discarded description' });
-      fireEvent.click(within(child).getByRole('button', { name: 'ontology.reset.cancel' }));
-      await waitFor(() => expect(child).not.toBeVisible());
+      await onCloseModal(within(child).getByRole('button', { name: 'ontology.reset.cancel' }));
 
       expectEditorFields(parent, basicFields);
       expectAttributeCount(parent, 1);
@@ -1021,7 +1030,7 @@ describe('OntologyWorkbench', () => {
         },
       ],
     });
-    render(<OntologyWorkbench api={api} />);
+    await renderWorkbench(api);
 
     await screen.findAllByText('ontology.console.views.connections.title');
     fireEvent.click(screen.getAllByText('ontology.console.views.ontology.title')[0]);
@@ -1079,7 +1088,7 @@ describe('OntologyWorkbench', () => {
         updatedAt: Date.now(),
       },
     ];
-    render(<OntologyWorkbench api={api} />);
+    await renderWorkbench(api);
 
     await screen.findAllByText('ontology.console.views.connections.title');
     fireEvent.click(screen.getAllByText('ontology.console.views.ontology.title')[0]);
@@ -1147,7 +1156,7 @@ describe('OntologyWorkbench', () => {
       },
     ];
     snapshot.stats = recalculateOntologyStats(snapshot);
-    render(<OntologyWorkbench api={api} />);
+    await renderWorkbench(api);
 
     await screen.findAllByText('ontology.console.views.connections.title');
     fireEvent.click(screen.getAllByText('ontology.console.views.ontology.title')[0]);
@@ -1191,7 +1200,7 @@ describe('OntologyWorkbench', () => {
       },
     ];
     snapshot.stats = recalculateOntologyStats(snapshot);
-    render(<OntologyWorkbench api={api} />);
+    await renderWorkbench(api);
 
     await screen.findAllByText('ontology.console.views.connections.title');
     fireEvent.click(screen.getAllByText('ontology.console.views.ontology.title')[0]);
@@ -1219,7 +1228,7 @@ describe('OntologyWorkbench', () => {
 
   it('opens the active ontology detail and exposes object modeling controls', async () => {
     const api = createApi();
-    const { container } = render(<OntologyWorkbench api={api} />);
+    const { container } = await renderWorkbench(api);
 
     await screen.findAllByText('ontology.console.views.connections.title');
     expect(container.querySelector('.lucide-circle-x')).toBeInTheDocument();
@@ -1256,7 +1265,7 @@ describe('OntologyWorkbench', () => {
 
   it('opens the ontology creation form with labeled and empty fields every time', async () => {
     const api = createApi();
-    render(<OntologyWorkbench api={api} />);
+    await renderWorkbench(api);
 
     await screen.findAllByText('ontology.console.views.connections.title');
     fireEvent.click(screen.getAllByText('ontology.console.views.ontology.title')[0]);
@@ -1285,7 +1294,7 @@ describe('OntologyWorkbench', () => {
 
   it('opens the Agent creation form with an empty name every time', async () => {
     const api = createApi();
-    render(<OntologyWorkbench api={api} />);
+    await renderWorkbench(api);
 
     await screen.findAllByText('ontology.console.views.connections.title');
     fireEvent.click(screen.getAllByText('ontology.console.views.agent.title')[0]);
@@ -1307,7 +1316,7 @@ describe('OntologyWorkbench', () => {
     const api = createApi();
     const snapshot = await api.getWorkbench();
     vi.mocked(api.createAgentBlueprint).mockResolvedValue({ snapshot });
-    render(<OntologyWorkbench api={api} />);
+    await renderWorkbench(api);
 
     await screen.findAllByText('ontology.console.views.connections.title');
     fireEvent.click(screen.getAllByText('ontology.console.views.agent.title')[0]);
@@ -1400,7 +1409,7 @@ describe('OntologyWorkbench', () => {
     vi.mocked(api.selectWorkbench).mockImplementation(async ({ workspaceId }) => (workspaceId === secondarySnapshot.workspaceId ? secondarySnapshot : primarySnapshot));
     vi.mocked(api.approvePublishedVersion).mockResolvedValue(secondarySnapshot);
     vi.mocked(api.rejectPublishedVersion).mockResolvedValue(secondarySnapshot);
-    render(<OntologyWorkbench api={api} />);
+    await renderWorkbench(api);
 
     await screen.findAllByText('ontology.console.views.connections.title');
     fireEvent.click(screen.getAllByText('ontology.console.views.publish.title')[0]);
@@ -1467,7 +1476,7 @@ describe('OntologyWorkbench', () => {
         isActive: false,
       },
     });
-    render(<OntologyWorkbench api={api} />);
+    await renderWorkbench(api);
 
     await screen.findAllByText('ontology.console.views.connections.title');
     fireEvent.click(screen.getAllByText('ontology.console.views.publish.title')[0]);
@@ -1490,7 +1499,7 @@ describe('OntologyWorkbench', () => {
       activeWorkspaceId: snapshot.workspaceId,
       items: [summarizeOntologyWorkbenchSnapshot(snapshot)],
     });
-    render(<OntologyWorkbench api={api} />);
+    await renderWorkbench(api);
 
     await screen.findAllByText('ontology.console.views.connections.title');
     fireEvent.click(screen.getAllByText('ontology.console.views.ontology.title')[0]);
@@ -1525,7 +1534,7 @@ describe('OntologyWorkbench', () => {
         updatedAt: Date.now(),
       },
     ];
-    render(<OntologyWorkbench api={api} />);
+    await renderWorkbench(api);
 
     await screen.findAllByText('ontology.console.views.connections.title');
     fireEvent.click(screen.getAllByText('ontology.console.views.agent.title')[0]);
@@ -1542,7 +1551,7 @@ describe('OntologyWorkbench', () => {
 
   it('does not display counters beside workbench navigation items', async () => {
     const api = createApi();
-    render(<OntologyWorkbench api={api} />);
+    await renderWorkbench(api);
 
     const publishLabel = (await screen.findAllByText('ontology.console.views.publish.title'))[0];
     expect(publishLabel.closest('button')).toHaveTextContent('ontology.console.views.publish.title');
@@ -1551,7 +1560,7 @@ describe('OntologyWorkbench', () => {
 
   it('merges ontology publishing and service capabilities into one page', async () => {
     const api = createApi();
-    render(<OntologyWorkbench api={api} />);
+    await renderWorkbench(api);
 
     await screen.findAllByText('ontology.console.views.connections.title');
     fireEvent.click(screen.getAllByText('ontology.console.views.ontology.title')[0]);
@@ -1578,7 +1587,7 @@ describe('OntologyWorkbench', () => {
       snapshot,
       files: [{ id: 'template_asset', name: 'template.json', path: '/tmp/template.json', sizeBytes: 128, extension: '.json' }],
     });
-    render(<OntologyWorkbench api={api} />);
+    await renderWorkbench(api);
 
     await screen.findAllByText('ontology.console.views.connections.title');
     fireEvent.click(screen.getAllByText('ontology.console.views.ontology.title')[0]);
@@ -1897,7 +1906,7 @@ describe('OntologyWorkbench', () => {
 
   it('runs the complete manual modeling workflow', async () => {
     const api = createApi();
-    render(<OntologyWorkbench api={api} />);
+    await renderWorkbench(api);
 
     await screen.findAllByText('ontology.console.views.connections.title');
     fireEvent.click(screen.getAllByText('ontology.console.views.ontology.title')[0]);

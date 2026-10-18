@@ -1,4 +1,5 @@
 export * from './MossHttpClient.js'
+export * from './MossRuntimeClient.js'
 export * from './MossBrowserFiles.js'
 export * from './MossAuthClient.js'
 export * from './MossSessionClient.js'

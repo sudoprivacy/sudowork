@@ -2210,6 +2210,16 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     ensureSessionStream(sessionId)
     return ok({ wsUrl: wsUrlFor(sessionId), session: toMossSession({ id: sessionId }) })
   },
+  'moss.upgrade-runtime': async (req) => {
+    await apiFetch(
+      `/api/conversations/${encodeURIComponent(String(req?.conversationId ?? ''))}/runtime/upgrade`,
+      {
+        method: 'POST',
+        body: '{}',
+      },
+    )
+    return ok()
+  },
   'moss.update-session': async (req) => {
     const sessionId = String(req?.sessionId ?? '')
     await apiFetch(`/api/conversations/${encodeURIComponent(sessionId)}/meta`, {

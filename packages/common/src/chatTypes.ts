@@ -10,6 +10,7 @@
  */
 
 import type { AcpBackend, AcpPermissionRequest, PlanUpdate, ToolCallUpdate } from './acpTypes.js';
+import type { RuntimeErrorClass } from './runtime-errors.js';
 import type { CodexPermissionRequest } from './codex/types/index.js';
 import type {
   ExecCommandBeginData,
@@ -34,6 +35,8 @@ export interface IResponseMessage {
   data: unknown;
   msg_id: string;
   conversation_id: string;
+  /** Display classification; error text remains in data for legacy consumers. */
+  errorClass?: RuntimeErrorClass;
 }
 
 type TMessageType = 'text' | 'tips' | 'thought' | 'tool_call' | 'tool_group' | 'agent_status' | 'acp_permission' | 'acp_question' | 'acp_tool_call' | 'codex_permission' | 'codex_tool_call' | 'plan' | 'available_commands' | 'file_send';

@@ -30,15 +30,25 @@ export const MossSessionListResponseSchema = z.object({
   sessions: z.array(MossSessionSummarySchema),
 })
 
+export const MossStartupFailureSchema = z.object({
+  sessionId: z.string().optional(),
+  attemptId: z.string(),
+  code: z.string(),
+  isRetryable: z.boolean(),
+  message: z.string(),
+})
+
 export const MossCreateSessionResponseSchema = z
   .object({
     session_id: z.string(),
     task_id: z.string().optional(),
     attempt_id: z.string().nullable().optional(),
+    startup: MossStartupFailureSchema.optional(),
     ws_url: z.string(),
     work_dir: z.string().optional(),
   })
   .passthrough()
+export type MossCreateSessionResponse = z.infer<typeof MossCreateSessionResponseSchema>
 
 export const MossResumeResponseSchema = z
   .object({

@@ -130,6 +130,7 @@ export function mossFrameToResponses(frame: any, ctx: MossResponseCtx): IRespons
         msg_id: frame.uuid || ctx.nextMsgId(),
         conversation_id: conversationId,
         data: errorMsg,
+        ...(frame.subtype === 'error_interrupted' ? { errorClass: 'interrupted' as const } : {}),
       });
     }
 

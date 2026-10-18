@@ -1,4 +1,4 @@
-import { convertMossMessagesToTMessages } from '@sudowork/common/chatLib';
+import { convertMossMessagesToTMessages, transformMessage } from '@sudowork/common/chatLib';
 import { describe, expect, it } from 'vitest';
 
 import { extractTextFromContent, isUserAbortError, mossControlRequestToConfirmation, mossFrameToResponses, type MossResponseCtx } from '@sudowork/common/mossResponse';
@@ -28,6 +28,19 @@ describe('mossFrameToResponses', () => {
   });
 
   describe('result', () => {
+    it('preserves typed interruption guidance through live and restored messages', () => {
+      const frame = { type: 'result', subtype: 'error_interrupted', is_error: true, uuid: 'lost-turn', errors: ['The execution outcome is unknown. Check effects before retrying.'] };
+      const out = mossFrameToResponses(frame, makeCtx({ conversationId: 'conversation' }));
+      expect(out).toHaveLength(2);
+      expect(out[0]).toMatchObject({ type: 'error', errorClass: 'interrupted', data: frame.errors[0] });
+      const live = transformMessage(out[0]);
+      const restored = convertMossMessagesToTMessages([frame], 'conversation', 'sess-1');
+      for (const message of [live, restored.messages[0]]) {
+        expect(message).toMatchObject({ type: 'tips', content: { type: 'error', errorClass: 'interrupted', content: frame.errors[0] } });
+      }
+      expect(out[1].type).toBe('finish');
+    });
+
     it('emits error + finish for a genuine error result', () => {
       const out = mossFrameToResponses({ type: 'result', is_error: true, errors: ['boom', 'bang'], subtype: 'error_x', duration_ms: 12, total_cost_usd: 0.5, usage: { output: 3 }, num_turns: 2 }, makeCtx());
       expect(out).toHaveLength(2);

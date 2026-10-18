@@ -43,5 +43,12 @@
   "timeout": {
     "title": "İstek zaman aşımına uğradı",
     "body": "İstek zaman aşımına uğradı; lütfen kısa süre sonra yeniden deneyin."
+  },
+  "runtime_update_required": {
+    "title": "Çalışma ortamının güncellenmesi gerekiyor",
+    "body": "Geçerli yapılandırmayı kullanmak için bulut çalışma ortamınızı güncelleyin. Önce diğer çalışan oturumların bitmesi gerekir. Bu işlem mesajları veya araçları yeniden çalıştırmaz.",
+    "cta": "Çalışma ortamını güncelle",
+    "updated": "Çalışma ortamı güncellendi. Devam etmek için yeni bir mesaj gönderin.",
+    "failed": "Güncelleme doğrulanamadı. Diğer çalışan oturumları bitirip tekrar deneyin."
   }
 }

@@ -64,13 +64,27 @@ async function ensureMossApiInitialized(): Promise<MossSessionApi | null> {
 }
 
 export function initMossBridge(): void {
+  ipcBridge.moss.upgradeRuntime.provider(async ({ conversationId }) => {
+    try {
+      const conversation = getDatabase().getConversation(conversationId);
+      if (!conversation.success || !conversation.data) return { success: false, msg: 'SESSION_NOT_FOUND' };
+      assertConversationAccount(conversation.data);
+      const sessionId = await remoteSessionId(conversationId);
+      const api = await ensureMossApiInitialized();
+      if (!api) return { success: false, msg: 'Runtime connection is unavailable' };
+      await api.upgradeSessionRuntime(sessionId);
+      return { success: true };
+    } catch {
+      return { success: false, msg: 'RUNTIME_UPDATE_FAILED' };
+    }
+  });
   function isLocalBrowserConversation(conversationId: string): boolean {
     const conversation = getDatabase().getConversation(conversationId);
     if (!conversation.success || conversation.data?.type !== 'acp') return false;
     assertConversationAccount(conversation.data);
     return true;
   }
-  async function browserSessionId(conversationId: string) {
+  async function remoteSessionId(conversationId: string) {
     const conversation = getDatabase().getConversation(conversationId);
     const extra = conversation.success ? (conversation.data?.extra as { mossSessionId?: string } | undefined) : undefined;
     return extra?.mossSessionId || conversationId;
@@ -80,7 +94,7 @@ export function initMossBridge(): void {
       if (isLocalBrowserConversation(input.conversationId)) return { success: true, data: await getLocalBrowserSessions().upload(input.conversationId, input) };
       const api = await ensureMossApiInitialized();
       if (!api) return { success: false, msg: 'unavailable' };
-      return { success: true, data: await api.uploadBrowserFile(await browserSessionId(input.conversationId), input) };
+      return { success: true, data: await api.uploadBrowserFile(await remoteSessionId(input.conversationId), input) };
     } catch (error) {
       return { success: false, msg: error instanceof Error ? error.message : 'unavailable' };
     }
@@ -90,7 +104,7 @@ export function initMossBridge(): void {
       if (isLocalBrowserConversation(conversationId)) return { success: true, data: await getLocalBrowserSessions().download(conversationId, fileId) };
       const api = await ensureMossApiInitialized();
       if (!api) return { success: false, msg: 'unavailable' };
-      return { success: true, data: await api.downloadBrowserFile(await browserSessionId(conversationId), fileId) };
+      return { success: true, data: await api.downloadBrowserFile(await remoteSessionId(conversationId), fileId) };
     } catch (error) {
       return { success: false, msg: error instanceof Error ? error.message : 'unavailable' };
     }
@@ -100,7 +114,7 @@ export function initMossBridge(): void {
       if (isLocalBrowserConversation(conversationId)) return { success: true, data: await getLocalBrowserSessions().invoke(conversationId, action) };
       const api = await ensureMossApiInitialized();
       if (!api) return { success: false, msg: 'Cloud browser connection is not configured' };
-      const sessionId = await browserSessionId(conversationId);
+      const sessionId = await remoteSessionId(conversationId);
       return { success: true, data: await api.invokeBrowserSession(sessionId, action) };
     } catch (error) {
       return { success: false, msg: error instanceof Error ? error.message : 'Browser connection failed' };
