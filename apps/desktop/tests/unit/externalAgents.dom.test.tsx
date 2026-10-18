@@ -81,6 +81,12 @@ function page(path = '/conversation/external:new?agent=agent-1') {
   );
 }
 
+async function clickReadyButton(name: string) {
+  const button = await screen.findByRole('button', { name });
+  await waitFor(() => expect(button).not.toBeDisabled());
+  fireEvent.click(button);
+}
+
 it('starts from the organization directory and uses the conversation route without installing a personal agent', async () => {
   page('/app/agent');
   await screen.findByText('Dify pilot');
@@ -108,7 +114,7 @@ it('sends the selected agent, refreshes shared history and restores the acknowle
   page();
   await waitFor(() => expect(screen.getByRole('textbox', { name: 'agent.external.query' })).not.toBeDisabled());
   fireEvent.change(screen.getByRole('textbox', { name: 'agent.external.query' }), { target: { value: '6 * 7' } });
-  fireEvent.click(screen.getByRole('button', { name: 'agent.external.send' }));
+  await clickReadyButton('agent.external.send');
   await screen.findByText('42');
   expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ agent_id: 'agent-1', query: '6 * 7', requested_channel: 'stable', idempotency_key: expect.any(String) }));
   await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/conversation/external%3Asession-1'));
@@ -118,12 +124,13 @@ it('sends the selected agent, refreshes shared history and restores the acknowle
 it('blocks new dispatch when versions cannot load and retries without sending a task', async () => {
   mocks.versions.mockResolvedValueOnce({ success: false });
   page();
+  await screen.findByText(agent.name);
   await screen.findByRole('button', { name: 'agent.external.versions.retry' });
   fireEvent.change(screen.getByRole('textbox', { name: 'agent.external.query' }), { target: { value: '6 * 7' } });
   expect(screen.getByRole('button', { name: 'agent.external.send' })).toBeDisabled();
   fireEvent.keyDown(screen.getByRole('textbox', { name: 'agent.external.query' }), { key: 'Enter' });
   expect(mocks.create).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole('button', { name: 'agent.external.versions.retry' }));
+  await clickReadyButton('agent.external.versions.retry');
   await waitFor(() => expect(screen.getByRole('button', { name: 'agent.external.send' })).not.toBeDisabled());
   expect(mocks.versions).toHaveBeenCalledTimes(2);
 });
@@ -157,7 +164,7 @@ it('retains the exact request after ambiguous acceptance', async () => {
   page();
   await waitFor(() => expect(screen.getByRole('textbox', { name: 'agent.external.query' })).not.toBeDisabled());
   fireEvent.change(screen.getByRole('textbox', { name: 'agent.external.query' }), { target: { value: '6 * 7' } });
-  fireEvent.click(screen.getByRole('button', { name: 'agent.external.send' }));
+  await clickReadyButton('agent.external.send');
   await screen.findByText('agent.external.sendUnconfirmed');
   expect(screen.getByRole('textbox', { name: 'agent.external.query' })).toBeDisabled();
   fireEvent.click(screen.getByRole('button', { name: 'agent.external.retrySameRequest' }));

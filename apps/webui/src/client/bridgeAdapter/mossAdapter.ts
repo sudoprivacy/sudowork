@@ -321,6 +321,20 @@ const pendingQuestions = new Map<
 //   lifecycle; here the reset point is the next outbound send)
 const abortedSessions = new Set<string>()
 
+/** Keep the live permission inventory and its displayed cards in sync. */
+function removePendingConfirmations(sessionId: string, id?: string): void {
+  const list = pendingConfirmations.get(sessionId)
+  if (!list) return
+  const remaining = id === undefined ? [] : list.filter((confirmation) => confirmation.id !== id)
+  if (remaining.length) pendingConfirmations.set(sessionId, remaining)
+  else pendingConfirmations.delete(sessionId)
+  for (const confirmation of list) {
+    if (id === undefined || confirmation.id === id) {
+      emitterRef?.emit('confirmation.remove', { conversation_id: sessionId, id: confirmation.id })
+    }
+  }
+}
+
 let __mid = 0
 function nextMsgId(): string {
   __mid += 1
@@ -370,6 +384,9 @@ function ensureSessionStream(sessionId: string): WebSocket | null {
         emitterRef?.emit('confirmation.add', confirmation)
         return
       }
+
+      // A different client may have answered the permission before this result.
+      if (event.type === 'result') removePendingConfirmations(sessionId)
 
       // User-abort tracking: suppress trailing assistant frames until the next send.
       if (event.type === 'result' && isUserAbortError(event)) {
@@ -432,8 +449,9 @@ function ensureSessionStream(sessionId: string): WebSocket | null {
     }
   })
   ws.addEventListener('close', () => {
+    if (openStreams.get(sessionId) !== ws) return
     openStreams.delete(sessionId)
-    pendingConfirmations.delete(sessionId)
+    removePendingConfirmations(sessionId)
     pendingQuestions.delete(sessionId)
     abortedSessions.delete(sessionId)
   })
@@ -2355,16 +2373,7 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     ) {
       return fail('NO_SESSION')
     }
-    const list = pendingConfirmations.get(sessionId)
-    if (list)
-      pendingConfirmations.set(
-        sessionId,
-        list.filter((c) => c.id !== req?.msg_id),
-      )
-    emitterRef?.emit('confirmation.remove', {
-      conversation_id: sessionId,
-      id: String(req?.msg_id ?? ''),
-    })
+    removePendingConfirmations(sessionId, String(req?.msg_id ?? ''))
     return ok()
   },
 
