@@ -303,6 +303,7 @@ describe('MossSessionPort request shapes (contract vs baseline)', () => {
 
   test('restores terminal failures through HTTP context validation and shared message conversion', async () => {
     const timestamp = '2026-10-19T00:00:00.000Z'
+    const interruptionError = 'Execution outcome is unknown. Check effects before retrying.'
     const messages = [
       { type: 'user', uuid: 'user', timestamp, content: 'Run the task' },
       {
@@ -311,7 +312,7 @@ describe('MossSessionPort request shapes (contract vs baseline)', () => {
         timestamp,
         subtype: 'error_interrupted',
         is_error: true,
-        errors: ['Execution outcome is unknown. Check effects before retrying.'],
+        errors: [interruptionError],
       },
       { type: 'result', uuid: 'finished', timestamp, subtype: 'success', is_error: false },
       {
@@ -355,7 +356,7 @@ describe('MossSessionPort request shapes (contract vs baseline)', () => {
       const errors = restored.filter((message) => message.type === 'tips')
       expect(errors).toHaveLength(2)
       expect(errors[0]).toMatchObject({
-        content: { type: 'error', errorClass: 'interrupted', content: messages[1].errors?.[0] },
+        content: { type: 'error', errorClass: 'interrupted', content: interruptionError },
       })
       expect(errors[1]).toMatchObject({
         content: { type: 'error', content: 'Provider unavailable' },
