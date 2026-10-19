@@ -4,7 +4,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import type { BrowserSessionAction, BrowserSessionState } from '@sudowork/contracts/browser-session';
 import BrowserSessionPanel from '@renderer/components/browser/BrowserSessionPanel';
 
-const host = vi.hoisted(() => ({ invoke: vi.fn(), error: vi.fn() }));
+const host = vi.hoisted(() => ({ invoke: vi.fn(), error: vi.fn(), confirm: vi.fn(), info: vi.fn() }));
 
 function activeSession(): BrowserSessionState {
   return {
@@ -47,7 +47,7 @@ vi.mock('@arco-design/web-react', () => ({
   Select: () => null,
   Empty: () => null,
   Spin: () => null,
-  Modal: { confirm: vi.fn() },
+  Modal: { confirm: host.confirm, info: host.info },
   Message: { error: host.error },
 }));
 afterEach(() => {
@@ -55,6 +55,54 @@ afterEach(() => {
   vi.restoreAllMocks();
   host.invoke.mockReset();
   host.error.mockReset();
+  host.confirm.mockReset();
+  host.info.mockReset();
+});
+
+it('asks for explicit personal profile selection before connecting and reports unknown launch mode', async () => {
+  const stopped = { ...activeSession(), state: 'stopped' as const, capabilities: { ...activeSession().capabilities, existingExtension: true, lifecycle: true } };
+  const selected = { sessionId: 'extension-selected-run', profileId: 'selected-profile' };
+  host.invoke.mockImplementation(async ({ action }: { action: BrowserSessionAction }) => ({
+    success: true,
+    data: action.kind === 'connect-existing-extension' ? { session: { ...activeSession(), isHeadless: null, personalExtension: { ...selected, isHeadless: null } } } : { session: stopped, ...(action.kind === 'inspect-existing-extension' ? { existingExtension: selected } : {}) },
+  }));
+  render(<BrowserSessionPanel conversationId='owned-conversation' />);
+  fireEvent.click(await screen.findByRole('button', { name: 'personalConnect' }));
+  await waitFor(() => expect(host.confirm).toHaveBeenCalledOnce());
+  expect(host.invoke.mock.calls.some(([request]) => request.action.kind === 'connect-existing-extension')).toBe(false);
+  await act(async () => {
+    await host.confirm.mock.calls[0][0].onOk();
+  });
+  expect(host.invoke.mock.calls.find(([request]) => request.action.kind === 'connect-existing-extension')?.[0].action).toEqual({ kind: 'connect-existing-extension', ...selected });
+  expect(await screen.findByText('modeUnknown')).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'stop' })).toBeNull();
+  expect(screen.getByRole('button', { name: 'personalDisconnect' }).hasAttribute('disabled')).toBe(false);
+});
+
+it('lets the host recover a stopped personal reference without a retained human controller', async () => {
+  const recovered: BrowserSessionState = {
+    ...activeSession(),
+    state: 'stopped',
+    isController: false,
+    isHumanControlHeld: false,
+    isHeadless: null,
+    personalExtension: { sessionId: 'old-run', profileId: 'same-personal-profile', isHeadless: null },
+    capabilities: { ...activeSession().capabilities, existingExtension: true, lifecycle: false },
+    error: 'browser_restart_requires_observation',
+  };
+  host.invoke.mockImplementation(async ({ action }: { action: BrowserSessionAction }) => ({ success: true, data: { session: action.kind === 'disconnect-existing-extension' ? { ...recovered, personalExtension: null, isController: true, isHumanControlHeld: true, error: null } : recovered } }));
+  render(<BrowserSessionPanel conversationId='owned-conversation' />);
+  const disconnect = await screen.findByRole('button', { name: 'personalDisconnect' });
+  expect(disconnect.hasAttribute('disabled')).toBe(false);
+  fireEvent.click(disconnect);
+  expect(host.invoke.mock.calls.some(([request]) => request.action.kind === 'disconnect-existing-extension')).toBe(false);
+  await act(async () => {
+    await host.confirm.mock.calls[0][0].onOk();
+  });
+  const sent = host.invoke.mock.calls.find(([request]) => request.action.kind === 'disconnect-existing-extension')?.[0].action;
+  expect(sent).toEqual({ kind: 'disconnect-existing-extension', controlEpoch: recovered.controlEpoch, targetEpoch: recovered.targetEpoch });
+  expect(screen.queryByRole('button', { name: 'personalDisconnect' })).toBeNull();
+  expect(screen.getByRole('button', { name: 'return' }).hasAttribute('disabled')).toBe(false);
 });
 
 it('recovers after a lifecycle transition and reads frame state without reattaching every tick', async () => {

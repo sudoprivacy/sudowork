@@ -17,6 +17,15 @@ const state = {
 } as const;
 
 describe('browser session boundary', () => {
+  it('preserves the selected personal identity and unknown mode without accepting profile paths', () => {
+    const selected = { sessionId: 'extension-run', profileId: 'personal-profile' };
+    const reply = BrowserSessionReplySchema.parse({ session: { ...state, isHeadless: null, personalExtension: { ...selected, isHeadless: null }, capabilities: { ...state.capabilities, existingExtension: true, lifecycle: false, fileTransfer: false } }, existingExtension: selected });
+    expect(reply.session.isHeadless).toBeNull();
+    expect(reply.existingExtension).toEqual(selected);
+    expect(BrowserSessionActionSchema.parse({ kind: 'connect-existing-extension', ...selected, profilePath: '/another-profile', actor: 'ai' })).toEqual({ kind: 'connect-existing-extension', ...selected });
+    expect(BrowserSessionActionSchema.safeParse({ kind: 'disconnect-existing-extension' }).success).toBe(false);
+  });
+
   it('requires an acknowledged restart and preserves the stopped human lease', () => {
     const restart = { kind: 'restart', isHeadless: false, transport: 'extension', controlEpoch: 4, targetEpoch: 2 };
     expect(BrowserSessionActionSchema.safeParse(restart).success).toBe(false);

@@ -1,6 +1,6 @@
 # Shared browser sessions for Desktop and WebUI
 
-Status: cloud browser control, the shared panel, Desktop integration and compact takeover controls are merged. The tested v0.2.33 WebUI source was deployed with production Moss 0.1.59, public browser SDK v0.57.5 and user-runtime SDK v0.1.2. Actual Electron, Chromium and Firefox clients passed real model/browser journeys; both public viewing browsers and the full public lifecycle journey also passed. Formal v0.2.33 artifacts are published. Existing personal Chrome attachment, the optional local extension relay and physical phone/Safari acceptance remain open. This document is the source for [the shared design page](https://s.shareone.vip/md/sudowork-browser-sessions).
+Status: cloud browser control, the shared panel, Desktop integration and compact takeover controls are merged. The initial v0.2.33 rollout passed actual Electron, Chromium and Firefox model/browser journeys with the public SDK v0.57.5. The 19 October production backend check found Moss 0.1.72; the termination repair for 0.1.73 is awaiting deployment. Viewer polling improvements are merged in SudoWork #1273. Existing personal Chrome passed a complete Electron/model journey with the candidate SDK; publication and application delivery remain open. The optional local extension relay and physical phone browser acceptance also remain open. This document is the source for [the shared design page](https://s.shareone.vip/md/sudowork-browser-sessions).
 
 ## 1. Decisions
 
@@ -34,7 +34,7 @@ An Electron `<webview>` is a Chromium guest, not a DOM component available in or
 | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Desktop local standalone CDP     | Implemented in [SudoWork #1250](https://github.com/sudoprivacy/sudowork/pull/1250); actual Electron/model takeover, compact controls and same-session commands passed.                                      |
 | Desktop app-managed extension    | Public worker support exists. SDK and cloud signed-extension tests do not establish complete Desktop extension application acceptance; that journey remains open.                                           |
-| Desktop existing personal Chrome | Explicit attachment and its profile UX remain planned. Managed extension acceptance does not establish personal-profile attachment.                                                                         |
+| Desktop existing personal Chrome | Explicit selection, four real host/crash-recovery journeys and a complete Electron/Sonnet handoff passed. The candidate SDK still requires publication and application delivery.                            |
 | Desktop cloud Chrome             | Shared renderer and cloud dispatch exist. A complete Electron-to-cloud browser application journey remains open.                                                                                            |
 | Shared cloud extension and CDP   | Implemented in the public worker, Moss and shared panel. Real model/file/reconnect and explicit transport-switch journeys passed against the production backend; public frontend rollout is recorded below. |
 | WebUI local extension relay      | Optional planned capability with explicit pairing and revocation.                                                                                                                                           |
@@ -223,7 +223,7 @@ An older passing journey is not counted as a new release's complete acceptance.
 | Headful viewer responsiveness  | In progress: production-image X11 capture measured; redundant per-frame state/attach requests are being removed from the shared panel | Actual authenticated WebUI render cadence and exact trusted Unicode input, before/after comparison, reconnect and hidden-view regression protection |
 | Native handoff communication   | Accepted design; browser skill updated                                                                                                | Real agent explains handoff, acknowledged host pause, user return and fresh model observation                                                       |
 | Desktop managed extension      | Application acceptance open                                                                                                           | Electron application with actual installed extension, same profile and handoff                                                                      |
-| Desktop personal Chrome        | Attachment and profile UX open                                                                                                        | Explicit connection to existing Chrome, stable identity, scoped tabs, exclusive ownership and disconnect without stopping personal Chrome           |
+| Desktop personal Chrome        | Complete actual Electron/model journey passed with the candidate SDK; publication and delivery open                                   | Verify the official public worker and deliver the pinned application                                                                                |
 | Desktop cloud Chrome           | Application acceptance open                                                                                                           | Complete Electron-to-cloud session journey                                                                                                          |
 | Cloud profile login            | Remote viewer implemented; dedicated sign-in workflow acceptance open                                                                 | Human enters an isolated fixture login, restart preserves that login, AI observes the same signed-in session                                        |
 | Other agent hosts              | Capability-specific acceptance open                                                                                                   | Each supported host acknowledges its tool barrier; unsupported active hosts cannot grant human control                                              |
@@ -246,10 +246,34 @@ same real production APIs and Chrome, reached 2.63 rendered and 2.44 distinct
 frames per second, a 345.8 ms median interval and 820.41 ms login feedback.
 Unicode input was exact and submitted once. Stop released the owned Chrome,
 Return released the persistent human lease and a real model acknowledged the
-return note; the fixture conversation ended and its temporary key was revoked.
+return note. The temporary key was revoked. Follow-up verification found that
+an acknowledged conversation termination could race with recovery and reactivate
+the old session. [Moss #410](https://github.com/sudoprivacy/moss/pull/410) repairs
+that durable termination guard; production rollout and the new cleanup regression
+remain open.
 This improves the polling path but does not establish smooth full-motion
 viewing. The live journey is `live_browser_view_performance.py`; the candidate
 measurement is not a claim that this change has already been deployed.
+
+### Personal Chrome application acceptance, 19 October
+
+The full Electron application used a normally built SDK 0.58.0 candidate wheel
+and an actual SudoRouter Sonnet 4.6 account. The user explicitly selected the
+running extension's profile through BrowserPanel, then returned control with the
+task. The model observed and edited that exact browser. Human takeover paused
+agent tools, and the separate viewer accepted Unicode input and one trusted
+submission. After Return, the finished assistant reply reported the exact human
+value and page status. Shared browser commands reached the same page. Explicit
+disconnect and normal application shutdown left Chrome running with its state.
+
+The live journey also found and repaired a shared layout bug: a panel at 100%
+height added its padding outside that height, clipping its bottom input. Both
+the panel and compact controls now include padding in their declared height;
+the handoff note sits next to the return controls. The live UI driver requires
+enabled, hit-tested fields fully inside the viewport, and reads actual assistant
+messages rather than echoed prompts or tool results. The candidate wheel is
+acceptance evidence; official SDK publication and the application release still
+need verification.
 
 ### Delivery already completed
 
@@ -473,8 +497,24 @@ trusted Unicode replacement, one submission and exact model readback.
 
 Desktop managed profiles currently persist per conversation; cloud profiles
 persist per user with exclusive ownership. Desktop connection to an existing
-user Chrome profile, the authorized local extension relay and actual
-phone/Safari acceptance remain open. These capabilities must each have their own
+user Chrome profile is being delivered through [SDK #32](https://github.com/sudoprivacy/ai-dev-browser/pull/32).
+The host offers **Connect my Chrome**, inspects the currently connected extension,
+shows its opaque profile identity and waits for explicit confirmation. It pauses
+all registered agent tools before connecting. The shared panel and native viewer
+use that same session. Launch mode can be unknown and is preserved; personal
+attachment cannot restart Chrome or reconfigure its downloads. Disconnect retains
+Chrome, tabs and cookies, and keeps agent tools paused until explicit Return.
+
+Four real Desktop host journeys passed with both extension WebSocket backends
+and headless/headful fixture Chrome. A cookie seeded before host attachment,
+trusted Unicode input, one submission, observation after Return and preserved
+Chrome/cookie/input after host shutdown were verified. The fixtures reuse the
+pinned public SDK's actual extension setup. They do not run a model or Electron
+renderer. The full `live_shared_browser.py --existing-profile` application
+journey must pass before this capability is accepted and released.
+
+The authorized local extension relay and actual phone/Safari acceptance remain
+open. These capabilities must each have their own
 implementation and evidence before this design is considered fully delivered.
 
 ### Public WebUI deployment and acceptance

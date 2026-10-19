@@ -28,6 +28,16 @@ export class LocalBrowserSessions {
   private worker(conversationId: string): Promise<LocalBrowserWorker> {
     if (!conversationId || conversationId.length > 256) throw new Error('Invalid local browser conversation');
     let pending = this.workers.get(conversationId);
+    if (pending) {
+      const existing = pending;
+      return existing.then((worker) => {
+        if (!worker.isDisconnected) return worker;
+        if (this.workers.get(conversationId) === existing) this.workers.delete(conversationId);
+        // Restart only the dead host process. The public worker restores its
+        // stopped journal and never reconnects personal Chrome implicitly.
+        return this.worker(conversationId);
+      });
+    }
     if (!pending) {
       pending = (async () => {
         const profile = createHash('sha256').update(conversationId).digest('hex');
@@ -37,6 +47,7 @@ export class LocalBrowserSessions {
           binding: { orgId: 'local', userId: `desktop-profile-${profile}`, sessionId: conversationId },
           env: this.options.env,
           chromeArgs: this.options.chromeArgs,
+          existingExtensionRoot: path.join(this.options.root, 'personal-profile-leases'),
         });
         await worker.start();
         return worker;
@@ -75,7 +86,7 @@ export class LocalBrowserSessions {
           isHumanControlHeld: false,
           isHeadless: true,
           transport: 'cdp',
-          capabilities: { lifecycle: true, fileTransfer: true, pageView: true, windowView: false, persistentProfile: true },
+          capabilities: { lifecycle: true, fileTransfer: true, existingExtension: true, pageView: true, windowView: false, persistentProfile: true },
           activeTargetId: null,
           tabs: [],
           error: null,
@@ -84,13 +95,16 @@ export class LocalBrowserSessions {
     }
     const worker = await this.worker(conversationId);
     let reply: BrowserSessionReply | undefined;
-    if (action.kind === 'take' || action.kind === 'start') {
+    if (action.kind === 'take' || action.kind === 'start' || action.kind === 'connect-existing-extension' || action.kind === 'disconnect-existing-extension') {
       const before = await this.state(worker);
-      if (action.kind === 'take' && (before.session.controlEpoch !== action.controlEpoch || before.session.targetEpoch !== action.targetEpoch)) throw new Error('stale_browser_operation');
-      await this.options.control.take(conversationId, async () => {
+      if ((action.kind === 'take' || action.kind === 'disconnect-existing-extension') && (before.session.controlEpoch !== action.controlEpoch || before.session.targetEpoch !== action.targetEpoch)) throw new Error('stale_browser_operation');
+      const acquireBrowser = async () => {
         reply = BrowserSessionReplySchema.parse(await worker.invoke(action));
         if (!reply.session.isController) throw new Error('Browser did not acknowledge human control');
-      });
+      };
+      const host = this.options.control.status();
+      if (action.kind !== 'take' && host.state === 'human' && host.owner === conversationId) await acquireBrowser();
+      else await this.options.control.take(conversationId, acquireBrowser);
     } else if (action.kind === 'return') {
       const before = await this.state(worker);
       if (before.session.controlEpoch !== action.controlEpoch || before.session.targetEpoch !== action.targetEpoch) throw new Error('stale_browser_operation');
@@ -108,7 +122,7 @@ export class LocalBrowserSessions {
       // are acknowledged. A lost notification is reported instead of replayed.
       await this.options.onReturn(conversationId, action.note, returned.epoch);
     } else {
-      if (['input', 'navigate', 'back', 'forward', 'reload', 'new-tab', 'select-tab', 'close-tab', 'upload-files', 'stop', 'restart'].includes(action.kind)) {
+      if (['input', 'navigate', 'back', 'forward', 'reload', 'new-tab', 'select-tab', 'close-tab', 'upload-files', 'stop', 'restart', 'disconnect-existing-extension'].includes(action.kind)) {
         const host = this.options.control.status();
         if (host.owner !== conversationId || host.state !== 'human') throw new Error('Browser takeover has not been acknowledged by the local agents');
       }
@@ -194,12 +208,22 @@ export class LocalBrowserSessions {
           if (tool.name !== 'browser_launch') return tool;
           return {
             ...tool,
-            description: `${tool.description} Desktop defaults to standalone CDP. Select extension explicitly when needed.`,
-            inputSchema: { ...tool.inputSchema, properties: { ...tool.inputSchema.properties, transport: { ...tool.inputSchema.properties.transport, default: 'cdp' } } },
+            description: `${tool.description} Desktop launches standalone CDP. For the user's existing Chrome/profile, ask them to select Connect my Chrome in the Browser panel. That explicit host action pauses agents and attaches the selected profile. After they Return to AI, call browser_observe and continue in that same session; browser_launch does not attach a personal profile.`,
+            inputSchema: { ...tool.inputSchema, properties: { ...tool.inputSchema.properties, transport: { ...tool.inputSchema.properties.transport, enum: ['cdp'], default: 'cdp' } } },
           };
         }),
       };
     else if (message.method === 'tools/call') {
+      if (message.params?.name === 'browser_launch' && message.params.arguments?.transport === 'extension') {
+        response.writeHead(200, { 'Content-Type': 'application/json' }).end(
+          JSON.stringify({
+            jsonrpc: '2.0',
+            id: message.id,
+            result: { isError: true, content: [{ type: 'text', text: 'Desktop extension mode requires the user to explicitly select Connect my Chrome in the Browser panel. Ask them through your native conversation, wait for Return to AI, then use browser_observe on the connected session.' }] },
+          })
+        );
+        return;
+      }
       try {
         const epoch = this.options.control.assertCanPrompt();
         const worker = await this.worker(conversationId);
@@ -224,6 +248,13 @@ export class LocalBrowserSessions {
   }
 
   async close(): Promise<void> {
+    // Personal Chrome can outlive the app; stop all agent tools before
+    // releasing the connection so a still-running agent cannot race it.
+    for (const conversationId of [...this.workers.keys()]) {
+      const reply = await this.state(await this.worker(conversationId));
+      const host = this.options.control.status();
+      if (reply.session.personalExtension && (host.state === 'ai' || (host.state === 'error' && host.owner === conversationId))) await this.options.control.take(conversationId, async () => {});
+    }
     const results = await Promise.allSettled([...this.workers.values()].map(async (pending) => (await pending).close()));
     this.tokens.clear();
     this.conversations.clear();
