@@ -237,36 +237,39 @@ const Sider: React.FC = () => {
                   }
                 }}
               />
-              {effectiveTab !== 'agents' && (
-                <Popover
-                  trigger={[]}
-                  popupVisible={isBatchMode}
-                  position='rt'
-                  className='batch-actions-popover'
-                  getPopupContainer={() => document.body}
-                  content={
-                    <div className='flex flex-col gap-1.5 w-45'>
-                      <div className='px-0.5 pb-0.5 text-12px leading-18px text-secondary'>{t('conversation.history.selectedCount', { count: batchApi?.selectedCount ?? 0 })}</div>
-                      <Button long type='secondary' className='rd-2' onClick={() => batchApi?.onToggleSelectAll()}>
-                        {batchApi?.allSelected ? t('common.cancel') : t('conversation.history.selectAll')}
-                      </Button>
-                      <Button long type='secondary' className='rd-2' disabled={!batchApi?.selectedCount} onClick={() => batchApi?.onBatchExport()}>
-                        {t('conversation.history.batchExport')}
-                      </Button>
-                      <Button long type='secondary' status='danger' className='rd-2' disabled={!batchApi?.selectedCount} onClick={() => batchApi?.onBatchDelete()}>
-                        {t('conversation.history.batchDelete')}
-                      </Button>
-                    </div>
-                  }
-                >
-                  <div
-                    className={classNames('batch-mode-trigger size-8 f-center rd-8px cursor-pointer transition-all shrink-0', isBatchMode ? 'bg-[rgba(var(--ui-accent-orange-rgb),0.12)] text-[var(--ui-accent-orange)]' : 'hover:bg-hover active:bg-fill-2 text-secondary')}
-                    onClick={() => setIsBatchMode((prev) => !prev)}
+              {/* Keep the view switcher width stable when batch actions are hidden. */}
+              <div className='size-8 shrink-0'>
+                {effectiveTab !== 'agents' && (
+                  <Popover
+                    trigger={[]}
+                    popupVisible={isBatchMode}
+                    position='rt'
+                    className='batch-actions-popover'
+                    getPopupContainer={() => document.body}
+                    content={
+                      <div className='flex flex-col gap-1.5 w-45'>
+                        <div className='px-0.5 pb-0.5 text-12px leading-18px text-secondary'>{t('conversation.history.selectedCount', { count: batchApi?.selectedCount ?? 0 })}</div>
+                        <Button long type='secondary' className='rd-2' onClick={() => batchApi?.onToggleSelectAll()}>
+                          {batchApi?.allSelected ? t('common.cancel') : t('conversation.history.selectAll')}
+                        </Button>
+                        <Button long type='secondary' className='rd-2' disabled={!batchApi?.selectedCount} onClick={() => batchApi?.onBatchExport()}>
+                          {t('conversation.history.batchExport')}
+                        </Button>
+                        <Button long type='secondary' status='danger' className='rd-2' disabled={!batchApi?.selectedCount} onClick={() => batchApi?.onBatchDelete()}>
+                          {t('conversation.history.batchDelete')}
+                        </Button>
+                      </div>
+                    }
                   >
-                    <ListChecks size={18} strokeWidth={1.8} className='block leading-none' />
-                  </div>
-                </Popover>
-              )}
+                    <div
+                      className={classNames('batch-mode-trigger size-8 f-center rd-8px cursor-pointer transition-all shrink-0', isBatchMode ? 'bg-[rgba(var(--ui-accent-orange-rgb),0.12)] text-[var(--ui-accent-orange)]' : 'hover:bg-hover active:bg-fill-2 text-secondary')}
+                      onClick={() => setIsBatchMode((prev) => !prev)}
+                    >
+                      <ListChecks size={18} strokeWidth={1.8} className='block leading-none' />
+                    </div>
+                  </Popover>
+                )}
+              </div>
             </div>
 
             <div className='flex min-h-24 flex-1 flex-col'>

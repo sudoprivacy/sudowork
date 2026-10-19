@@ -50,6 +50,38 @@ describe('shared session navigation', () => {
     expect(onChange).toHaveBeenLastCalledWith('scheduled');
   });
 
+  it('keeps the full radio names and native keyboard navigation in the compact selector', async () => {
+    const user = userEvent.setup();
+    function Harness() {
+      const [value, setValue] = useState<'agents' | 'timeline' | 'scheduled'>('agents');
+      return <HistoryViewSelector value={value} isCronVisible onChange={setValue} />;
+    }
+    render(<Harness />);
+    const agents = screen.getByRole('radio', { name: 'conversation.sidebar.agents' });
+    const sessions = screen.getByRole('radio', { name: 'conversation.sidebar.sessions' });
+    await user.click(agents);
+    await user.keyboard('{ArrowRight}');
+    expect(sessions).toBeChecked();
+    await user.click(screen.getByRole('button', { name: 'conversation.history.scheduledTab' }));
+    expect(agents).not.toBeChecked();
+    expect(sessions).not.toBeChecked();
+    expect(screen.getByRole('button', { name: 'conversation.history.scheduledTab' })).toHaveAttribute('aria-pressed', 'true');
+    await user.click(agents);
+    expect(agents).toBeChecked();
+  });
+
+  it('keeps separate selectors independent and omits unavailable scheduled tasks', () => {
+    render(
+      <>
+        <HistoryViewSelector value='agents' isCronVisible={false} onChange={vi.fn()} />
+        <HistoryViewSelector value='timeline' isCronVisible={false} onChange={vi.fn()} />
+      </>
+    );
+    const [first, second] = screen.getAllByRole('radio', { name: 'conversation.sidebar.agents' });
+    expect(first.getAttribute('name')).not.toBe(second.getAttribute('name'));
+    expect(screen.queryByRole('button', { name: 'conversation.history.scheduledTab' })).toBeNull();
+  });
+
   it('keeps a personal identity selected when the task template changes', async () => {
     function Harness() {
       const [templateRef, setTemplateRef] = useState<string>();
