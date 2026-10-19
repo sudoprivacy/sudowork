@@ -14,8 +14,9 @@ It also checks the desktop composer, verifies that the phone conversation stays
 wide after reload, and opens the workspace and Browser tabs in a full-width
 drawer before returning to chat. It first selects a different available model
 and reloads, then selects the requested model, so a pre-existing preference
-cannot satisfy the selection check. The saved choice is read back through the
-real model-preference API. ACP currently omits model identity from its stream
+cannot satisfy the selection check. The creation request must include the
+selected qualified model, and the same model must be read back from the new
+conversation and the real model-preference API. ACP currently omits model identity from its stream
 and history; this UI test records that limit and verifies a real completed turn.
 It then uses the phone conversation's visible 44px Send control for a second
 fresh turn and checks that both replies survive another reload in the same session.

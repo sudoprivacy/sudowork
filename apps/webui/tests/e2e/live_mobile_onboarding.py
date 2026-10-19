@@ -344,6 +344,9 @@ async def main(args):
             assert len(evidence["createdSessions"]) == 1, (
                 "One Send must create exactly one session"
             )
+            assert evidence["createdSessions"][0]["requestedModel"] == target_id, (
+                "Task creation omitted or changed the selected model"
+            )
             model_response = await context.request.get(
                 origin + f"/api/conversations/{session_id}/model"
             )
@@ -351,7 +354,7 @@ async def main(args):
                 f"Session model readback failed with {model_response.status}"
             )
             actual_model = (await model_response.json())["modelId"]
-            assert actual_model in (None, target_id), (
+            assert actual_model == target_id, (
                 f"Session saved a different model: {actual_model}"
             )
             evidence["sessionModelReadback"] = actual_model
