@@ -148,6 +148,7 @@ const GuidPage: React.FC = () => {
     selectedAcpModel: agentSelection.selectedAcpModel,
     currentModel: modelSelection.currentModel,
     currentAcpCachedModelInfo: agentSelection.currentAcpCachedModelInfo,
+    remoteModelStatus: agentSelection.remoteModelStatus,
     sessionMode: agentSelection.sessionMode,
 
     // Agent helpers
@@ -530,6 +531,7 @@ const GuidPage: React.FC = () => {
       setCurrentModel={modelSelection.setCurrentModel}
       geminiModeLookup={modelSelection.geminiModeLookup}
       currentAcpCachedModelInfo={agentSelection.currentAcpCachedModelInfo}
+      remoteModelStatus={agentSelection.remoteModelStatus}
       selectedAcpModel={agentSelection.selectedAcpModel}
       setSelectedAcpModel={agentSelection.setSelectedAcpModel}
     />

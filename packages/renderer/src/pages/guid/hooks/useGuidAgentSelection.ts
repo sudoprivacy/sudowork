@@ -22,7 +22,7 @@ import { useAppMode } from '@renderer/hooks/useAppMode';
 import { isWebBridgeAvailable } from '@renderer/utils/platform';
 import { emitter } from '@renderer/utils/emitter';
 import { EECLAW_AUTH_STORAGE_KEY } from '@renderer/context/AuthContext';
-import type { AcpBackend, AcpBackendConfig, AcpModelInfo, AvailableAgent, EffectiveAgentInfo, PresetAgentType } from '../types';
+import type { AcpBackend, AcpBackendConfig, AcpModelInfo, AvailableAgent, EffectiveAgentInfo, PresetAgentType, RemoteModelStatus } from '../types';
 import { resolveGuidModelBackendKey } from '../utils/modelBackendKey';
 import { personalAgentConfigs } from '../utils/personalAgentSelection';
 
@@ -177,6 +177,7 @@ export type GuidAgentSelectionResult = {
   selectedAcpModel: string | null;
   setSelectedAcpModel: React.Dispatch<React.SetStateAction<string | null>>;
   currentAcpCachedModelInfo: AcpModelInfo | null;
+  remoteModelStatus?: RemoteModelStatus;
   modelBackendKey: string;
   currentEffectiveAgentInfo: EffectiveAgentInfo;
   getAgentKey: (agent: { backend: AcpBackend; customAgentId?: string }) => string;
@@ -244,6 +245,7 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl, isOntologyE
   const lastAvailableAgentsKeyRef = useRef<string>('');
   const [acpCachedModels, setAcpCachedModels] = useState<Record<string, AcpModelInfo>>({});
   const [selectedAcpModel, _setSelectedAcpModel] = useState<string | null>(null);
+  const [remoteModelStatus, setRemoteModelStatus] = useState<RemoteModelStatus>('loading');
 
   // Wrap setSelectedAgentKey to also save to storage and sync ref
   const setSelectedAgentKey = useCallback((key: string) => {
@@ -748,6 +750,7 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl, isOntologyE
 
     let cancelled = false;
     probedModelBackendsRef.current.add('remote-agent');
+    setRemoteModelStatus('loading');
 
     console.log('[Guid][remote-agent] Probing Moss Server model info...');
 
@@ -757,6 +760,7 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl, isOntologyE
         if (cancelled) return;
         if (!modelsResult.success || !modelsResult.data) {
           probedModelBackendsRef.current.delete('remote-agent');
+          setRemoteModelStatus('error');
           return;
         }
 
@@ -765,17 +769,28 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl, isOntologyE
           label: m.label || m.name || m.id,
         }));
 
+        if (availableModels.length === 0) {
+          setAcpCachedModels((prev) => ({ ...prev, ['remote-agent']: { source: 'models', currentModelId: null, currentModelLabel: null, availableModels: [], canSwitch: false } }));
+          _setSelectedAcpModel(null);
+          setRemoteModelStatus('empty');
+          return;
+        }
+
         // Also get user preference and system default
         const userPrefResult = await ipcBridge.moss.getUserModel.invoke();
         if (cancelled) return;
 
-        let currentModelId = '';
-        if (userPrefResult.success && userPrefResult.data?.modelId) {
-          currentModelId = userPrefResult.data.modelId;
-        } else if (userPrefResult.success && userPrefResult.data?.systemDefaultModel) {
-          currentModelId = userPrefResult.data.systemDefaultModel;
-        } else if (availableModels.length > 0) {
-          currentModelId = availableModels[0].id;
+        // Preferences can outlive catalog entries. The system default may
+        // also be an unqualified name, while creation requires a catalog ID.
+        const preferences = userPrefResult.success ? [userPrefResult.data?.modelId, userPrefResult.data?.systemDefaultModel] : [];
+        let currentModelId = availableModels[0].id;
+        for (const preference of preferences) {
+          if (!preference) continue;
+          const matches = availableModels.filter((model) => model.id === preference || (!preference.includes(':') && model.id.slice(model.id.indexOf(':') + 1) === preference));
+          if (matches.length === 1) {
+            currentModelId = matches[0].id;
+            break;
+          }
         }
 
         const modelInfo: AcpModelInfo = {
@@ -795,10 +810,12 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl, isOntologyE
 
         // Set selected model
         _setSelectedAcpModel(currentModelId);
+        setRemoteModelStatus('available');
       })
       .catch((error) => {
         if (cancelled) return;
         probedModelBackendsRef.current.delete('remote-agent');
+        setRemoteModelStatus('error');
         console.warn('[Guid][remote-agent] Failed to probe Moss model info:', error);
       });
 
@@ -1245,6 +1262,7 @@ This identity statement takes priority over the default identity in USER.md.
     selectedAcpModel,
     setSelectedAcpModel,
     currentAcpCachedModelInfo,
+    remoteModelStatus: modelBackendKey === 'remote-agent' && sessionMode === 'remote' ? remoteModelStatus : undefined,
     modelBackendKey,
     currentEffectiveAgentInfo,
     getAgentKey,

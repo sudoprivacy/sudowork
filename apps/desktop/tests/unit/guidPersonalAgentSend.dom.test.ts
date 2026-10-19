@@ -48,6 +48,20 @@ describe('conversation creation outcomes', () => {
     } as unknown as GuidSendDeps;
   }
 
+  it.each(['loading', 'empty', 'error'] as const)('blocks button, Enter and direct submission while cloud models are %s', async (remoteModelStatus) => {
+    const deps = dependencies({ remoteModelStatus });
+    const { result, rerender } = renderHook(({ status }) => useGuidSend({ ...deps, remoteModelStatus: status }), { initialProps: { status: remoteModelStatus as GuidSendDeps['remoteModelStatus'] } });
+    expect(result.current.isButtonDisabled).toBe(true);
+    await act(async () => {
+      result.current.sendMessageHandler();
+      expect(await result.current.handleSend()).toBe(false);
+    });
+    expect(state.create).not.toHaveBeenCalled();
+    expect(deps.setInput).not.toHaveBeenCalled();
+    rerender({ status: 'available' });
+    expect(result.current.isButtonDisabled).toBe(false);
+  });
+
   it('retains input and selection when the local runtime is unavailable', async () => {
     state.isEnterprise = false;
     const deps = dependencies({ selectedAgent: 'scode', selectedAgentKey: 'scode', sessionMode: 'local' });
