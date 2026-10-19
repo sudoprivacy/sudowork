@@ -222,3 +222,30 @@ it.each([{ data_scope: 'internal' }, { attachments: 'supported' }, { tools: 'sup
   const request = vi.fn().mockResolvedValue({ success: true, data: [{ ...usageAgent, usage: { ...usage, ...patch } }] });
   await expect(createMossExternalProviderPort(request).agents()).rejects.toThrow();
 });
+
+it('keeps Registry provenance distinct from execution evidence and rejects mismatched identities', async () => {
+  const digest = `sha256:${'a'.repeat(64)}`;
+  const principal = { trust_domain: 'agents.example', agent_name: 'external-agent-1' };
+  const registry = { authority: 'nexus_registry', principal, registration_digest: digest, signing_key_id: digest, evidence: 'signed_registration_only' };
+  const options = { api_version: 'agent-federation.sudo.dev/v1alpha1', kind: 'AgentReleaseOptions', catalog_id: 'agent-1', principal, items: [{ version: 'v1', source_digest: digest, spec_digest: digest, registry, approval_expires_at: 9000 }], channels: [], next_cursor: null };
+  const request = vi.fn().mockResolvedValue({ success: true, data: options });
+  const port = createMossExternalProviderPort(request);
+  expect((await port.versions('agent-1')).items[0].registry).toEqual(registry);
+  request.mockResolvedValue({ success: true, data: { ...options, principal: { ...principal, trust_domain: 'another.example' } } });
+  await expect(port.versions('agent-1')).rejects.toThrow();
+  const evidence = {
+    api_version: EXTERNAL_PROVIDER_API,
+    kind: 'ExternalTaskEvidence',
+    task_id: 'task-1',
+    session_id: 'session-1',
+    attempt_id: 'attempt-1',
+    status: 'succeeded',
+    selection: { version: 'v1', source_digest: digest, release_digest: digest, registry, version_evidence: 'source_snapshot_only' },
+  };
+  request.mockResolvedValue({ success: true, data: evidence });
+  expect((await port.evidence('task-1')).selection?.registry).toEqual(registry);
+  request.mockResolvedValue({ success: true, data: { ...evidence, selection: { ...evidence.selection, release_digest: undefined } } });
+  await expect(port.evidence('task-1')).rejects.toThrow();
+  request.mockResolvedValue({ success: true, data: { ...evidence, selection: { ...evidence.selection, registry: { ...registry, evidence: 'verified_execution' } } } });
+  await expect(port.evidence('task-1')).rejects.toThrow();
+});

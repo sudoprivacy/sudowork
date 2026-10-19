@@ -1,4 +1,4 @@
-// Derived from Moss ca1ab5cdad399393dce4145e42f682fb9e1aa22a:contracts/task/v1alpha1/contract.ts. DO NOT EDIT.
+// Derived from Moss 36b057b33f4fc1f4a87b952f3da3f0fe451b53f7:contracts/task/v1alpha1/contract.ts. DO NOT EDIT.
 import type { ResourceRef } from '@sudo/contracts/common/v1/resource-ref'
 
 /** Product Task ingress implementation; ADR-003/004 remain Proposed. */
@@ -48,7 +48,7 @@ export type TaskExecutionResolution = ResolutionBase & (
     resolved_runtime: 'external_provider'
     resolution_mode: 'default'
     governance_org_id: string
-    agent: { principal: AgentPrincipalRef; version: string; source_digest: string; version_evidence: 'source_snapshot_only' | 'provider_revision_fenced'; release_digest?: string; execution_revision?: string; resolved_from_channel?: string; channel_revision?: number; source_identity_evidence?: 'unverified'; claimed_app_id?: string; claimed_workspace_id?: string }
+    agent: { principal: AgentPrincipalRef; version: string; source_digest: string; version_evidence: 'source_snapshot_only' | 'provider_revision_fenced'; registry?: { authority: 'nexus_registry'; principal: AgentPrincipalRef; registration_digest: string; signing_key_id: string; evidence: 'signed_registration_only' }; release_digest?: string; execution_revision?: string; resolved_from_channel?: string; channel_revision?: number; source_identity_evidence?: 'unverified'; claimed_app_id?: string; claimed_workspace_id?: string }
     binding_id: string
     configuration_revision: number
     provider_kind: 'dify' | 'custom_http'

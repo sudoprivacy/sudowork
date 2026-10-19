@@ -388,3 +388,16 @@ it('the published directory exposes usage details without a per-agent fetch', as
   expect(mocks.evidence).not.toHaveBeenCalled();
   expect(mocks.agents).toHaveBeenCalledTimes(1);
 });
+
+it('shows Registry registration separately from remote execution in the shared conversation evidence', async () => {
+  const registry = { authority: 'nexus_registry', principal: { trust_domain: 'agents.example', agent_name: 'external-agent-1' }, registration_digest: 'registration', signing_key_id: 'key', evidence: 'signed_registration_only' };
+  mocks.evidence.mockResolvedValue({ success: true, data: { task_id: 'task-1', session_id: 'session-1', attempt_id: 'attempt-1', selection: { version: 'v1', source_digest: 'source', release_digest: 'release', registry } } });
+  page('/conversation/external:session-1');
+  await screen.findByText('42');
+  fireEvent.click(await screen.findByRole('button', { name: 'agent.external.versions.evidence' }));
+  expect(await screen.findByText('agent.external.registry.verified')).toBeTruthy();
+  expect(screen.getByText('agent.external.registry.boundary')).toBeTruthy();
+  expect(screen.getByText('agent.external.registry.attempt')).toBeTruthy();
+  expect(screen.getByText('agent.external.versions.awaitingEvidence')).toBeTruthy();
+  expect(screen.queryByText('agent.external.versions.executed')).toBeNull();
+});

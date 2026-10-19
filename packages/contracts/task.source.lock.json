@@ -2,26 +2,26 @@
   "schema_version": 1,
   "source": {
     "repository": "https://github.com/sudoprivacy/moss",
-    "revision": "ca1ab5cdad399393dce4145e42f682fb9e1aa22a",
+    "revision": "36b057b33f4fc1f4a87b952f3da3f0fe451b53f7",
     "semanticOwner": "moss",
     "maturity": "experimental-adapter-baseline",
     "apiVersion": "agent-federation.sudo.dev/v1alpha1",
     "files": {
       "contracts/agent-federation/v1alpha1/contract.ts": {
         "output": "contract.gen.ts",
-        "digest": "sha256:11c627a9fc3936df04dc6121fa1e4c02a3a3837525c80912bb4ce46e5a3fd985"
+        "digest": "sha256:20a6d1e6d2c035d4b765c26473bd5efa9328f0d23350ac0d7ef483515338ee2f"
       },
       "contracts/agent-federation/v1alpha1/schema.json": {
         "output": "schema.gen.json",
-        "digest": "sha256:a8825c8a4ce6bd868c6c7c1c880812f50aa6947824e9344ca79ea5514f94c309"
+        "digest": "sha256:41d7e25be8bfcdfb01e268905d029cadc7536b8f8616d9d2d6488ec1f56b32cb"
       },
       "contracts/task/v1alpha1/contract.ts": {
         "output": "task.contract.gen.ts",
-        "digest": "sha256:3d92ee10cf5c4efa819ffbe85da62ea50097607fa9645978e1eae145889bced4"
+        "digest": "sha256:4532915f198a09f56d2aea22961eb847280548c7e14767f9d8e2a448e4ba75a0"
       },
       "contracts/task/v1alpha1/schema.json": {
         "output": "task.schema.gen.json",
-        "digest": "sha256:28d95103e7e8a21642eb32b546ef76b192384f8780a18a1220637934247bca67"
+        "digest": "sha256:ad374800a232f1180558421be0a67cfc1c87865413b411c36bdca3258b667247"
       },
       "contracts/agent-http/v1alpha2/contract.ts": {
         "output": "agent-http.contract.gen.ts",
@@ -35,28 +35,28 @@
   },
   "artifact": {
     "repository": "https://github.com/sudoprivacy/sudostack",
-    "revision": "4c0d5d62ecaf0d9671160358c230b0df8bbe9352",
+    "revision": "50db62a8ab775e518527a9dd1504e676892a6aba",
     "source_lock_path": "contracts/experimental/agent-federation/source.lock.json",
     "files": {
       "contracts/agent-federation/v1alpha1/contract.ts": {
         "path": "contracts/experimental/agent-federation/contract.gen.ts",
         "local": "packages/contracts/src/agent-federation.gen.ts",
-        "digest": "sha256:d65ca49069b6bb932b289055b5252fee44540378bc6d8e86dbe21c2dc64bc863"
+        "digest": "sha256:ccd5943df4512b20a32917a94bdc2cbdb9de632134ca0b627a264cf123d43b26"
       },
       "contracts/agent-federation/v1alpha1/schema.json": {
         "path": "contracts/experimental/agent-federation/schema.gen.json",
         "local": "packages/contracts/agent-federation.schema.json",
-        "digest": "sha256:a8825c8a4ce6bd868c6c7c1c880812f50aa6947824e9344ca79ea5514f94c309"
+        "digest": "sha256:41d7e25be8bfcdfb01e268905d029cadc7536b8f8616d9d2d6488ec1f56b32cb"
       },
       "contracts/task/v1alpha1/contract.ts": {
         "path": "contracts/experimental/agent-federation/task.contract.gen.ts",
         "local": "packages/contracts/src/task.gen.ts",
-        "digest": "sha256:8cb797699e54b132bc1cc2e744bfc39b92e464b1d11eb7fac796136d59ad01b6"
+        "digest": "sha256:9a67085820f8a7a31ecf278fe192c2b1bda9810b4518012c34679a5ebc9863d0"
       },
       "contracts/task/v1alpha1/schema.json": {
         "path": "contracts/experimental/agent-federation/task.schema.gen.json",
         "local": "packages/contracts/task.schema.json",
-        "digest": "sha256:28d95103e7e8a21642eb32b546ef76b192384f8780a18a1220637934247bca67"
+        "digest": "sha256:ad374800a232f1180558421be0a67cfc1c87865413b411c36bdca3258b667247"
       }
     }
   }

@@ -1,4 +1,4 @@
-// Derived from Moss ca1ab5cdad399393dce4145e42f682fb9e1aa22a:contracts/agent-federation/v1alpha1/contract.ts. DO NOT EDIT.
+// Derived from Moss 36b057b33f4fc1f4a87b952f3da3f0fe451b53f7:contracts/agent-federation/v1alpha1/contract.ts. DO NOT EDIT.
 /** Moss-owned federation boundary. Experimental; ADR-003/004 remain Proposed. */
 export const AGENT_FEDERATION_API = 'agent-federation.sudo.dev/v1alpha1' as const
 export const AGENT_HTTP_API = 'agent-http.sudo.dev/v1alpha1' as const
@@ -105,6 +105,13 @@ export interface AgentExecutionSnapshot {
   decoder: 'text' | 'reply_actions_v1'
   definitionProfileVersion?: number
 }
+export interface AgentRegistryEvidence {
+  authority: 'nexus_registry'
+  principal: { trust_domain: string; agent_name: string }
+  registration_digest: string
+  signing_key_id: string
+  evidence: 'signed_registration_only'
+}
 export interface AgentVersionManifest {
   api_version: typeof AGENT_FEDERATION_API
   kind: 'AgentVersionManifest'
@@ -112,6 +119,7 @@ export interface AgentVersionManifest {
   version: string
   spec_digest: string
   snapshot: AgentExecutionSnapshot
+  registry?: AgentRegistryEvidence
   created_by: string
   created_at: number
 }
@@ -124,7 +132,7 @@ export interface AgentChannel {
 }
 export interface AgentVersionDecision {
   id: string
-  decision: 'approved' | 'revoked'
+  decision: 'approved' | 'withdrawn' | 'revoked'
   actor_id: string
   note: string
   expires_at: number
@@ -151,6 +159,7 @@ export interface AgentReleaseOptions {
     spec_digest: string
     execution_revision?: string
     approval_expires_at: number
+    registry?: AgentRegistryEvidence
   }[]
   channels: AgentChannel[]
   next_cursor: string | null

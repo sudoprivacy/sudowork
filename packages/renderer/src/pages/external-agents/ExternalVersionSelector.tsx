@@ -14,13 +14,14 @@ export default function ExternalVersionSelector({ agentId, value, isDisabled, on
     let isCancelled = false;
     setIsLoading(true);
     setIsFailed(false);
+    setPage(null);
     void externalProviders.versions
       .invoke({ agentId })
       .then((result) => {
         if (isCancelled) return;
         if (!result.success || !result.data) throw new Error('Release options unavailable');
         setPage(result.data);
-        onChange(result.data.channels.some((channel) => channel.name === 'stable') ? 'channel:stable' : '');
+        onChange(result.data.channels.some((channel) => channel.name === 'stable' && channel.enabled) ? 'channel:stable' : '');
       })
       .catch(() => {
         if (!isCancelled) {
@@ -50,6 +51,8 @@ export default function ExternalVersionSelector({ agentId, value, isDisabled, on
       setIsLoading(false);
     }
   }, [agentId, page, isLoading]);
+  const selectedVersion = value.startsWith('version:') ? value.slice(8) : page?.channels.find((channel) => `channel:${channel.name}` === value)?.version;
+  const selected = page?.items.find((item) => item.version === selectedVersion);
   return (
     <div className='flex flex-wrap items-center gap-2 mb-3'>
       <Typography.Text>{t('agent.external.versions.choose')}</Typography.Text>
@@ -68,6 +71,7 @@ export default function ExternalVersionSelector({ agentId, value, isDisabled, on
           </Select.Option>
         ))}
       </Select>
+      {selected?.registry && <Typography.Text type='secondary'>{t('agent.external.registry.verified')}</Typography.Text>}
       {page?.next_cursor && (
         <Button size='mini' disabled={isLoading || isDisabled} onClick={() => void onMore()}>
           {t('agent.external.versions.more')}

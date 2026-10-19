@@ -1,4 +1,4 @@
-// Derived from Moss da6ced75933bf358416b3d68b01cb8328b9782db:contracts/external-provider/v1/contract.ts. DO NOT EDIT.
+// Derived from Moss 36b057b33f4fc1f4a87b952f3da3f0fe451b53f7:contracts/external-provider/v1/contract.ts. DO NOT EDIT.
 /** Moss-owned external-provider pilot wire contract. ADR-003/004 remain Proposed. */
 export const EXTERNAL_PROVIDER_API = 'external-provider.sudo.dev/v1alpha5' as const
 export type Capability = 'supported' | 'unsupported' | 'unknown'
@@ -74,6 +74,14 @@ export interface ExternalTaskEvidence {
     channel_revision?: number
     execution_revision?: string
     version_evidence: 'source_snapshot_only' | 'provider_revision_fenced'
+    /** Registration provenance, separate from remote execution guarantees. */
+    registry?: {
+      authority: 'nexus_registry'
+      principal: { trust_domain: string; agent_name: string }
+      registration_digest: string
+      signing_key_id: string
+      evidence: 'signed_registration_only'
+    }
   }
   execution?: {
     provider_run_id: string

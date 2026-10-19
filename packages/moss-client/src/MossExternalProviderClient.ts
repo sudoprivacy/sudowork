@@ -214,6 +214,20 @@ const events = z.object({
 
 const releaseVersion = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/);
 const releaseDigest = z.string().regex(/^sha256:[a-f0-9]{64}$/);
+const registryEvidence = z
+  .object({
+    authority: z.literal("nexus_registry"),
+    principal: z
+      .object({
+        trust_domain: z.string().min(1).max(253),
+        agent_name: z.string().min(1).max(128),
+      })
+      .strict(),
+    registration_digest: releaseDigest,
+    signing_key_id: releaseDigest,
+    evidence: z.literal("signed_registration_only"),
+  })
+  .strict();
 const releaseOptionsSchema = z
   .object({
     api_version: z.literal(AGENT_FEDERATION_API),
@@ -234,6 +248,7 @@ const releaseOptionsSchema = z
             spec_digest: releaseDigest,
             execution_revision: releaseDigest.optional(),
             approval_expires_at: z.number().int().nonnegative(),
+            registry: registryEvidence.optional(),
           })
           .strict(),
       )
@@ -253,7 +268,22 @@ const releaseOptionsSchema = z
       .max(2),
     next_cursor: releaseVersion.nullable(),
   })
-  .strict();
+  .strict()
+  .superRefine((value, context) => {
+    if (
+      value.items.some(
+        (item) =>
+          item.registry &&
+          (item.registry.principal.trust_domain !==
+            value.principal.trust_domain ||
+            item.registry.principal.agent_name !== value.principal.agent_name),
+      )
+    )
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Registry principal mismatch",
+      });
+  });
 const versionEvidence = z.enum([
   "source_snapshot_only",
   "provider_revision_fenced",
@@ -275,6 +305,7 @@ const evidenceSchema = z
         channel_revision: z.number().int().positive().optional(),
         execution_revision: releaseDigest.optional(),
         version_evidence: versionEvidence,
+        registry: registryEvidence.optional(),
       })
       .strict()
       .optional(),
@@ -290,6 +321,11 @@ const evidenceSchema = z
   })
   .strict()
   .superRefine((value, context) => {
+    if (value.selection?.registry && !value.selection.release_digest)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Registry selection requires a release digest",
+      });
     for (const item of [value.selection, value.execution]) {
       if (
         item &&

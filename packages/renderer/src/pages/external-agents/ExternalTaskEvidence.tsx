@@ -14,6 +14,7 @@ export default function ExternalTaskEvidence({ taskId, onClose }: IExternalTaskE
     let isCancelled = false;
     setIsLoading(true);
     setIsFailed(false);
+    setEvidence(null);
     void externalProviders.evidence
       .invoke({ taskId })
       .then((result) => {
@@ -47,11 +48,25 @@ export default function ExternalTaskEvidence({ taskId, onClose }: IExternalTaskE
       {evidence && (
         <div className='flex flex-col gap-3 break-all'>
           <Typography.Text>{t('agent.external.versions.task', { id: evidence.task_id })}</Typography.Text>
+          <Typography.Text>{t('agent.external.registry.session', { id: evidence.session_id })}</Typography.Text>
+          {evidence.attempt_id && <Typography.Text>{t('agent.external.registry.attempt', { id: evidence.attempt_id })}</Typography.Text>}
           {evidence.selection ? (
             <>
               <Typography.Text bold>{t('agent.external.versions.selected', { version: evidence.selection.version })}</Typography.Text>
               {evidence.selection.resolved_from_channel && <Typography.Text>{t('agent.external.versions.channel', { channel: evidence.selection.resolved_from_channel, revision: evidence.selection.channel_revision })}</Typography.Text>}
               <Typography.Text type='secondary'>{t('agent.external.versions.source', { digest: evidence.selection.source_digest })}</Typography.Text>
+              {evidence.selection.release_digest && <Typography.Text type='secondary'>{t('agent.external.registry.release', { digest: evidence.selection.release_digest })}</Typography.Text>}
+              {evidence.selection.registry ? (
+                <>
+                  <Typography.Text bold>{t('agent.external.registry.verified')}</Typography.Text>
+                  <Typography.Text>{t('agent.external.registry.principal', { principal: `${evidence.selection.registry.principal.trust_domain}/${evidence.selection.registry.principal.agent_name}` })}</Typography.Text>
+                  <Typography.Text type='secondary'>{t('agent.external.registry.digest', { digest: evidence.selection.registry.registration_digest })}</Typography.Text>
+                  <Typography.Text type='secondary'>{t('agent.external.registry.key', { key: evidence.selection.registry.signing_key_id })}</Typography.Text>
+                  <Alert type='info' content={t('agent.external.registry.boundary')} />
+                </>
+              ) : (
+                <Typography.Text type='secondary'>{t('agent.external.registry.unrecorded')}</Typography.Text>
+              )}
             </>
           ) : (
             <Typography.Text>{t('agent.external.versions.noSelection')}</Typography.Text>
