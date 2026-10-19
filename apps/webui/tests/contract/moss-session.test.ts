@@ -1,4 +1,6 @@
 import { describe, expect, test, vi } from 'vitest'
+import { createServer } from 'node:http'
+import { convertMossMessagesToTMessages } from '@sudowork/common/chatLib'
 import { createMossSessionPort, mossRequest } from '@sudowork/moss-client'
 import {
   buildAnswerQuestionMessage,
@@ -297,6 +299,76 @@ describe('MossSessionPort request shapes (contract vs baseline)', () => {
       vi.fn().mockResolvedValue({ context: { messages: [{ type: 'unknown-frame' }] } }),
     )
     await expect(port.context(CTX, 's1')).rejects.toThrow()
+  })
+
+  test('restores terminal failures through HTTP context validation and shared message conversion', async () => {
+    const timestamp = '2026-10-19T00:00:00.000Z'
+    const messages = [
+      { type: 'user', uuid: 'user', timestamp, content: 'Run the task' },
+      {
+        type: 'result',
+        uuid: 'interrupted',
+        timestamp,
+        subtype: 'error_interrupted',
+        is_error: true,
+        errors: ['Execution outcome is unknown. Check effects before retrying.'],
+      },
+      { type: 'result', uuid: 'finished', timestamp, subtype: 'success', is_error: false },
+      {
+        type: 'result',
+        uuid: 'cancelled',
+        timestamp,
+        result_type: 'user',
+        is_error: true,
+        result: 'Request was aborted',
+      },
+      {
+        type: 'result',
+        uuid: 'failure',
+        timestamp,
+        subtype: 'error_execution',
+        is_error: true,
+        errors: ['Provider unavailable'],
+      },
+    ]
+    const requests: Array<{ path: string | undefined; authorization: string | undefined }> = []
+    const server = createServer((req, res) => {
+      requests.push({ path: req.url, authorization: req.headers.authorization })
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ context: { messages } }))
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    try {
+      const address = server.address()
+      if (!address || typeof address === 'string')
+        throw new Error('Expected an ephemeral HTTP port')
+      const context = (await createMossSessionPort(mossRequest).context(
+        { ...CTX, baseUrl: `http://127.0.0.1:${address.port}` },
+        's1',
+      )) as { context: { messages: unknown[] } }
+      expect(context.context.messages).toEqual(messages)
+      const restored = convertMossMessagesToTMessages(
+        context.context.messages,
+        'conversation',
+        's1',
+      ).messages
+      const errors = restored.filter((message) => message.type === 'tips')
+      expect(errors).toHaveLength(2)
+      expect(errors[0]).toMatchObject({
+        content: { type: 'error', errorClass: 'interrupted', content: messages[1].errors?.[0] },
+      })
+      expect(errors[1]).toMatchObject({
+        content: { type: 'error', content: 'Provider unavailable' },
+      })
+      expect(requests).toEqual([
+        { path: '/api/v1/sessions/s1/context', authorization: 'Bearer tk' },
+      ])
+    } finally {
+      server.closeAllConnections()
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      )
+    }
   })
 
   test('session ids are uri-encoded once', async () => {

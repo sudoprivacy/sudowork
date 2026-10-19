@@ -80,6 +80,7 @@ export const MossContextResponseSchema = z.object({
                 'tool_use',
                 'tool_result',
                 'artifacts',
+                'result',
               ]),
               uuid: z.string().optional(),
             })
