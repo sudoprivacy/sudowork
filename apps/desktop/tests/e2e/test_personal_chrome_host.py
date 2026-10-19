@@ -65,10 +65,14 @@ async def test_desktop_host_preserves_personal_chrome(
         **os.environ,
         "SUDOWORK_BROWSER_LIVE_PYTHON": sys.executable,
         "SUDOWORK_BROWSER_LIVE_EVIDENCE": str(tmp_path),
-        "SUDOWORK_BROWSER_LIVE_PYTHONPATH": str(sdk),
         "AI_DEV_BROWSER_EXTENSION_BRIDGE_PORT": str(live_extension.port),
         "SUDOWORK_PERSONAL_COOKIE": cookie,
     }
+    # Fixture source and installed distribution are separate inputs. The host
+    # must exercise the installed worker so a source checkout cannot hide an
+    # incomplete wheel or an incorrect public package pin.
+    env.pop("PYTHONPATH", None)
+    env.pop("SUDOWORK_BROWSER_LIVE_PYTHONPATH", None)
     with (tmp_path / "desktop-personal-host.log").open("wb") as log:
         process = await asyncio.create_subprocess_exec(
             "node", str(executable), "--personal", env=env, stdout=log, stderr=log

@@ -187,7 +187,10 @@ python -m pytest -v apps/desktop/tests/e2e/test_personal_chrome_host.py --basete
 
 The default SDK fixture source is `vendor/ai-dev-browser`. Local SDK development
 can explicitly select another checkout with `SUDOWORK_BROWSER_SDK_SOURCE`; the
-installed worker and fixture source must match. The test leaves its evidence and
+installed worker and fixture source must match. This selects fixture helpers
+only; the host still loads the installed distribution without a source-path
+override. Install a matching wheel or editable package in the test environment.
+The test leaves its evidence and
 only closes its own temporary Chrome, bridge and host processes.
 
 The native journey can also exercise the adapter from an actual unpacked
