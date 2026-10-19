@@ -96,6 +96,7 @@ async def main(args):
         "upstreamEventCounts": {},
         "runtimeModels": [],
         "catalogFaultInjection": args.exercise_model_unavailable,
+        "failedRequests": [],
     }
     own = browser_start(headless=True, temp=True, reuse="none", silent_stderr=True)
     assert "error" not in own, "Could not start the isolated inspection browser"
@@ -153,6 +154,24 @@ async def main(args):
                 await context.route(origin + "/**", candidate)
 
             page = await context.new_page()
+            pending_requests = set()
+            page.on("request", lambda request: pending_requests.add(request))
+            page.on(
+                "requestfinished", lambda request: pending_requests.discard(request)
+            )
+
+            def request_failed(request):
+                pending_requests.discard(request)
+                evidence["failedRequests"].append(
+                    {
+                        "path": urlparse(request.url).path,
+                        "method": request.method,
+                        "resourceType": request.resource_type,
+                        "error": request.failure,
+                    }
+                )
+
+            page.on("requestfailed", request_failed)
 
             async def capture_failed_view():
                 if not evidence.get("passed"):
@@ -200,7 +219,12 @@ async def main(args):
                 lambda response: pending.append(asyncio.create_task(created(response))),
             )
 
+            is_catalog_fault_active = args.exercise_model_unavailable
+
             async def empty_catalog(route):
+                if not is_catalog_fault_active:
+                    await route.continue_()
+                    return
                 # Only the model list is fault-injected. Authentication, the
                 # catalog request, skills and agents still use the real server.
                 response = await route.fetch()
@@ -262,9 +286,10 @@ async def main(args):
                     path=str(output / "catalog-unavailable-draft.png")
                 )
                 evidence["unavailableCatalogPreservedDraft"] = True
-                await context.unroute(
-                    origin + "/api/conversations/options", empty_catalog
-                )
+                # Removing the last route changes Chromium's Fetch/cache mode
+                # while the old page still has requests in flight. Keep the
+                # interceptor stable and pass subsequent catalog requests on.
+                is_catalog_fault_active = False
                 await page.reload(wait_until="domcontentloaded")
 
             options_response = await context.request.get(
@@ -510,6 +535,18 @@ async def main(args):
         KeyError,
         TypeError,
     ) as error:
+        evidence["pendingRequestsAtFailure"] = (
+            [
+                {
+                    "path": urlparse(request.url).path,
+                    "method": request.method,
+                    "resourceType": request.resource_type,
+                }
+                for request in pending_requests
+            ]
+            if page is not None
+            else []
+        )
         safe = (
             str(error)
             .replace(config["password"], "[redacted]")
