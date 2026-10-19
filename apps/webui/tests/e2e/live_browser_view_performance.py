@@ -46,6 +46,25 @@ async def main(args):
         "passed": False,
     }
 
+    async def require_status(response, action, expected_status=200):
+        if response.status == expected_status:
+            return
+        body = await response.text()
+        for secret in (config.get("apiKey"), config.get("password")):
+            if secret:
+                body = body.replace(secret, "[redacted]")
+        rejection = {
+            "action": action,
+            "status": response.status,
+            "body": body,
+            "noRetry": True,
+        }
+        evidence.setdefault("rejection", rejection)
+        evidence.setdefault("rejections", []).append(rejection)
+        raise AssertionError(
+            f"{action} returned HTTP {response.status}; original response retained"
+        )
+
     class Site(BaseHTTPRequestHandler):
         def log_message(self, *_args):
             pass
@@ -111,6 +130,7 @@ if(response.ok){clearInterval(ticker);document.body.style.background='rgb(0,128,
                         data={},
                     )
                     evidence["ownedSessionTerminated"] = stopped.status == 200
+                    await require_status(stopped, "Terminate owned fixture")
                     assert evidence["ownedSessionTerminated"], (
                         "Owned fixture cleanup was not acknowledged"
                     )
@@ -192,9 +212,8 @@ if(response.ok){clearInterval(ticker);document.body.style.background='rgb(0,128,
                     headers={"Origin": origin},
                     data={"assistantName": "", "enabledSkills": []},
                 )
-                assert response.status == 201, (
-                    "Fresh isolated conversation creation failed: "
-                    + str(response.status)
+                await require_status(
+                    response, "Create fresh isolated conversation", 201
                 )
                 session_id = (await response.json())["id"]
                 evidence["sessionId"] = session_id
@@ -208,7 +227,7 @@ if(response.ok){clearInterval(ticker);document.body.style.background='rgb(0,128,
                     headers={"Origin": origin},
                     data={"kind": "state"},
                 )
-                assert response.status == 200
+                await require_status(response, "Read initial browser state")
                 initial = (await response.json())["session"]
                 if initial["state"] == "stopped":
                     await expect(
@@ -234,7 +253,9 @@ if(response.ok){clearInterval(ticker);document.body.style.background='rgb(0,128,
                             headers={"Origin": origin},
                             data={"kind": "state"},
                         )
-                        assert response.status == 200
+                        await require_status(
+                            response, "Read requested browser startup state"
+                        )
                         initial = (await response.json())["session"]
                 else:
                     allowed = config.get("allowedExistingFixtureOrigins", [])
@@ -396,7 +417,7 @@ if(response.ok){clearInterval(ticker);document.body.style.background='rgb(0,128,
                             headers={"Origin": origin},
                             data={"kind": "state"},
                         )
-                        assert current.status == 200
+                        await require_status(current, "Read owned fixture before Stop")
                         state = (await current.json())["session"]
                         if state["state"] != "stopped":
                             assert (
@@ -416,9 +437,7 @@ if(response.ok){clearInterval(ticker);document.body.style.background='rgb(0,128,
                                     "targetEpoch": state["targetEpoch"],
                                 },
                             )
-                            assert stopped.status == 200, (
-                                "The owned browser did not acknowledge Stop"
-                            )
+                            await require_status(stopped, "Stop owned browser")
                         evidence["ownedBrowserStopped"] = True
                         # A persistent browser's human lease can outlive a
                         # conversation. Explicitly return the stopped browser
@@ -446,7 +465,9 @@ if(response.ok){clearInterval(ticker);document.body.style.background='rgb(0,128,
                             headers={"Origin": origin},
                             data={"kind": "state"},
                         )
-                        assert current.status == 200
+                        await require_status(
+                            current, "Read stopped fixture before Return"
+                        )
                         state = (await current.json())["session"]
                         marker = "VIEW_CLEANUP_" + nonce
                         returned = await context.request.post(
@@ -460,9 +481,7 @@ if(response.ok){clearInterval(ticker);document.body.style.background='rgb(0,128,
                                 + marker,
                             },
                         )
-                        assert returned.status == 200, (
-                            "The stopped fixture did not acknowledge Return to AI"
-                        )
+                        await require_status(returned, "Return stopped fixture to AI")
                         evidence["humanLeaseReturned"] = True
                         deadline = time.monotonic() + 180
                         assistant = ""
@@ -510,7 +529,9 @@ if(response.ok){clearInterval(ticker);document.body.style.background='rgb(0,128,
                 await context.close()
     except BaseException as error:
         evidence["passed"] = False
-        evidence["failure"] = str(error).split("\nCall log:", 1)[0]
+        evidence["failure"] = (
+            type(error).__name__ + ": " + str(error).split("\nCall log:", 1)[0]
+        )
         for secret in (config.get("apiKey"), config.get("password")):
             if secret:
                 evidence["failure"] = evidence["failure"].replace(secret, "[redacted]")
