@@ -5,6 +5,23 @@ import type { BrowserSessionAction, BrowserSessionState } from '@sudowork/contra
 import BrowserSessionPanel from '@renderer/components/browser/BrowserSessionPanel';
 
 const host = vi.hoisted(() => ({ invoke: vi.fn(), error: vi.fn() }));
+
+function activeSession(): BrowserSessionState {
+  return {
+    browserSessionId: 'owned-browser',
+    profileId: 'owned-profile',
+    state: 'human',
+    controlEpoch: 4,
+    targetEpoch: 2,
+    isController: true,
+    isHeadless: true,
+    transport: 'extension',
+    capabilities: { pageView: true, windowView: false, persistentProfile: true },
+    activeTargetId: 'owned-tab',
+    tabs: [{ id: 'owned-tab', title: 'Form', url: 'https://example.test/' }],
+    error: null,
+  };
+}
 vi.mock('@sudowork/host-bridge/ipcBridge', () => ({ browserSession: { invoke: { invoke: (...args: unknown[]) => host.invoke(...args) } } }));
 vi.mock('react-i18next', () => {
   const t = (key: string) => key.split('.').at(-1);
@@ -36,6 +53,37 @@ vi.mock('@arco-design/web-react', () => ({
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  host.invoke.mockReset();
+  host.error.mockReset();
+});
+
+it('recovers after a lifecycle transition and reads frame state without reattaching every tick', async () => {
+  const session = activeSession();
+  const actions: string[] = [];
+  let states = 0;
+  let frames = 0;
+  host.invoke.mockImplementation(async ({ action }: { action: BrowserSessionAction }) => {
+    actions.push(action.kind);
+    if (action.kind === 'state') {
+      states++;
+      if (states === 1) {
+        return { success: true, data: { session: { ...session, state: 'pausing', activeTargetId: null, capabilities: { ...session.capabilities, pageView: false } } } };
+      }
+    }
+    if (action.kind === 'frame') frames++;
+    return {
+      success: true,
+      data: {
+        session,
+        ...(action.kind === 'frame' ? { frame: { data: 'eA==', width: 100, height: 100, controlEpoch: session.controlEpoch, targetEpoch: session.targetEpoch } } : {}),
+      },
+    };
+  });
+  render(<BrowserSessionPanel conversationId='owned-conversation' />);
+  await waitFor(() => expect(frames).toBeGreaterThanOrEqual(3), { timeout: 2000 });
+  expect(states).toBe(2);
+  expect(actions.filter((kind) => kind === 'attach')).toHaveLength(1);
+  expect(actions.slice(0, 5)).toEqual(['state', 'state', 'attach', 'frame', 'frame']);
 });
 
 it('preserves click, select-all and Unicode typing before returning control over a slow connection', async () => {

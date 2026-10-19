@@ -71,6 +71,9 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     const generation = ++generationRef.current;
     let isClosed = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let attachedBrowserId: string | undefined;
+    let attachedSurface: 'page' | 'window' | undefined;
+    let isStateNeeded = true;
     const viewerId = crypto.randomUUID();
     sessionRef.current = null;
     setTransport(initialTransport);
@@ -82,17 +85,31 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     if (!isActive || !conversationId) return;
 
     async function poll() {
+      const startedAt = performance.now();
       try {
-        const stateReply = await invoke({ kind: 'state' });
-        if (isClosed) return;
-        update(stateReply.session);
-        const viewMode = selectedSurface === 'page' || !stateReply.session.capabilities.windowView ? 'page' : 'window';
+        // Frame replies already carry authoritative session state. Fetching
+        // state and attaching again before every frame adds two cloud round
+        // trips without improving ownership checks on the host.
+        const previous = sessionRef.current;
+        if (isStateNeeded || !previous || isControlsOnly || document.visibilityState !== 'visible' || previous.state === 'stopped') {
+          const stateReply = await invoke({ kind: 'state' });
+          if (isClosed) return;
+          update(stateReply.session);
+          isStateNeeded = false;
+        }
+        const current = sessionRef.current!;
+        const viewMode = selectedSurface === 'page' || !current.capabilities.windowView ? 'page' : 'window';
         surfaceModeRef.current = viewMode;
         if (isControlsOnly) {
           // This window observes the lease without attaching a pixel viewer.
-        } else if (document.visibilityState === 'visible' && stateReply.session.state !== 'stopped' && stateReply.session.capabilities.pageView && stateReply.session.activeTargetId) {
-          await invoke({ kind: 'attach', viewerId, surface: viewMode });
-          if (isClosed) return;
+        } else if (document.visibilityState === 'visible' && current.state !== 'stopped' && current.capabilities.pageView && current.activeTargetId) {
+          if (attachedBrowserId !== current.browserSessionId || attachedSurface !== viewMode) {
+            const attached = await invoke({ kind: 'attach', viewerId, surface: viewMode });
+            if (isClosed) return;
+            update(attached.session);
+            attachedBrowserId = attached.session.browserSessionId;
+            attachedSurface = viewMode;
+          }
           const state = sessionRef.current!;
           const reply = await invoke({ kind: 'frame', viewerId, surface: viewMode, controlEpoch: state.controlEpoch, targetEpoch: state.targetEpoch });
           if (isClosed || generationRef.current !== generation) return;
@@ -101,16 +118,27 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
             surfaceRef.current?.frame(reply.frame);
           }
         } else {
-          await invoke({ kind: 'detach', viewerId });
+          if (attachedBrowserId) await invoke({ kind: 'detach', viewerId });
+          attachedBrowserId = undefined;
+          attachedSurface = undefined;
+          isStateNeeded = true;
         }
       } catch (failure) {
+        // A restarted browser, expired attachment or changed target requires
+        // fresh state and an explicit reattachment. Never replay user input.
+        isStateNeeded = true;
+        attachedBrowserId = undefined;
+        attachedSurface = undefined;
         if (!isClosed) {
           setError(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
           surfaceRef.current?.clear();
           setIsFrameReady(false);
         }
       }
-      if (!isClosed) timer = setTimeout(() => void poll(), isControlsOnly || document.visibilityState !== 'visible' ? 2000 : 350);
+      if (!isClosed) {
+        const interval = isControlsOnly || document.visibilityState !== 'visible' ? 2000 : sessionRef.current?.state === 'stopped' ? 1000 : 250;
+        timer = setTimeout(() => void poll(), Math.max(0, interval - (performance.now() - startedAt)));
+      }
     }
     void poll();
     return () => {

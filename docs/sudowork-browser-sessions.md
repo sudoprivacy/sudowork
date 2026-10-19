@@ -33,8 +33,9 @@ An Electron `<webview>` is a Chromium guest, not a DOM component available in or
 | Browser path                     | Delivery and evidence                                                                                                                                                                                       |
 | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Desktop local standalone CDP     | Implemented in [SudoWork #1250](https://github.com/sudoprivacy/sudowork/pull/1250); actual Electron/model takeover, compact controls and same-session commands passed.                                      |
-| Desktop app-managed extension    | Implemented; actual signed/native Chrome HTTP and stdio lifecycle journeys cover the public worker.                                                                                                         |
+| Desktop app-managed extension    | Public worker support exists. SDK and cloud signed-extension tests do not establish complete Desktop extension application acceptance; that journey remains open.                                           |
 | Desktop existing personal Chrome | Explicit attachment and its profile UX remain planned. Managed extension acceptance does not establish personal-profile attachment.                                                                         |
+| Desktop cloud Chrome             | Shared renderer and cloud dispatch exist. A complete Electron-to-cloud browser application journey remains open.                                                                                            |
 | Shared cloud extension and CDP   | Implemented in the public worker, Moss and shared panel. Real model/file/reconnect and explicit transport-switch journeys passed against the production backend; public frontend rollout is recorded below. |
 | WebUI local extension relay      | Optional planned capability with explicit pairing and revocation.                                                                                                                                           |
 | Viewing clients                  | Real Chromium and Firefox 155 on Windows passed. Physical phone and Safari acceptance remain open; desktop testing does not establish either result.                                                        |
@@ -92,6 +93,15 @@ Offer two explicit choices:
 - **Connect my Chrome**: pair the local extension through an authenticated outbound relay when exact local login/device context is needed.
 
 Cloud sign-in is a useful first path, not a replacement for the local relay.
+
+The user signs in through the authenticated window viewer while holding human
+control. Use the VM's persistent isolated profile, and offer the same panel and
+separate viewer tab. A separate native VNC client is not required. VNC is an
+available display adapter; a production host must authenticate the viewer and
+encrypt and authorize its connection rather than expose a raw desktop port.
+The current managed deployment already transports window frames and input
+through the existing authenticated session API. Chrome account sign-in and
+website sign-in remain separate user choices; neither imports all local state.
 
 ## 6. Local extension relay
 
@@ -167,7 +177,8 @@ stateDiagram-v2
 Tools return structured state with `browserSessionId`, browser identity, `profileId`, active `targetId`, `controlEpoch`, `targetEpoch`, controller and capabilities. Each write must match the current lease and epochs.
 
 - During human control, tool requests return `browser_control_held_by_user` with a wait instruction. They do not poll, recreate the browser, switch profiles or use a different transport to bypass the lease.
-- The agent may request handoff with a short explanation, such as needing login. The UI presents the request and the user explicitly accepts it.
+- The agent explains why human input is needed through its native question/options or ordinary conversation. For example: "Please take control of the browser and sign in. Choose Return to AI when ready." No separate custom question interface is required.
+- The user establishes ownership with the shared Take control action. A native option or a typed "done" message alone is not proof of a control transfer. If a future native option performs the transition directly, it must call the same authenticated host action and wait for the tool barrier acknowledgement.
 - After return, the first operation is a fresh observation. A child agent cannot use a cached screenshot from before handoff.
 - Read-only access is an exact allowlist. Arbitrary JavaScript evaluation is a write because it can change page state. Closing, restarting, navigating and changing tabs are also writes.
 - Cancellation and session termination remain available while paused. They do not transfer control or imply that an uncertain write had no effect.
@@ -201,6 +212,44 @@ Acceptance covers actual browser behavior and actual AI execution. A fake model 
 | Mobile and browser compatibility | Real phone interaction plus Safari/Firefox/Chrome viewers; desktop emulation alone is insufficient                                |
 
 Use the repository live workflow and real model credentials. Prefer live PTY for model/runtime journeys, real Chrome for UI, and local Docker or the restricted production VM for infrastructure. Commit locally-run live tests and add suitable regression coverage to CI. Preserve failed evidence, clean only owned fixtures, and report any remaining acceptance gap explicitly.
+
+### Completion checklist, 19 October 2026
+
+This checklist tracks implementation and actual application acceptance separately.
+An older passing journey is not counted as a new release's complete acceptance.
+
+| Work                           | Current status                                                                                                                        | Required evidence before closing                                                                                                                    |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Headful viewer responsiveness  | In progress: production-image X11 capture measured; redundant per-frame state/attach requests are being removed from the shared panel | Actual authenticated WebUI render cadence and exact trusted Unicode input, before/after comparison, reconnect and hidden-view regression protection |
+| Native handoff communication   | Accepted design; browser skill updated                                                                                                | Real agent explains handoff, acknowledged host pause, user return and fresh model observation                                                       |
+| Desktop managed extension      | Application acceptance open                                                                                                           | Electron application with actual installed extension, same profile and handoff                                                                      |
+| Desktop personal Chrome        | Attachment and profile UX open                                                                                                        | Explicit connection to existing Chrome, stable identity, scoped tabs, exclusive ownership and disconnect without stopping personal Chrome           |
+| Desktop cloud Chrome           | Application acceptance open                                                                                                           | Complete Electron-to-cloud session journey                                                                                                          |
+| Cloud profile login            | Remote viewer implemented; dedicated sign-in workflow acceptance open                                                                 | Human enters an isolated fixture login, restart preserves that login, AI observes the same signed-in session                                        |
+| Other agent hosts              | Capability-specific acceptance open                                                                                                   | Each supported host acknowledges its tool barrier; unsupported active hosts cannot grant human control                                              |
+| Physical iPhone remote browser | Open                                                                                                                                  | Real device take, Unicode input, return and exact model readback; prior phone screenshot only proves model/send                                     |
+| General production rollout     | Scoped to three owners, including the nominated owner                                                                                 | Complete scoped acceptance and verify deployment-wide owner isolation before expansion                                                              |
+| WebUI local extension relay    | Optional capability, still open                                                                                                       | Pairing consent, same actual local profile, scope, revoke/disconnect and real cloud-agent acceptance                                                |
+
+The 19 October isolated production-image measurement used actual managed
+headful extension Chrome at 1280 by 900. VM-local frame latency was 42.14 ms
+median and 158.69 ms P95 across 12 samples; native address-bar focus, text and
+Enter took 268.5 ms together. These are backend measurements, not end-user
+render latency or proof of smooth interactive viewing. The owned container was
+removed. Current native window frames use the public X11/JPEG/input adapter;
+they do not start Ladder's noVNC server.
+
+The public WebUI baseline then passed the actual fixture login workflow at
+0.77 rendered/distinct frames per second, with a 1346.2 ms median frame interval
+and 1645.71 ms click-to-visible login feedback. The candidate SPA, against the
+same real production APIs and Chrome, reached 2.63 rendered and 2.44 distinct
+frames per second, a 345.8 ms median interval and 820.41 ms login feedback.
+Unicode input was exact and submitted once. Stop released the owned Chrome,
+Return released the persistent human lease and a real model acknowledged the
+return note; the fixture conversation ended and its temporary key was revoked.
+This improves the polling path but does not establish smooth full-motion
+viewing. The live journey is `live_browser_view_performance.py`; the candidate
+measurement is not a claim that this change has already been deployed.
 
 ### Delivery already completed
 
