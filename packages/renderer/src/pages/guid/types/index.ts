@@ -6,6 +6,8 @@
 
 import type { AcpBackend, AcpBackendAll, AcpBackendConfig, AcpModelInfo, PresetAgentType } from '@sudowork/common/acpTypes';
 
+export type RemoteModelStatus = 'loading' | 'available' | 'empty' | 'error';
+
 /**
  * Available agent entry returned by the backend.
  * backend is AcpBackendAll which includes 'remote-agent' (enterprise mode).

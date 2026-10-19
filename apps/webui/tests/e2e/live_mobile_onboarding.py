@@ -95,6 +95,7 @@ async def main(args):
         "createdSessions": [],
         "upstreamEventCounts": {},
         "runtimeModels": [],
+        "catalogFaultInjection": args.exercise_model_unavailable,
     }
     own = browser_start(headless=True, temp=True, reuse="none", silent_stderr=True)
     assert "error" not in own, "Could not start the isolated inspection browser"
@@ -198,6 +199,22 @@ async def main(args):
                 "response",
                 lambda response: pending.append(asyncio.create_task(created(response))),
             )
+
+            async def empty_catalog(route):
+                # Only the model list is fault-injected. Authentication, the
+                # catalog request, skills and agents still use the real server.
+                response = await route.fetch()
+                assert response.status == 200, (
+                    "The real catalog lookup failed; no replay"
+                )
+                body = await response.json()
+                body["models"] = []
+                await route.fulfill(response=response, json=body)
+
+            if args.exercise_model_unavailable:
+                await context.route(
+                    origin + "/api/conversations/options", empty_catalog
+                )
             await page.goto(origin + "/#/login", wait_until="domcontentloaded")
             await page.get_by_text(login["passwordTab"], exact=True).click()
             await page.get_by_placeholder(
@@ -208,6 +225,47 @@ async def main(args):
                 "button", name=login["pwdLoginTab"], exact=True
             ).click()
             await page.wait_for_url(lambda url: "/login" not in url, timeout=45000)
+
+            if args.exercise_model_unavailable:
+                alert = page.get_by_role("alert").filter(
+                    has_text=conversation["welcome"]["modelServiceUnavailable"]
+                )
+                await expect(alert).to_be_visible(timeout=30000)
+                await expect(
+                    page.get_by_role(
+                        "button",
+                        name=conversation["welcome"]["selectModel"],
+                        exact=True,
+                    )
+                ).to_be_disabled()
+                draft = "MODEL_CATALOG_DRAFT_" + uuid.uuid4().hex[:12]
+                editor = page.locator("textarea").first
+                await editor.fill(draft)
+                await expect(
+                    page.get_by_role("button", name=common["send"], exact=True)
+                ).to_be_disabled()
+                await editor.press("Enter")
+                await expect(editor).to_have_value(draft)
+                assert not evidence["createdSessions"], (
+                    "An unavailable catalog allowed task creation"
+                )
+                assert (
+                    conversation["welcome"]["modelSwitchNotSupported"]
+                    not in await page.locator("body").inner_text()
+                )
+                assert await page.evaluate(
+                    "document.documentElement.scrollWidth <= innerWidth"
+                ), "The model-service error widens the phone viewport"
+                await alert.scroll_into_view_if_needed()
+                await expect(alert).to_be_in_viewport(ratio=1)
+                await page.screenshot(
+                    path=str(output / "catalog-unavailable-draft.png")
+                )
+                evidence["unavailableCatalogPreservedDraft"] = True
+                await context.unroute(
+                    origin + "/api/conversations/options", empty_catalog
+                )
+                await page.reload(wait_until="domcontentloaded")
 
             options_response = await context.request.get(
                 origin + "/api/conversations/options"
@@ -486,4 +544,9 @@ if __name__ == "__main__":
         help="Candidate compiled SPA; all APIs still use the real origin",
     )
     parser.add_argument("--turn-timeout", type=int, default=210)
+    parser.add_argument(
+        "--exercise-model-unavailable",
+        action="store_true",
+        help="Fault-inject an empty model list in the real UI, then remove the fault and complete real model turns",
+    )
     asyncio.run(main(parser.parse_args()))

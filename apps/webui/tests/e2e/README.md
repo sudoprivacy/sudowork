@@ -2,6 +2,15 @@
 
 ## Mobile task creation and model selection
 
+Add `--exercise-model-unavailable` to verify the unavailable-model entry before
+the normal live journey. It replaces only the model list in a successful real
+catalog response with an empty list. The phone-width UI must show the service
+error, disable model selection and Send, and keep the draft after Enter without
+creating a session. The test removes that fault, reloads, and completes the
+usual two real model turns and history readback. Evidence explicitly labels
+this failure phase as fault injection; login, APIs and the subsequent model
+turns remain real. This does not claim to validate a rejected provider key.
+
 `live_mobile_onboarding.py` starts at the real password login screen with an
 isolated acceptance account. At 320, 375 and 390 CSS pixels, it opens the phone
 navigation, starts a new task on the same route, checks the composer width and

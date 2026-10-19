@@ -18,7 +18,7 @@ import { updateWorkspaceTime } from '@renderer/utils/workspaceHistory';
 import { useAppMode } from '@renderer/hooks/useAppMode';
 import { useHasAvailableModel } from '@renderer/hooks/useHasAvailableModel';
 import { useAuth } from '@renderer/context/AuthContext';
-import type { AcpBackend, AvailableAgent, EffectiveAgentInfo } from '../types';
+import type { AcpBackend, AvailableAgent, EffectiveAgentInfo, RemoteModelStatus } from '../types';
 
 export type GuidSendDeps = {
   // Input state
@@ -48,6 +48,7 @@ export type GuidSendDeps = {
   currentModel: TProviderWithModel | undefined;
   /** Probe-resolved model info for the current backend; validates selectedAcpModel and provides a fallback when it is stale/ghost. */
   currentAcpCachedModelInfo: AcpModelInfo | null;
+  remoteModelStatus?: RemoteModelStatus;
 
   /** Current session mode (remote/local) for enterprise mode */
   sessionMode: 'remote' | 'local';
@@ -134,6 +135,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
 
   const handleSend = useCallback(async () => {
     if (isAgentSelectionPending || deps.isCompositionPending) return false;
+    if (deps.remoteModelStatus && deps.remoteModelStatus !== 'available') return false;
     // Guest pre-send check: prompt if no usable model. Login users (isGuest=false) always skip.
     // claude code carries its own config (~/.claude/settings.json) and does not consume
     // model.config; skip this guard for claude to avoid a false "no model configured".
@@ -352,6 +354,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     deps.personalAgentName,
     deps.templateRef,
     deps.isCompositionPending,
+    deps.remoteModelStatus,
     input,
     files,
     dir,
@@ -382,7 +385,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
   ]);
 
   const sendMessageHandler = useCallback(() => {
-    if (isAgentSelectionPending || isSendingRef.current || !input.trim()) return;
+    if (isAgentSelectionPending || isSendingRef.current || !input.trim() || (deps.remoteModelStatus && deps.remoteModelStatus !== 'available')) return;
     isSendingRef.current = true;
     setLoading(true);
     const isPreparingLocal = isEnterprise && sessionMode === 'local';
@@ -410,10 +413,10 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         closePreparing?.();
         setLoading(false);
       });
-  }, [handleSend, input, isAgentSelectionPending, isEnterprise, sessionMode, t, setLoading, setInput, setMentionOpen, setMentionQuery, setMentionSelectorOpen, setMentionActiveIndex, setFiles, setDir, resetAgentSelection, setSelectedSkills]);
+  }, [handleSend, input, isAgentSelectionPending, deps.remoteModelStatus, isEnterprise, sessionMode, t, setLoading, setInput, setMentionOpen, setMentionQuery, setMentionSelectorOpen, setMentionActiveIndex, setFiles, setDir, resetAgentSelection, setSelectedSkills]);
 
   // Calculate button disabled state
-  const isButtonDisabled = Boolean(isAgentSelectionPending || deps.isCompositionPending) || !input.trim();
+  const isButtonDisabled = Boolean(isAgentSelectionPending || deps.isCompositionPending || (deps.remoteModelStatus && deps.remoteModelStatus !== 'available')) || !input.trim();
 
   return {
     handleSend,
