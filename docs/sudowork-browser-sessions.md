@@ -34,7 +34,7 @@ An Electron `<webview>` is a Chromium guest, not a DOM component available in or
 | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Desktop local standalone CDP     | Implemented in [SudoWork #1250](https://github.com/sudoprivacy/sudowork/pull/1250); actual Electron/model takeover, compact controls and same-session commands passed.                                      |
 | Desktop app-managed extension    | Public worker support exists. SDK and cloud signed-extension tests do not establish complete Desktop extension application acceptance; that journey remains open.                                           |
-| Desktop existing personal Chrome | Explicit selection, four real host/crash-recovery journeys and a complete Electron/Sonnet handoff passed. The candidate SDK still requires publication and application delivery.                            |
+| Desktop existing personal Chrome | Explicit selection, four real host/crash-recovery journeys and a complete Electron/Sonnet handoff passed. SDK 0.58.0 is published; application delivery remains open.                                       |
 | Desktop cloud Chrome             | Shared renderer and cloud dispatch exist. A complete Electron-to-cloud browser application journey remains open.                                                                                            |
 | Shared cloud extension and CDP   | Implemented in the public worker, Moss and shared panel. Real model/file/reconnect and explicit transport-switch journeys passed against the production backend; public frontend rollout is recorded below. |
 | WebUI local extension relay      | Optional planned capability with explicit pairing and revocation.                                                                                                                                           |
@@ -218,18 +218,18 @@ Use the repository live workflow and real model credentials. Prefer live PTY for
 This checklist tracks implementation and actual application acceptance separately.
 An older passing journey is not counted as a new release's complete acceptance.
 
-| Work                           | Current status                                                                                                                        | Required evidence before closing                                                                                                                    |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Headful viewer responsiveness  | In progress: production-image X11 capture measured; redundant per-frame state/attach requests are being removed from the shared panel | Actual authenticated WebUI render cadence and exact trusted Unicode input, before/after comparison, reconnect and hidden-view regression protection |
-| Native handoff communication   | Accepted design; browser skill updated                                                                                                | Real agent explains handoff, acknowledged host pause, user return and fresh model observation                                                       |
-| Desktop managed extension      | Application acceptance open                                                                                                           | Electron application with actual installed extension, same profile and handoff                                                                      |
-| Desktop personal Chrome        | Complete actual Electron/model journey passed with the candidate SDK; publication and delivery open                                   | Verify the official public worker and deliver the pinned application                                                                                |
-| Desktop cloud Chrome           | Application acceptance open                                                                                                           | Complete Electron-to-cloud session journey                                                                                                          |
-| Cloud profile login            | Remote viewer implemented; dedicated sign-in workflow acceptance open                                                                 | Human enters an isolated fixture login, restart preserves that login, AI observes the same signed-in session                                        |
-| Other agent hosts              | Capability-specific acceptance open                                                                                                   | Each supported host acknowledges its tool barrier; unsupported active hosts cannot grant human control                                              |
-| Physical iPhone remote browser | Open                                                                                                                                  | Real device take, Unicode input, return and exact model readback; prior phone screenshot only proves model/send                                     |
-| General production rollout     | Scoped to three owners, including the nominated owner                                                                                 | Complete scoped acceptance and verify deployment-wide owner isolation before expansion                                                              |
-| WebUI local extension relay    | Optional capability, still open                                                                                                       | Pairing consent, same actual local profile, scope, revoke/disconnect and real cloud-agent acceptance                                                |
+| Work                           | Current status                                                                                      | Required evidence before closing                                                                                                                    |
+| ------------------------------ | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Headful viewer responsiveness  | PR #1273 merged; measured candidate improvement; public post-upgrade lifecycle retest awaits review | Actual authenticated WebUI render cadence and exact trusted Unicode input, before/after comparison, reconnect and hidden-view regression protection |
+| Native handoff communication   | Desktop real native question, pause, persisted cancellation and return passed                       | Real agent explains handoff, acknowledged host pause, user return and fresh model observation                                                       |
+| Desktop managed extension      | Application acceptance open                                                                         | Electron application with actual installed extension, same profile and handoff                                                                      |
+| Desktop personal Chrome        | Actual Electron/model journey and public SDK host cases passed; application delivery open           | Deliver the application pinned to the verified public SDK                                                                                           |
+| Desktop cloud Chrome           | Application acceptance open                                                                         | Complete Electron-to-cloud session journey                                                                                                          |
+| Cloud profile login            | Remote viewer implemented; dedicated sign-in workflow acceptance open                               | Human enters an isolated fixture login, restart preserves that login, AI observes the same signed-in session                                        |
+| Other agent hosts              | Capability-specific acceptance open                                                                 | Each supported host acknowledges its tool barrier; unsupported active hosts cannot grant human control                                              |
+| Physical iPhone remote browser | Open                                                                                                | Real device take, Unicode input, return and exact model readback; prior phone screenshot only proves model/send                                     |
+| General production rollout     | Scoped to three owners, including the nominated owner                                               | Complete scoped acceptance and verify deployment-wide owner isolation before expansion                                                              |
+| WebUI local extension relay    | Optional capability, still open                                                                     | Pairing consent, same actual local profile, scope, revoke/disconnect and real cloud-agent acceptance                                                |
 
 The 19 October isolated production-image measurement used actual managed
 headful extension Chrome at 1280 by 900. VM-local frame latency was 42.14 ms
@@ -249,8 +249,13 @@ Return released the persistent human lease and a real model acknowledged the
 return note. The temporary key was revoked. Follow-up verification found that
 an acknowledged conversation termination could race with recovery and reactivate
 the old session. [Moss #410](https://github.com/sudoprivacy/moss/pull/410) repairs
-that durable termination guard; production rollout and the new cleanup regression
-remain open.
+that durable termination guard. Production Moss was upgraded to 0.1.73 on
+20 October with the published, checksum-verified server package and its tagged
+host installer. Browser policy, Nexus connections and existing users were
+preserved. The public cleanup regression remains open: reading the old owned
+fixture with a raw API key as a bearer token returned HTTP 401, so that attempt
+stopped and its temporary key was revoked. Correcting the key login flow awaits
+the user's required review.
 This improves the polling path but does not establish smooth full-motion
 viewing. The live journey is `live_browser_view_performance.py`; the candidate
 measurement is not a claim that this change has already been deployed.
@@ -271,9 +276,31 @@ height added its padding outside that height, clipping its bottom input. Both
 the panel and compact controls now include padding in their declared height;
 the handoff note sits next to the return controls. The live UI driver requires
 enabled, hit-tested fields fully inside the viewport, and reads actual assistant
-messages rather than echoed prompts or tool results. The candidate wheel is
-acceptance evidence; official SDK publication and the application release still
-need verification.
+messages rather than echoed prompts or tool results.
+
+[SDK 0.58.0](https://github.com/sudoprivacy/ai-dev-browser/releases/tag/v0.58.0)
+is now published on GitHub and PyPI. All 199 packaged runtime files match the
+tested candidate byte for byte. Four host journeys then passed against the
+actual public PyPI distribution in an isolated environment, without source-path
+overrides. The application pins the matching public tag; its release remains
+open.
+
+### Native question takeover acceptance, 20 October
+
+A real Electron/Sonnet journey reproduced a stale question after acknowledged
+takeover: the composer kept treating new chat input as the abandoned answer.
+Takeover now uses the same pending-request cancellation as Stop. The host's
+question cancellation reaches persistence and the renderer after turn
+cancellation; late agent output remains suppressed. Partial cancellation
+updates preserve the original question and its options.
+
+The repeated real journey passed a native question, acknowledged takeover,
+persisted cancellation across a full renderer reload, trusted Unicode input
+and one submission through the independent viewer, then an exact model readback
+after Return. Chrome remained alive after explicit disconnection and normal
+application shutdown. Two ordinary CI regressions protect cancellation
+persistence and the suppression of late agent messages. The live journey uses
+`live_shared_browser.py --pending-native-question`.
 
 ### Delivery already completed
 

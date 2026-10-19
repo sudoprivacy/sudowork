@@ -158,6 +158,7 @@ async def main():
     parser.add_argument('--existing-profile', action='store_true', help='Explicitly connect an isolated already-running extension Chrome instead of launching a managed browser')
     parser.add_argument('--offline-entry', action='store_true', help='Choose the ordinary local Desktop entry on a fresh login screen')
     parser.add_argument('--model-config', type=Path, help='Private model configuration to save through the ordinary Desktop settings editor after offline entry')
+    parser.add_argument('--pending-native-question', action='store_true', help='Take control while the real model is waiting on its native question card, then verify the cancelled card no longer captures chat input')
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=False)
     nonce = uuid4().hex[:10]
@@ -285,6 +286,15 @@ async def main():
                 return has_prefilled and any(ready in reply for reply in await app.assistant_messages()) and await app.turn_finished()
             await wait_for(ready_reply, 240, 'The real model did not prepare the browser')
             print('Actual model prepared the shared browser', flush=True)
+            if args.pending_native_question:
+                question = f'NATIVE_HANDOFF_{nonce}'
+                await app.fill('textarea', f'Use your native AskUserQuestion tool now. Ask exactly "{question}: Ready to take browser control?" with choices "Take control" and "Keep AI control". Wait for my answer. Do not use browser tools or answer the question yourself.')
+                await app.key('Enter', 'Enter', 13)
+                async def native_question_pending():
+                    return await app.read("Boolean(document.querySelector('textarea[placeholder=\"输入回答\"],textarea[placeholder=\"Enter answer\"]'))") and question in await app.text()
+                await wait_for(native_question_pending, 180, 'The actual model did not open its native question card')
+                evidence['actualNativeQuestionPendingBeforeTakeover'] = True
+                await app.screenshot(args.output/'pending-native-question.png')
             controls = None
             if args.controls_window:
                 await app.click_text('工作空间', 'Workspace')
@@ -305,6 +315,24 @@ async def main():
                 return '你已接管' in text or 'Human control' in text
             await wait_for(held, 30, 'Agent tools did not acknowledge takeover')
             print('Agent tools acknowledged human takeover', flush=True)
+            if args.pending_native_question:
+                async def native_question_cancelled():
+                    text = await app.text()
+                    return ('已取消该问题' in text or 'Question cancelled' in text) and not await app.read("Boolean(document.querySelector('textarea[placeholder=\"输入回答\"],textarea[placeholder=\"Enter answer\"]'))")
+                await wait_for(native_question_cancelled, 10, 'The acknowledged takeover left a stale native question capturing chat input')
+                previous_document = await app.read('performance.timeOrigin')
+                await app.command('Page.reload')
+                async def cancellation_reloaded():
+                    try:
+                        return await app.read('performance.timeOrigin') != previous_document and await native_question_cancelled()
+                    except RuntimeError as error:
+                        if 'context' in str(error).lower() and ('destroyed' in str(error).lower() or 'cannot find' in str(error).lower()):
+                            return False
+                        raise
+                await wait_for(cancellation_reloaded, 20, 'The cancelled native question returned after reloading its persisted conversation')
+                await wait_for(held, 20, 'Human ownership did not survive the conversation reload')
+                evidence['nativeQuestionCancelledAfterTakeover'] = True
+                evidence['nativeQuestionCancellationPersisted'] = True
             if controls:
                 assert await controls.read("Boolean(window.electronAPI && document.querySelector('[data-testid=browser-session-controls]') && !document.querySelector('img'))"), 'The compact control window attached a pixel viewer'
                 await controls.screenshot(args.output/'human-controls.png')

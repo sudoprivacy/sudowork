@@ -202,6 +202,11 @@ is unavailable. Set `SUDOWORK_BROWSER_LIVE_PYTHON` to the official public worker
 environment. This verifies packaged resources instead of the repository copy.
 The packaging hook rejects a missing or empty browser adapter on every platform.
 
+Pass `--pending-native-question` to `live_shared_browser.py` to take control
+while the actual model is waiting on its native question card. The journey
+requires the card to show cancellation, stops treating chat input as an answer,
+and completes the same trusted human edit and fresh model readback after return.
+
 ## Rules
 
 1. `primitives/` and `ops/` are AUTO-GENERATED. Never hand-edit.
