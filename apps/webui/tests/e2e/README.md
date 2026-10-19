@@ -130,6 +130,42 @@ Headful window views are covered when `--headful` is selected.
 Runtime-wide pause/resume, child agents, file transfer,
 local extension relay, and phone input require their separate live journeys.
 
+## Remote window responsiveness and human login
+
+`live_browser_view_performance.py` measures the actual shared viewer through
+authenticated production or staging APIs. It creates a fresh conversation,
+launches headful extension Chrome through the UI, samples changing window
+pixels, switches to Page view, and submits an exact random Unicode value with
+a trusted browser click. It verifies the visible login result and exactly one
+server receipt. The fixture must be reachable from the cloud browser; use the
+same private tunnel/fixture-origin setup as the handoff journey above.
+
+Cleanup explicitly stops the owned browser, returns its persistent human lease,
+waits for a real model acknowledgement, and terminates the fixture conversation.
+This requires a real configured model account. Merely terminating a conversation
+does not prove that a persistent browser's human lease was returned.
+
+The private config accepts the existing `origin`/`username`/`password` form or
+`origin`/`apiKey` for the normal API-key login form. Use an isolated test owner.
+An already-running browser is rejected unless every tab belongs to an explicitly
+configured `allowedExistingFixtureOrigins` entry. Candidate SPA files may be
+served using `--assets-dir`; authentication, session APIs, browser and model
+remain real, and the receipt identifies this as candidate acceptance.
+
+```sh
+python apps/webui/tests/e2e/live_browser_view_performance.py \
+  --config /private/browser-live.json \
+  --output /private/evidence/window-response-001 \
+  --fixture-origin http://private-fixture-host:port
+```
+
+Receipts contain rendered/distinct frame rates, frame intervals, click-to-visible
+feedback, exact trusted Unicode submission, model usage and cleanup status.
+Screenshots show the native Chrome window and successful human login. Raw
+credentials, browser cookies and base64 frame contents are excluded. The
+functional assertions always run; `--minimum-fps` adds an environment-specific
+rate requirement when the deployment has a stable measured network budget.
+
 ## Browser lifecycle controls
 
 `live_browser_lifecycle.py` covers the actual shared panel's Start, Restart,
