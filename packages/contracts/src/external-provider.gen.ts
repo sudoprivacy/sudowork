@@ -1,4 +1,4 @@
-// Derived from Moss 36b057b33f4fc1f4a87b952f3da3f0fe451b53f7:contracts/external-provider/v1/contract.ts. DO NOT EDIT.
+// Derived from Moss 98e57b68bb0f8c709be7c2ecba9026b8b5f4e860:contracts/external-provider/v1/contract.ts. DO NOT EDIT.
 /** Moss-owned external-provider pilot wire contract. ADR-003/004 remain Proposed. */
 export const EXTERNAL_PROVIDER_API = 'external-provider.sudo.dev/v1alpha5' as const
 export type Capability = 'supported' | 'unsupported' | 'unknown'

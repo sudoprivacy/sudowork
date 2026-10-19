@@ -1,4 +1,4 @@
-// Derived from Moss 36b057b33f4fc1f4a87b952f3da3f0fe451b53f7:contracts/task/v1alpha1/contract.ts. DO NOT EDIT.
+// Derived from Moss 98e57b68bb0f8c709be7c2ecba9026b8b5f4e860:contracts/task/v1alpha1/contract.ts. DO NOT EDIT.
 import type { ResourceRef } from '@sudo/contracts/common/v1/resource-ref'
 
 /** Product Task ingress implementation; ADR-003/004 remain Proposed. */

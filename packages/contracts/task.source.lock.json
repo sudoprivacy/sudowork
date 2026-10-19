@@ -2,7 +2,7 @@
   "schema_version": 1,
   "source": {
     "repository": "https://github.com/sudoprivacy/moss",
-    "revision": "36b057b33f4fc1f4a87b952f3da3f0fe451b53f7",
+    "revision": "98e57b68bb0f8c709be7c2ecba9026b8b5f4e860",
     "semanticOwner": "moss",
     "maturity": "experimental-adapter-baseline",
     "apiVersion": "agent-federation.sudo.dev/v1alpha1",
@@ -35,13 +35,13 @@
   },
   "artifact": {
     "repository": "https://github.com/sudoprivacy/sudostack",
-    "revision": "50db62a8ab775e518527a9dd1504e676892a6aba",
+    "revision": "827cc9ff9a0158c849aa9633591da9607f5ebbb1",
     "source_lock_path": "contracts/experimental/agent-federation/source.lock.json",
     "files": {
       "contracts/agent-federation/v1alpha1/contract.ts": {
         "path": "contracts/experimental/agent-federation/contract.gen.ts",
         "local": "packages/contracts/src/agent-federation.gen.ts",
-        "digest": "sha256:ccd5943df4512b20a32917a94bdc2cbdb9de632134ca0b627a264cf123d43b26"
+        "digest": "sha256:57bfc05edb9717687ab40f29b43ece50cec8527b8776d8c21b587049f092b4fd"
       },
       "contracts/agent-federation/v1alpha1/schema.json": {
         "path": "contracts/experimental/agent-federation/schema.gen.json",
@@ -51,7 +51,7 @@
       "contracts/task/v1alpha1/contract.ts": {
         "path": "contracts/experimental/agent-federation/task.contract.gen.ts",
         "local": "packages/contracts/src/task.gen.ts",
-        "digest": "sha256:9a67085820f8a7a31ecf278fe192c2b1bda9810b4518012c34679a5ebc9863d0"
+        "digest": "sha256:4188791be7a75db919252cfec0d0e6ef596ea90bc806c39480ab3a83bdeabb1f"
       },
       "contracts/task/v1alpha1/schema.json": {
         "path": "contracts/experimental/agent-federation/task.schema.gen.json",
