@@ -1,0 +1,36 @@
+:root {
+  font-family: 'Source Sans 3', 'Microsoft YaHei UI', sans-serif;
+  color: #162a43;
+  background: #f4f2ed;
+  font-synthesis: none;
+}
+* {
+  box-sizing: border-box;
+}
+html,
+body,
+#root {
+  min-height: 100%;
+  margin: 0;
+}
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+.park-state {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #274260;
+}
+.park-state button {
+  border: 1px solid #b99459;
+  background: #fff;
+  padding: 8px 14px;
+  color: #173b5d;
+  cursor: pointer;
+}

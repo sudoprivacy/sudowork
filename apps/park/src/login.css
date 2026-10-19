@@ -1,0 +1,118 @@
+.park-login {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 500px);
+  background: #f4f2ed;
+}
+.park-login__field {
+  background:
+    radial-gradient(circle at 30% 32%, #45617b 0 1px, transparent 1px),
+    linear-gradient(145deg, #173a5d, #0e253d);
+  background-size:
+    22px 22px,
+    auto;
+  position: relative;
+}
+.park-login__field::after {
+  content: '';
+  position: absolute;
+  inset: 12%;
+  border: 1px solid #c4a06644;
+  border-radius: 50% 50% 48% 52%;
+  transform: rotate(-20deg);
+}
+.park-login__card {
+  min-height: 100vh;
+  padding: clamp(48px, 9vw, 110px) clamp(36px, 6vw, 74px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.park-login__mark {
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #b99459;
+  color: #a77937;
+  font:
+    28px Georgia,
+    serif;
+  margin-bottom: 34px;
+}
+.park-login__eyebrow {
+  color: #a77937;
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  margin: 0 0 12px;
+}
+.park-login h1 {
+  font:
+    600 clamp(34px, 4vw, 48px) 'Noto Serif SC',
+    Georgia,
+    serif;
+  letter-spacing: 0.08em;
+  margin: 0;
+}
+.park-login__intro {
+  color: #708094;
+  font-size: 14px;
+  margin: 10px 0 56px;
+}
+.park-login form {
+  display: grid;
+  gap: 11px;
+}
+.park-login label {
+  font-size: 12px;
+  color: #354e66;
+  margin-top: 10px;
+}
+.park-login input {
+  width: 100%;
+  border: 1px solid #d5d9d8;
+  background: #fff;
+  padding: 13px 14px;
+  outline: none;
+  border-radius: 3px;
+}
+.park-login input:focus {
+  border-color: #a77937;
+  box-shadow: 0 0 0 3px #a7793720;
+}
+.park-login button {
+  margin-top: 24px;
+  padding: 14px;
+  border: 0;
+  background: #173a5d;
+  color: #fff;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+}
+.park-login button:hover {
+  background: #204d76;
+}
+.park-login button:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+.park-login__error {
+  color: #a33c31;
+  font-size: 12px;
+  margin: 5px 0 0;
+}
+@media (max-width: 760px) {
+  .park-login {
+    grid-template-columns: 1fr;
+  }
+  .park-login__field {
+    min-height: 12px;
+  }
+  .park-login__field::after {
+    display: none;
+  }
+  .park-login__card {
+    min-height: calc(100vh - 12px);
+    padding: 38px 28px;
+  }
+}

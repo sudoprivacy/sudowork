@@ -1,0 +1,550 @@
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+.consult-page {
+  min-height: 100vh;
+  background: radial-gradient(ellipse 65% 45% at 50% 0%, #fcfbf7 0%, #f3f2ed 100%);
+  color: var(--text);
+}
+.page-header {
+  height: 76px;
+  padding: 0 38px;
+  max-width: 1400px;
+  margin: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border-bottom: 1px solid #dedfd9;
+}
+.page-header .consult-brand strong {
+  font-size: 17px;
+}
+.page-header .consult-brand small {
+  font-size: 8px;
+}
+.header-contact {
+  display: inline-flex;
+  align-items: center;
+  gap: 18px;
+  padding: 11px 15px;
+  border: 1px solid #173d66;
+  background: #173d66;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition:
+    background 0.2s,
+    transform 0.2s;
+}
+.header-contact:hover {
+  background: #234e7b;
+  transform: translateY(-1px);
+}
+.header-contact span {
+  font-size: 17px;
+  color: #e7c78c;
+  line-height: 1;
+}
+.consult-main-new {
+  max-width: 1072px;
+  margin: 0 auto;
+  padding: 38px 30px 48px;
+}
+.status-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: #5d9c76;
+  box-shadow: 0 0 0 4px #5d9c761c;
+}
+.chat-card {
+  background: #fffefb;
+  border: 1px solid #d9dedb;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 22px 58px #15324914;
+}
+.chat-heading {
+  min-height: 68px;
+  background: #173654;
+  color: white;
+  padding: 14px 27px;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+.assistant-seal {
+  display: grid;
+  place-items: center;
+  width: 35px;
+  height: 35px;
+  flex: none;
+  border: 1px solid #c3a772;
+  background: #ffffff0e;
+  color: #ead6a7;
+  font: 20px var(--display);
+  border-radius: 5px;
+}
+.assistant-heading {
+  display: grid;
+  gap: 3px;
+}
+.assistant-heading strong {
+  font-size: 14px;
+}
+.assistant-heading span {
+  font-size: 10px;
+  color: #b6c6cf;
+}
+.chat-ready {
+  margin-left: auto;
+  color: #c4ddcb;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.question-area {
+  padding: 19px 27px 21px;
+  background: #fafaf7;
+  border-bottom: 1px solid #e5e7e1;
+}
+.question-caption {
+  display: flex;
+  align-items: baseline;
+  gap: 11px;
+  margin-bottom: 12px;
+}
+.question-caption strong {
+  font-size: 12px;
+}
+.question-caption span {
+  font-size: 10px;
+  color: #8b969a;
+}
+.question-chips {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+}
+.question-chips button {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+  border: 1px solid #dce0dc;
+  background: #fff;
+  color: #33485c;
+  text-align: left;
+  padding: 10px 13px;
+  border-radius: 5px;
+  font-size: 12px;
+  transition:
+    background 0.2s,
+    border-color 0.2s,
+    transform 0.2s;
+}
+.question-chips button:hover {
+  background: #f7f2e8;
+  border-color: #c6aa76;
+  transform: translateY(-1px);
+}
+.question-chips button span {
+  color: #b18b53;
+}
+.chat-log {
+  height: 320px;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 18px 27px 23px;
+  background: #fffefb;
+}
+.conversation-start {
+  align-self: center;
+  color: #8c989e;
+  font-size: 10px;
+  text-align: center;
+  padding: 2px 10px 6px;
+}
+.chat-message {
+  display: flex;
+  gap: 11px;
+  align-items: flex-start;
+  max-width: min(86%, 700px);
+}
+.message-avatar {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  background: #e9dfcb;
+  color: #8c6b38;
+  border-radius: 4px;
+  font: 15px var(--display);
+}
+.message-content {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+.message-label {
+  font-size: 10px;
+  color: #8b989e;
+}
+.message-content > p {
+  font-size: 12px;
+  line-height: 1.8;
+  margin: 0;
+  padding: 12px 15px;
+  background: #f1f3f1;
+  border-radius: 0 8px 8px 8px;
+  overflow-wrap: anywhere;
+}
+.user-message {
+  align-self: flex-end;
+}
+.user-message .message-label {
+  text-align: right;
+}
+.user-message .message-content > p {
+  background: #e5eef1;
+  border-radius: 8px 0 8px 8px;
+}
+.policy-source {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-top: 3px;
+  padding: 11px 13px;
+  border: 1px solid #eadfc8;
+  background: #fffdf7;
+  border-radius: 5px;
+}
+.source-icon {
+  font-size: 21px;
+  color: #ab8750;
+  line-height: 1;
+}
+.policy-source > div {
+  display: grid;
+  gap: 3px;
+}
+.policy-source strong {
+  font-size: 11px;
+}
+.policy-source > div > span:last-child {
+  font-size: 10px;
+  color: #687781;
+}
+.source-label {
+  font-size: 9px;
+  color: #9d7742;
+  letter-spacing: 0.04em;
+}
+.question-composer {
+  margin: 0 27px;
+  border: 1px solid #ced9d9;
+  border-radius: 7px;
+  background: #fff;
+  padding: 11px 13px;
+  box-shadow: 0 5px 16px #1736540b;
+}
+.question-composer:focus-within {
+  border-color: #aa8245;
+  box-shadow: 0 0 0 3px #aa824526;
+}
+.question-composer textarea {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  max-height: 160px;
+  resize: vertical;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.question-composer textarea::placeholder {
+  color: #929da2;
+}
+.composer-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
+}
+.composer-actions > span {
+  font-size: 10px;
+  color: #8b979d;
+}
+.composer-actions button {
+  border: 0;
+  background: #173d66;
+  color: #fff;
+  border-radius: 4px;
+  padding: 9px 14px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.composer-actions button:hover {
+  background: #254e78;
+}
+.composer-actions button span {
+  margin-left: 10px;
+  color: #dfc99f;
+}
+.chat-disclaimer {
+  margin: 0;
+  padding: 13px 20px 16px;
+  text-align: center;
+  font-size: 10px;
+  color: #849097;
+  line-height: 1.6;
+}
+.contact-form-section[hidden],
+.challenge-panel[hidden] {
+  display: none !important;
+}
+.contact-form-section {
+  margin: 26px auto 0;
+  max-width: 1012px;
+}
+.contact-form-section .form-heading h2 {
+  margin: 5px 0 7px;
+}
+.form-eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.13em;
+  color: #9d7742;
+  font-weight: 700;
+}
+.contact-form-section .fields {
+  margin: 23px 0;
+}
+.p1-preview {
+  margin-top: 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  color: #846b46;
+  font-size: 10px;
+}
+.p1-preview > span {
+  padding: 5px 8px;
+  background: #efe7d8;
+  border-radius: 3px;
+  font-weight: 700;
+}
+.p1-preview > button {
+  border: 0;
+  background: transparent;
+  color: #746a5d;
+  font-size: 10px;
+  padding: 7px 0;
+  text-align: left;
+}
+.p1-preview > button:hover {
+  text-decoration: underline;
+}
+.p1-preview .challenge-panel {
+  flex-basis: 100%;
+  border: 1px solid #e9d0ae;
+  background: #fffaf1;
+  border-radius: 6px;
+}
+.consult-footer-new {
+  max-width: 1400px;
+  margin: 0 auto;
+  border-top: 1px solid #dedfd9;
+  padding: 19px 38px 28px;
+  display: flex;
+  justify-content: space-between;
+  gap: 15px;
+  color: #89949a;
+  font-size: 10px;
+}
+.is-new {
+  animation: rise 0.26s ease both;
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (max-width: 700px) {
+  .page-header {
+    padding: 0 20px;
+  }
+  .consult-main-new {
+    padding: 27px 20px 40px;
+  }
+  .question-chips {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .chat-log {
+    height: 310px;
+  }
+  .fields {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 480px) {
+  .page-header {
+    height: 64px;
+    padding: 0 15px;
+  }
+  .page-header .consult-brand {
+    gap: 8px;
+  }
+  .page-header .consult-brand .brand-mark,
+  .page-header .consult-brand .brand-logo {
+    width: 30px;
+    height: 30px;
+  }
+  .page-header .consult-brand strong {
+    font-size: 12px;
+  }
+  .page-header .consult-brand small {
+    font-size: 6px;
+  }
+  .header-contact {
+    gap: 6px;
+    padding: 8px 9px;
+    font-size: 10px;
+  }
+  .header-contact span {
+    font-size: 13px;
+  }
+  .consult-main-new {
+    padding: 19px 12px 30px;
+  }
+  .chat-heading {
+    min-height: 58px;
+    padding: 10px 12px;
+    gap: 8px;
+  }
+  .assistant-seal {
+    width: 31px;
+    height: 31px;
+    font-size: 17px;
+  }
+  .assistant-heading strong {
+    font-size: 12px;
+  }
+  .assistant-heading span {
+    font-size: 8px;
+  }
+  .chat-ready {
+    font-size: 9px;
+    gap: 5px;
+  }
+  .question-area {
+    padding: 13px 12px;
+  }
+  .question-caption {
+    margin-bottom: 8px;
+  }
+  .question-caption strong {
+    font-size: 11px;
+  }
+  .question-caption span {
+    font-size: 9px;
+  }
+  .question-chips {
+    gap: 6px;
+  }
+  .question-chips button {
+    padding: 7px 9px;
+    font-size: 10px;
+  }
+  .chat-log {
+    height: 280px;
+    padding: 11px 12px 15px;
+    gap: 12px;
+  }
+  .chat-message {
+    max-width: 95%;
+  }
+  .message-content > p {
+    font-size: 10px;
+    padding: 9px 11px;
+  }
+  .policy-source {
+    padding: 8px;
+    gap: 7px;
+  }
+  .policy-source strong {
+    font-size: 10px;
+  }
+  .conversation-start {
+    font-size: 9px;
+  }
+  .question-composer {
+    margin: 0 10px;
+    padding: 8px 10px;
+  }
+  .question-composer textarea {
+    min-height: 37px;
+    font-size: 11px;
+  }
+  .composer-actions > span {
+    font-size: 8px;
+  }
+  .composer-actions button {
+    padding: 8px 10px;
+    font-size: 10px;
+  }
+  .chat-disclaimer {
+    padding: 10px;
+    font-size: 9px;
+  }
+  .contact-form-section {
+    padding: 18px;
+  }
+  .contact-form-section .form-heading {
+    gap: 8px;
+  }
+  .contact-form-section .form-heading h2 {
+    font-size: 23px;
+  }
+  .otp-row {
+    flex-wrap: wrap;
+  }
+  .otp-row input {
+    max-width: none;
+    min-width: 0;
+    flex: 1;
+  }
+  .consult-footer-new {
+    padding: 16px 15px;
+    display: block;
+  }
+  .consult-footer-new span:last-child {
+    display: block;
+    margin-top: 5px;
+  }
+}
