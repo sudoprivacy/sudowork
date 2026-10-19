@@ -9,7 +9,15 @@ error, disable model selection and Send, and keep the draft after Enter without
 creating a session. The test removes that fault, reloads, and completes the
 usual two real model turns and history readback. Evidence explicitly labels
 this failure phase as fault injection; login, APIs and the subsequent model
-turns remain real. This does not claim to validate a rejected provider key.
+turns remain real. Keep the interceptor registered throughout the journey and
+disable only its fault flag before reloading. Removing the last route changes
+Chromium's interception/cache state while requests are in flight. Public
+acceptance also exposed an uncompressed 5.4 MB entry module and `no-store`
+responses for immutable assets. The gateway snippets under `deploy/nginx/`
+compress public assets and cache successful responses; HTML, API responses and
+missing assets retain `no-store`. Navigation deadlines remain unchanged.
+Failed-request paths and pending request types are recorded without credentials
+or request bodies. This does not claim to validate a rejected provider key.
 
 `live_mobile_onboarding.py` starts at the real password login screen with an
 isolated acceptance account. At 320, 375 and 390 CSS pixels, it opens the phone
