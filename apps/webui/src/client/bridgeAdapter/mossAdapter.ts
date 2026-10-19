@@ -2138,6 +2138,7 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
           agentName?: unknown
           enabledSkills?: unknown
           nameIsFirstMessage?: unknown
+          currentModelId?: unknown
         }
       | undefined
     const raw = typeof extra?.presetAssistantId === 'string' ? extra.presetAssistantId : ''
@@ -2149,6 +2150,9 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
         assistantName: agent,
         ...(typeof extra?.templateRef === 'string' ? { templateRef: extra.templateRef } : {}),
         enabledSkills: extra?.enabledSkills ?? req?.enabledSkills ?? [],
+        ...(typeof extra?.currentModelId === 'string' && extra.currentModelId
+          ? { modelId: extra.currentModelId }
+          : {}),
       }),
     })
     ensureSessionStream(created.id)

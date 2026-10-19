@@ -1486,6 +1486,23 @@ describe('mossAdapter: create-conversation binds the selected assistant', () => 
     })
   })
 
+  it('binds the selected qualified model when creating a task without a preference write', async () => {
+    const fetchMock = stubFetch({ '/api/conversations': { id: 'sess-selected-model' } })
+    await ipcBridge.conversation.create.invoke({
+      type: 'remote-agent',
+      name: 'hello',
+      model: {},
+      extra: { currentModelId: 'legacy-default:gpt-6-luna' },
+    } as never)
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(readBody(fetchMock)).toEqual({
+      assistantName: '',
+      enabledSkills: [],
+      modelId: 'legacy-default:gpt-6-luna',
+    })
+  })
+
   it('drops UI placeholder names so moss falls back to its default agent', async () => {
     const fetchMock = stubFetch({ '/api/conversations': { id: 'sess-3' } })
     await ipcBridge.conversation.create.invoke({
