@@ -260,12 +260,56 @@ body,
 
 .history-view-selector.arco-radio-group {
   display: flex;
+  container: history-view / inline-size;
+  min-width: 72px;
+  height: 32px;
+  border-radius: var(--radius-md);
 }
 .history-view-selector .arco-radio-button {
-  flex: 1;
+  flex: 1 1 0;
   min-width: 0;
   text-align: center;
+  padding-inline: 0;
+  white-space: nowrap;
+  border-radius: var(--radius-sm);
+}
+.history-view-selector .arco-radio-button-inner {
+  height: 100%;
+  min-width: 0;
   padding-inline: 8px;
+}
+.history-view-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-width: 0;
+}
+.history-view-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.history-view-icon {
+  display: none;
+  flex-shrink: 0;
+}
+
+@container history-view (max-width: 156px) {
+  .history-view-icon {
+    display: block;
+  }
+  /* Keep the full radio name accessible when only the icon is visible. */
+  .history-view-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 }
 
 .batch-actions-popover .arco-popover-content {
