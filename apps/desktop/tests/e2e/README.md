@@ -125,7 +125,7 @@ Run this command from the repository root. The output directory must be new.
 The test creates a real task and local HTTP page, asks the actual model to
 launch headful Chrome, takes control through BrowserPanel, opens the separate
 viewer, replaces an AI-populated field with Unicode text and submits once.
-After Return to AI, it waits for the finished model turn to report the exact
+After ordinary conversation continuation, it waits for the finished model turn to report the exact
 human value and page status. It also checks the existing `/browser` commands
 against the same session. Screenshots and `evidence.json` retain the result.
 

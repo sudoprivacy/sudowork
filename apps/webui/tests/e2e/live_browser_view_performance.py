@@ -21,6 +21,7 @@ from ai_dev_browser.core.browser import browser_start, browser_stop
 from playwright.async_api import async_playwright, expect
 from live_browser_permissions import approve_browser_permission, browser_tool_name
 from live_browser_ui import interrupt_shared_browser, continue_from_conversation
+from live_browser_clipboard import fixture_html, verify_clipboard
 
 
 async def main(args):
@@ -40,6 +41,12 @@ async def main(args):
     expected = "Human login 中文 " + nonce
     is_profile_acceptance = getattr(args, "verify_profile_persistence", False)
     is_mobile_acceptance = getattr(args, "verify_mobile_view", False)
+    is_clipboard_acceptance = getattr(args, "verify_selection_clipboard", False)
+    assert not (is_mobile_acceptance and is_clipboard_acceptance), (
+        "Run desktop clipboard and mobile view preflights separately"
+    )
+    selected_phrase = "Exact WebUI review phrase"
+    selection_layouts, clipboard_inputs, clipboard_receipts = [], [], []
     receipts = []
     visits = []
     authenticated_visits = []
@@ -100,6 +107,8 @@ if(response.ok){clearInterval(ticker);document.body.style.background='rgb(0,128,
                     "<title>Persisted remote login</title>"
                     '<p id="result">Signed in</p><p id="identity">' + expected + "</p>"
                 ).encode()
+            if is_clipboard_acceptance and not is_signed_in:
+                body += fixture_html(selected_phrase).encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
@@ -107,15 +116,24 @@ if(response.ok){clearInterval(ticker);document.body.style.background='rgb(0,128,
             self.wfile.write(body)
 
         def do_POST(self):
-            assert self.path == "/submit"
+            clipboard_events = {
+                "/selection-layout": selection_layouts,
+                "/clipboard-input": clipboard_inputs,
+                "/clipboard-submit": clipboard_receipts,
+            }
+            assert self.path == "/submit" or self.path in clipboard_events
             receipt = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-            receipt["receivedAt"] = time.monotonic()
-            receipts.append(receipt)
+            if self.path == "/submit":
+                receipt["receivedAt"] = time.monotonic()
+                receipts.append(receipt)
+            else:
+                clipboard_events[self.path].append(receipt)
             self.send_response(200)
-            self.send_header(
-                "Set-Cookie",
-                "fixture_login=" + nonce + "; Path=/; Max-Age=3600; SameSite=Lax",
-            )
+            if self.path == "/submit":
+                self.send_header(
+                    "Set-Cookie",
+                    "fixture_login=" + nonce + "; Path=/; Max-Age=3600; SameSite=Lax",
+                )
             self.send_header("Content-Length", "2")
             self.end_headers()
             self.wfile.write(b"{}")
@@ -147,6 +165,12 @@ if(response.ok){clearInterval(ticker);document.body.style.background='rgb(0,128,
                 is_mobile=is_mobile_acceptance,
                 has_touch=is_mobile_acceptance,
             )
+            if is_clipboard_acceptance:
+                # This grants permission only to the owned test viewer context.
+                # The application still uses the real native clipboard API.
+                await context.grant_permissions(
+                    ["clipboard-read", "clipboard-write"], origin=origin
+                )
 
             async def terminate_owned_session():
                 nonlocal is_termination_attempted
@@ -498,6 +522,14 @@ if(response.ok){clearInterval(ticker);document.body.style.background='rgb(0,128,
                     evidence["mobileLocalZoomAndTouchPan"] = True
                     await page.screenshot(
                         path=str(args.output / "mobile-zoom-and-pan.png")
+                    )
+                if is_clipboard_acceptance:
+                    await verify_clipboard(
+                        page, panel, labels, selected_phrase, selection_layouts,
+                        clipboard_inputs, clipboard_receipts, nonce, evidence,
+                    )
+                    await page.screenshot(
+                        path=str(args.output / "selection-clipboard-ime.png")
                     )
                 box = await image.bounding_box()
                 assert box and dimensions["w"]
@@ -884,4 +916,5 @@ if __name__ == "__main__":
     parser.add_argument("--minimum-fps", type=float, default=0)
     parser.add_argument("--verify-profile-persistence", action="store_true")
     parser.add_argument("--verify-mobile-view", action="store_true")
+    parser.add_argument("--verify-selection-clipboard", action="store_true")
     asyncio.run(main(parser.parse_args()))

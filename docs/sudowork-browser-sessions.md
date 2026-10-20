@@ -222,7 +222,7 @@ must join these pieces without creating a second editable model or inbox.
 | --- | --- | --- |
 | 1. Independent review surface and reconnect | Browser session/viewer supported; joint binding acceptance required | Real Desktop local Chrome and cloud panel/viewer journeys passed. The Electron viewer opens its exact bound conversation; real renderer reload retained the interrupted question and human lease. A Desktop Electron viewer is distinct from a native Chrome review window. The Sudograph adapter must establish the requested native review entry and project/model/share binding, then verify refresh/reconnect end to end on both hosts. |
 | 2. Exact graph text and canonical comments | Input support in SDK 0.58.2; application adaptation and joint acceptance required | Actual CDP and signed-extension selection tests read the exact dragged phrase over real frame transport. This does not establish authenticated Sudograph comments, stable targets or thread recovery after graph zoom, expansion and language changes; those require the real shared graph and comment adapter. |
-| 3. Clipboard, composition and gestures | SDK and Desktop accepted; WebUI consumer acceptance pending | Public-wheel tests passed page/window selection and Unicode multiline paste. The real Electron/public 0.58.2/Sonnet journey passed exact phrase copy, trusted multiline paste, Chromium composition without premature insertion, one final submission and exact model readback after ordinary chat continuation. Shared UI regressions reject a paste delayed across a tab change. WebUI and physical OS/device IME acceptance remain required. PageSurface drag is bounded and sent on release; continuous drag preview is not implemented. Touch pan remains a local view gesture. |
+| 3. Clipboard, composition and gestures | SDK, Desktop and production WebUI accepted; physical IME and touch selection need acceptance/adaptation | Public-wheel tests passed page/window selection and Unicode multiline paste. Real Electron/public 0.58.2/Sonnet and production WebUI/Moss 0.1.77/public 0.58.2 journeys passed exact phrase copy, trusted multiline paste, Chromium composition without premature insertion, one final submission and real model continuation. Shared UI regressions reject a paste delayed across a tab change. Physical OS/device IME remains unverified. Mouse/pen drag is bounded and sent on release; continuous drag preview is not implemented. Touch supports taps, remote scrolling and local viewport movement; remote text selection and graph dragging need an explicit touch gesture mode and real-device acceptance. |
 | 4. Human/AI collaboration | Ordinary conversation supported and production accepted; comment continuation needs adapter | No browser business handoff buttons. Existing interrupt acknowledges the barrier and rejects stale queued input; fresh normal chat observes and continues the owned browser. Desktop main/child barriers and cloud owner isolation passed. Comment delivery must resolve the registered binding before enqueuing a normal host event; it must not grant browser input during human interaction. Idle/disconnect never resumes AI. |
 | 5. Actual graph interaction latency | Joint acceptance required | The production headful form measured 3.05 rendered frames/s, 234.2 ms median and 740.6 ms p95 frame interval, and 1083.12 ms click feedback. This is a form measurement, not graph acceptance. Measure page processing, frame production/transport and network delay separately for actual graph pan/zoom, selection and comments. |
 | 6. Supported hosts/transports/devices | Core paths supported; additional combinations need adaptation or device acceptance | Local standalone CDP, explicit personal extension and cloud CDP/managed extension have real browser evidence. A cloud viewer needs no local extension or Chrome installation. View-only native review must remain extension free; the native review entry and revision binding belong to the adapter. The cloud-to-local extension relay is optional and unimplemented. Physical iPhone browser input/IME and Safari transport acceptance remain pending; desktop touch emulation does not establish them. |
@@ -820,5 +820,25 @@ Chromium composition path; physical operating-system IME and phone acceptance
 remain separate. Fourteen focused input/barrier tests and the canonical suite
 of 358 files and 3,305 tests passed, with 28 existing skips. Desktop, shared
 renderer and WebUI type checks and both application builds passed. These
-results establish the candidate; final artifacts, WebUI input acceptance and
-production worker rollout still require their own delivery checks.
+results establish the Desktop candidate; final packaged-artifact acceptance
+remains separate.
+
+Production Moss 0.1.77 now runs the verified public 0.58.2 worker. Its guarded
+upgrade retained all 122 users, the three-owner browser scope, profile volumes,
+cookies and the other owner's human lease. A post-upgrade public journey passed
+before the WebUI change. The exact-source WebUI image from
+`007c45050f115dd250132c66241e4e562c8542da` was then delivered through the normal
+deployment route, preserving PostgreSQL, gateway, login keys and old immutable
+assets. No database migration or restore was needed.
+
+The production WebUI live journey passed exact remote phrase selection and
+clipboard copy, trusted Chinese multiline paste, Chromium composition without
+premature insertion, one completed submission, persisted login across Chrome
+restart, actual model observation and ordinary chat continuation. It restored
+its clipboard, stopped and durably terminated its own fixture and revoked its
+temporary key. The changing form measured 3.91 rendered frames/s, 249.5 ms
+median and 349.0 ms p95 frame interval, and 773.95 ms click feedback. These are
+form measurements, not actual graph performance or physical phone acceptance.
+The checked-in live entry is `live_browser_view_performance.py
+--verify-selection-clipboard --verify-profile-persistence`; both the fixture
+and the final application APIs remain real.
