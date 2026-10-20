@@ -2,6 +2,8 @@
 
 Status: cloud browser control, the shared panel, Desktop integration and compact takeover controls are merged. The initial v0.2.33 rollout passed actual Electron, Chromium and Firefox model/browser journeys with the public SDK v0.57.5. The 19 October production backend check found Moss 0.1.72; the termination repair for 0.1.73 is awaiting deployment. Viewer polling improvements are merged in SudoWork #1273. Existing personal Chrome passed a complete Electron/model journey with the candidate SDK; publication and application delivery remain open. The optional local extension relay and physical phone browser acceptance also remain open. This document is the source for [the shared design page](https://s.shareone.vip/md/sudowork-browser-sessions).
 
+The 20 October round-two Desktop acceptance passed real-model launch, trusted AI input, compact controls, takeover, a separate viewer, exact Unicode human input, one submit, return, fresh model readback and shared slash commands. The host now tells models that screenshot pixels and browser input CSS pixels can differ and requires an explicit `devicePixelRatio` conversion. One pinned public SDK gap remains on macOS: its `SelectAll` input emits Control+A instead of Command+A, so the shortcut does not replace the focused field. The acceptance clears its owned fixture with acknowledged Backspace inputs; the SDK modifier mapping still requires an upstream release before that shortcut is ready.
+
 ## 1. Decisions
 
 - Desktop and WebUI use the same React BrowserPanel and browser session contract. Hosts adapt authentication, execution and display transport.

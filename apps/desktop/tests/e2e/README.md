@@ -115,6 +115,7 @@ python tests/e2e/runner.py --port 9230 --case model-command
 mouse and keyboard input. Configure a real Sudo Code model in the app first,
 and use a dedicated test profile with a working Python installation. The app
 must use a runtime with acknowledged tool pause support (Sudo Code 0.2.31+).
+The driver itself requires Python 3.11 or newer (`asyncio.timeout`).
 
 ```powershell
 python -m pip install aiohttp

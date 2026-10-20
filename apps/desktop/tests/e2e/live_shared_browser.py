@@ -15,9 +15,23 @@ import json
 from pathlib import Path
 import threading
 import time
+from urllib.parse import urlparse
 from uuid import uuid4
 
 import aiohttp
+
+
+def is_main_renderer_target(target):
+    """Return whether a CDP target is the main packaged or Vite renderer."""
+    if target.get('type') != 'page':
+        return False
+    url = target.get('url', '')
+    if '#/browser-viewer/' in url or '#/browser-controls/' in url:
+        return False
+    if '/renderer/index.html' in url:
+        return True
+    parsed = urlparse(url)
+    return parsed.scheme in ('http', 'https') and parsed.hostname in ('localhost', '127.0.0.1') and parsed.path == '/'
 
 
 class UI:
@@ -124,16 +138,18 @@ class UI:
         actual = await self.read('document.activeElement?.value')
         assert actual == text, f'The visible input did not accept the user text: {selector}'
 
-    async def wheel(self, delta, x=500, y=400):
-        await self.command('Input.dispatchMouseEvent', {'type': 'mouseWheel', 'x': x, 'y': y, 'deltaX': 0, 'deltaY': delta})
-        await asyncio.sleep(.15)
-
     async def screenshot(self, path):
         shot = await self.command('Page.captureScreenshot', {'format': 'png'})
         path.write_bytes(base64.b64decode(shot['data']))
 
     async def page_click(self, x, y):
-        frame = await self.read("(()=>{const e=document.querySelector('[data-testid=browser-session-panel] img'); if(!e||!e.naturalWidth)return null;return {box:e.getBoundingClientRect().toJSON(),width:e.naturalWidth,height:e.naturalHeight}})()")
+        frame = await self.read("""(()=>{
+          const e=document.querySelector('[data-testid=browser-session-panel] img');
+          if(!e||!e.naturalWidth)return null;
+          const dimensions=e.style.aspectRatio.split('/').map(value=>Number(value.trim()));
+          if(dimensions.length!==2||!dimensions.every(Number.isFinite))return null;
+          return {box:e.getBoundingClientRect().toJSON(),width:dimensions[0],height:dimensions[1]};
+        })()""")
         assert frame and frame['width'] > 0, 'The real shared browser frame is missing'
         box = frame['box']
         await self.click(box['x'] + x*box['width']/frame['width'], box['y'] + y*box['height']/frame['height'])
@@ -173,7 +189,7 @@ async def main():
             pass
 
         def do_GET(self):
-            html = f'''<!doctype html><meta charset="utf-8"><style>body{{font:22px sans-serif;margin:0}}h1{{position:absolute;left:40px;top:10px}}label{{position:absolute;left:40px;top:80px}}input{{position:absolute;left:40px;top:110px;width:300px;height:40px;font:22px sans-serif}}button{{position:absolute;left:40px;top:170px;width:300px;height:40px;font:22px sans-serif}}p{{position:absolute;left:40px;top:230px}}</style><h1>Browser handoff {nonce}</h1><label for="handoff">Handoff value</label><input id="handoff"><button id="submit">Submit once</button><p id="status">Awaiting user</p><script>submit.onclick=event=>fetch('/receipt',{{method:'POST',body:JSON.stringify({{value:handoff.value,trusted:event.isTrusted}})}}).then(()=>{{document.cookie='handoff={nonce}; Path=/';document.querySelector('#status').textContent='{status}'}});</script>'''
+            html = f'''<!doctype html><meta charset="utf-8"><style>body{{font:22px sans-serif;margin:0}}h1{{position:absolute;left:40px;top:10px}}label{{position:absolute;left:40px;top:70px}}input{{position:absolute;left:40px;top:90px;width:400px;height:80px;font:22px sans-serif}}button{{position:absolute;left:40px;top:200px;width:400px;height:60px;font:22px sans-serif}}p{{position:absolute;left:40px;top:280px}}</style><h1>Browser handoff {nonce}</h1><label for="handoff">Handoff value</label><input id="handoff"><button id="submit">Submit once</button><p id="status">Awaiting user</p><script>submit.onclick=event=>fetch('/receipt',{{method:'POST',body:JSON.stringify({{value:handoff.value,trusted:event.isTrusted}})}}).then(()=>{{document.cookie='handoff={nonce}; Path=/';document.querySelector('#status').textContent='{status}'}});</script>'''
             html += """<script>const field=document.querySelector('#handoff');field.addEventListener('input',event=>fetch('/prefill',{method:'POST',body:JSON.stringify({value:field.value,trusted:event.isTrusted})}));</script>"""
             body = html.encode()
             self.send_response(200)
@@ -202,7 +218,7 @@ async def main():
 
         async def main_target():
             try:
-                return next((t for t in await targets() if t.get('type') == 'page' and '/renderer/index.html' in t.get('url', '') and '#/browser-viewer/' not in t['url']), None)
+                return next((target for target in await targets() if is_main_renderer_target(target)), None)
             except aiohttp.ClientConnectorError:
                 return None
 
@@ -215,6 +231,8 @@ async def main():
             await app.command('Page.bringToFront')
             async def task_controls_ready():
                 nonlocal is_offline_entered, offline_box
+                if await app.read("location.hash.startsWith('#/guid') && [...document.querySelectorAll('textarea')].some(e => !e.disabled && e.getBoundingClientRect().height > 10)"):
+                    return True
                 if await app.read("[...document.querySelectorAll('body *')].some(e => ['New task', '\u65b0\u5efa\u4efb\u52a1'].includes(e.textContent.trim()) && e.getBoundingClientRect().height > 0)"):
                     return True
                 if args.offline_entry and not is_offline_entered:
@@ -252,15 +270,15 @@ async def main():
                 await app.command('Page.navigate', {'url': target['url'].split('#')[0] + '#/guid'})
                 await wait_for(task_controls_ready, 15, 'The task controls did not return after model configuration')
                 evidence['normalModelSettingsSaved'] = True
-            await app.click_text('新建任务', 'New task')
-            await asyncio.sleep(.25)
-            prompt = f'Use only sudowork-browser for this browser task. I need to see its Chrome window, so use headful mode. Open http://127.0.0.1:{fixture.server_port}, enter AI_BEFORE_{nonce} in Handoff value, and reply {ready}. Do not submit. Wait for explicit user handoff. After the user returns control, observe again and report the exact field value and page status without typing or submitting.'
+            if not await app.read("location.hash.startsWith('#/guid')"):
+                await app.command('Page.navigate', {'url': target['url'].split('#')[0] + '#/guid'})
+                await wait_for(task_controls_ready, 15, 'The new task composer did not become available')
+            prompt = f'Use only sudowork-browser for this browser task. I need to see its Chrome window, so use headful mode. Open http://127.0.0.1:{fixture.server_port}. Use browser_action command Runtime.evaluate to focus document.querySelector("#handoff") and confirm document.activeElement.id is handoff, then use trusted browser_action text input to enter AI_BEFORE_{nonce}. Reply {ready}. Do not submit. Wait for explicit user handoff. After the user returns control, observe again and report the exact field value and page status without typing or submitting.'
             bootstrap = f'Reply exactly SESSION_BOOTSTRAP_{nonce}. Do not use tools. I will connect my existing Chrome through the Browser panel next.'
             await app.fill('textarea', bootstrap if args.existing_profile else prompt)
             await app.key('Enter', 'Enter', 13)
             if args.existing_profile:
                 async def bootstrapped():
-                    await app.wheel(1000)
                     replies = await app.assistant_messages()
                     return any('SESSION_BOOTSTRAP_' + nonce in reply for reply in replies) and await app.turn_finished()
                 await wait_for(bootstrapped, 180, 'The real agent did not finish its initial turn')
@@ -279,7 +297,6 @@ async def main():
                 await app.fill('input[maxlength="2000"]', task)
                 await app.click_text('交回 AI', 'Return to AI')
             async def ready_reply():
-                await app.wheel(1000)
                 has_prefilled = any(value == {'value': f'AI_BEFORE_{nonce}', 'trusted': True} for value in prefills)
                 # The actual assistant reply and trusted website event must
                 # both exist; the user's prompt cannot satisfy this check.
@@ -297,22 +314,37 @@ async def main():
                 await app.screenshot(args.output/'pending-native-question.png')
             controls = None
             if args.controls_window:
-                await app.click_text('工作空间', 'Workspace')
                 await app.click_text('浏览器控制', 'Browser controls')
                 async def new_controls():
                     return next((t for t in await targets() if '#/browser-controls/' in t.get('url', '')), None)
                 controls = UI(session, await wait_for(new_controls, 20, 'The compact control window did not open'))
             elif not args.existing_profile:
-                await app.click_text('浏览器', 'Browser')
+                try:
+                    await app.click_text('浏览器', 'Browser')
+                except AssertionError:
+                    # The current conversation layout can keep the right panel
+                    # collapsed. Its visible Browser controls entry opens the
+                    # same shared session in the compact native window.
+                    await app.click_text('浏览器控制', 'Browser controls')
+                    async def fallback_controls():
+                        return next((t for t in await targets() if '#/browser-controls/' in t.get('url', '')), None)
+                    controls = UI(session, await wait_for(fallback_controls, 20, 'The compact control window did not open'))
+                    evidence['compactControlsFallback'] = True
             control_ui = controls or app
             async def browser_ready():
-                text = await control_ui.text()
-                return 'AI 正在控制浏览器' in text or 'AI is controlling' in text
+                try:
+                    text = await control_ui.text()
+                    return 'AI 正在控制浏览器' in text or 'AI is controlling' in text
+                except RuntimeError:
+                    return False
             await wait_for(browser_ready, 20, 'The panel did not connect to the AI browser')
             await control_ui.click_text('接管浏览器', 'Take control')
             async def held():
-                text = await control_ui.text()
-                return '你已接管' in text or 'Human control' in text
+                try:
+                    text = await control_ui.text()
+                    return '你已接管' in text or 'Human control' in text
+                except RuntimeError:
+                    return False
             await wait_for(held, 30, 'Agent tools did not acknowledge takeover')
             print('Agent tools acknowledged human takeover', flush=True)
             if args.pending_native_question:
@@ -348,21 +380,25 @@ async def main():
                 return next((t for t in await targets() if '#/browser-viewer/' in t.get('url', '')), None)
             viewer = UI(session, await wait_for(new_viewer, 20, 'The separate viewer did not open'))
             async def viewer_ready():
-                return await viewer.read("Boolean(window.electronAPI && document.querySelector('[data-testid=browser-session-panel] img')?.naturalWidth)")
+                try:
+                    return await viewer.read("Boolean(window.electronAPI && document.querySelector('[data-testid=browser-session-panel] img')?.naturalWidth)")
+                except RuntimeError:
+                    return False
             await wait_for(viewer_ready, 40, 'The viewer preload, bridge or real browser frame is unavailable')
             await viewer.page_click(100, 130)
-            await viewer.key('a', 'KeyA', 65, 2)
+            await viewer.key('End', 'End', 35)
+            for _ in f'AI_BEFORE_{nonce}':
+                await viewer.key('Backspace', 'Backspace', 8)
             await viewer.fill('input[maxlength="512"]', human)
             await viewer.click_text('输入文字', 'Insert text')
             await wait_for(lambda: asyncio.sleep(0, result={'value': human, 'trusted': True} in prefills), 15, 'The shared viewer did not deliver the exact trusted human value')
-            await viewer.page_click(100, 190)
+            await viewer.page_click(100, 230)
             await wait_for(lambda: asyncio.sleep(0, result=len(receipts) > 0), 10, 'The trusted human submit did not reach the page')
             assert receipts == [{'value': human, 'trusted': True}], receipts
             await viewer.screenshot(args.output/'human-viewer.png')
             await (control_ui if controls else viewer).click_text('交回 AI', 'Return to AI')
             async def model_readback():
                 # Follow the actual chat as a user, without changing app state.
-                await app.wheel(1000)
                 return any(human in reply and status in reply for reply in await app.assistant_messages()) and await app.turn_finished()
             await wait_for(model_readback, 180, 'The model did not visibly report the human-edited page')
             assert receipts == [{'value': human, 'trusted': True}], 'An input or submit was replayed'
@@ -370,14 +406,12 @@ async def main():
             await app.fill('textarea', '/browser status')
             await app.key('Enter', 'Enter', 13)
             async def slash_status():
-                await app.wheel(1000)
-                return 'Browser session' in await app.text()
+                return 'Browser session' in await app.text() and await app.turn_finished()
             await wait_for(slash_status,20,'Browser status did not use the shared session')
             await app.fill('textarea', "/browser eval JSON.stringify({value:document.querySelector('#handoff').value,status:document.querySelector('#status').textContent})")
             await app.key('Enter','Enter',13)
             async def slash_eval():
-                await app.wheel(1000)
-                return 'Browser evaluation' in await app.text()
+                return 'Browser evaluation' in await app.text() and await app.turn_finished()
             await wait_for(slash_eval,20,'Browser evaluation did not reach the shared page')
             await app.screenshot(args.output/'shared-browser-commands.png')
             assert receipts == [{'value': human,'trusted':True}]
