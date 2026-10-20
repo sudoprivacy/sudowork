@@ -35,7 +35,7 @@ An Electron `<webview>` is a Chromium guest, not a DOM component available in or
 | Desktop local standalone CDP     | Implemented in [SudoWork #1250](https://github.com/sudoprivacy/sudowork/pull/1250); actual Electron/model takeover, compact controls and same-session commands passed.                                      |
 | Desktop app-managed extension    | Public worker support exists. SDK and cloud signed-extension tests do not establish complete Desktop extension application acceptance; that journey remains open.                                           |
 | Desktop existing personal Chrome | Explicit selection, four real host/crash-recovery journeys and a complete Electron/Sonnet handoff passed. SDK 0.58.0 is published; application delivery remains open.                                       |
-| Desktop cloud Chrome             | Shared renderer and cloud dispatch exist. A complete Electron-to-cloud browser application journey remains open.                                                                                            |
+| Desktop cloud Chrome             | Actual Electron cloud login, model task, shared panel, independent viewer and exact AI readback passed; deployed release acceptance remains open.                                                           |
 | Shared cloud extension and CDP   | Implemented in the public worker, Moss and shared panel. Real model/file/reconnect and explicit transport-switch journeys passed against the production backend; public frontend rollout is recorded below. |
 | WebUI local extension relay      | Optional planned capability with explicit pairing and revocation.                                                                                                                                           |
 | Viewing clients                  | Real Chromium and Firefox 155 on Windows passed. Physical phone and Safari acceptance remain open; desktop testing does not establish either result.                                                        |
@@ -224,7 +224,7 @@ An older passing journey is not counted as a new release's complete acceptance.
 | Native handoff communication   | Desktop real native question, pause, persisted cancellation and return passed                   | Real agent explains handoff, acknowledged host pause, user return and fresh model observation                        |
 | Desktop managed extension      | Application acceptance open                                                                     | Electron application with actual installed extension, same profile and handoff                                       |
 | Desktop personal Chrome        | Actual Electron/model journey and public SDK host cases passed; application delivery open       | Deliver the application pinned to the verified public SDK                                                            |
-| Desktop cloud Chrome           | Application acceptance open                                                                     | Complete Electron-to-cloud session journey                                                                           |
+| Desktop cloud Chrome           | Actual application and repository live journey passed                                           | Repeat after delivery of the accepted application and cloud worker                                                   |
 | Cloud profile login            | Scoped public candidate sign-in, restart and exact AI tool readback passed                      | Repeat with the delivered SPA and upgraded worker; this fixture does not establish Google Chrome Sync compatibility  |
 | Other agent hosts              | Capability-specific acceptance open                                                             | Each supported host acknowledges its tool barrier; unsupported active hosts cannot grant human control               |
 | Physical iPhone remote browser | Open                                                                                            | Real device take, Unicode input, return and exact model readback; prior phone screenshot only proves model/send      |
@@ -346,6 +346,31 @@ frame readiness, the Stop confirmation, an unsupported bound-method callback
 and an unhandled model permission card. Assertions and operation deadlines were
 preserved. This is a real isolated website login and profile persistence check;
 Google Chrome Sync and device-bound local identities require separate evidence.
+
+### Desktop cloud application acceptance, 20 October
+
+The actual built Electron app logged into the restricted owner through its
+normal API Key form and selected Server execution. A real Luna turn completed;
+the local conversation record confirmed an actual remote-agent/Moss binding.
+BrowserPanel started headful cloud Chrome and acknowledged takeover. A separate
+Electron viewer operated that same VM browser and delivered exact trusted
+Unicode input with one submission. After Return, the actual assistant read the
+same page and reported the exact human value and saved status. That value was
+not included in the handoff note.
+
+The final repository journey, `live_cloud_browser.py`, passed in a new isolated
+app home. It confirmed Stop and Return, allocated no local browser worker,
+verified the cloud session's owner and organization, terminated it through the
+normal owner API and checked termination three times. Its temporary key was
+revoked by the fixture caller. The first prototype failed before sending and
+created no cloud conversation; that failed receipt and its normal app/service
+shutdown are retained. The reusable driver uses the visible enabled Send
+button and waits for the real login route before operating the fresh instance.
+
+This is candidate application acceptance against production Moss 0.1.73 and
+the existing 0.57.5 worker. Production application and worker upgrades still
+need the same regression checks. SudoWork #1275 is merged after all 38 checks
+completed and a fresh rebase; Moss #413 is merged after all applicable checks.
 
 ### Delivery already completed
 
