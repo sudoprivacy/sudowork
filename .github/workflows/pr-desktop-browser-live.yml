@@ -49,6 +49,7 @@ jobs:
           bun build ./apps/desktop/tests/integration/localBrowserWorker.live.ts --target=node --format=esm --outfile=./desktop-browser-live.mjs
           bun build ./apps/desktop/tests/integration/browserRuntimeInstall.live.ts --tsconfig-override=./apps/desktop/tsconfig.json --target=node --format=cjs --external electron --outfile=./desktop-browser-install-live.cjs
           python -m py_compile apps/desktop/tests/e2e/live_cloud_browser.py
+          python -m py_compile apps/webui/tests/e2e/live_browser_view_performance.py apps/webui/tests/e2e/live_browser_clipboard.py
           python -m unittest discover -s apps/webui/tests/e2e -p test_live_browser_permissions.py
       - name: Prepare Electron's Linux sandbox
         if: runner.os == 'Linux'

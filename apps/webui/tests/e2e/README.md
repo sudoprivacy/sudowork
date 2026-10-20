@@ -65,9 +65,9 @@ replace the agent or browser with a test double.
 
 The journey opens a synthetic review page through chat, opens the authenticated
 viewer tab, takes control, enters a random value through the viewer, and checks
-that an AI write is rejected. Clicking Return to AI sends the handoff note to
-the real conversation automatically. The AI reads the same page and clicks
-Submit exactly once, without another chat instruction. The fixture verifies
+that an AI write is rejected. A normal message in the original conversation
+continues the real agent after the authenticated host transition. The AI reads
+the same page and clicks Submit exactly once. The fixture verifies
 the random value, original cookie, and trusted browser click. Both views must
 retain the same browser and profile identities. Finally, the journey reloads
 the conversation and checks that its completed model history and random human
@@ -123,9 +123,11 @@ UI screenshots and usage summaries before the viewing Chrome closes.
 Turn completion is accepted only after a causal tool result for the current
 fixture, rejected write or random human input. Historical event replay cannot
 satisfy the test. Use `--manual-continuation` only when separately exercising
-explicit chat continuation; the default protects automatic handoff notification.
+explicit chat continuation in older scripts; it is now a compatibility flag
+because continuation always uses normal chat. No browser business handoff
+buttons are required.
 
-This journey covers the browser write gate and automatic return notification.
+This journey covers the browser write gate and normal conversation continuation.
 Headful window views are covered when `--headful` is selected.
 Runtime-wide pause/resume, child agents, file transfer,
 local extension relay, and phone input require their separate live journeys.
@@ -168,9 +170,9 @@ rate requirement when the deployment has a stable measured network budget.
 
 Add `--verify-profile-persistence` to complete the isolated sign-in workflow:
 stop through the real confirmation dialog, start the same profile again, verify
-its login cookie reaches the fixture, then Return through the panel with a note
-asking AI to inspect the current page. The expected human value is not supplied
-in that note. The test handles scoped one-time browser permissions with the same
+its login cookie reaches the fixture, then send a normal message asking AI to
+inspect the current page. The expected human value is not supplied in that
+message. The test handles scoped one-time browser permissions with the same
 helper as the other live journeys and requires exact model readback from actual
 browser tools. A proxy used for this fixture must forward its `Cookie` request
 header as well as the `Set-Cookie` response header. Cleanup also overlaps metadata
@@ -179,10 +181,10 @@ reads with termination and checks that subsequent reads do not resurrect it.
 ## Browser lifecycle controls
 
 `live_browser_lifecycle.py` covers the actual shared panel's Start, Restart,
-Stop and Return to AI controls. Use a fresh real-model conversation with a
+Stop controls and ordinary conversation continuation. Use a fresh real-model conversation with a
 stopped managed worker, both extension/CDP transports and the window surface.
 The test sends no initial chat message: the first AI turn must come from the
-browser handoff, and its new random receipt must appear in the conversation.
+normal continuation message, and its new random receipt must appear in the conversation.
 
 ```sh
 python apps/webui/tests/e2e/live_browser_lifecycle.py \
@@ -198,7 +200,8 @@ listener. The journey starts headful extension Chrome, restarts it headless,
 then explicitly changes to headful CDP. A unique login cookie is issued once;
 both restarts must preserve it in the same persistent profile. Every restart
 must create a different browser session. Stop must keep the human control lease
-until Return to AI; the real model must finish without reopening Chrome.
+until an ordinary conversation message continues the agent; the real model
+must finish without reopening Chrome.
 
 Evidence includes five UI screenshots, profile/browser identities, a random
 assistant receipt, usage and page errors. Output directories must be new.
@@ -218,8 +221,9 @@ the real model's completion.
 `live_browser_handoff.py --manual-human` prepares the same real model journey
 and writes `manual-human-ready.json` with the authenticated viewer URL, random
 expected value and handoff note. A person opens that viewer on another device,
-takes control, enters the value through the panel and returns control with the
-provided note. The harness performs the scoped one-time approvals in its chat,
+takes control through the existing task interrupt, enters the value through the
+panel and sends the provided note as a normal message in that conversation.
+The harness performs the scoped one-time approvals in its chat,
 then requires exact AI readback, one trusted submission, persistent identity and
 restored conversation history. It does not type or return control for the person.
 
@@ -257,7 +261,7 @@ python apps/webui/tests/e2e/live_browser_files.py \
 The AI launches headful extension Chrome and opens a native file chooser. The
 user takes control and selects a generated local file through the actual
 viewer file picker. The website verifies its Unicode filename, exact contents,
-trusted change event and login cookie. Return to AI triggers fresh observation
+trusted change event and login cookie. Normal chat continuation triggers fresh observation
 and a real download; the viewer saves and verifies its exact bytes and SHA-256.
 The same browser/profile identity must persist. Stale uploads return 409 and
 anonymous uploads return 401. The chat must settle after both real AI turns.
@@ -345,8 +349,42 @@ python apps/webui/tests/e2e/live_browser_view_performance.py \
 
 The profile option also proves the website login survives a real Chrome
 restart and that a real model reads the identity through browser tools after
-Return. The permission helper resolves scode's explicit `MCPTool` qualified
+normal conversation continuation. The permission helper resolves scode's explicit `MCPTool` qualified
 target before answering a visible one-time browser permission. It rejects
 unrelated wrapper targets, even if their arguments mention the browser.
 This is desktop Chromium touch emulation. Physical iPhone interaction remains
 a separate acceptance step, and every receipt records `actualPhone: false`.
+
+## Remote selection, clipboard and composition
+
+Add `--verify-selection-clipboard --verify-profile-persistence` to
+`live_browser_view_performance.py` for the shared production input journey.
+Use public `ai-dev-browser[remote]==0.58.2` and a viewer/server/worker that all
+support its optional selection, clipboard and drag capabilities. Replacing only
+candidate frontend assets does not upgrade a server's input schema.
+
+The real viewer drags an exact phrase, copies it through the local clipboard
+API, pastes random Chinese multiline text into the remote textarea, checks
+Chromium composition confirmation does not insert unfinished text remotely,
+and submits the completed text once. The fixture records trusted input and
+submission events. A pixel marker in the actual streamed frame verifies final
+submission feedback before the screenshot is taken. The fixture then completes
+the usual persisted-login and real-model conversation journey. Clipboard
+permission is granted only to the isolated test context at the viewer origin;
+cleanup restores its own clipboard value while preserving newer user content.
+
+```sh
+python apps/webui/tests/e2e/live_browser_view_performance.py \
+  --config /private/browser-live.json \
+  --verify-selection-clipboard --verify-profile-persistence \
+  --fixture-origin http://worker-reachable-fixture:50181 \
+  --output /private/evidence/browser-clipboard-001
+```
+
+The private relay must forward `/selection-layout`, `/clipboard-input` and
+`/clipboard-submit` in addition to the usual review/login paths. Run this
+desktop clipboard journey separately from `--verify-mobile-view`. It passed
+through the real public WebUI, Moss 0.1.77 and public worker 0.58.2 on 21 October.
+Chromium composition is not physical operating-system IME or iPhone evidence.
+Mouse/pen drag is sent on release; touch text selection and graph dragging
+remain adaptation work. Form measurements do not establish graph fluidity.
