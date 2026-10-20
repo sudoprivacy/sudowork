@@ -54,7 +54,7 @@ const Sider: React.FC = () => {
   const [activeTab, setActiveTab] = useState<SidebarTabKey>(() => {
     try {
       const stored = localStorage.getItem(SIDER_TAB_STORAGE_KEY);
-      if (stored === 'scheduled' || stored === 'agents' || stored === 'timeline') return stored;
+      if (stored === 'scheduled' || stored === 'agents' || stored === 'timeline' || stored === 'archived') return stored;
     } catch {
       // ignore
     }

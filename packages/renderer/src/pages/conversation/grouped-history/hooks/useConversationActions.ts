@@ -317,6 +317,44 @@ export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeC
     [t, activeTab]
   );
 
+  const handleToggleArchive = useCallback(
+    async (conversation: TChatConversation) => {
+      const isArchived = conversation.extra?.archived === true;
+      setDropdownVisibleId(null);
+
+      try {
+        const success = await ipcBridge.conversation.update.invoke({
+          id: conversation.id,
+          updates: {
+            extra: {
+              archived: !isArchived,
+              archivedAt: isArchived ? null : Date.now(),
+              // Archived conversations must not remain in the active pinned section.
+              ...(!isArchived ? { pinned: false, pinnedAt: undefined, pinnedTab: undefined } : {}),
+            } as Partial<TChatConversation['extra']>,
+          } as Partial<TChatConversation>,
+          mergeExtra: true,
+        });
+
+        if (!success) {
+          Message.error(t('conversation.history.archiveFailed'));
+          return;
+        }
+
+        emitter.emit('chat.history.refresh');
+        Message.success(t(isArchived ? 'conversation.history.restoreSuccess' : 'conversation.history.archiveSuccess'));
+        if (!isArchived && id === conversation.id) {
+          closeAllTabs();
+          void navigate('/');
+        }
+      } catch (error) {
+        console.error('Failed to toggle conversation archive:', error);
+        Message.error(t('conversation.history.archiveFailed'));
+      }
+    },
+    [closeAllTabs, id, navigate, t]
+  );
+
   const handleMenuVisibleChange = useCallback((conversationId: string, visible: boolean) => {
     setDropdownVisibleId(visible ? conversationId : null);
   }, []);
@@ -338,6 +376,7 @@ export const useConversationActions = ({ batchMode, onSessionClick, onBatchModeC
     handleRenameConfirm,
     handleRenameCancel,
     handleTogglePin,
+    handleToggleArchive,
     handleMenuVisibleChange,
     handleOpenMenu,
   };

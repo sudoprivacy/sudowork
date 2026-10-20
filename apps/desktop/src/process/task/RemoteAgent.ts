@@ -838,6 +838,16 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
     // Moss owns cloud files. Cancellation must preserve drafts and prior outputs.
     this.currentTurnFiles.clear();
 
+    // Remove pending/in-progress tool cards before the cancellation message.
+    // The local ACP path emits the same control frame; without it, remote
+    // cancellation leaves an “Executing 0/1” group stuck forever.
+    ipcBridge.conversation.responseStream.emit({
+      type: 'clear_incomplete_tools',
+      conversation_id: this.conversation_id,
+      msg_id: uuid(36),
+      data: null,
+    });
+
     // Emit user cancelled message before finish
     this.emitUserCancelledMessage();
 
@@ -1252,7 +1262,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
       const previousSnapshot = this.workspaceFileSnapshot;
       const newFiles: string[] = [];
 
-      for (const [file, time] of currentSnapshot) {
+      for (const [file] of currentSnapshot) {
         if (!previousSnapshot.has(file)) {
           newFiles.push(file);
         }

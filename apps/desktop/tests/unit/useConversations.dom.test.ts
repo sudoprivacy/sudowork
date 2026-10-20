@@ -76,17 +76,21 @@ vi.mock('react-i18next', () => ({
 }));
 
 // Shared ref so the hoisted mock factory can read the latest value
-const testState = { sections: [] as TimelineSection[] };
+const testState = { sections: [] as TimelineSection[], activeIds: [] as string[] };
 
 vi.mock('@renderer/pages/conversation/grouped-history/utils/groupingHelpers', () => ({
-  buildGroupedHistory: () => ({
-    pinnedConversations: [],
-    pinnedTimeline: [],
-    pinnedScheduled: [],
-    scheduledGroups: [],
-    agentGroups: [],
-    timelineSections: testState.sections,
-  }),
+  isConversationArchived: (conversation: { extra?: { archived?: boolean } }) => conversation.extra?.archived === true,
+  buildGroupedHistory: (conversations: Array<{ id: string }>) => {
+    testState.activeIds = conversations.map((conversation) => conversation.id);
+    return {
+      pinnedConversations: [],
+      pinnedTimeline: [],
+      pinnedScheduled: [],
+      scheduledGroups: [],
+      agentGroups: [],
+      timelineSections: testState.sections,
+    };
+  },
 }));
 
 // Track renderer event listener registrations
@@ -147,11 +151,26 @@ describe('useConversations - workspace expansion', () => {
   beforeEach(() => {
     storageMap.clear();
     testState.sections = [];
+    testState.activeIds = [];
     mockInvoke.mockResolvedValue([]);
     conversationChangedCallback = null;
     chatHistoryRefreshCallback = null;
     mockConversationChangedOn.mockClear();
     mockAddEventListener.mockClear();
+  });
+
+  it('keeps archived conversations out of active groups and orders them by archive time', async () => {
+    mockInvoke.mockResolvedValue([
+      { id: 'active', modifyTime: 30, extra: { backend: 'scode' } },
+      { id: 'old-archive', modifyTime: 20, extra: { backend: 'scode', archived: true, archivedAt: 10 } },
+      { id: 'new-archive', modifyTime: 10, extra: { backend: 'scode', archived: true, archivedAt: 40 } },
+    ]);
+
+    const { result } = renderConversationHook();
+    await act(async () => {});
+
+    expect(testState.activeIds).toEqual(['active']);
+    expect(result.current.archivedConversations.map((conversation) => conversation.id)).toEqual(['new-archive', 'old-archive']);
   });
 
   it('should auto-expand all workspaces on first load when localStorage is empty', async () => {

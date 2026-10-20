@@ -41,6 +41,7 @@
     "earlier": "Daha Önce",
     "noHistory": "Sohbet geçmişi yok",
     "noScheduledTask": "Yürütme kaydı yok",
+    "noArchived": "Arşivlenmiş konuşma yok",
     "actionNewConversation": "Yeni görev",
     "deleteTitle": "Sil",
     "deleteConfirm": "Bu sohbeti silmek istediğinizden emin misiniz?",
@@ -81,10 +82,16 @@
     "pinned": "Pinned",
     "pinFailed": "Pin operation failed",
     "pinnedSection": "Pinned",
+    "archive": "Arşivle",
+    "restore": "Geri yükle",
+    "archiveSuccess": "Başarıyla arşivlendi",
+    "restoreSuccess": "Başarıyla geri yüklendi",
+    "archiveFailed": "Arşiv işlemi başarısız",
     "deleteSuccess": "Başarıyla silindi",
     "deleteFailed": "Silme başarısız oldu",
     "timeline": "Sohbet",
-    "scheduledTab": "Zamanlanmış Görevler"
+    "scheduledTab": "Zamanlanmış Görevler",
+    "archivedTab": "Arşivlenmiş"
   },
   "tabs": {
     "closeAll": "Tümünü Kapat",

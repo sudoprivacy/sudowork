@@ -1,5 +1,5 @@
 import { Button, Radio, Tooltip } from '@arco-design/web-react';
-import { AlarmClock, Bot, MessageSquare } from 'lucide-react';
+import { AlarmClock, Archive, Bot, MessageSquare } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import React, { useId } from 'react';
 import type { SidebarTabKey } from '../grouped-history/types';
@@ -11,6 +11,7 @@ export default function HistoryViewSelector({ value, isCronVisible, onChange }: 
   const agentsLabel = t('conversation.sidebar.agents');
   const sessionsLabel = t('conversation.sidebar.sessions');
   const scheduledLabel = t('conversation.history.scheduledTab');
+  const archivedLabel = t('conversation.history.archivedTab');
   return (
     <div className='flex items-center gap-2 min-w-0 flex-1'>
       <Radio.Group className='history-view-selector flex-1 min-w-0' name={groupName} type='button' size='small' value={value} onChange={(next) => onChange(next as SidebarTabKey)} aria-label={sessionsLabel}>
@@ -36,6 +37,9 @@ export default function HistoryViewSelector({ value, isCronVisible, onChange }: 
           <Button className='shrink-0' type={value === 'scheduled' ? 'secondary' : 'text'} size='small' aria-label={scheduledLabel} aria-pressed={value === 'scheduled'} onClick={() => onChange('scheduled')} icon={<AlarmClock size={16} aria-hidden />} />
         </Tooltip>
       )}
+      <Tooltip content={archivedLabel}>
+        <Button className='shrink-0' type={value === 'archived' ? 'secondary' : 'text'} size='small' aria-label={archivedLabel} aria-pressed={value === 'archived'} onClick={() => onChange('archived')} icon={<Archive size={16} aria-hidden />} />
+      </Tooltip>
     </div>
   );
 }

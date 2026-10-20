@@ -56,7 +56,7 @@ export type TimelineSection = {
   items: TimelineItem[];
 };
 
-export type SidebarTabKey = 'agents' | 'timeline' | 'scheduled';
+export type SidebarTabKey = 'agents' | 'timeline' | 'scheduled' | 'archived';
 
 export type GroupedHistoryResult = {
   pinnedTimeline: ConversationItem[];
@@ -92,6 +92,7 @@ export type ConversationRowProps = {
   onDelete: (conversation: ConversationItem) => void;
   onExport: (conversation: TChatConversation) => void;
   onTogglePin: (conversation: ConversationItem) => void;
+  onToggleArchive: (conversation: ConversationItem) => void;
   getJobStatus: (conversationId: string) => CronJobStatusEnums;
 };
 

@@ -6,7 +6,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import type { TChatConversation } from '@sudowork/common/storage';
-import { groupConversationsByTimelineAndWorkspace } from '@renderer/pages/conversation/grouped-history/utils/groupingHelpers';
+import { groupConversationsByTimelineAndWorkspace, isConversationArchived } from '@renderer/pages/conversation/grouped-history/utils/groupingHelpers';
 
 vi.stubGlobal('localStorage', {
   getItem: () => null,
@@ -40,5 +40,10 @@ describe('groupConversationsByTimelineAndWorkspace', () => {
     const workspaceItem = sections.flatMap((section) => section.items).find((item) => item.type === 'workspace');
 
     expect(workspaceItem?.workspaceGroup?.displayName).toBe('Team Alpha');
+  });
+
+  it('recognizes only explicitly archived conversations', () => {
+    expect(isConversationArchived(makeConversation())).toBe(false);
+    expect(isConversationArchived(makeConversation({ extra: { backend: 'scode', archived: true, archivedAt: 10 } }))).toBe(true);
   });
 });

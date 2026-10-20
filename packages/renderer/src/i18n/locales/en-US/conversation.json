@@ -41,6 +41,7 @@
     "earlier": "Earlier",
     "noHistory": "No chat history",
     "noScheduledTask": "No execution records",
+    "noArchived": "No archived conversations",
     "actionNewConversation": "New task",
     "deleteTitle": "Delete",
     "deleteConfirm": "Are you sure you want to delete this chat?",
@@ -81,10 +82,16 @@
     "pinned": "Pinned",
     "pinFailed": "Pin operation failed",
     "pinnedSection": "Pinned",
+    "archive": "Archive",
+    "restore": "Restore",
+    "archiveSuccess": "Archived successfully",
+    "restoreSuccess": "Restored successfully",
+    "archiveFailed": "Archive operation failed",
     "deleteSuccess": "Deleted successfully",
     "deleteFailed": "Delete failed",
     "timeline": "Chat",
-    "scheduledTab": "Scheduled"
+    "scheduledTab": "Scheduled",
+    "archivedTab": "Archived"
   },
   "tabs": {
     "closeAll": "Close All",

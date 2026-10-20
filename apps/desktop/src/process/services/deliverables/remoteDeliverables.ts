@@ -5,9 +5,10 @@ import type { GeneratedFileEntry } from '@sudowork/common/generatedFiles';
 export type RemoteWorkspaceSnapshot = Map<string, MossWorkspaceNode>;
 
 /** Read the remote tree, including directories whose children are loaded lazily. */
-export async function readRemoteWorkspaceSnapshot(api: { getSessionWorkspaceTree: (id: string, params?: { path?: string }) => Promise<MossWorkspaceNode> }, sessionId: string): Promise<RemoteWorkspaceSnapshot> {
-  // This optional index must not indefinitely delay sending the next prompt.
-  const deadline = Date.now() + 5000;
+export async function readRemoteWorkspaceSnapshot(api: { getSessionWorkspaceTree: (id: string, params?: { path?: string }) => Promise<MossWorkspaceNode> }, sessionId: string, timeoutMs = 5000): Promise<RemoteWorkspaceSnapshot> {
+  // Turn-start indexing keeps the short default so it cannot delay the prompt.
+  // User-initiated deliverables reads may pass a longer timeout for cold runtimes.
+  const deadline = Date.now() + timeoutMs;
   const fetchTree = async (path?: string): Promise<MossWorkspaceNode> => {
     const remaining = deadline - Date.now();
     if (remaining <= 0) throw new Error('Remote workspace snapshot timed out');

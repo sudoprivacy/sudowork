@@ -48,10 +48,10 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
     }
   }, [id, setActiveConversation]);
 
-  const { conversations, externalHistoryFailed, onRefreshExternalHistory, expandedWorkspaces, pinnedTimeline, pinnedScheduled, timelineSections, scheduledGroups, agentGroups, handleToggleWorkspace } = useConversations();
+  const { conversations, archivedConversations, externalHistoryFailed, onRefreshExternalHistory, expandedWorkspaces, pinnedTimeline, pinnedScheduled, timelineSections, scheduledGroups, agentGroups, handleToggleWorkspace } = useConversations();
 
   // Select pinned list based on active tab
-  const pinnedConversations = activeTab === 'agents' ? [] : activeTab === 'scheduled' ? pinnedScheduled : pinnedTimeline;
+  const pinnedConversations = activeTab === 'agents' || activeTab === 'archived' ? [] : activeTab === 'scheduled' ? pinnedScheduled : pinnedTimeline;
 
   // Filter out pinned conversations from scheduled groups to avoid duplicates
   // Only filter based on pinnedScheduled (pinned in scheduled tab)
@@ -201,20 +201,35 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
 
   const { selectedConversationIds, setSelectedConversationIds, selectedCount, allSelected, toggleSelectedConversation, handleToggleSelectAll } = useBatchSelection(batchMode, conversations);
 
-  const { renameModalVisible, renameModalName, setRenameModalName, renameLoading, dropdownVisibleId, handleConversationClick, handleDeleteClick, handleBatchDelete, handleEditStart, handleRenameConfirm, handleRenameCancel, handleTogglePin, handleMenuVisibleChange, handleOpenMenu } =
-    useConversationActions({
-      batchMode,
-      activeTab: activeTab === 'agents' ? 'timeline' : activeTab,
-      onSessionClick,
-      onBatchModeChange,
-      selectedConversationIds,
-      setSelectedConversationIds,
-      toggleSelectedConversation,
-      markAsRead,
-    });
+  const {
+    renameModalVisible,
+    renameModalName,
+    setRenameModalName,
+    renameLoading,
+    dropdownVisibleId,
+    handleConversationClick,
+    handleDeleteClick,
+    handleBatchDelete,
+    handleEditStart,
+    handleRenameConfirm,
+    handleRenameCancel,
+    handleTogglePin,
+    handleToggleArchive,
+    handleMenuVisibleChange,
+    handleOpenMenu,
+  } = useConversationActions({
+    batchMode,
+    activeTab: activeTab === 'agents' || activeTab === 'archived' ? 'timeline' : activeTab,
+    onSessionClick,
+    onBatchModeChange,
+    selectedConversationIds,
+    setSelectedConversationIds,
+    toggleSelectedConversation,
+    markAsRead,
+  });
 
   function onAgentOpen(group: AgentGroup) {
-    const latest = getLatestAgentConversation(conversations, group.ref);
+    const latest = getLatestAgentConversation(group.conversations, group.ref);
     if (latest) {
       void handleConversationClick(latest);
       return;
@@ -286,9 +301,10 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
       onDelete: handleDeleteClick,
       onExport: handleExportConversation,
       onTogglePin: handleTogglePin,
+      onToggleArchive: handleToggleArchive,
       getJobStatus,
     }),
-    [collapsed, tooltipEnabled, batchMode, selectedConversationIds, id, dropdownVisibleId, toggleSelectedConversation, handleConversationClick, handleOpenMenu, handleMenuVisibleChange, handleEditStart, handleDeleteClick, handleExportConversation, handleTogglePin, getJobStatus]
+    [collapsed, tooltipEnabled, batchMode, selectedConversationIds, id, dropdownVisibleId, toggleSelectedConversation, handleConversationClick, handleOpenMenu, handleMenuVisibleChange, handleEditStart, handleDeleteClick, handleExportConversation, handleTogglePin, handleToggleArchive, getJobStatus]
   );
 
   const renderConversation = (conversation: UnifiedHistoryConversation, scope?: string) => {
@@ -314,6 +330,16 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
       <FlexFullContainer>
         <div className='f-center'>
           <Empty icon={null} description={t('conversation.history.noScheduledTask')} className='mt-80px' />
+        </div>
+      </FlexFullContainer>
+    );
+  }
+
+  if (activeTab === 'archived' && archivedConversations.length === 0) {
+    return (
+      <FlexFullContainer>
+        <div className='f-center'>
+          <Empty description={t('conversation.history.noArchived')} />
         </div>
       </FlexFullContainer>
     );
@@ -496,6 +522,8 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
               })}
           </div>
         )}
+
+        {activeTab === 'archived' && <div className='flex flex-col gap-2px min-w-0'>{archivedConversations.map((conversation) => renderConversation(conversation))}</div>}
 
         {/*
           The agent layer, once the server has said which agents this person has.

@@ -208,6 +208,8 @@ export async function listConversations(
       title: meta?.title ?? null,
       pinned: meta?.pinned ?? false,
       pinnedAt: meta?.pinnedAt ?? null,
+      archived: meta?.archived ?? false,
+      archivedAt: meta?.archivedAt ?? null,
     }
   })
 }
@@ -397,7 +399,7 @@ export async function updateConversationMeta(
   principal: Principal,
   sessionId: string,
   ctx: MossCallContext,
-  update: { title?: string; pinned?: boolean },
+  update: { title?: string; pinned?: boolean; archived?: boolean },
 ): Promise<void> {
   await requireAccessibleSession(deps, principal, sessionId, ctx)
   await updateConversationMetaRow(deps.pool, principal.id, sessionId, update)

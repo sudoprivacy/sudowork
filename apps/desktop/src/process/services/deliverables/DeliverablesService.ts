@@ -45,7 +45,7 @@ class DeliverablesService {
     const { assertConversationAccount } = await import('../mossExecutionContext');
     assertConversationAccount(conversation);
     const { initMossApi } = await import('@process/remote/MossSessionApi');
-    const files = await readRemoteWorkspaceSnapshot(initMossApi(extra.mossServerUrl), extra.mossSessionId).catch((error): null => {
+    const files = await readRemoteWorkspaceSnapshot(initMossApi(extra.mossServerUrl), extra.mossSessionId, 30_000).catch((error): null => {
       mainError('DeliverablesService', `Remote workspace unavailable: ${String(error)}`);
       return null;
     });
@@ -69,10 +69,17 @@ class DeliverablesService {
       if (!result.hasMore) break;
     }
     const legacy: GeneratedFileEntry[] = [];
-    for (const [relativePath, createdAt] of candidates) {
-      const file = files.get(relativePath);
-      if (!file || inputs.has(relativePath.split('/').pop() || '')) continue;
-      legacy.push({ path: file.fullPath, relativePath, kind: 'create', ext: nodePath.extname(relativePath).slice(1).toLowerCase(), size: file.size, createdAt });
+    for (const [relativePath, file] of files) {
+      if (inputs.has(relativePath.split('/').pop() || '')) continue;
+      const linkedAt = candidates.get(relativePath);
+      legacy.push({
+        path: file.fullPath,
+        relativePath,
+        kind: 'create',
+        ext: nodePath.extname(relativePath).slice(1).toLowerCase(),
+        size: file.size,
+        createdAt: linkedAt ?? normalizeRemoteTimestamp(file.mtime, conversation.modifyTime),
+      });
     }
     return dedupeAndSort([...legacy, ...collected]);
   }
@@ -141,6 +148,12 @@ class DeliverablesService {
     }
     return collected;
   }
+}
+
+/** Moss deployments have emitted both epoch seconds and epoch milliseconds. */
+function normalizeRemoteTimestamp(mtime: number | undefined, fallback: number): number {
+  if (typeof mtime !== 'number' || !Number.isFinite(mtime)) return fallback;
+  return mtime < 1_000_000_000_000 ? mtime * 1000 : mtime;
 }
 
 /**

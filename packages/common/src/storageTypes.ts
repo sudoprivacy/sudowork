@@ -335,6 +335,10 @@ export type TChatConversation =
           pinned?: boolean;
           /** 置顶时间戳（毫秒）/ Pin timestamp in milliseconds */
           pinnedAt?: number;
+          /** Whether the conversation is hidden from active history. */
+          archived?: boolean;
+          /** Archive timestamp (milliseconds), used for archived-list ordering. */
+          archivedAt?: number | null;
           /** ACP 后端的 session UUID，用于会话恢复 / ACP backend session UUID for session resume */
           acpSessionId?: string;
           /** ACP session 最后更新时间 / Last update time of ACP session */
@@ -441,6 +445,10 @@ export type TChatConversation =
           pinned?: boolean;
           /** 置顶时间戳（毫秒）/ Pin timestamp in milliseconds */
           pinnedAt?: number;
+          /** Whether the conversation is hidden from active history. */
+          archived?: boolean;
+          /** Archive timestamp (milliseconds), used for archived-list ordering. */
+          archivedAt?: number | null;
           /** Health check marker */
           isHealthCheck?: boolean;
           /** Moss Session ID for resume */

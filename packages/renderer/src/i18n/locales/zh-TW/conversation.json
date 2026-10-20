@@ -41,6 +41,7 @@
     "earlier": "更早",
     "noHistory": "暫無對話記錄",
     "noScheduledTask": "暫無執行記錄",
+    "noArchived": "暫無已封存會話",
     "actionNewConversation": "新建任務",
     "deleteTitle": "刪除",
     "deleteConfirm": "確定要刪除此對話嗎？",
@@ -81,10 +82,16 @@
     "pinned": "Pinned",
     "pinFailed": "Pin operation failed",
     "pinnedSection": "Pinned",
+    "archive": "封存",
+    "restore": "還原",
+    "archiveSuccess": "封存成功",
+    "restoreSuccess": "還原成功",
+    "archiveFailed": "封存操作失敗",
     "deleteSuccess": "刪除成功",
     "deleteFailed": "刪除失敗",
     "timeline": "對話",
-    "scheduledTab": "排程任務"
+    "scheduledTab": "排程任務",
+    "archivedTab": "已封存"
   },
   "dropdown": {
     "cliEngines": "CLI Agents",
