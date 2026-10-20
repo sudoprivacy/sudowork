@@ -1,6 +1,6 @@
 # Shared browser sessions for Desktop and WebUI
 
-Status: cloud browser control, the shared panel, Desktop integration and compact takeover controls are merged. The initial v0.2.33 rollout passed actual Electron, Chromium and Firefox model/browser journeys with the public SDK v0.57.5. Production Moss is now 0.1.73, and its public durable-termination regression passed on 20 October. Viewer polling improvements are merged in SudoWork #1273. Existing personal Chrome passed a complete Electron/model journey; SDK 0.58.0 is published and application delivery remains open. The optional local extension relay and physical phone browser acceptance also remain open. This document is the source for [the shared design page](https://s.shareone.vip/md/sudowork-browser-sessions).
+Status: cloud browser control, the shared panel, Desktop integration and compact takeover controls are merged. The initial v0.2.33 rollout passed actual Electron, Chromium and Firefox model/browser journeys with the public SDK v0.57.5. Production Moss is now 0.1.76 with browser worker 0.58.0; upgraded-worker WebUI and Desktop model journeys passed on 20 October. Viewer polling improvements are merged in SudoWork #1273. The v0.2.38 candidate pins public SDK 0.58.1 for window recovery and hidden-page input refusal fixes. Its personal Chrome host and complete Electron/model journeys passed; final application delivery and the cloud worker patch upgrade remain open. The optional local extension relay and physical phone browser acceptance also remain open. This document is the source for [the shared design page](https://s.shareone.vip/md/sudowork-browser-sessions).
 
 ## 1. Decisions
 
@@ -76,6 +76,21 @@ Both AI tools and human input resolve the same browser/session/profile/tab ident
 Bounded frame rates, shared frame production, backpressure and visible-tab subscriptions prevent one encoder/polling loop per viewer. Idle profiles consume storage; they do not require running Chrome. Reaping must preserve the profile and leave a recoverable stopped state.
 
 ### Production extension compatibility
+
+CDP and extension are control transports; Chrome and Chromium are browser
+distributions. Branded Chrome supports CDP when explicitly launched with a
+separate profile directory and remote debugging enabled. Since Chrome 136,
+remote-debugging switches are ignored for the default Chrome data directory;
+see the [official Chrome change](https://developer.chrome.com/blog/remote-debugging-port).
+Desktop standalone uses an application-owned profile. Connecting an existing
+personal profile follows the explicit extension consent flow. These paths must
+not be presented as access to the same profile.
+
+An isolated production-image probe on 20 October used Google Chrome
+155.0.8059.79, an independent profile and no extension. CDP performed exact
+Unicode input, one trusted mouse submission and exact readback, then shut down
+Chrome normally. This establishes the managed-profile CDP path; it does not
+establish access to a user's already running default profile.
 
 Recent headless Chrome can run extensions, but packaged Chrome installation must be verified separately from Chrome for Testing. Branded Chrome 137+ removed `--load-extension`; production needs a supported installation method and a successful extension handshake. Do not silently label a CDP-only browser as extension-connected.
 
@@ -702,3 +717,25 @@ This is usable for deliberate form interaction; it does not establish smooth
 animation. The live case is `live_browser_view_performance.py` with
 `--verify-mobile-view --verify-profile-persistence`. This candidate preflight
 does not establish deployment or physical iPhone/Safari acceptance.
+
+### Public SDK 0.58.1 acceptance, 20 October
+
+The candidate pins the official PyPI package and public SDK commit
+`1e538e2bba771c6e26ff709ec498faab6d5dce4b`. All 199 installed runtime files
+matched the public wheel, whose SHA-256 matched PyPI metadata. Four actual
+Desktop host journeys passed across both extension WebSocket backends and
+headless/headful existing profiles, with no source override or skipped case.
+
+A separate real Electron and Sonnet 4.6 journey passed with the public worker
+and extension 0.4.4. It selected the existing profile explicitly, cancelled a
+pending native question only after acknowledged takeover, retained that
+cancellation through a renderer reload, submitted exact Unicode once, returned
+control and obtained exact model readback. Disconnect and normal application
+shutdown left personal Chrome alive. The repository journey is
+`live_shared_browser.py --existing-profile --pending-native-question`.
+
+The full application regression run passed 358 files and 3,299 tests, with
+28 existing skips. Desktop and shared renderer type checks passed. The new
+cloud image separately passed six actual Chrome worker lifecycle and file
+journeys, including both transports; signed persistent-profile upgrade and
+final production acceptance remain separate requirements.

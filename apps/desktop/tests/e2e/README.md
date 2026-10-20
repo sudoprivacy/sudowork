@@ -220,7 +220,7 @@ journeys and uploads its receipt and Electron log.
 
 ```powershell
 bun build apps/desktop/tests/integration/browserRuntimeInstall.live.ts --tsconfig-override=apps/desktop/tsconfig.json --target=node --format=cjs --external electron --outfile=desktop-browser-install-live.cjs
-python apps/desktop/tests/e2e/live_browser_runtime_install.py --bundle desktop-browser-install-live.cjs --output C:/path/to/new-installer-evidence --version 0.58.0
+python apps/desktop/tests/e2e/live_browser_runtime_install.py --bundle desktop-browser-install-live.cjs --output C:/path/to/new-installer-evidence --version 0.58.1
 ```
 
 Use `xvfb-run -a` for this command on Linux without a display. A working Python
