@@ -781,7 +781,12 @@
     "nicknameRequired": "暱稱不能為空",
     "loginExpired": "登入狀態已過期，請重新登入",
     "nicknameUpdated": "暱稱已更新",
-    "updateFailed": "更新失敗"
+    "updateFailed": "更新失敗",
+    "loginAccount": "Login account",
+    "organization": "Organization",
+    "role": "Role",
+    "noLocalPassword": "This account has no local password. Contact your organization administrator.",
+    "loadFailed": "Could not load your profile. Please retry."
   },
   "avatarSelector": {
     "title": "選擇頭像",
@@ -1026,7 +1031,10 @@
     "confirm": "確認修改",
     "oldPasswordRequired": "請輸入原始密碼",
     "newPasswordRequired": "請輸入新密碼",
-    "success": "密碼修改成功"
+    "success": "密碼修改成功",
+    "confirmPassword": "Confirm new password",
+    "mismatch": "The new passwords do not match",
+    "signInAgain": "Password updated. Please sign in again."
   },
   "exportLogs": "匯出日誌",
   "exportLogsDesc": "將全部 sudowork 與 scode 日誌打包為一個 zip 檔案。",
@@ -1378,5 +1386,14 @@
     "invalidUrl": "Enter a valid HTTP or HTTPS server origin, without a path, query or credentials.",
     "verificationFailed": "Could not verify or save this address. The active connection has not been replaced.",
     "updated": "Server updated. Please sign in again."
+  },
+  "accountAvatar": {
+    "title": "Change avatar",
+    "preview": "Avatar preview",
+    "preset": "Preset {{number}}",
+    "upload": "Upload image",
+    "reset": "Restore default",
+    "fileHint": "PNG, JPEG or WebP, up to 2 MiB.",
+    "updated": "Avatar updated"
   }
 }

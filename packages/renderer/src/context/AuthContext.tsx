@@ -178,6 +178,8 @@ interface AuthContextValue {
   login: (params: LoginParams) => Promise<LoginResult>;
   register: (params: RegisterParams) => Promise<RegisterResult>;
   logout: (options?: { isLocalOnly: boolean }) => Promise<void>;
+  enterpriseProfile: ipcBridge.UserProfileData | null;
+  refreshEnterpriseProfile: () => Promise<void>;
   refresh: () => Promise<void>;
   ensureValidToken: (forceRefresh?: boolean) => Promise<string | null>;
   forceRefreshToken: () => Promise<string | null>;
@@ -1412,6 +1414,10 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   // 修改密码（login_method=1 的用户改自己的密码）；token 过期时由调用方提示重登
   const changePassword = useCallback(
     async ({ oldPassword, newPassword }: ChangePasswordParams): Promise<PasswordAuthResult> => {
+      if (isWebRuntime || localStorage.getItem(EECLAW_AUTH_STORAGE_KEY)) {
+        const result = await ipcBridge.eeclaw.changePassword.invoke({ oldPassword, newPassword });
+        return { success: result.success, message: result.msg };
+      }
       const token = await ensureValidToken();
       if (!token) {
         return { success: false, message: '登录状态已过期，请重新登录' };
@@ -1596,9 +1602,44 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     }
   }, []);
 
+  const profileIdentity = user && status === 'authenticated' ? `${user.id}:${user.enterprise_code || ''}` : '';
+  const activeProfileIdentity = useRef(profileIdentity);
+  activeProfileIdentity.current = profileIdentity;
+  const profileRequest = useRef(0);
+  const [profileSnapshot, setProfileSnapshot] = useState<{ identity: string; data: ipcBridge.UserProfileData } | null>(null);
+  const enterpriseProfile = profileSnapshot?.identity === profileIdentity ? profileSnapshot.data : null;
+  const refreshEnterpriseProfile = useCallback(async () => {
+    if (!profileIdentity || (!isWebRuntime && !localStorage.getItem(EECLAW_AUTH_STORAGE_KEY))) return;
+    const request = ++profileRequest.current;
+    const result = await ipcBridge.eeclaw.getUserProfile.invoke();
+    if (activeProfileIdentity.current !== profileIdentity || request !== profileRequest.current) return;
+    if (!result.success || !result.data) throw new Error(result.msg || 'profile_request_failed');
+    setProfileSnapshot({ identity: profileIdentity, data: result.data });
+    const nickname = result.data.nickname || result.data.username;
+    setUser((previous) => (previous ? { ...previous, nickname } : previous));
+    // Preserve tokens and login identity; cache only the server-confirmed display name.
+    const stored = localStorage.getItem(EECLAW_AUTH_STORAGE_KEY);
+    if (stored) {
+      const record = JSON.parse(stored) as EeclawAuthStorage;
+      if (record.user.id === result.data.user_id) {
+        record.user.nickname = nickname;
+        localStorage.setItem(EECLAW_AUTH_STORAGE_KEY, JSON.stringify(record));
+      }
+    }
+  }, [profileIdentity]);
+  useEffect(() => {
+    setProfileSnapshot(null);
+    void refreshEnterpriseProfile().catch(() => {});
+    return () => {
+      profileRequest.current++;
+    };
+  }, [refreshEnterpriseProfile]);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       ready,
+      enterpriseProfile,
+      refreshEnterpriseProfile,
       user,
       status,
       isGuest: status === 'guest',
@@ -1619,7 +1660,29 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       changePassword,
       enterGuest,
     }),
-    [authFetch, login, register, logout, ready, refresh, status, syncMessage, user, ensureValidToken, forceRefreshToken, enterpriseLogin, enterpriseLoginWithOAuth2, loginByPassword, registerByPassword, loginWithThirdPartyAuth, exchangeThirdPartyAuthCode, changePassword, enterGuest]
+    [
+      enterpriseProfile,
+      refreshEnterpriseProfile,
+      authFetch,
+      login,
+      register,
+      logout,
+      ready,
+      refresh,
+      status,
+      syncMessage,
+      user,
+      ensureValidToken,
+      forceRefreshToken,
+      enterpriseLogin,
+      enterpriseLoginWithOAuth2,
+      loginByPassword,
+      registerByPassword,
+      loginWithThirdPartyAuth,
+      exchangeThirdPartyAuthCode,
+      changePassword,
+      enterGuest,
+    ]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

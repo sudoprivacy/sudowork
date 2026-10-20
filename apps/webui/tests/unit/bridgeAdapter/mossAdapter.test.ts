@@ -635,6 +635,13 @@ describe('mossAdapter: eeclaw tenancy channels', () => {
       '/api/settings/profile': {
         data: {
           username: 'alice',
+          user_id: 'alice-id',
+          login_name: 'alice-login',
+          nickname: 'Alice Display',
+          avatar: 'data:image/webp;base64,AA==',
+          can_change_password: true,
+          organization_id: 'org-1',
+          organization_name: 'Company',
           departmentName: 'R&D',
           role: 'admin',
           usage: { input_tokens: 10, output_tokens: 5, totalTokens: 15, sessionCount: 2 },
@@ -646,6 +653,13 @@ describe('mossAdapter: eeclaw tenancy channels', () => {
     expect(result.success).toBe(true)
     expect(result.data).toEqual({
       username: 'alice',
+      user_id: 'alice-id',
+      login_name: 'alice-login',
+      nickname: 'Alice Display',
+      avatar: 'data:image/webp;base64,AA==',
+      can_change_password: true,
+      organization_id: 'org-1',
+      organization_name: 'Company',
       department: 'R&D',
       role: 'admin',
       usage: {

@@ -3360,6 +3360,13 @@ export interface UserProfileUsageData {
 }
 
 export interface UserProfileData {
+  user_id?: string;
+  login_name?: string;
+  nickname?: string;
+  avatar?: string | null;
+  can_change_password?: boolean;
+  organization_id?: string;
+  organization_name?: string;
   username: string;
   department: string;
   role: string;
@@ -3412,6 +3419,9 @@ export const eeclaw = {
   >('eeclaw.get-cloud-assistants'),
   /** Verify enterprise server connectivity via /api/v1/tenant/config (runs in main process to avoid CORS) */
   verifyServer: bridge.buildProvider<IBridgeResponse<TenantConfigData>, { serverUrl: string }>('eeclaw.verify-server'),
+  updateUserProfile: bridge.buildProvider<IBridgeResponse, { nickname: string }>('eeclaw.update-user-profile'),
+  updateUserAvatar: bridge.buildProvider<IBridgeResponse<{ avatar: string | null }>, { avatar: string | null }>('eeclaw.update-user-avatar'),
+  changePassword: bridge.buildProvider<IBridgeResponse, { oldPassword: string; newPassword: string }>('eeclaw.change-password'),
   /** Get current user profile from enterprise server (runs in main process to avoid CORS) */
   getUserProfile: bridge.buildProvider<IBridgeResponse<UserProfileData>, void>('eeclaw.get-user-profile'),
   /** Login to MOSS enterprise server (runs in main process to avoid CORS) */

@@ -471,6 +471,31 @@ export function initEeclawBridge(): void {
     }
   });
 
+  // The renderer supplies only profile fields, never an upstream URL or credential.
+  async function mutateOwnProfile(path: string, body: object) {
+    try {
+      const serverUrl = ProcessConfig.getSync('eeclaw.serverUrl');
+      if (!serverUrl) return { success: false, msg: 'no_server_url' };
+      const send = async (isRefresh = false) =>
+        net.fetch(`${serverUrl}/api/v1/${path}`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${await getValidToken(isRefresh)}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(15000),
+        });
+      let response = await send();
+      if (response.status === 401) response = await send(true);
+      if (response.status === 401) await markAuthRequired('refresh_failed');
+      const result = await response.json();
+      return { success: response.ok && result.success === true, msg: result.msg || result.message || result.error, data: result.data };
+    } catch {
+      return { success: false, msg: 'profile_request_failed' };
+    }
+  }
+  ipcBridge.eeclaw.updateUserProfile.provider(({ nickname }) => mutateOwnProfile('user/update-profile', { nickname }));
+  ipcBridge.eeclaw.updateUserAvatar.provider(({ avatar }) => mutateOwnProfile('user/avatar', { avatar }));
+  ipcBridge.eeclaw.changePassword.provider(({ oldPassword, newPassword }) => mutateOwnProfile('auth/change-password', { oldPassword, newPassword }));
+
   ipcBridge.eeclaw.getUserProfile.provider(async () => {
     try {
       const serverUrl = ProcessConfig.getSync('eeclaw.serverUrl');
