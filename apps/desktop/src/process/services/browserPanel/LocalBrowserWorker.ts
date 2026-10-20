@@ -11,6 +11,7 @@ interface ILocalBrowserWorkerOptions {
   binding: { orgId: string; userId: string; sessionId: string };
   env?: NodeJS.ProcessEnv;
   chromeArgs?: string[];
+  existingExtensionRoot?: string;
 }
 
 /** Process and authenticated transport adapter; browser behavior belongs to adb. */
@@ -35,6 +36,10 @@ export class LocalBrowserWorker {
       }
     }
     this.controller = controller;
+  }
+
+  get isDisconnected(): boolean {
+    return this.isClosed || !!(this.child && (this.child.exitCode !== null || this.child.signalCode !== null));
   }
 
   async start(): Promise<void> {
@@ -62,11 +67,28 @@ export class LocalBrowserWorker {
     const log = openSync(path.join(this.options.root, 'worker.log'), 'a', 0o600);
     let launchError: Error | undefined;
     try {
-      this.child = spawn(this.options.python, ['-m', 'ai_dev_browser.remote.worker', '--profile-root', this.options.root, '--display', 'native', '--host', '127.0.0.1', '--port', String(port), ...(this.options.chromeArgs || []).map((arg) => `--chrome-arg=${arg}`)], {
-        windowsHide: true,
-        stdio: ['ignore', log, log],
-        env: { ...process.env, PYTHONPATH: '', ...this.options.env, AI_DEV_BROWSER_WORKER_HOST_TOKEN: this.hostToken, AI_DEV_BROWSER_WORKER_AI_TOKEN: this.aiToken },
-      });
+      this.child = spawn(
+        this.options.python,
+        [
+          '-m',
+          'ai_dev_browser.remote.worker',
+          '--profile-root',
+          this.options.root,
+          '--display',
+          'native',
+          '--host',
+          '127.0.0.1',
+          '--port',
+          String(port),
+          ...(this.options.existingExtensionRoot ? ['--existing-extension-root', this.options.existingExtensionRoot] : []),
+          ...(this.options.chromeArgs || []).map((arg) => `--chrome-arg=${arg}`),
+        ],
+        {
+          windowsHide: true,
+          stdio: ['ignore', log, log],
+          env: { ...process.env, PYTHONPATH: '', ...this.options.env, AI_DEV_BROWSER_WORKER_HOST_TOKEN: this.hostToken, AI_DEV_BROWSER_WORKER_AI_TOKEN: this.aiToken },
+        }
+      );
       this.child.once('error', (error) => {
         launchError = error;
       });
@@ -149,8 +171,11 @@ export class LocalBrowserWorker {
     // Explicitly stop the owned Chrome before terminating Python on Windows,
     // where SIGTERM cannot run asyncio's graceful shutdown handlers.
     if (this.child?.exitCode === null && this.child.signalCode === null) {
-      const reply = (await this.invoke({ kind: 'state' })) as { session: { state: string; isController: boolean; controlEpoch: number; targetEpoch: number } };
-      if (reply.session.state !== 'stopped') {
+      let reply = (await this.invoke({ kind: 'state' })) as { session: { state: string; isController: boolean; controlEpoch: number; targetEpoch: number; personalExtension?: unknown } };
+      if (reply.session.personalExtension) {
+        if (!reply.session.isController && reply.session.state !== 'stopped') reply = (await this.invoke({ kind: 'take', controlEpoch: reply.session.controlEpoch, targetEpoch: reply.session.targetEpoch })) as typeof reply;
+        await this.invoke({ kind: 'disconnect-existing-extension', controlEpoch: reply.session.controlEpoch, targetEpoch: reply.session.targetEpoch });
+      } else if (reply.session.state !== 'stopped') {
         const epochs = { controlEpoch: reply.session.controlEpoch, targetEpoch: reply.session.targetEpoch };
         if (reply.session.state === 'ai') {
           const result = (await this.mcp({ jsonrpc: '2.0', id: 'shutdown', method: 'tools/call', params: { name: 'browser_stop', arguments: epochs } })) as { result?: { isError?: boolean } };

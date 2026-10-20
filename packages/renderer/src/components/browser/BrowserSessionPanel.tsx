@@ -56,10 +56,10 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     sessionRef.current = next;
     setSession(next);
     if ((!previous || !isSameBrowser) && next.state !== 'stopped') {
-      setIsHeadless(next.isHeadless);
+      if (next.isHeadless !== null) setIsHeadless(next.isHeadless);
       if (next.transport !== 'electron') setTransport(next.transport);
     }
-    if (!previous && next.state === 'stopped' && next.transport !== 'electron') setTransport(next.transport);
+    if (!previous && next.state === 'stopped' && next.transport !== 'electron') setTransport(next.capabilities.existingExtension ? 'cdp' : next.transport);
     const target = next.tabs.find((tab) => tab.id === next.activeTargetId);
     if (!previous || previous.activeTargetId !== next.activeTargetId || previous.tabs.find((tab) => tab.id === previous.activeTargetId)?.url !== target?.url) setUrl(target?.url || '');
     setError(null);
@@ -265,6 +265,70 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     }
   };
 
+  const onInspectExisting = async () => {
+    const generation = generationRef.current;
+    setIsTransferring(true);
+    try {
+      const inspected = await invoke({ kind: 'inspect-existing-extension' });
+      if (generationRef.current !== generation) return;
+      update(inspected.session);
+      const selected = inspected.existingExtension;
+      if (!selected) {
+        Modal.info({ title: t('conversation.browserSession.personalSetupTitle'), content: <div className='whitespace-pre-wrap break-words'>{inspected.setupInstructions || t('conversation.browserSession.personalSetup')}</div> });
+        return;
+      }
+      Modal.confirm({
+        title: t('conversation.browserSession.personalConnectTitle'),
+        content: t('conversation.browserSession.personalConnectBody', { profile: selected.profileId }),
+        okText: t('conversation.browserSession.personalConnect'),
+        cancelText: t('common.cancel'),
+        onOk: async () => {
+          if (generationRef.current !== generation) return;
+          setIsTransferring(true);
+          try {
+            const connected = await invoke({ kind: 'connect-existing-extension', ...selected });
+            if (generationRef.current === generation) update(connected.session);
+          } catch (failure) {
+            if (generationRef.current === generation) Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
+            throw failure;
+          } finally {
+            if (generationRef.current === generation) setIsTransferring(false);
+          }
+        },
+      });
+    } catch (failure) {
+      if (generationRef.current === generation) Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
+    } finally {
+      if (generationRef.current === generation) setIsTransferring(false);
+    }
+  };
+
+  const onDisconnectExisting = () => {
+    const generation = generationRef.current;
+    Modal.confirm({
+      title: t('conversation.browserSession.personalDisconnectTitle'),
+      content: t('conversation.browserSession.personalDisconnectBody'),
+      okText: t('conversation.browserSession.personalDisconnect'),
+      cancelText: t('common.cancel'),
+      onOk: async () => {
+        if (generationRef.current !== generation) return;
+        setIsTransferring(true);
+        try {
+          await pendingInputsRef.current;
+          const current = sessionRef.current;
+          if (generationRef.current !== generation || !current || (!current.isController && current.state !== 'stopped')) return;
+          const disconnected = await invoke({ kind: 'disconnect-existing-extension', controlEpoch: current.controlEpoch, targetEpoch: current.targetEpoch });
+          if (generationRef.current === generation) update(disconnected.session);
+        } catch (failure) {
+          if (generationRef.current === generation) Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
+          throw failure;
+        } finally {
+          if (generationRef.current === generation) setIsTransferring(false);
+        }
+      },
+    });
+  };
+
   const onRespondDialog = async (isAccepted: boolean) => {
     const current = sessionRef.current;
     if (!current || current.state !== 'human' || !current.isController) return;
@@ -377,7 +441,8 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
   const controls = (
     <div className='flex flex-wrap items-center gap-2'>
       <span role='status'>{isTransferring ? t('conversation.browserSession.transferring') : t(`conversation.browserSession.state.${session?.state || 'stopped'}`)}</span>
-      {session ? <span className='text-xs text-t-secondary'>{t(`conversation.browserSession.${session.isHeadless ? 'headless' : 'headful'}`)}</span> : null}
+      {session ? <span className='text-xs text-t-secondary'>{t(`conversation.browserSession.${session.isHeadless === null ? 'modeUnknown' : session.isHeadless ? 'headless' : 'headful'}`)}</span> : null}
+      {session?.personalExtension ? <span>{t('conversation.browserSession.personalBrowser')}</span> : null}
       <Button size='mini' disabled={!session || session.state !== 'ai' || isTransferring || !!error} onClick={() => void onAction('take')}>
         {t('conversation.browserSession.take')}
       </Button>
@@ -405,7 +470,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
   );
   if (isControlsOnly)
     return (
-      <div className='h-full min-h-0 flex flex-col gap-2 overflow-auto p-2' data-testid='browser-session-controls'>
+      <div className='h-full min-h-0 box-border flex flex-col gap-2 overflow-auto p-2' data-testid='browser-session-controls'>
         {controls}
         {handoffNote}
         {error ? <div role='alert'>{error}</div> : null}
@@ -413,9 +478,20 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     );
 
   return (
-    <div className='h-full min-h-0 flex flex-col gap-2 overflow-auto p-2' data-testid='browser-session-panel'>
+    <div className='h-full min-h-0 box-border flex flex-col gap-2 overflow-auto p-2' data-testid='browser-session-panel'>
       {controls}
-      {session?.state === 'stopped' || (isController && session?.capabilities.lifecycle) ? (
+      {handoffNote}
+      {session?.capabilities.existingExtension && session.state === 'stopped' ? (
+        <Button size='mini' disabled={isTransferring || !!error} onClick={() => void onInspectExisting()}>
+          {t('conversation.browserSession.personalConnect')}
+        </Button>
+      ) : null}
+      {session?.personalExtension ? (
+        <Button size='mini' disabled={isTransferring || !!error || (!isController && session.state !== 'stopped')} onClick={onDisconnectExisting}>
+          {t('conversation.browserSession.personalDisconnect')}
+        </Button>
+      ) : null}
+      {!session?.personalExtension && (session?.state === 'stopped' || (isController && session?.capabilities.lifecycle)) ? (
         <div className='flex flex-wrap items-center gap-2'>
           <Select
             aria-label={t('conversation.browserSession.launchMode')}
@@ -434,10 +510,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
             disabled={isTransferring}
             onChange={setTransport}
             style={{ width: 220 }}
-            options={[
-              { value: 'extension', label: t('conversation.browserSession.extension') },
-              { value: 'cdp', label: t('conversation.browserSession.cdp') },
-            ]}
+            options={[...(!session.capabilities.existingExtension ? [{ value: 'extension', label: t('conversation.browserSession.extension') }] : []), { value: 'cdp', label: t('conversation.browserSession.cdp') }]}
           />
           {session.state === 'stopped' ? (
             <Button size='mini' disabled={isTransferring || !!error} onClick={() => void onStart()}>
@@ -546,7 +619,6 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
           </div>
         </>
       ) : null}
-      {handoffNote}
       {session?.state === 'human' && error ? <div role='alert'>{t('conversation.browserSession.disconnected')}</div> : null}
     </div>
   );

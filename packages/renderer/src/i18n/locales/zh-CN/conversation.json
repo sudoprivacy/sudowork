@@ -21,7 +21,11 @@
       "browser_restart_acknowledgement_required": "切换模式前，请确认重启浏览器。",
       "browser_stop_uncertain": "尚未确认浏览器已关闭。请重新连接并检查状态后再操作。",
       "managed_browser_reconnect_required": "请重新连接浏览器，检查当前状态后再继续。",
-      "browser_not_enabled_for_owner": "你的账号尚未启用共享浏览器功能。"
+      "browser_not_enabled_for_owner": "你的账号尚未启用共享浏览器功能。",
+      "browser_existing_extension_changed": "连接的 Chrome 或 profile 已变化，请重新检查并选择当前 profile。",
+      "browser_existing_profile_in_use": "另一个会话正在使用这个 Chrome profile，请先在该会话中断开。",
+      "browser_existing_extension_requires_disconnect": "请先断开现有 Chrome，再启动或重启受管浏览器。",
+      "browser_existing_extension_unavailable": "所选 Chrome 扩展不可用，请检查 Chrome 和扩展是否仍在运行。"
     },
     "start": "启动浏览器",
     "launchMode": "浏览器显示模式",
@@ -68,7 +72,17 @@
     "fileChooserChanged": "选择文件时浏览器已变化，请重新打开文件选择器。",
     "fileTransferFailed": "文件传输失败，请检查网页后再试。",
     "downloads": "浏览器下载",
-    "downloadFile": "下载 {{name}}"
+    "downloadFile": "下载 {{name}}",
+    "modeUnknown": "现有 Chrome · 启动模式未知",
+    "personalBrowser": "已连接你的 Chrome profile",
+    "personalConnect": "连接我的 Chrome",
+    "personalSetupTitle": "连接你已打开的 Chrome",
+    "personalSetup": "请在需要使用的 Chrome profile 中启用 ai-dev-browser 扩展，保持 Chrome 打开，再重新检查。",
+    "personalConnectTitle": "使用这个 Chrome profile？",
+    "personalConnectBody": "连接 profile {{profile}}。SudoWork 会先暂停 agent 工具。你和 AI 将共用扩展的自动化页签及其登录状态。断开时 Chrome 保持打开；需要 AI 继续时，请显式交回控制。",
+    "personalDisconnect": "断开我的 Chrome",
+    "personalDisconnectTitle": "断开这个 Chrome profile？",
+    "personalDisconnectBody": "你的 Chrome、页签和登录状态保持不变。AI 工具继续暂停，直到你显式交回控制。"
   },
   "interruptConfirm": {
     "title": "打断当前回复？",

@@ -318,6 +318,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         },
         pauseTools: async () => {
           this.userCancelled = true;
+          this.cancelPendingUserRequests();
           const ticket = await connection.pauseTools();
           let timeout: ReturnType<typeof setTimeout> | undefined;
           try {
@@ -1805,6 +1806,30 @@ This identity statement takes priority over the default identity in USER.md.
     return this.stopPromise;
   }
 
+  /** Cancel native prompts before an acknowledged stop or browser takeover. */
+  private cancelPendingUserRequests(): void {
+    // ACP clients must answer pending requests when cancelling a turn.
+    for (const [_callId, pending] of this.pendingPermissions) {
+      pending.reject(new Error('Cancelled'));
+    }
+    this.pendingPermissions.clear();
+    for (const [, pending] of this.pendingQuestions) {
+      this.emitQuestionCancelled(pending.msgId);
+      pending.reject(new Error('Cancelled'));
+    }
+    this.pendingQuestions.clear();
+    this.permissionRequestMeta.clear();
+
+    // Remove the corresponding confirmation UI as part of the same stop.
+    for (const confirmation of this.confirmations) {
+      ipcBridge.conversation.confirmation.remove.emit({
+        conversation_id: this.conversation_id,
+        id: confirmation.id,
+      });
+    }
+    this.confirmations = [];
+  }
+
   private async performStop(): Promise<void> {
     // Telemetry: end turn tracking (user cancel)
     endTurnError(this.conversation_id, 'USER_CANCEL');
@@ -1822,31 +1847,10 @@ This identity statement takes priority over the default identity in USER.md.
     this.flushThinkFilters();
     this.streamTextBuffer.flushAll();
 
-    // 2. Respond to pending permission requests with Cancelled
-    //    (ACP spec: client MUST do this when cancelling)
-    for (const [_callId, pending] of this.pendingPermissions) {
-      pending.reject(new Error('Cancelled'));
-    }
-    this.pendingPermissions.clear();
-    for (const [, pending] of this.pendingQuestions) {
-      this.emitQuestionCancelled(pending.msgId);
-      pending.reject(new Error('Cancelled'));
-    }
-    this.pendingQuestions.clear();
-    this.permissionRequestMeta.clear();
+    this.cancelPendingUserRequests();
 
-    // 3. Clear confirmation UI
-    for (const confirmation of this.confirmations) {
-      ipcBridge.conversation.confirmation.remove.emit({
-        conversation_id: this.conversation_id,
-        id: confirmation.id,
-      });
-    }
-    this.confirmations = [];
-
-    // 4. Cancel the current turn. If the backend doesn't acknowledge quickly,
+    // Cancel the current turn. If the backend does not acknowledge quickly,
     // force disconnect to stop the process.
-    // 取消当前 turn。如果后端不及时响应，强制断开连接以停止进程。
     let result: 'cancelled' | 'abandoned' | 'disconnected';
     try {
       result = await this.connection.cancel(5000); // 5 seconds timeout
@@ -1854,8 +1858,7 @@ This identity statement takes priority over the default identity in USER.md.
       result = 'disconnected';
     }
 
-    // If backend didn't acknowledge cancel or abandoned, force disconnect
-    // 如果后端没有确认取消或放弃，强制断开连接
+    // If backend did not acknowledge cancel or abandoned, force disconnect.
     if (result === 'abandoned' || result === 'disconnected') {
       mainLog('[AcpAgent]', `Backend cancel result: ${result}, forcing disconnect`);
       await this.connection.disconnect();
@@ -3061,6 +3064,7 @@ This identity statement takes priority over the default identity in USER.md.
   }
 
   private handleQuestionRequest(data: AcpQuestionRequest): Promise<{ answers: AcpQuestionResponseAnswer[] }> {
+    if (this.userCancelled) return Promise.reject(new Error('Cancelled'));
     return new Promise((resolve, reject) => {
       const requestId = this.resolveQuestionRequestId(data.toolCallId);
 
@@ -3183,22 +3187,22 @@ This identity statement takes priority over the default identity in USER.md.
    */
   private emitQuestionCancelled(msgId: string): void {
     try {
-      this.emitMessage({
-        id: uuid(),
-        type: 'acp_question',
-        msg_id: msgId,
-        conversation_id: this.conversation_id,
-        createdAt: Date.now(),
-        position: 'left',
-        content: {
-          // Required by AcpQuestionData; the renderer merges partial updates by msg_id.
-          question: '',
-          options: [],
-          conversationId: this.conversation_id,
-          answered: true,
-          cancelled: true,
+      // This is a host lifecycle update after cancellation, not a late agent
+      // message. Preserve the original question when merging the update.
+      const content = {
+        conversationId: this.conversation_id,
+        answered: true,
+        cancelled: true,
+      } as unknown as AcpQuestionData;
+      this.handleStreamEvent(
+        {
+          type: 'acp_question',
+          msg_id: msgId,
+          conversation_id: this.conversation_id,
+          data: content,
         },
-      });
+        true
+      );
     } catch {
       // Best-effort UI hint; never let emit errors mask the underlying rejection.
     }
@@ -3484,9 +3488,9 @@ This identity statement takes priority over the default identity in USER.md.
 
   // ========== Stream & Signal Pipeline (merged from Manager) ==========
 
-  private handleStreamEvent(message: IResponseMessage): void {
+  private handleStreamEvent(message: IResponseMessage, isHostQuestionCancellation = false): void {
     // Ignore messages if user has cancelled
-    if (this.userCancelled) {
+    if (this.userCancelled && !(isHostQuestionCancellation && message.type === 'acp_question' && (message.data as AcpQuestionData | undefined)?.cancelled === true)) {
       mainLog('[AcpAgent]', `Ignoring message after user cancel: type=${message.type}`);
       return;
     }

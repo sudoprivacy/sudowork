@@ -150,6 +150,49 @@ They verify authenticated discovery without allocation, takeover fences,
 session identity, exact trusted input, cookies, file bytes and shutdown. They
 complement the actual model/UI test above.
 
+### Existing personal Chrome
+
+Use `live_shared_browser.py --existing-profile` with a dedicated running fixture
+Chrome and its installed extension bridge. The test bootstraps an actual model
+session, selects **Connect my Chrome** through the real panel confirmation,
+returns control with the browser task, and exercises the ordinary viewer/input/
+model-readback journey. It explicitly disconnects the personal profile at the
+end. Keep the fixture Chrome open while the app shuts down and verify that the
+app did not close it. Do not point acceptance at an everyday personal profile.
+
+For a fresh local app, `--offline-entry` chooses the normal offline login entry.
+That entry clears online-account residue, so `--model-config <private-json>` can
+configure the acceptance account through the ordinary settings editor afterward.
+Keep this file outside the repository and remove its copies and backups after
+the owned instance stops. The driver verifies actual assistant text, the
+composer's finished state, fully visible inputs and one trusted submission.
+Failed runs retain command acknowledgements and viewer geometry without logging
+CDP input values or credentials.
+
+`test_personal_chrome_host.py` separately tests the actual Desktop host and public
+worker, without a model or Electron renderer. It reuses the pinned SDK's real
+extension fixture, seeds a login cookie before attachment, and verifies exact
+input, one submission, observation after Return and Chrome/cookie/input survival
+after host shutdown. The PR workflow runs all four combinations of headless/
+headful Chrome and both supported extension WebSocket backends on Linux/Windows.
+The fixture requires Chrome for Testing or Chromium with extension loading.
+
+```powershell
+bun run --filter=@sudowork/contracts build
+bun build apps/desktop/tests/integration/localBrowserWorker.live.ts --target=node --format=esm --outfile=desktop-browser-live.mjs
+$env:AI_DEV_BROWSER_TEST_EXTENSION_CHROME = 'C:/path/to/isolated-fixture-chrome.exe'
+$env:SUDOWORK_PERSONAL_HOST_JOURNEY = (Resolve-Path desktop-browser-live.mjs).Path
+python -m pytest -v apps/desktop/tests/e2e/test_personal_chrome_host.py --basetemp C:/path/to/new-evidence
+```
+
+The default SDK fixture source is `vendor/ai-dev-browser`. Local SDK development
+can explicitly select another checkout with `SUDOWORK_BROWSER_SDK_SOURCE`; the
+installed worker and fixture source must match. This selects fixture helpers
+only; the host still loads the installed distribution without a source-path
+override. Install a matching wheel or editable package in the test environment.
+The test leaves its evidence and
+only closes its own temporary Chrome, bridge and host processes.
+
 The native journey can also exercise the adapter from an actual unpacked
 installation. Build `localBrowserWorker.live.ts` as in the PR workflow, then run
 it with `--stdio --packaged-resources <installation/resources>` and optionally
@@ -158,6 +201,11 @@ Node mode, matching the application's fallback when a standalone Node runtime
 is unavailable. Set `SUDOWORK_BROWSER_LIVE_PYTHON` to the official public worker
 environment. This verifies packaged resources instead of the repository copy.
 The packaging hook rejects a missing or empty browser adapter on every platform.
+
+Pass `--pending-native-question` to `live_shared_browser.py` to take control
+while the actual model is waiting on its native question card. The journey
+requires the card to show cancellation, stops treating chat input as an answer,
+and completes the same trusted human edit and fresh model readback after return.
 
 ## Rules
 

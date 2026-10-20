@@ -5,6 +5,8 @@ import { mkdtempSync, writeFileSync, readFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
+import { once } from 'node:events';
+import type { ChildProcess } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
@@ -46,13 +48,14 @@ const address = server.address();
 assert(address && typeof address !== 'string');
 const binding = { orgId: 'local', userId: 'fixture-owner', sessionId: randomUUID() };
 const isStdio = process.argv.includes('--stdio');
+const isPersonal = process.argv.includes('--personal');
 const packagedResourcesArg = process.argv.indexOf('--packaged-resources');
 const packagedResources = packagedResourcesArg === -1 ? undefined : process.argv[packagedResourcesArg + 1];
 if (packagedResourcesArg !== -1) assert(isStdio && packagedResources && !packagedResources.startsWith('--'), '--packaged-resources requires --stdio and an actual resources directory');
 const electronArg = process.argv.indexOf('--electron-executable');
 const electronExecutable = electronArg === -1 ? undefined : process.argv[electronArg + 1];
 if (electronArg !== -1) assert(packagedResources && electronExecutable && !electronExecutable.startsWith('--'), '--electron-executable requires --packaged-resources and an actual executable');
-const isHost = process.argv.includes('--host') || isStdio;
+const isHost = process.argv.includes('--host') || isStdio || isPersonal;
 let runtimePreparations = 0;
 const returns: string[] = [];
 const control = new LocalAgentToolControl(() => path.join(root, 'tool-control.json'));
@@ -87,6 +90,11 @@ if (config) {
   await requestMcp({ jsonrpc: '2.0', id: 'initialize', method: 'initialize', params: {} });
   const listed = (await requestMcp({ jsonrpc: '2.0', id: 'list', method: 'tools/list' })) as { result: { tools: unknown[] } };
   assert.equal(listed.result.tools.length, 5);
+  const launchTool = listed.result.tools.find((value) => (value as { name: string }).name === 'browser_launch') as { inputSchema: { properties: { transport: { enum: string[]; default: string } } } };
+  assert.deepEqual(launchTool.inputSchema.properties.transport.enum, ['cdp']);
+  const requiresSelection = (await requestMcp({ jsonrpc: '2.0', id: 'personal-requires-selection', method: 'tools/call', params: { name: 'browser_launch', arguments: { transport: 'extension', isHeadless: true } } })) as { result: { isError: boolean; content: Array<{ text: string }> } };
+  assert.equal(requiresSelection.result.isError, true);
+  assert(requiresSelection.result.content[0].text.includes('Connect my Chrome'));
   const idle = await host!.invoke(binding.sessionId, { kind: 'state' });
   assert.equal(idle.session.state, 'stopped');
   assert.equal(runtimePreparations, 0, 'Tool discovery must not allocate Python or Chrome');
@@ -131,7 +139,18 @@ async function tool(name: string, args: Record<string, unknown>, isError = false
 }
 try {
   await worker.start();
-  const launch = await tool('browser_launch', { ...(!isHost ? { transport: 'cdp' } : {}), isHeadless });
+  let launch;
+  if (isPersonal) {
+    const discovered = await host!.invoke(binding.sessionId, { kind: 'inspect-existing-extension' });
+    assert(discovered.existingExtension);
+    const attached = await host!.invoke(binding.sessionId, { kind: 'connect-existing-extension', ...discovered.existingExtension });
+    assert.equal(attached.session.isHeadless, null);
+    assert.equal(attached.session.capabilities.lifecycle, false);
+    assert.equal(attached.session.capabilities.fileTransfer, false);
+    assert.equal(control.status().state, 'human');
+    const prepared = await host!.invoke(binding.sessionId, { kind: 'navigate', url: `http://127.0.0.1:${address.port}`, controlEpoch: attached.session.controlEpoch, targetEpoch: attached.session.targetEpoch });
+    launch = await host!.invoke(binding.sessionId, { kind: 'return', note: 'Use the connected personal Chrome', controlEpoch: prepared.session.controlEpoch, targetEpoch: prepared.session.targetEpoch });
+  } else launch = await tool('browser_launch', { ...(!isHost ? { transport: 'cdp' } : {}), isHeadless });
   const initial = launch.session;
   const epochs = (session: { controlEpoch: number; targetEpoch: number }) => ({ controlEpoch: session.controlEpoch, targetEpoch: session.targetEpoch });
   await tool('browser_action', { kind: 'navigate', url: `http://127.0.0.1:${address.port}`, ...epochs(initial) });
@@ -142,9 +161,11 @@ try {
   const blocked = await tool('browser_action', { kind: 'command', method: 'Runtime.evaluate', paramsJson: JSON.stringify({ expression: "document.querySelector('#name').value='bypass'" }), ...epochs(held) }, true);
   assert.equal(blocked, 'browser_control_held_by_user');
   const payload = Buffer.from('Native Desktop upload 中文');
-  const staged = (await worker.upload({ name: '报告.txt', data: payload, ...epochs(held) })) as { file: { bytes: number; sha256: string } };
-  assert.equal(staged.file.bytes, payload.length);
-  assert.equal(staged.file.sha256, createHash('sha256').update(payload).digest('hex'));
+  const staged = !isPersonal ? ((await worker.upload({ name: '报告.txt', data: payload, ...epochs(held) })) as { file: { bytes: number; sha256: string } }) : null;
+  if (staged) {
+    assert.equal(staged.file.bytes, payload.length);
+    assert.equal(staged.file.sha256, createHash('sha256').update(payload).digest('hex'));
+  }
   await worker.invoke({ kind: 'input', input: { kind: 'click', x: 80, y: 40 }, ...epochs(held) });
   await worker.invoke({ kind: 'input', input: { kind: 'text', text: 'Desktop human 中文' }, ...epochs(held) });
   const returned = ((await worker.invoke({ kind: 'return', note: 'Read the edited field before continuing', ...epochs(held) })) as { session: typeof held }).session;
@@ -152,7 +173,7 @@ try {
   assert.equal(returned.profileId, initial.profileId);
   if (host) {
     assert.equal(runtimePreparations, 1);
-    assert.deepEqual(returns, ['Read the edited field before continuing']);
+    assert.deepEqual(returns, [...(isPersonal ? ['Use the connected personal Chrome'] : []), 'Read the edited field before continuing']);
     assert.equal(control.status().state, 'ai');
   }
   await tool('browser_observe', {});
@@ -165,23 +186,49 @@ try {
   assert.equal(receipt.name, 'Desktop human 中文');
   assert.equal(receipt.trusted, true);
   assert(receipt.cookie.includes('desktop_login=present'));
-  await tool('browser_action', { kind: 'input', input: { kind: 'click', x: 80, y: 169 }, ...epochs(returned) });
-  const deadline = Date.now() + 10_000;
-  let download: { id: string; sha256: string } | undefined;
-  while (!download) {
-    const state = (await worker.invoke({ kind: 'state' })) as { session: { downloads: Array<{ id: string; sha256: string }> } };
-    download = state.session.downloads[0];
-    if (!download) {
-      assert(Date.now() < deadline, 'Actual browser download did not complete');
-      await delay(50);
+  if (isPersonal) {
+    assert(process.env.SUDOWORK_PERSONAL_COOKIE);
+    assert(receipt.cookie.includes(process.env.SUDOWORK_PERSONAL_COOKIE), 'The cookie present before host attachment must survive');
+    // Fault injection kills the actual owned Python child, never a browser or
+    // another workline. All recovery and disconnect operations use host APIs.
+    const processes = host as unknown as { workers: Map<string, Promise<{ child: ChildProcess }>> };
+    const child = (await processes.workers.get(binding.sessionId)!).child;
+    assert(child.pid);
+    const crashed = once(child, 'exit');
+    child.kill('SIGKILL');
+    await crashed;
+    const restored = await host!.invoke(binding.sessionId, { kind: 'state' });
+    assert.equal(restored.session.state, 'stopped');
+    assert(restored.session.personalExtension);
+    assert.equal(restored.session.isController, false);
+    const disconnected = await host!.invoke(binding.sessionId, { kind: 'disconnect-existing-extension', ...epochs(restored.session) });
+    assert.equal(disconnected.session.personalExtension, null);
+    assert.equal(disconnected.session.isController, true);
+    assert.equal(control.status().state, 'human');
+    writeFileSync(
+      path.join(root, 'evidence.json'),
+      JSON.stringify({ isPersonal, actualChrome: true, browserSessionId: initial.browserSessionId, profileId: initial.profileId, aiBlocked: true, originalCookie: true, trustedReceipt: receipt, sameBrowserAfterReturn: true, realWorkerCrashRecoveredThroughHost: true }, null, 2)
+    );
+    console.log(JSON.stringify({ passed: true, isPersonal, evidence: path.join(root, 'evidence.json') }));
+  } else {
+    await tool('browser_action', { kind: 'input', input: { kind: 'click', x: 80, y: 169 }, ...epochs(returned) });
+    const deadline = Date.now() + 10_000;
+    let download: { id: string; sha256: string } | undefined;
+    while (!download) {
+      const state = (await worker.invoke({ kind: 'state' })) as { session: { downloads: Array<{ id: string; sha256: string }> } };
+      download = state.session.downloads[0];
+      if (!download) {
+        assert(Date.now() < deadline, 'Actual browser download did not complete');
+        await delay(50);
+      }
     }
+    assert.equal(downloads.length, 1);
+    assert(downloads[0].includes('desktop_login=present'));
+    assert.deepEqual(Buffer.from(await worker.download(download.id)), downloadPayload);
+    assert.equal(download.sha256, createHash('sha256').update(downloadPayload).digest('hex'));
+    writeFileSync(path.join(root, 'evidence.json'), JSON.stringify({ isHeadless, browserSessionId: initial.browserSessionId, profileId: initial.profileId, aiBlocked: true, originalCookie: true, trustedReceipt: receipt, stagedFile: staged!.file, downloaded: download }, null, 2));
+    console.log(JSON.stringify({ passed: true, isHeadless, isHost, isStdio, evidence: path.join(root, 'evidence.json') }));
   }
-  assert.equal(downloads.length, 1);
-  assert(downloads[0].includes('desktop_login=present'));
-  assert.deepEqual(Buffer.from(await worker.download(download.id)), downloadPayload);
-  assert.equal(download.sha256, createHash('sha256').update(downloadPayload).digest('hex'));
-  writeFileSync(path.join(root, 'evidence.json'), JSON.stringify({ isHeadless, browserSessionId: initial.browserSessionId, profileId: initial.profileId, aiBlocked: true, originalCookie: true, trustedReceipt: receipt, stagedFile: staged.file, downloaded: download }, null, 2));
-  console.log(JSON.stringify({ passed: true, isHeadless, isHost, isStdio, evidence: path.join(root, 'evidence.json') }));
 } finally {
   await stdio?.close();
   await worker.close();
