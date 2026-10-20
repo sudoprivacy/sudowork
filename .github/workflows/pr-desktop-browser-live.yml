@@ -48,6 +48,7 @@ jobs:
           node apps/desktop/scripts/build-browser-mcp.js
           bun build ./apps/desktop/tests/integration/localBrowserWorker.live.ts --target=node --format=esm --outfile=./desktop-browser-live.mjs
           bun build ./apps/desktop/tests/integration/browserRuntimeInstall.live.ts --tsconfig-override=./apps/desktop/tsconfig.json --target=node --format=cjs --external electron --outfile=./desktop-browser-install-live.cjs
+          python -m py_compile apps/desktop/tests/e2e/live_cloud_browser.py
       - name: Prepare Electron's Linux sandbox
         if: runner.os == 'Linux'
         shell: bash

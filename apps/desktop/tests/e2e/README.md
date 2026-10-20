@@ -226,6 +226,42 @@ python apps/desktop/tests/e2e/live_browser_runtime_install.py --bundle desktop-b
 Use `xvfb-run -a` for this command on Linux without a display. A working Python
 installation must be available, as required by the product's normal setup flow.
 
+### Desktop connected to the managed cloud browser
+
+`live_cloud_browser.py` drives an isolated, built Electron app from its fresh
+Chinese login screen. It uses the ordinary API Key login and Server execution
+controls, requires a real completed cloud model turn, and verifies the local
+conversation record binds to an actual Moss session. BrowserPanel launches
+headful managed Chrome; a separate Electron viewer delivers trusted Unicode
+input and one submission. Return asks AI to read the current page without
+providing the expected human value. Scoped browser permissions use the normal
+visible Allow Once cards.
+
+Use a dedicated owner with working cloud model billing. Keep this configuration
+outside the repository and use a restricted key:
+
+```json
+{
+  "mossBaseUrl": "https://agent.sudoprivacy.com",
+  "apiKey": "<dedicated-owner-key>",
+  "ownerId": "<fixture-owner-id>",
+  "orgId": "<fixture-organization-id>"
+}
+```
+
+```powershell
+python apps/desktop/tests/e2e/live_cloud_browser.py --port 9232 --config C:/private/cloud-test.json --home C:/private/isolated-home --user-data C:/private/isolated-user-data --output C:/private/new-cloud-evidence --fixture-port 50181 --fixture-origin http://private-vm-fixture-host:port
+```
+
+The fixture must be reachable from VM Chrome through an authorized private
+tunnel. The test uses no local browser worker or local model account, confirms
+Stop and Return, and terminates only its exact cloud session through that owner's
+normal API after checking organization and ownership. Three subsequent reads
+must preserve termination. It leaves the app open for inspection; close that
+owned app normally and remove its temporary credential/profile copies afterward.
+The caller owns the supplied key's lifecycle. This live test needs real account
+credentials and is run locally before commit.
+
 ## Rules
 
 1. `primitives/` and `ops/` are AUTO-GENERATED. Never hand-edit.
