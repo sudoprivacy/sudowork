@@ -323,3 +323,30 @@ and browser input requests so a failure can be investigated without replaying it
 If the fixture origin uses a reverse proxy or tunnel, forward `/note` together
 with `/review`, `/submit` and `/receipts`. `fixture-summary.json` records the
 actual trusted note and upload events even when the journey fails.
+
+## Mobile remote-view scale and touch
+
+`live_browser_view_performance.py --verify-mobile-view` uses an actual Chromium
+touch context at 390 by 844 against the authenticated application and real
+managed Chrome. Its fixture puts a login form near the right edge. The viewer
+selects 100% scale and drags the local image with trusted touch gestures. It
+requires unchanged remote viewport dimensions and zero remote inputs during
+that pan, then explicitly selects Interact with page, enters exact Unicode
+text and submits once. The shared component provides this behavior in Desktop
+and WebUI; the test does not alter the browser's viewport to fit the phone.
+
+```sh
+python apps/webui/tests/e2e/live_browser_view_performance.py \
+  --config /private/browser-live.json \
+  --verify-mobile-view --verify-profile-persistence \
+  --fixture-origin http://worker-reachable-fixture:50181 \
+  --output /private/evidence/mobile-browser-view-001
+```
+
+The profile option also proves the website login survives a real Chrome
+restart and that a real model reads the identity through browser tools after
+Return. The permission helper resolves scode's explicit `MCPTool` qualified
+target before answering a visible one-time browser permission. It rejects
+unrelated wrapper targets, even if their arguments mention the browser.
+This is desktop Chromium touch emulation. Physical iPhone interaction remains
+a separate acceptance step, and every receipt records `actualPhone: false`.

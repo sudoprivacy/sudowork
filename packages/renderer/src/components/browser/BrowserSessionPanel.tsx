@@ -1,5 +1,5 @@
 import { Button, Empty, Input, Message, Modal, Select, Spin } from '@arco-design/web-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { BrowserFileSchema, BrowserInputSchema, BrowserSessionReplySchema, isCurrentBrowserFrame, type BrowserFile, type BrowserInput, type BrowserSessionAction, type BrowserSessionReply, type BrowserSessionState } from '@sudowork/contracts/browser-session';
@@ -20,6 +20,11 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
   const [isHeadless, setIsHeadless] = useState(true);
   const [transport, setTransport] = useState<'extension' | 'cdp'>(initialTransport);
   const [selectedSurface, setSelectedSurface] = useState<'page' | 'window' | null>(null);
+  const [imageZoom, setImageZoom] = useState<number | null>(null);
+  const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const panRef = useRef<{ id: number; x: number; y: number; left: number; top: number } | null>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const fileChoiceRef = useRef<{ generation: number; chooserId: string; controlEpoch: number; targetEpoch: number } | null>(null);
@@ -154,7 +159,56 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
   const isController = session?.state === 'human' && session.isController && !isTransferring && !isFileTransferring && !error;
   const isStoppedController = session?.state === 'stopped' && session.isController && session.isHumanControlHeld && !isTransferring && !error;
   const isReturnAvailable = !!(isController || isStoppedController);
-  isInteractiveRef.current = !!isController;
+  isInteractiveRef.current = !!isController && !isPanning;
+
+  useEffect(() => {
+    setImageZoom(null);
+    setIsPanning(false);
+    panRef.current = null;
+    const viewport = viewportRef.current;
+    if (viewport) viewport.scrollLeft = viewport.scrollTop = 0;
+  }, [conversationId]);
+
+  const onImageLoad = () => {
+    const image = imageRef.current;
+    if (!image) return;
+    setImageSize((previous) => (previous.width === image.naturalWidth && previous.height === image.naturalHeight ? previous : { width: image.naturalWidth, height: image.naturalHeight }));
+    setIsFrameReady(true);
+  };
+
+  const onImageZoom = (value: string | number) => {
+    const zoom = value === 'fit' ? null : Number(value);
+    if (zoom !== null && (!Number.isFinite(zoom) || zoom < 0.25 || zoom > 2)) return;
+    setImageZoom(zoom);
+    setIsPanning(zoom !== null);
+    panRef.current = null;
+    const viewport = viewportRef.current;
+    if (viewport) viewport.scrollLeft = viewport.scrollTop = 0;
+    viewportRef.current?.focus({ preventScroll: true });
+  };
+
+  const onPanStart = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!isPanning || panRef.current || event.button !== 0) return;
+    const viewport = event.currentTarget;
+    panRef.current = { id: event.pointerId, x: event.clientX, y: event.clientY, left: viewport.scrollLeft, top: viewport.scrollTop };
+    viewport.setPointerCapture?.(event.pointerId);
+    viewport.focus({ preventScroll: true });
+    event.preventDefault();
+  };
+
+  const onPanMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const pan = panRef.current;
+    if (!isPanning || pan?.id !== event.pointerId) return;
+    event.currentTarget.scrollLeft = pan.left + pan.x - event.clientX;
+    event.currentTarget.scrollTop = pan.top + pan.y - event.clientY;
+    event.preventDefault();
+  };
+
+  const onPanEnd = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (panRef.current?.id !== event.pointerId) return;
+    panRef.current = null;
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  };
 
   const queueInput = useCallback(
     (input: BrowserInput) => {
@@ -598,15 +652,60 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
         </Button>
         <Input aria-label={t('conversation.browserSession.address')} value={url} disabled={!isController} onChange={setUrl} onPressEnter={() => void onAction('navigate')} />
       </div>
-      <div className='relative flex-1 min-h-32 overflow-auto flex items-start justify-center'>
-        <img
-          ref={imageRef}
-          alt={t('conversation.browserSession.page')}
-          tabIndex={isController ? 0 : -1}
-          onLoad={() => setIsFrameReady(true)}
-          className='max-w-full max-h-full object-contain outline-none'
-          style={{ pointerEvents: isController ? 'auto' : 'none', touchAction: 'none', visibility: isFrameReady ? 'visible' : 'hidden' }}
+      <div className='flex flex-wrap items-center gap-2'>
+        <Select
+          aria-label={t('conversation.browserSession.imageZoom')}
+          value={imageZoom ?? 'fit'}
+          disabled={!isFrameReady}
+          onChange={onImageZoom}
+          style={{ width: 110 }}
+          options={[{ value: 'fit', label: t('conversation.browserSession.fitImage') }, ...[0.5, 0.75, 1, 1.25, 1.5, 2].map((value) => ({ value, label: `${value * 100}%` }))]}
         />
+        <Button size='small' aria-pressed={isPanning} type={isPanning ? 'primary' : 'secondary'} disabled={!isFrameReady} onClick={() => setIsPanning(true)}>
+          {t('conversation.browserSession.panImage')}
+        </Button>
+        <Button
+          size='small'
+          aria-pressed={!isPanning}
+          type={!isPanning ? 'primary' : 'secondary'}
+          disabled={!isController || !isFrameReady}
+          onClick={() => {
+            panRef.current = null;
+            setIsPanning(false);
+            imageRef.current?.focus({ preventScroll: true });
+          }}
+        >
+          {t('conversation.browserSession.interactPage')}
+        </Button>
+      </div>
+      <div
+        ref={viewportRef}
+        aria-label={t('conversation.browserSession.imageViewport')}
+        tabIndex={isPanning ? 0 : -1}
+        className='relative flex-1 min-h-32 overflow-auto outline-none'
+        style={{ touchAction: isPanning ? 'none' : undefined, cursor: isPanning ? 'grab' : undefined }}
+        onPointerDown={onPanStart}
+        onPointerMove={onPanMove}
+        onPointerUp={onPanEnd}
+        onPointerCancel={onPanEnd}
+      >
+        <div className={imageZoom === null ? 'h-full w-full flex items-start justify-center' : 'min-h-full min-w-full w-max flex items-start justify-center'}>
+          <img
+            ref={imageRef}
+            alt={t('conversation.browserSession.page')}
+            draggable={false}
+            tabIndex={isController && !isPanning ? 0 : -1}
+            onLoad={onImageLoad}
+            className={imageZoom === null ? 'max-w-full max-h-full object-contain outline-none' : 'max-w-none max-h-none shrink-0 outline-none'}
+            style={{
+              width: imageZoom !== null && imageSize.width ? imageSize.width * imageZoom : undefined,
+              height: imageZoom !== null && imageSize.height ? imageSize.height * imageZoom : undefined,
+              pointerEvents: isController && !isPanning ? 'auto' : 'none',
+              touchAction: 'none',
+              visibility: isFrameReady ? 'visible' : 'hidden',
+            }}
+          />
+        </div>
         {!isFrameReady ? <div className='absolute inset-0 flex items-center justify-center'>{error ? <Empty description={error} /> : session?.state === 'stopped' ? <Empty description={t('conversation.browserSession.waiting')} /> : <Spin />}</div> : null}
       </div>
       {isController ? (
