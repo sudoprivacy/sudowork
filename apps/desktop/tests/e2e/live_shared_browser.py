@@ -179,6 +179,7 @@ async def main():
     parser.add_argument('--model-config', type=Path, help='Private model configuration to save through the ordinary Desktop settings editor after offline entry')
     parser.add_argument('--pending-native-question', action='store_true', help='Take control while the real model is waiting on its native question card, then verify the cancelled card no longer captures chat input')
     parser.add_argument('--verify-selection-clipboard', action='store_true', help='Use real viewer drag selection, local clipboard, multiline paste and Chromium IME composition; restore an unchanged owned clipboard value afterwards')
+    parser.add_argument('--first-use-runtime', type=Path, help='Owned app runtime interpreter to observe during a genuine first-use install; does not preinstall or modify it')
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=False)
     nonce = uuid4().hex[:10]
@@ -301,6 +302,32 @@ document.querySelector('#clipboard-submit').onclick=event=>fetch('/clipboard-sub
                 await wait_for(bootstrapped, 180, 'The real agent did not finish its initial turn')
                 await app.click_text('浏览器', 'Browser')
                 await app.click_text('连接我的 Chrome', 'Connect my Chrome')
+                if args.first_use_runtime:
+                    runtime = args.first_use_runtime.resolve()
+                    runtime_root = runtime.parent.parent
+                    expected_version = runtime_root.name
+                    started = time.monotonic()
+                    async def runtime_ready():
+                        if not runtime.is_file():
+                            return False
+                        records = [runtime_root / 'Lib' / 'site-packages' / f'ai_dev_browser-{expected_version}.dist-info' / 'RECORD']
+                        records.extend(runtime_root.glob(f'lib/python*/site-packages/ai_dev_browser-{expected_version}.dist-info/RECORD'))
+                        if not any(record.is_file() for record in records):
+                            return False
+                        check = await asyncio.create_subprocess_exec(
+                            str(runtime), '-I', '-c',
+                            "from importlib.metadata import version; assert version('ai-dev-browser')==" + repr(expected_version) + "; import ai_dev_browser.remote.worker",
+                            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+                        )
+                        _, error = await check.communicate()
+                        assert check.returncode == 0, error.decode(errors='replace')
+                        return True
+                    # The normal app installer has a 300 s pip budget. Observe
+                    # that separate first-use phase; keep the existing profile
+                    # consent deadline below unchanged once the runtime is ready.
+                    await wait_for(runtime_ready, 300, 'The normal first-use browser runtime did not become ready')
+                    evidence['normalFirstUseRuntimeReady'] = True
+                    evidence['firstUseRuntimeReadyMs'] = round((time.monotonic() - started) * 1000, 2)
                 async def profile_confirmation():
                     return await app.read("Boolean(document.querySelector('.arco-modal-footer button'))")
                 await wait_for(profile_confirmation, 20, 'The host did not request explicit profile selection')

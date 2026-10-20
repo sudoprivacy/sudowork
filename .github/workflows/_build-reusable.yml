@@ -595,7 +595,7 @@ jobs:
           CI: true
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
-      - name: Verify packaged i18n assets
+      - name: Verify packaged renderer and browser assets
         if: >-
           !startsWith(matrix.platform, 'windows') ||
           steps.windows-build.outputs.result == 'success'
