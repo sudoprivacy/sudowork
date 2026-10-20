@@ -44,7 +44,15 @@ vi.mock('@arco-design/web-react', () => ({
       }}
     />
   ),
-  Select: () => null,
+  Select: ({ options, value, onChange, ...rest }: { options: { value: string | number; label: string }[]; value: string | number; onChange: (value: string) => void; 'aria-label'?: string; disabled?: boolean }) => (
+    <select aria-label={rest['aria-label']} disabled={rest.disabled} value={value} onChange={(event) => onChange(event.target.value)}>
+      {options?.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  ),
   Empty: () => null,
   Spin: () => null,
   Modal: { confirm: host.confirm, info: host.info },
@@ -57,6 +65,49 @@ afterEach(() => {
   host.error.mockReset();
   host.confirm.mockReset();
   host.info.mockReset();
+});
+
+it('pans the enlarged view locally and sends mapped input only after explicitly returning to interaction', async () => {
+  const session = activeSession();
+  const inputs: unknown[] = [];
+  host.invoke.mockImplementation(async ({ action }: { action: BrowserSessionAction }) => {
+    if (action.kind === 'input') inputs.push(action.input);
+    return { success: true, data: { session, ...(action.kind === 'frame' ? { frame: { data: 'eA==', width: 1280, height: 720, controlEpoch: 4, targetEpoch: 2 } } : {}) } };
+  });
+  render(<BrowserSessionPanel conversationId='owned-conversation' />);
+  const image = await screen.findByAltText('page');
+  await waitFor(() => expect(image.getAttribute('src')).toMatch(/^data:/));
+  Object.defineProperties(image, { naturalWidth: { value: 1280 }, naturalHeight: { value: 720 }, setPointerCapture: { value: vi.fn() } });
+  fireEvent.load(image);
+  fireEvent.change(screen.getByRole('combobox', { name: 'imageZoom' }), { target: { value: '1' } });
+  expect(image.style.width).toBe('1280px');
+  expect(image.style.pointerEvents).toBe('none');
+  const viewport = screen.getByLabelText('imageViewport');
+  const pointer = (target: HTMLElement, type: string, x: number, y: number) => {
+    const event = new MouseEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0 });
+    Object.defineProperty(event, 'pointerId', { value: 1 });
+    fireEvent(target, event);
+  };
+  pointer(viewport, 'pointerdown', 300, 200);
+  pointer(viewport, 'pointermove', 100, 150);
+  pointer(viewport, 'pointerup', 100, 150);
+  expect(viewport.scrollLeft).toBe(200);
+  expect(viewport.scrollTop).toBe(50);
+  // Guard the SDK send callback as well as CSS: synthetic/stale events cannot
+  // turn a local pan, wheel or keystroke into a remote browser operation.
+  pointer(image, 'pointerdown', 200, 100);
+  pointer(image, 'pointerup', 200, 100);
+  fireEvent.wheel(image, { deltaY: 100 });
+  fireEvent.keyDown(image, { key: 'Enter' });
+  await act(async () => {});
+  expect(inputs).toEqual([]);
+  fireEvent.click(screen.getByRole('button', { name: 'interactPage' }));
+  expect(image.style.pointerEvents).toBe('auto');
+  vi.spyOn(image, 'getBoundingClientRect').mockReturnValue({ x: -200, y: -50, width: 1280, height: 720, left: -200, top: -50, right: 1080, bottom: 670, toJSON: () => ({}) });
+  pointer(image, 'pointerdown', 100, 150);
+  pointer(image, 'pointerup', 100, 150);
+  await waitFor(() => expect(inputs).toEqual([{ kind: 'click', x: 300, y: 200 }]));
+  expect(host.invoke.mock.calls.some(([request]) => ['start', 'navigate', 'take'].includes(request.action.kind))).toBe(false);
 });
 
 it('asks for explicit personal profile selection before connecting and reports unknown launch mode', async () => {
