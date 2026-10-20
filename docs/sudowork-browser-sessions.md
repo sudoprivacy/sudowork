@@ -192,6 +192,7 @@ Agent shell access must not expose an unrestricted browser endpoint or the human
 - Desktop standalone Chrome and cloud Chrome use the same public page surface. The native Desktop Chrome window remains available when headful. Cloud headful window view exposes Chrome UI when needed, including profile sign-in and extension management.
 - Opening a viewer tab uses the existing authenticated session. Credentials are not placed in the URL. A copied link requires login and current session permission.
 - Target changes advance `targetEpoch`; stale frames and input are rejected. Coordinates are calculated from the actual remote viewport, including resizing and mobile touch input.
+- View scale is local to each panel or viewer. Fit preserves the overview; explicit scales make small controls readable without resizing Chrome or changing its profile. Selecting a scale enters Move view. Pointer dragging scrolls only the local image, and remote pointer, wheel and keyboard events are blocked until the user selects Interact with page. Ownership still requires Take control.
 - Reconnection verifies browser identity. It never attaches silently to another user's browser or starts a replacement because a transient connection failed.
 - Uploads and downloads belong to the same authenticated session. Desktop picks local files; WebUI stages files through authorized upload/download routes. Cloud pages cannot read arbitrary viewer-device paths.
 - Page view and window view are two surfaces of the same headful browser. Headless has page view only; requesting Chrome UI requires an explicit headful restart.
@@ -681,3 +682,23 @@ Each live run uses a unique fixture query so a persistent profile cannot reuse
 an earlier page. The setup waits for actual browser observation and completion,
 then verifies the requested tab, rather than requiring a redundant navigation
 tool call when the browser is already on the requested page.
+
+### Mobile view scale and touch preflight
+
+On October 20, 2026, the shared panel passed a real public-origin journey with
+candidate assets, production Moss 0.1.74 and managed extension Chrome. A
+390 by 844 Chromium touch viewer selected 100% scale, dragged to a form near
+the right edge, switched from Move view to Interact with page, entered exact
+Unicode text and submitted once through trusted touch input. Moving the view
+sent no remote input, and the browser viewport stayed unchanged. The same
+profile retained its website login after an explicit browser restart. Real
+gpt-6-luna observed and reported that persisted identity after Return to AI.
+The run then stopped Chrome, returned the lease, received the model's cleanup
+acknowledgement, durably terminated its conversation and revoked its temporary key.
+
+The measurement was 3.37 rendered frames/s, 2.66 distinct frames/s, 292.9 ms
+median render interval, 606.6 ms p95 and 740.9 ms click-to-visible feedback.
+This is usable for deliberate form interaction; it does not establish smooth
+animation. The live case is `live_browser_view_performance.py` with
+`--verify-mobile-view --verify-profile-persistence`. This candidate preflight
+does not establish deployment or physical iPhone/Safari acceptance.
