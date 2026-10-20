@@ -31,6 +31,7 @@ export const BrowserSessionStateSchema = z.object({
   isHeadless: z.boolean().nullable(),
   transport: z.enum(["cdp", "extension", "electron"]),
   capabilities: z.object({
+    conversationControl: z.boolean().optional(),
     lifecycle: z.boolean().optional(),
     fileTransfer: z.boolean().optional(),
     existingExtension: z.boolean().optional(),

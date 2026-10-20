@@ -41,6 +41,8 @@ import { getProviderForConversation, getConversationProvider, isRemoteProvider }
 import { getMossApi, getMossApiServerUrl, initMossApi } from '../remote/MossSessionApi';
 import { turnInputCoordinator } from '../task/turnInputCoordinator';
 import { reapConversation } from '../services/conversationReaper';
+import { getLocalBrowserSessions } from '../services/browserPanel/localBrowserSessionHost';
+import { localAgentToolControl } from '../services/browserPanel/localToolControl';
 import { closeBrowserTabsByConversation } from './browserPanelBridge';
 import { closeTerminalsByConversation } from './terminalBridge';
 import { migrateConversationToDatabase } from './migrationUtils';
@@ -804,7 +806,14 @@ export function initConversationBridge(): void {
     if (task.type !== 'acp' && task.type !== 'remote-agent') {
       return { success: false, msg: 'not support' };
     }
-    await task.stop();
+    if (task.type === 'acp') {
+      await getLocalBrowserSessions().interruptConversation(conversation_id);
+      await task.stop();
+    } else {
+      await task.stop();
+      const { extra, mossSessionId, pending } = getRemoteConversationSession(conversation_id);
+      if (!pending && mossSessionId) await getRemoteConversationMossApi(extra).changeBrowserConversation(mossSessionId, 'interrupt');
+    }
     return { success: true };
   });
 
@@ -849,7 +858,13 @@ export function initConversationBridge(): void {
     }
 
     let task: AcpAgent | import('../task/RemoteAgent').default | undefined;
+    let browserAdmission: number | undefined;
     try {
+      if (teamGuardData?.type === 'acp') browserAdmission = await getLocalBrowserSessions().prepareUserMessage(conversation_id);
+      else if (teamGuardData?.type === 'remote-agent') {
+        const { extra, mossSessionId, pending } = getRemoteConversationSession(conversation_id);
+        if (!pending && mossSessionId) await getRemoteConversationMossApi(extra).changeBrowserConversation(mossSessionId, 'continue');
+      }
       getProviderForConversation(conversation_id);
       task = (await WorkerManage.getTaskByIdRollbackBuild(conversation_id)) as AcpAgent | import('../task/RemoteAgent').default | undefined;
     } catch (err) {
@@ -998,6 +1013,7 @@ export function initConversationBridge(): void {
             // text is merged — tail items are text-only in practice (queued sends without
             // attachments); their `files`/`skills` slots are not exposed to the coordinator.
             run: (tail) => {
+              localAgentToolControl.assertCanPrompt(browserAdmission);
               if (!tail || tail.length === 0) return task.sendMessage(payload);
               const combined = [payload.content, ...tail.map((t) => t.content)].join('\n\n');
               return task.sendMessage({ ...payload, content: combined });

@@ -4,7 +4,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import type { BrowserSessionAction, BrowserSessionState } from '@sudowork/contracts/browser-session';
 import BrowserSessionPanel from '@renderer/components/browser/BrowserSessionPanel';
 
-const host = vi.hoisted(() => ({ invoke: vi.fn(), error: vi.fn(), confirm: vi.fn(), info: vi.fn() }));
+const host = vi.hoisted(() => ({ invoke: vi.fn(), stop: vi.fn(), error: vi.fn(), confirm: vi.fn(), info: vi.fn() }));
 
 function activeSession(): BrowserSessionState {
   return {
@@ -16,13 +16,13 @@ function activeSession(): BrowserSessionState {
     isController: true,
     isHeadless: true,
     transport: 'extension',
-    capabilities: { pageView: true, windowView: false, persistentProfile: true },
+    capabilities: { conversationControl: true, pageView: true, windowView: false, persistentProfile: true },
     activeTargetId: 'owned-tab',
     tabs: [{ id: 'owned-tab', title: 'Form', url: 'https://example.test/' }],
     error: null,
   };
 }
-vi.mock('@sudowork/host-bridge/ipcBridge', () => ({ browserSession: { invoke: { invoke: (...args: unknown[]) => host.invoke(...args) } } }));
+vi.mock('@sudowork/host-bridge/ipcBridge', () => ({ browserSession: { invoke: { invoke: (...args: unknown[]) => host.invoke(...args) } }, conversation: { stop: { invoke: (...args: unknown[]) => host.stop(...args) } } }));
 vi.mock('react-i18next', () => {
   const t = (key: string) => key.split('.').at(-1);
   return { useTranslation: () => ({ t }) };
@@ -62,6 +62,7 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   host.invoke.mockReset();
+  host.stop.mockReset();
   host.error.mockReset();
   host.confirm.mockReset();
   host.info.mockReset();
@@ -153,7 +154,8 @@ it('lets the host recover a stopped personal reference without a retained human 
   const sent = host.invoke.mock.calls.find(([request]) => request.action.kind === 'disconnect-existing-extension')?.[0].action;
   expect(sent).toEqual({ kind: 'disconnect-existing-extension', controlEpoch: recovered.controlEpoch, targetEpoch: recovered.targetEpoch });
   expect(screen.queryByRole('button', { name: 'personalDisconnect' })).toBeNull();
-  expect(screen.getByRole('button', { name: 'return' }).hasAttribute('disabled')).toBe(false);
+  expect(screen.queryByRole('button', { name: 'return' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'take' })).toBeNull();
 });
 
 it('recovers after a lifecycle transition and reads frame state without reattaching every tick', async () => {
@@ -185,7 +187,7 @@ it('recovers after a lifecycle transition and reads frame state without reattach
   expect(actions.slice(0, 5)).toEqual(['state', 'state', 'attach', 'frame', 'frame']);
 });
 
-it('preserves click, select-all and Unicode typing before returning control over a slow connection', async () => {
+it('preserves click, select-all and Unicode typing over a slow connection without a second handoff UI', async () => {
   const session: BrowserSessionState = {
     browserSessionId: 'owned-browser',
     profileId: 'owned-profile',
@@ -195,7 +197,7 @@ it('preserves click, select-all and Unicode typing before returning control over
     isController: true,
     isHeadless: true,
     transport: 'extension',
-    capabilities: { pageView: true, windowView: false, persistentProfile: true },
+    capabilities: { conversationControl: true, pageView: true, windowView: false, persistentProfile: true },
     activeTargetId: 'owned-tab',
     tabs: [{ id: 'owned-tab', title: 'Form', url: 'https://example.test/' }],
     error: null,
@@ -220,11 +222,6 @@ it('preserves click, select-all and Unicode typing before returning control over
       }
       applied.push(action.input.kind);
     }
-    if (action.kind === 'return') {
-      applied.push('return');
-      session.state = 'ai';
-      session.isController = false;
-    }
     return { success: true, data: { session: { ...session }, ...(action.kind === 'frame' ? { frame: { data: 'eA==', width: 100, height: 100, controlEpoch: 4, targetEpoch: 2 } } : {}) } };
   });
   render(<BrowserSessionPanel conversationId='owned-conversation' />);
@@ -242,7 +239,7 @@ it('preserves click, select-all and Unicode typing before returning control over
   fireEvent.keyDown(image, { key: 'a', ctrlKey: true });
   fireEvent.change(screen.getByRole('textbox', { name: 'text' }), { target: { value: 'HUMAN 中文' } });
   fireEvent.click(screen.getByRole('button', { name: 'insert' }));
-  fireEvent.click(screen.getByRole('button', { name: 'return' }));
+  expect(screen.queryByRole('button', { name: 'return' })).toBeNull();
   await act(async () => {
     await Promise.resolve();
   });
@@ -251,7 +248,47 @@ it('preserves click, select-all and Unicode typing before returning control over
   await act(async () => {
     releaseClick();
   });
-  await waitFor(() => expect(applied).toEqual(['click', 'key', 'text', 'return']));
+  await waitFor(() => expect(applied).toEqual(['click', 'key', 'text']));
   expect(value).toBe('HUMAN 中文');
   expect(host.error).not.toHaveBeenCalled();
+});
+
+it('uses the existing interrupt for a page gesture and never replays it after the barrier', async () => {
+  const session = { ...activeSession(), state: 'ai' as BrowserSessionState['state'], isController: false };
+  const inputs: unknown[] = [];
+  let acknowledge!: () => void;
+  host.stop.mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        acknowledge = () => {
+          session.state = 'human';
+          session.isController = true;
+          session.controlEpoch++;
+          resolve({ success: true });
+        };
+      })
+  );
+  host.invoke.mockImplementation(async ({ action }: { action: BrowserSessionAction }) => {
+    if (action.kind === 'input') inputs.push(action.input);
+    return { success: true, data: { session: { ...session }, ...(action.kind === 'frame' ? { frame: { data: 'eA==', width: 100, height: 100, controlEpoch: session.controlEpoch, targetEpoch: session.targetEpoch } } : {}) } };
+  });
+  render(<BrowserSessionPanel conversationId='owned-conversation' />);
+  const image = await screen.findByAltText('page');
+  await waitFor(() => expect(image.getAttribute('src')).toMatch(/^data:/));
+  fireEvent.load(image);
+  const viewport = screen.getByLabelText('imageViewport');
+  fireEvent.pointerDown(viewport, { button: 0 });
+  expect(host.stop).toHaveBeenCalledWith({ conversation_id: 'owned-conversation' });
+  expect(inputs).toEqual([]);
+  fireEvent.pointerDown(viewport, { button: 0 });
+  expect(host.stop).toHaveBeenCalledOnce();
+  await act(async () => {
+    acknowledge();
+  });
+  await waitFor(() => expect(image.getAttribute('src')).toMatch(/^data:/));
+  fireEvent.load(image);
+  expect(inputs).toEqual([]);
+  expect(screen.queryByRole('button', { name: 'return' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'take' })).toBeNull();
+  expect(host.invoke.mock.calls.some(([request]) => ['take', 'return', 'navigate', 'start'].includes(request.action.kind))).toBe(false);
 });

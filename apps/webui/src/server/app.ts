@@ -14,6 +14,7 @@ import {
   MossNetworkError,
   mossFetchAsset,
   mossRequest,
+  changeMossBrowserConversation,
 } from '@sudowork/moss-client'
 import {
   createOriginGuard,
@@ -226,7 +227,15 @@ export function registerApiRoutes(app: Express, deps: ApiDeps): ApiHandles {
 
   const auth = { pool, config, mossAuth: deps.mossAuth }
   const coordinator =
-    deps.coordinator ?? new ConversationCoordinator({ pool, config, auth, moss: mossSession })
+    deps.coordinator ??
+    new ConversationCoordinator({
+      pool,
+      config,
+      auth,
+      moss: mossSession,
+      browserControl: (ctx, sessionId, intent) =>
+        changeMossBrowserConversation(mossFetch, ctx, sessionId, intent),
+    })
   const agents = deps.agents ?? createMossAgentTemplatePort(mossFetch)
   const skills = deps.skills ?? createMossSkillPort(mossFetch)
 

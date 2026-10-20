@@ -14,7 +14,6 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
   const [isFileTransferring, setIsFileTransferring] = useState(false);
   const [url, setUrl] = useState('');
   const [text, setText] = useState('');
-  const [note, setNote] = useState('');
   const [dialogText, setDialogText] = useState('');
   const [isFrameReady, setIsFrameReady] = useState(false);
   const [isHeadless, setIsHeadless] = useState(true);
@@ -156,10 +155,10 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     };
   }, [conversationId, initialTransport, invoke, isActive, isControlsOnly, selectedSurface, t, update]);
 
-  const isController = session?.state === 'human' && session.isController && !isTransferring && !isFileTransferring && !error;
-  const isStoppedController = session?.state === 'stopped' && session.isController && session.isHumanControlHeld && !isTransferring && !error;
-  const isReturnAvailable = !!(isController || isStoppedController);
-  isInteractiveRef.current = !!isController && !isPanning;
+  const isConversationControlSupported = session?.capabilities.conversationControl === true;
+  const isController = isConversationControlSupported && session?.state === 'human' && session.isController && !isTransferring && !isFileTransferring && !error;
+  const isStoppedController = isConversationControlSupported && session?.state === 'stopped' && session.isController && session.isHumanControlHeld && !isTransferring && !error;
+  isInteractiveRef.current = !!isController && isFrameReady && !isPanning;
 
   useEffect(() => {
     setImageZoom(null);
@@ -244,29 +243,54 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
   );
 
   const onAction = useCallback(
-    async (kind: 'take' | 'return' | 'navigate' | 'back' | 'forward' | 'reload' | 'new-tab' | 'select-tab' | 'close-tab', targetId?: string) => {
+    async (kind: 'navigate' | 'back' | 'forward' | 'reload' | 'new-tab' | 'select-tab' | 'close-tab', targetId?: string) => {
       const generation = generationRef.current;
-      if (kind === 'take' || kind === 'return') setIsTransferring(true);
-      if (kind === 'return') isInteractiveRef.current = false;
       try {
-        if (kind !== 'take') await pendingInputsRef.current;
+        await pendingInputsRef.current;
         if (generationRef.current !== generation) return;
         const current = sessionRef.current;
         if (!current) return;
         const epochs = { controlEpoch: current.controlEpoch, targetEpoch: current.targetEpoch };
-        const action: BrowserSessionAction = kind === 'navigate' ? { kind, url, ...epochs } : kind === 'return' ? { kind, note, ...epochs } : kind === 'select-tab' || kind === 'close-tab' ? { kind, targetId: targetId!, ...epochs } : { kind, ...epochs };
+        const action: BrowserSessionAction = kind === 'navigate' ? { kind, url, ...epochs } : kind === 'select-tab' || kind === 'close-tab' ? { kind, targetId: targetId!, ...epochs } : { kind, ...epochs };
         const reply = await invoke(action);
         if (generationRef.current !== generation) return;
         update(reply.session);
-        if (kind === 'return') setNote('');
       } catch (failure) {
         if (generationRef.current === generation) Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
       } finally {
         if (generationRef.current === generation) setIsTransferring(false);
       }
     },
-    [invoke, note, t, update, url]
+    [invoke, t, update, url]
   );
+
+  const interruptRef = useRef(false);
+  const onBrowserInterrupt = async () => {
+    if (interruptRef.current || isPanning || !isFrameReady || sessionRef.current?.state !== 'ai' || !isConversationControlSupported) return;
+    const generation = generationRef.current;
+    interruptRef.current = true;
+    setIsTransferring(true);
+    try {
+      // This is the existing task interrupt, including host acknowledgements.
+      // The initiating gesture is discarded: it was aimed at an older frame.
+      const reply = await ipcBridge.conversation.stop.invoke({ conversation_id: conversationId });
+      if (!reply?.success) throw new Error(reply?.msg || t('conversation.browserSession.unavailable'));
+      const deadline = performance.now() + 30_000;
+      while (generationRef.current === generation) {
+        const next = await invoke({ kind: 'state' });
+        if (generationRef.current !== generation) return;
+        update(next.session);
+        if (next.session.state === 'human' && next.session.isController) return;
+        if (next.session.state === 'error' || performance.now() >= deadline) throw new Error(t('conversation.browserSession.unavailable'));
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+    } catch (failure) {
+      if (generationRef.current === generation) Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
+    } finally {
+      interruptRef.current = false;
+      if (generationRef.current === generation) setIsTransferring(false);
+    }
+  };
 
   useEffect(() => {
     if (!imageRef.current) return;
@@ -491,18 +515,12 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     }
   };
 
-  const handoffNote = isReturnAvailable ? <Input aria-label={t('conversation.browserSession.note')} placeholder={t('conversation.browserSession.note')} value={note} maxLength={2000} onChange={setNote} /> : null;
   const controls = (
     <div className='flex flex-wrap items-center gap-2'>
       <span role='status'>{isTransferring ? t('conversation.browserSession.transferring') : t(`conversation.browserSession.state.${session?.state || 'stopped'}`)}</span>
       {session ? <span className='text-xs text-t-secondary'>{t(`conversation.browserSession.${session.isHeadless === null ? 'modeUnknown' : session.isHeadless ? 'headless' : 'headful'}`)}</span> : null}
       {session?.personalExtension ? <span>{t('conversation.browserSession.personalBrowser')}</span> : null}
-      <Button size='mini' disabled={!session || session.state !== 'ai' || isTransferring || !!error} onClick={() => void onAction('take')}>
-        {t('conversation.browserSession.take')}
-      </Button>
-      <Button size='mini' disabled={!isReturnAvailable} onClick={() => void onAction('return')}>
-        {t('conversation.browserSession.return')}
-      </Button>
+      {isViewer && !isControlsOnly ? <a href={`${location.pathname}${location.search}#/conversation/${encodeURIComponent(conversationId)}`}>{t('conversation.browserSession.openConversation')}</a> : null}
       {!isViewer || isControlsOnly ? (
         <Button size='mini' onClick={() => openBrowserSessionWindow(conversationId)}>
           {t('conversation.browserSession.openViewer')}
@@ -526,7 +544,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     return (
       <div className='h-full min-h-0 box-border flex flex-col gap-2 overflow-auto p-2' data-testid='browser-session-controls'>
         {controls}
-        {handoffNote}
+        <p className='text-xs text-t-secondary'>{t(`conversation.browserSession.${isConversationControlSupported ? 'conversationControl' : 'conversationUpdateRequired'}`)}</p>
         {error ? <div role='alert'>{error}</div> : null}
       </div>
     );
@@ -534,9 +552,9 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
   return (
     <div className='h-full min-h-0 box-border flex flex-col gap-2 overflow-auto p-2' data-testid='browser-session-panel'>
       {controls}
-      {handoffNote}
+      <p className='text-xs text-t-secondary'>{t(`conversation.browserSession.${isConversationControlSupported ? 'conversationControl' : 'conversationUpdateRequired'}`)}</p>
       {session?.capabilities.existingExtension && session.state === 'stopped' ? (
-        <Button size='mini' disabled={isTransferring || !!error} onClick={() => void onInspectExisting()}>
+        <Button size='mini' disabled={!isConversationControlSupported || isTransferring || !!error} onClick={() => void onInspectExisting()}>
           {t('conversation.browserSession.personalConnect')}
         </Button>
       ) : null}
@@ -567,7 +585,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
             options={[...(!session.capabilities.existingExtension ? [{ value: 'extension', label: t('conversation.browserSession.extension') }] : []), { value: 'cdp', label: t('conversation.browserSession.cdp') }]}
           />
           {session.state === 'stopped' ? (
-            <Button size='mini' disabled={isTransferring || !!error} onClick={() => void onStart()}>
+            <Button size='mini' disabled={!isConversationControlSupported || isTransferring || !!error} onClick={() => void onStart()}>
               {t('conversation.browserSession.start')}
             </Button>
           ) : (
@@ -685,6 +703,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
         className='relative flex-1 min-h-32 overflow-auto outline-none'
         style={{ touchAction: isPanning ? 'none' : undefined, cursor: isPanning ? 'grab' : undefined }}
         onPointerDown={onPanStart}
+        onPointerDownCapture={() => void onBrowserInterrupt()}
         onPointerMove={onPanMove}
         onPointerUp={onPanEnd}
         onPointerCancel={onPanEnd}

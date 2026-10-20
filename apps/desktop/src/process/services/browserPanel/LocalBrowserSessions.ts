@@ -65,13 +65,34 @@ export class LocalBrowserSessions {
   }
 
   private decorate(conversationId: string, reply: BrowserSessionReply): BrowserSessionReply {
+    reply = { ...reply, session: { ...reply.session, capabilities: { ...reply.session.capabilities, conversationControl: true } } };
     const host = this.options.control.status();
     if (host.state === 'ai') return reply;
     if (host.owner !== conversationId) return { ...reply, session: { ...reply.session, state: 'error', isController: false, isHumanControlHeld: true, error: 'browser_control_held_by_another_conversation' } };
     return { ...reply, session: { ...reply.session, state: host.state === 'human' || reply.session.state === 'stopped' ? reply.session.state : host.state, error: host.error || reply.session.error } };
   }
 
-  async invoke(conversationId: string, value: BrowserSessionAction): Promise<BrowserSessionReply> {
+  /** An ordinary authenticated chat send resumes the existing lease once. */
+  async prepareUserMessage(conversationId: string): Promise<number> {
+    const host = this.options.control.status();
+    if (host.state === 'ai') return this.options.control.assertCanPrompt(host.epoch);
+    if (host.owner !== conversationId || !['human', 'error'].includes(host.state)) throw new Error('Browser control transfer is in progress or belongs to another conversation');
+    const worker = await this.worker(conversationId);
+    const { session } = await this.state(worker);
+    await this.invoke(conversationId, { kind: 'return', controlEpoch: session.controlEpoch, targetEpoch: session.targetEpoch }, true);
+    return this.options.control.assertCanPrompt(host.epoch);
+  }
+
+  /** The normal Stop path acquires only an already allocated browser. */
+  async interruptConversation(conversationId: string): Promise<boolean> {
+    if (!this.workers.has(conversationId)) return false;
+    const { session } = await this.state(await this.worker(conversationId));
+    if (session.state === 'stopped' || (session.state === 'human' && session.isController)) return false;
+    await this.invoke(conversationId, { kind: 'take', controlEpoch: session.controlEpoch, targetEpoch: session.targetEpoch });
+    return true;
+  }
+
+  async invoke(conversationId: string, value: BrowserSessionAction, isConversationContinuation = false): Promise<BrowserSessionReply> {
     const action = BrowserSessionActionSchema.parse(value);
     if (action.kind === 'state' && !this.workers.has(conversationId)) {
       if (!conversationId || conversationId.length > 256) throw new Error('Invalid local browser conversation');
@@ -120,7 +141,7 @@ export class LocalBrowserSessions {
       });
       // One new continuation turn, after both observation and engine admission
       // are acknowledged. A lost notification is reported instead of replayed.
-      await this.options.onReturn(conversationId, action.note, returned.epoch);
+      if (!isConversationContinuation) await this.options.onReturn(conversationId, action.note, returned.epoch);
     } else {
       if (['input', 'navigate', 'back', 'forward', 'reload', 'new-tab', 'select-tab', 'close-tab', 'upload-files', 'stop', 'restart', 'disconnect-existing-extension'].includes(action.kind)) {
         const host = this.options.control.status();
@@ -208,7 +229,8 @@ export class LocalBrowserSessions {
           if (tool.name !== 'browser_launch') return tool;
           return {
             ...tool,
-            description: `${tool.description} Desktop launches standalone CDP. For the user's existing Chrome/profile, ask them to select Connect my Chrome in the Browser panel. That explicit host action pauses agents and attaches the selected profile. After they Return to AI, call browser_observe and continue in that same session; browser_launch does not attach a personal profile.`,
+            description:
+              "Start the browser shared with the user. Choose headless/headful from the task and pass it explicitly; headless still supports a page viewer. Desktop launches standalone Chrome through CDP. For the user's existing Chrome/profile, ask them to select Connect my Chrome in the Browser panel; browser_launch does not attach a personal profile or change its launch mode. When human help is needed, use your native question/options or ordinary conversation. The user uses the existing conversation interrupt and sends a normal message when ready. There are no required browser takeover/return buttons. Host acknowledgements and browser leases still apply: while browser_control_held_by_user is reported, wait and do not bypass it through another tool, shell or browser. After continuation, call browser_observe and discard old coordinates and queued inputs. Never request passwords, cookies or verification codes in chat.",
             inputSchema: { ...tool.inputSchema, properties: { ...tool.inputSchema.properties, transport: { ...tool.inputSchema.properties.transport, enum: ['cdp'], default: 'cdp' } } },
           };
         }),
@@ -219,7 +241,10 @@ export class LocalBrowserSessions {
           JSON.stringify({
             jsonrpc: '2.0',
             id: message.id,
-            result: { isError: true, content: [{ type: 'text', text: 'Desktop extension mode requires the user to explicitly select Connect my Chrome in the Browser panel. Ask them through your native conversation, wait for Return to AI, then use browser_observe on the connected session.' }] },
+            result: {
+              isError: true,
+              content: [{ type: 'text', text: 'Desktop extension mode requires the user to explicitly select Connect my Chrome in the Browser panel. Ask through your native conversation; after the user sends a normal message to continue, call browser_observe on that same connected session.' }],
+            },
           })
         );
         return;

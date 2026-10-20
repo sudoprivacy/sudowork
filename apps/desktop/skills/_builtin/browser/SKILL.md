@@ -55,19 +55,24 @@ Connecting to an already running personal Chrome cannot change its launch mode.
 
 When login, verification or another user action is needed, explain what is
 needed through your agent's normal conversation or native question/options.
-Ask the user to choose **Take control** in BrowserPanel, Open viewer or the
-compact browser controls. Do not create a separate custom question interface.
-For example: "Please take control of the browser and sign in. Choose Return to
-AI when you are ready."
+Use the existing conversation interrupt and normal chat or native answers.
+Do not invent separate takeover/return buttons or a custom question interface.
+For example: "Please sign in using the shared browser and tell me when ready."
+The shared remote page uses the same interrupt when the user starts interacting;
+its initiating gesture is discarded until the task stops and a fresh frame arrives.
+For native Chrome outside the panel, ask the user to interrupt in the conversation
+before editing; arbitrary OS input is not automatically detected.
 
-The host pauses tools and transfers browser ownership. A chat reply or selecting
-an agent option alone does not prove that ownership changed. While human control
+The host acknowledges the tool/input barrier and transfers browser ownership.
+Conversation intent must pass this host transition; a prompt cannot bypass it.
+While human control
 is held, wait; do not use another tool, shell, connection or browser to continue.
 The user may sign in directly on the VM's isolated persistent profile. Do not
 ask them to send passwords, cookies or verification codes in the conversation.
 
-**Return to AI** sends the host's continuation through the existing agent
-conversation. Read the user's optional handoff note, observe the current page
-and control epochs, and continue from the actual state. Discard old coordinates
-and unfinished input plans. A disconnected viewer does not return ownership,
-and a chat message saying "done" does not authorize bypassing the control gate.
+A fresh user message or supported native answer continues through the existing
+conversation after the host drains input and observes the browser. It does not
+create a second synthetic model turn. Read what the user said, freshly observe
+the current page and control epochs, and continue from that actual state.
+Discard old coordinates and unfinished input plans. Reconnecting, closing the
+viewer and idle timeouts never return ownership by themselves.

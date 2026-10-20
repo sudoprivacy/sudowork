@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from ai_dev_browser.core.browser import browser_start, browser_stop
 from live_browser_permissions import approve_browser_permission
-from live_browser_ui import open_browser_panel
+from live_browser_ui import open_browser_panel, interrupt_shared_browser, continue_from_conversation
 from playwright.async_api import Error as PlaywrightError
 from playwright.async_api import async_playwright, expect
 
@@ -239,9 +239,9 @@ async def main(args):
             if before["state"] != "stopped":
                 assert loaded["browserSessionId"] == before["browserSessionId"]
             before = loaded
-            await expect(
-                panel.get_by_role("button", name=labels["take"], exact=True)
-            ).to_be_enabled(timeout=20000)
+            await expect(panel.get_by_text(labels['state']['ai'], exact=True)).to_be_visible(timeout=20000)
+            await expect(panel.get_by_role('button', name=labels['take'], exact=True)).to_have_count(0)
+            await expect(panel.get_by_role('button', name=labels['return'], exact=True)).to_have_count(0)
             assert any(tab["url"] == url for tab in loaded["tabs"]), loaded
             assert receipts == [], receipts
             await expect(
@@ -263,7 +263,7 @@ async def main(args):
                     "viewerUrl": viewer.url,
                     "conversationUrl": page.url,
                     "expectedHumanValue": expected,
-                    "handoffNote": "Read the Participant value, report it exactly, then submit once with a trusted browser click. Do not replace the value.",
+                    "continuationMessage": "I finished editing. Read the Participant value, report it exactly, then submit once with a trusted browser click. Do not replace the value.",
                     "humanInputDrivenByHarness": False,
                     "controllerViewport": await page.evaluate(
                         "()=>({width:innerWidth,height:innerHeight,scale:devicePixelRatio})"
@@ -274,17 +274,7 @@ async def main(args):
                 )
                 print(json.dumps(ready, ensure_ascii=False), flush=True)
             else:
-                await viewer_panel.get_by_role(
-                    "button", name=labels["take"], exact=True
-                ).click()
-                await expect(
-                    viewer_panel.get_by_role(
-                        "button", name=labels["return"], exact=True
-                    )
-                ).to_be_enabled(timeout=15000)
-                await expect(
-                    panel.get_by_role("button", name=labels["take"], exact=True)
-                ).to_be_disabled()
+                await interrupt_shared_browser(viewer, viewer_panel, labels)
                 image = viewer_panel.get_by_role("img", name=labels["page"], exact=True)
                 await expect(image).to_be_visible()
                 if args.headful:
@@ -343,40 +333,12 @@ async def main(args):
                 await viewer.screenshot(
                     path=str(evidence_root / "ui-handoff-human-input.png")
                 )
-                start = len(messages)
-                await send(
-                    "Control is held by the human. Attempt exactly one browser_action reload using freshly observed epochs to verify it is rejected. Do not use any other route, change anything or submit. Report HELD_BY_HUMAN and stop."
-                )
-                await wait_turn(
-                    start,
-                    lambda event: (
-                        event.get("type") == "tool_result"
-                        and "browser_control_held_by_user" in json.dumps(event)
-                    ),
-                )
-                held = messages[start:]
-                assert any(
-                    "browser_control_held_by_user" in m
-                    for m in held
-                    if isinstance(m, str)
-                ), "The human lease did not reject the AI write"
                 assert receipts == [], receipts
-                await viewer.bring_to_front()
-                await viewer_panel.get_by_label(labels["note"], exact=True).fill(
+                start = len(messages)
+                await continue_from_conversation(page,
                     "I filled the Participant field. Freshly observe the same page, report the exact value, "
                     "then submit once with a real click. Do not change the value, call the form API, "
                     "use a JS click, or start another browser."
-                )
-                start = len(messages)
-                await viewer_panel.get_by_role(
-                    "button", name=labels["return"], exact=True
-                ).click()
-                await expect(
-                    viewer_panel.get_by_role("button", name=labels["take"], exact=True)
-                ).to_be_enabled(timeout=15000)
-            if args.manual_continuation:
-                await send(
-                    "Human control has been explicitly returned. Use sudowork-browser MCP browser_observe to freshly read the same page. Report the exact Participant value you see, then submit the review exactly once with a real click. Do not replace or fill the value, use JS click, call the form API, or start another browser."
                 )
             await wait_turn(
                 start,
@@ -456,10 +418,11 @@ async def main(args):
                 "profileId": after["profileId"],
                 "receipts": receipts,
                 "mainPanelAndViewerShareBrowser": True,
-                "heldAgentWriteRejected": not args.manual_human,
+                "conversationInterruptAndContinue": True,
+                "noBrowserHandoffButtons": True,
                 "externalHumanViewer": args.manual_human,
                 "visibleOneTimeApprovals": approvals,
-                "automaticReturnNotification": not args.manual_continuation,
+                "continuationFromNormalChat": True,
                 "historyRestoredAfterReload": True,
                 "headfulWindowSurface": args.headful,
                 "realProvider": "SudoRouter",
@@ -577,6 +540,6 @@ if __name__ == "__main__":
     parser.add_argument(
         "--manual-continuation",
         action="store_true",
-        help="Legacy gateway acceptance: explicitly send a chat instruction after return.",
+        help="Compatibility flag; continuation now always uses a normal chat message.",
     )
     asyncio.run(main(parser.parse_args()))
