@@ -1,0 +1,45 @@
+import React from 'react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+const mocks = vi.hoisted(() => ({ logout: vi.fn(), set: vi.fn(), verify: vi.fn(), get: vi.fn() }));
+vi.mock('@renderer/context/AuthContext', () => ({ useAuth: () => ({ logout: mocks.logout }) }));
+vi.mock('@sudowork/common/storage', () => ({ ConfigStorage: { get: mocks.get, set: mocks.set } }));
+vi.mock('@sudowork/host-bridge/ipcBridge', () => ({ eeclaw: { verifyServer: { invoke: mocks.verify } } }));
+vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
+vi.mock('@renderer/components/base/PageWrapper', () => ({ default: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }));
+vi.mock('@arco-design/web-react', async (original) => ({ ...(await original<typeof import('@arco-design/web-react')>()), Message: { success: vi.fn(), error: vi.fn() } }));
+import EnterpriseSettings from '@renderer/pages/settings/enterprise';
+beforeEach(() => {
+  vi.clearAllMocks();
+  localStorage.clear();
+  mocks.get.mockImplementation(async (key: string) => (key === 'eeclaw.serverUrl' ? 'http://old.test' : 'Original'));
+  mocks.set.mockResolvedValue(undefined);
+  mocks.verify.mockResolvedValue({ success: true, data: { app_company_name: 'New' } });
+});
+afterEach(cleanup);
+it('keeps desktop connection usable after failed verification, then clears credentials locally on server change', async () => {
+  render(<EnterpriseSettings />);
+  await screen.findByText('settings.enterpriseConnection.connected');
+  mocks.verify.mockResolvedValueOnce({ success: false });
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: 'http://bad.test' } });
+  fireEvent.click(screen.getByText('common.save'));
+  await screen.findByRole('alert');
+  expect(screen.getByText('settings.enterpriseConnection.connected')).toBeTruthy();
+  expect(mocks.set).not.toHaveBeenCalled();
+  expect(mocks.logout).not.toHaveBeenCalled();
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: 'http://new.test' } });
+  fireEvent.click(screen.getByText('common.save'));
+  await waitFor(() => expect(mocks.logout).toHaveBeenCalledWith({ isLocalOnly: true }));
+  expect(mocks.set).toHaveBeenCalledWith('eeclaw.serverUrl', 'http://new.test');
+});
+it('restores saved configuration when persistence fails and keeps the session', async () => {
+  render(<EnterpriseSettings />);
+  await screen.findByText('settings.enterpriseConnection.connected');
+  mocks.set.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('disk write failed'));
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: 'http://new.test' } });
+  fireEvent.click(screen.getByText('common.save'));
+  await screen.findByRole('alert');
+  expect(mocks.set).toHaveBeenCalledWith('eeclaw.serverUrl', 'http://old.test');
+  expect(mocks.logout).not.toHaveBeenCalled();
+  expect(screen.getByText('settings.enterpriseConnection.connected')).toBeTruthy();
+});

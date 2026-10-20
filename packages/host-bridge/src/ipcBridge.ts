@@ -3447,7 +3447,7 @@ export const eeclaw = {
   /** Set session mode (remote/local) for enterprise mode and update main process cache */
   setSessionMode: bridge.buildProvider<void, { mode: 'remote' | 'local' }>('eeclaw.set-session-mode'),
   /** Logout from enterprise server and clear local credentials */
-  logout: bridge.buildProvider<IBridgeResponse<Record<string, never>>, void>('eeclaw.logout'),
+  logout: bridge.buildProvider<IBridgeResponse<Record<string, never>>, { isLocalOnly?: boolean }>('eeclaw.logout'),
   /** Emitted when the main process refreshes the enterprise auth token */
   tokenRefreshed: bridge.buildEmitter<{
     access_token: string;

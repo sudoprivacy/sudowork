@@ -768,7 +768,7 @@ export function initEeclawBridge(): void {
     }
   });
 
-  ipcBridge.eeclaw.logout.provider(async () => {
+  ipcBridge.eeclaw.logout.provider(async (options) => {
     // The whole revoke-then-clear sequence holds the auth storage lock: the
     // token snapshot, the server-side revocation and the local clear must not
     // interleave with a concurrent login/refresh write, otherwise a revoked
@@ -778,7 +778,7 @@ export function initEeclawBridge(): void {
         const serverUrl = ProcessConfig.getSync('eeclaw.serverUrl');
         const authStorage = ProcessConfig.getSync('eeclaw.authStorage');
 
-        if (serverUrl && authStorage?.access_token) {
+        if (!options?.isLocalOnly && serverUrl && authStorage?.access_token) {
           await net
             .fetch(`${serverUrl}/api/v1/auth/logout`, {
               method: 'POST',

@@ -177,7 +177,7 @@ interface AuthContextValue {
   authFetch: (url: string, options?: RequestInit) => Promise<Response>;
   login: (params: LoginParams) => Promise<LoginResult>;
   register: (params: RegisterParams) => Promise<RegisterResult>;
-  logout: () => Promise<void>;
+  logout: (options?: { isLocalOnly: boolean }) => Promise<void>;
   refresh: () => Promise<void>;
   ensureValidToken: (forceRefresh?: boolean) => Promise<string | null>;
   forceRefreshToken: () => Promise<string | null>;
@@ -644,7 +644,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         ConfigStorage.set('eeclaw.userInfo', undefined),
         ConfigStorage.set('eeclaw.localModeAvailable', undefined),
         ipcBridge.sudoworkAuth.clearConsumerUserId.invoke(),
-        ipcBridge.eeclaw.logout.invoke(),
+        ipcBridge.eeclaw.logout.invoke({}),
       ]);
     } finally {
       isExpiringAuthRef.current = false;
@@ -666,7 +666,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         ConfigStorage.set('eeclaw.localModeAvailable', undefined),
         ConfigStorage.set('guid.sessionMode', 'local'),
         ipcBridge.sudoworkAuth.clearConsumerUserId.invoke(),
-        ipcBridge.eeclaw.logout.invoke(),
+        ipcBridge.eeclaw.logout.invoke({}),
         ipcBridge.eeclaw.setSessionMode.invoke({ mode: 'local' }),
       ]);
     }
@@ -1446,7 +1446,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
   const enterpriseLoginWithOAuth2 = useCallback((params: Record<string, string>): Promise<LoginResult> => performLogin({ grant_type: 'oauth2', params }), [performLogin]);
 
-  const logout = useCallback(async () => {
+  const logout = useCallback(async (options?: { isLocalOnly: boolean }) => {
     localStorage.removeItem(GUEST_FLAG_KEY);
 
     // Web host: destroy the webui cookie session; no eeclaw IPC involved.
@@ -1471,7 +1471,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         const { access_token, refresh_token } = authStorage;
         const serverUrl = await ConfigStorage.get('eeclaw.serverUrl');
 
-        if (serverUrl && access_token) {
+        if (!options?.isLocalOnly && serverUrl && access_token) {
           try {
             await fetch(`${serverUrl}/api/v1/auth/logout`, {
               method: 'POST',
@@ -1496,7 +1496,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
       // Also trigger main-process logout to clear its storage and cache
       try {
-        await ipcBridge.eeclaw.logout.invoke();
+        await ipcBridge.eeclaw.logout.invoke(options || {});
       } catch (e) {
         console.warn('[Auth] Failed to invoke main-process logout:', e);
       }
