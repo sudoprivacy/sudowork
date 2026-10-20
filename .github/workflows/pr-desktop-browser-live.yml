@@ -47,6 +47,30 @@ jobs:
           bun run --filter=@sudowork/contracts build
           node apps/desktop/scripts/build-browser-mcp.js
           bun build ./apps/desktop/tests/integration/localBrowserWorker.live.ts --target=node --format=esm --outfile=./desktop-browser-live.mjs
+          bun build ./apps/desktop/tests/integration/browserRuntimeInstall.live.ts --target=node --format=cjs --external electron --outfile=./desktop-browser-install-live.cjs
+      - name: Prepare Electron's Linux sandbox
+        if: runner.os == 'Linux'
+        shell: bash
+        working-directory: apps/desktop
+        run: |
+          set -euo pipefail
+          electron="$(node -p 'require("electron")')"
+          sandbox="$(dirname "$electron")/chrome-sandbox"
+          sudo chown root:root "$sandbox"
+          sudo chmod 4755 "$sandbox"
+      - name: Verify the real first-use browser installer
+        shell: bash
+        run: |
+          set -euo pipefail
+          installer_test=(python apps/desktop/tests/e2e/live_browser_runtime_install.py
+            --bundle desktop-browser-install-live.cjs
+            --output "$RUNNER_TEMP/browser-runtime-cold-install"
+            --version 0.58.0)
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            xvfb-run -a "${installer_test[@]}"
+          else
+            "${installer_test[@]}"
+          fi
       - name: Run actual browser journeys
         shell: bash
         env:
@@ -84,4 +108,6 @@ jobs:
             ${{ runner.temp }}/desktop-browser-worker-*/evidence.json
             ${{ runner.temp }}/desktop-browser-worker-*/**/worker.log
             ${{ runner.temp }}/personal-chrome/**
+            ${{ runner.temp }}/browser-runtime-cold-install/evidence.json
+            ${{ runner.temp }}/browser-runtime-cold-install/electron.log
           if-no-files-found: warn
