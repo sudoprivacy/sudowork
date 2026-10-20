@@ -219,7 +219,7 @@ The Windows/Linux PR workflow runs this separately from the preinstalled-worker
 journeys and uploads its receipt and Electron log.
 
 ```powershell
-bun build apps/desktop/tests/integration/browserRuntimeInstall.live.ts --target=node --format=cjs --external electron --outfile=desktop-browser-install-live.cjs
+bun build apps/desktop/tests/integration/browserRuntimeInstall.live.ts --tsconfig-override=apps/desktop/tsconfig.json --target=node --format=cjs --external electron --outfile=desktop-browser-install-live.cjs
 python apps/desktop/tests/e2e/live_browser_runtime_install.py --bundle desktop-browser-install-live.cjs --output C:/path/to/new-installer-evidence --version 0.58.0
 ```
 
