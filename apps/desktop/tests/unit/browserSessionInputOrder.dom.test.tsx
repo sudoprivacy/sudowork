@@ -1,3 +1,4 @@
+import { Blob as NodeBlob } from 'node:buffer';
 import React from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -33,16 +34,32 @@ vi.mock('@arco-design/web-react', () => ({
       {children}
     </button>
   ),
-  Input: ({ value, onChange, onPressEnter, ...rest }: { value: string; onChange: (value: string) => void; onPressEnter?: () => void; 'aria-label'?: string; disabled?: boolean }) => (
-    <input
-      aria-label={rest['aria-label']}
-      value={value}
-      disabled={rest.disabled}
-      onChange={(event) => onChange(event.target.value)}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter') onPressEnter?.();
-      }}
-    />
+  Input: Object.assign(
+    ({ value, onChange, onPressEnter, ...rest }: { value: string; onChange: (value: string) => void; onPressEnter?: () => void; 'aria-label'?: string; disabled?: boolean }) => (
+      <input
+        aria-label={rest['aria-label']}
+        value={value}
+        disabled={rest.disabled}
+        onChange={(event) => onChange(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') onPressEnter?.();
+        }}
+      />
+    ),
+    {
+      TextArea: ({
+        value,
+        onChange,
+        ...rest
+      }: {
+        value: string;
+        onChange: (value: string) => void;
+        'aria-label'?: string;
+        onKeyDown?: React.KeyboardEventHandler<HTMLTextAreaElement>;
+        onCompositionStart?: React.CompositionEventHandler<HTMLTextAreaElement>;
+        onCompositionEnd?: React.CompositionEventHandler<HTMLTextAreaElement>;
+      }) => <textarea aria-label={rest['aria-label']} value={value} onChange={(event) => onChange(event.target.value)} onKeyDown={rest.onKeyDown} onCompositionStart={rest.onCompositionStart} onCompositionEnd={rest.onCompositionEnd} />,
+    }
   ),
   Select: ({ options, value, onChange, ...rest }: { options: { value: string | number; label: string }[]; value: string | number; onChange: (value: string) => void; 'aria-label'?: string; disabled?: boolean }) => (
     <select aria-label={rest['aria-label']} disabled={rest.disabled} value={value} onChange={(event) => onChange(event.target.value)}>
@@ -61,11 +78,146 @@ vi.mock('@arco-design/web-react', () => ({
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   host.invoke.mockReset();
   host.stop.mockReset();
   host.error.mockReset();
   host.confirm.mockReset();
   host.info.mockReset();
+});
+
+it('begins the clipboard write in the user gesture before the remote selection arrives', async () => {
+  const base = activeSession();
+  const session = { ...base, capabilities: { ...base.capabilities, selectionRead: true, clipboardText: true, dragInput: true } };
+  let deliver!: (value: unknown) => void;
+  const selection = new Promise((resolve) => {
+    deliver = resolve;
+  });
+  let written = '';
+  class SelectionClipboardItem {
+    data: Record<string, Promise<Blob>>;
+    constructor(data: Record<string, Promise<Blob>>) {
+      this.data = data;
+    }
+  }
+  const clipboard = {
+    write: vi.fn(async (items: SelectionClipboardItem[]) => {
+      written = await (await items[0].data['text/plain']).text();
+    }),
+  };
+  vi.stubGlobal('ClipboardItem', SelectionClipboardItem);
+  vi.stubGlobal('Blob', NodeBlob);
+  vi.stubGlobal('isSecureContext', true);
+  vi.stubGlobal('navigator', { clipboard });
+  const actions: BrowserSessionAction[] = [];
+  host.invoke.mockImplementation(async ({ action }: { action: BrowserSessionAction }) => {
+    actions.push(action);
+    if (action.kind === 'input' && action.input.kind === 'copy-selection') return selection;
+    return { success: true, data: { session, ...(action.kind === 'frame' ? { frame: { data: 'eA==', width: 100, height: 100, controlEpoch: session.controlEpoch, targetEpoch: session.targetEpoch } } : {}) } };
+  });
+  render(<BrowserSessionPanel conversationId='owned-conversation' />);
+  const image = await screen.findByAltText('page');
+  await waitFor(() => expect(image.getAttribute('src')).toMatch(/^data:/));
+  fireEvent.load(image);
+  fireEvent.click(screen.getByRole('button', { name: 'copySelection' }));
+  expect(clipboard.write).toHaveBeenCalledOnce();
+  expect(written).toBe('');
+  await waitFor(() => expect(actions.filter((action) => action.kind === 'input')).toHaveLength(1));
+  await act(async () => {
+    deliver({ success: true, data: { session, selection: { text: 'Selected 中文 phrase', isAvailable: true } } });
+  });
+  await waitFor(() => expect(written).toBe('Selected 中文 phrase'));
+  expect(actions.filter((action) => action.kind === 'input')).toEqual([{ kind: 'input', input: { kind: 'copy-selection' }, surface: 'page', controlEpoch: 4, targetEpoch: 2 }]);
+  expect(host.stop).not.toHaveBeenCalled();
+  expect(actions.some((action) => action.kind === 'take' || action.kind === 'return')).toBe(false);
+});
+
+it('rejects clipboard text for an old tab after a permission delay and accepts a fresh edit in the new tab', async () => {
+  const base = activeSession();
+  let session = { ...base, capabilities: { ...base.capabilities, clipboardText: true, dragInput: true }, tabs: [...base.tabs, { id: 'other-tab', title: 'Other', url: 'https://example.test/other' }] };
+  let read!: (value: string) => void;
+  const clipboard = {
+    readText: vi.fn(
+      () =>
+        new Promise<string>((resolve) => {
+          read = resolve;
+        })
+    ),
+  };
+  vi.stubGlobal('navigator', { clipboard });
+  const inputs: BrowserSessionAction[] = [];
+  host.invoke.mockImplementation(async ({ action }: { action: BrowserSessionAction }) => {
+    if (action.kind === 'select-tab') session = { ...session, activeTargetId: action.targetId, targetEpoch: session.targetEpoch + 1 };
+    if (action.kind === 'input') inputs.push(action);
+    return { success: true, data: { session, ...(action.kind === 'frame' ? { frame: { data: 'eA==', width: 100, height: 100, controlEpoch: session.controlEpoch, targetEpoch: session.targetEpoch } } : {}) } };
+  });
+  render(<BrowserSessionPanel conversationId='owned-conversation' />);
+  const image = await screen.findByAltText('page');
+  await waitFor(() => expect(image.getAttribute('src')).toMatch(/^data:/));
+  fireEvent.load(image);
+  fireEvent.click(screen.getByRole('button', { name: 'pasteClipboard' }));
+  expect(clipboard.readText).toHaveBeenCalledOnce();
+  fireEvent.click(screen.getByRole('button', { name: 'Other' }));
+  await waitFor(() => expect((screen.getByLabelText('address') as HTMLInputElement).value).toBe('https://example.test/other'));
+  await waitFor(() => expect(image.getAttribute('src')).toMatch(/^data:/));
+  fireEvent.load(image);
+  await act(async () => {
+    read('STALE_CLIPBOARD_FOR_PREVIOUS_TAB');
+  });
+  await waitFor(() => expect(host.error).toHaveBeenCalled());
+  expect(inputs).toEqual([]);
+  fireEvent.change(screen.getByLabelText('text'), { target: { value: 'Fresh 中文\nnew tab' } });
+  fireEvent.click(screen.getByRole('button', { name: 'insert' }));
+  await waitFor(() => expect(inputs).toHaveLength(1));
+  expect(inputs).toEqual([{ kind: 'input', input: { kind: 'paste', text: 'Fresh 中文\nnew tab' }, surface: 'page', controlEpoch: 4, targetEpoch: 3 }]);
+});
+
+it('pastes Windows clipboard newlines as one trusted multiline input operation', async () => {
+  const base = activeSession();
+  const session = { ...base, capabilities: { ...base.capabilities, clipboardText: true } };
+  vi.stubGlobal('navigator', { clipboard: { readText: vi.fn(async () => 'First 中文\r\nSecond line ✓') } });
+  const inputs: BrowserSessionAction[] = [];
+  host.invoke.mockImplementation(async ({ action }: { action: BrowserSessionAction }) => {
+    if (action.kind === 'input') inputs.push(action);
+    return { success: true, data: { session, ...(action.kind === 'frame' ? { frame: { data: 'eA==', width: 100, height: 100, controlEpoch: 4, targetEpoch: 2 } } : {}) } };
+  });
+  render(<BrowserSessionPanel conversationId='owned-conversation' />);
+  const image = await screen.findByAltText('page');
+  await waitFor(() => expect(image.getAttribute('src')).toMatch(/^data:/));
+  fireEvent.load(image);
+  fireEvent.click(screen.getByRole('button', { name: 'pasteClipboard' }));
+  await waitFor(() => expect(inputs).toHaveLength(1));
+  expect(inputs).toEqual([{ kind: 'input', input: { kind: 'paste', text: 'First 中文\nSecond line ✓' }, surface: 'page', controlEpoch: 4, targetEpoch: 2 }]);
+  expect(host.stop).not.toHaveBeenCalled();
+});
+
+it('keeps IME confirmation and newlines local, then inserts the completed multiline text once', async () => {
+  const base = activeSession();
+  const session = { ...base, capabilities: { ...base.capabilities, clipboardText: true } };
+  const inputs: BrowserSessionAction[] = [];
+  host.invoke.mockImplementation(async ({ action }: { action: BrowserSessionAction }) => {
+    if (action.kind === 'input') inputs.push(action);
+    return { success: true, data: { session, ...(action.kind === 'frame' ? { frame: { data: 'eA==', width: 100, height: 100, controlEpoch: 4, targetEpoch: 2 } } : {}) } };
+  });
+  render(<BrowserSessionPanel conversationId='owned-conversation' />);
+  const image = await screen.findByAltText('page');
+  await waitFor(() => expect(image.getAttribute('src')).toMatch(/^data:/));
+  fireEvent.load(image);
+  const editor = screen.getByLabelText('text');
+  fireEvent.compositionStart(editor);
+  fireEvent.change(editor, { target: { value: '中文输入' } });
+  fireEvent.keyDown(editor, { key: 'Enter', ctrlKey: true });
+  fireEvent.compositionEnd(editor);
+  fireEvent.keyDown(editor, { key: 'Enter', ctrlKey: true, keyCode: 229 });
+  fireEvent.keyDown(editor, { key: 'Enter', metaKey: true, isComposing: true });
+  fireEvent.keyDown(editor, { key: 'Enter' });
+  fireEvent.change(editor, { target: { value: '中文输入\nSecond line ✓' } });
+  await act(async () => {});
+  expect(inputs).toEqual([]);
+  fireEvent.keyDown(editor, { key: 'Enter', ctrlKey: true });
+  await waitFor(() => expect(inputs).toHaveLength(1));
+  expect(inputs).toEqual([{ kind: 'input', input: { kind: 'paste', text: '中文输入\nSecond line ✓' }, surface: 'page', controlEpoch: 4, targetEpoch: 2 }]);
+  expect((editor as HTMLTextAreaElement).value).toBe('');
 });
 
 it('pans the enlarged view locally and sends mapped input only after explicitly returning to interaction', async () => {

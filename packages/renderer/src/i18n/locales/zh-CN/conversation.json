@@ -90,7 +90,12 @@
     "personalDisconnectBody": "你的 Chrome、页签和登录状态会保留。Agent 工具保持暂停，通过会话继续工作。",
     "openConversation": "打开会话",
     "conversationControl": "通过会话打断或继续。AI 操作期间触碰页面会先打断任务；请等画面更新，确认后再操作。",
-    "conversationUpdateRequired": "请升级服务端以使用会话打断和继续。当前仍可查看浏览器。"
+    "conversationUpdateRequired": "请升级服务端以使用会话打断和继续。当前仍可查看浏览器。",
+    "copySelection": "复制选区",
+    "pasteClipboard": "粘贴到页面",
+    "selectionUnavailable": "请先在远程页面选择可读取的文字，再复制。",
+    "clipboardUnavailable": "暂时无法访问剪贴板，请粘贴到下方文本框。",
+    "clipboardTooLong": "无法插入这段文字，请粘贴更短的纯文本内容。"
   },
   "interruptConfirm": {
     "title": "打断当前回复？",

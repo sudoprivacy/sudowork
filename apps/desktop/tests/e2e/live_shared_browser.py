@@ -138,6 +138,25 @@ class UI:
         box = frame['box']
         await self.click(box['x'] + x*box['width']/frame['width'], box['y'] + y*box['height']/frame['height'])
 
+    async def page_drag(self, start, end):
+        frame = await self.read("(()=>{const e=document.querySelector('[data-testid=browser-session-panel] img');return {box:e.getBoundingClientRect().toJSON(),width:e.naturalWidth,height:e.naturalHeight}})()")
+        box = frame['box']
+        assert frame['width'] and frame['height']
+        await self.command('Page.bringToFront')
+        for index in range(9):
+            x = box['x'] + (start[0] + (end[0]-start[0])*index/8)*box['width']/frame['width']
+            y = box['y'] + (start[1] + (end[1]-start[1])*index/8)*box['height']/frame['height']
+            await self.command('Input.dispatchMouseEvent', {'type': 'mouseMoved', 'x': x, 'y': y, 'button': 'left' if index else 'none', 'buttons': 1 if index else 0})
+            if index == 0:
+                await self.command('Input.dispatchMouseEvent', {'type': 'mousePressed', 'x': x, 'y': y, 'button': 'left', 'buttons': 1, 'clickCount': 1})
+        await self.command('Input.dispatchMouseEvent', {'type': 'mouseReleased', 'x': x, 'y': y, 'button': 'left', 'buttons': 0, 'clickCount': 1})
+
+    async def clipboard(self, text=None):
+        expression = 'navigator.clipboard.readText()' if text is None else 'navigator.clipboard.writeText(' + json.dumps(text) + ')'
+        result = await self.command('Runtime.evaluate', {'expression': expression, 'returnByValue': True, 'awaitPromise': True, 'userGesture': True})
+        assert not result.get('exceptionDetails'), 'The real local clipboard operation failed: ' + str(result.get('exceptionDetails'))
+        return result['result'].get('value')
+
 
 async def wait_for(probe, timeout, description):
     deadline = time.monotonic() + timeout
@@ -159,6 +178,7 @@ async def main():
     parser.add_argument('--offline-entry', action='store_true', help='Choose the ordinary local Desktop entry on a fresh login screen')
     parser.add_argument('--model-config', type=Path, help='Private model configuration to save through the ordinary Desktop settings editor after offline entry')
     parser.add_argument('--pending-native-question', action='store_true', help='Take control while the real model is waiting on its native question card, then verify the cancelled card no longer captures chat input')
+    parser.add_argument('--verify-selection-clipboard', action='store_true', help='Use real viewer drag selection, local clipboard, multiline paste and Chromium IME composition; restore an unchanged owned clipboard value afterwards')
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=False)
     nonce = uuid4().hex[:10]
@@ -167,6 +187,11 @@ async def main():
     status = f'SAVED_{nonce}'
     receipts = []
     prefills = []
+    selected_phrase = 'Exact browser review phrase'
+    selection_layouts = []
+    clipboard_inputs = []
+    clipboard_receipts = []
+    pointer_receipts = []
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_args):
@@ -175,6 +200,16 @@ async def main():
         def do_GET(self):
             html = f'''<!doctype html><meta charset="utf-8"><style>body{{font:22px sans-serif;margin:0}}h1{{position:absolute;left:40px;top:10px}}label{{position:absolute;left:40px;top:80px}}input{{position:absolute;left:40px;top:110px;width:300px;height:40px;font:22px sans-serif}}button{{position:absolute;left:40px;top:170px;width:300px;height:40px;font:22px sans-serif}}p{{position:absolute;left:40px;top:230px}}</style><h1>Browser handoff {nonce}</h1><label for="handoff">Handoff value</label><input id="handoff"><button id="submit">Submit once</button><p id="status">Awaiting user</p><script>submit.onclick=event=>fetch('/receipt',{{method:'POST',body:JSON.stringify({{value:handoff.value,trusted:event.isTrusted}})}}).then(()=>{{document.cookie='handoff={nonce}; Path=/';document.querySelector('#status').textContent='{status}'}});</script>'''
             html += """<script>const field=document.querySelector('#handoff');field.addEventListener('input',event=>fetch('/prefill',{method:'POST',body:JSON.stringify({value:field.value,trusted:event.isTrusted})}));</script>"""
+            if args.verify_selection_clipboard:
+                html += '<span id="review-phrase" style="position:absolute;left:40px;top:290px;font:20px monospace;white-space:pre">' + selected_phrase + '</span>'
+                html += '''<textarea id="clipboard-field" style="position:absolute;left:40px;top:350px;width:500px;height:70px;font:20px monospace"></textarea>
+<button id="clipboard-submit" style="top:460px">Submit multiline once</button><script>
+const phrase=document.querySelector('#review-phrase'), area=document.querySelector('#clipboard-field');
+requestAnimationFrame(()=>{const box=phrase.getBoundingClientRect();fetch('/selection-layout',{method:'POST',body:JSON.stringify({x:box.x,y:box.y,width:box.width,height:box.height})})});
+area.addEventListener('input',event=>fetch('/clipboard-input',{method:'POST',body:JSON.stringify({value:area.value,trusted:event.isTrusted})}));
+document.addEventListener('pointerup',event=>fetch('/pointer-receipt',{method:'POST',body:JSON.stringify({x:event.clientX,y:event.clientY,target:event.target.id,active:document.activeElement.id,trusted:event.isTrusted,selected:String(getSelection())})}));
+document.querySelector('#clipboard-submit').onclick=event=>fetch('/clipboard-submit',{method:'POST',body:JSON.stringify({value:area.value,trusted:event.isTrusted})});
+</script>'''
             body = html.encode()
             self.send_response(200)
             self.send_header('content-type', 'text/html; charset=utf-8')
@@ -183,9 +218,9 @@ async def main():
             self.wfile.write(body)
 
         def do_POST(self):
-            assert self.path in ('/receipt', '/prefill')
+            assert self.path in ('/receipt', '/prefill', '/selection-layout', '/clipboard-input', '/clipboard-submit', '/pointer-receipt')
             value = json.loads(self.rfile.read(int(self.headers['content-length'])))
-            (receipts if self.path == '/receipt' else prefills).append(value)
+            {'/receipt': receipts, '/prefill': prefills, '/selection-layout': selection_layouts, '/clipboard-input': clipboard_inputs, '/clipboard-submit': clipboard_receipts, '/pointer-receipt': pointer_receipts}[self.path].append(value)
             self.send_response(200)
             self.send_header('content-length', '2')
             self.end_headers()
@@ -352,9 +387,57 @@ async def main():
                     assert native['bounds']['width'] <= 500 and native['bounds']['height'] <= 300
             await app.screenshot(args.output/'human-panel.png')
             await wait_for(viewer_ready, 40, 'The viewer preload, bridge or real browser frame is unavailable')
+            if args.verify_selection_clipboard:
+                await viewer.command('Page.bringToFront')
+                saved_clipboard = await viewer.clipboard()
+                pasted = 'Clipboard 中文\nSecond line ✓ ' + nonce
+                composed = '中文输入\nComposed line ✓ ' + nonce
+                try:
+                    await wait_for(lambda: asyncio.sleep(0, result=selection_layouts), 10, 'The real page did not report its text layout')
+                    layout = selection_layouts[-1]
+                    y = layout['y'] + layout['height']/2
+                    # Start/end inside the actual glyph range. Chrome does not
+                    # initiate text selection at the exact outer pixel boundary.
+                    await viewer.page_drag((layout['x']+0.5, y), (layout['x']+layout['width']-0.5, y))
+                    await viewer.click_text('复制选区', 'Copy selected text')
+                    async def copied():
+                        return await viewer.clipboard() == selected_phrase
+                    await wait_for(copied, 15, 'The viewer did not copy the exact dragged phrase to the local clipboard')
+                    evidence['exactPhraseCopiedFromRemoteSelection'] = True
+                    await viewer.clipboard(pasted)
+                    await viewer.page_click(120, 380)
+                    await viewer.click_text('粘贴到页面', 'Paste into page')
+                    evidence['pasteUiText'] = (await viewer.text())[-800:]
+                    await wait_for(lambda: asyncio.sleep(0, result={'value': pasted, 'trusted': True} in clipboard_inputs), 15, 'The real page did not receive trusted multiline clipboard text')
+                    await viewer.page_click(120, 380)
+                    await viewer.key('a', 'KeyA', 65, 2)
+                    editor = 'textarea[maxlength="8192"]'
+                    await viewer.fill(editor, '')
+                    await viewer.command('Input.imeSetComposition', {'text': '中文输入', 'selectionStart': 4, 'selectionEnd': 4})
+                    await viewer.key('Enter', 'Enter', 229, 2)
+                    await viewer.command('Input.insertText', {'text': '中文输入'})
+                    await viewer.command('Input.insertText', {'text': '\nComposed line ✓ ' + nonce})
+                    assert await viewer.read('document.activeElement.value') == composed
+                    assert clipboard_inputs[-1] == {'value': pasted, 'trusted': True}, 'IME confirmation wrote to the remote page before the user submitted'
+                    await viewer.key('Enter', 'Enter', 13, 2)
+                    await wait_for(lambda: asyncio.sleep(0, result={'value': composed, 'trusted': True} in clipboard_inputs), 15, 'The completed IME text did not reach the same remote page')
+                    await viewer.page_click(160, 480)
+                    await wait_for(lambda: asyncio.sleep(0, result=clipboard_receipts), 10, 'The real multiline submission did not arrive')
+                    assert clipboard_receipts == [{'value': composed, 'trusted': True}], clipboard_receipts
+                    evidence.update(exactPhraseCopiedFromRemoteSelection=True, realMultilineClipboardPaste=True, chromiumImeComposition=True, imeConfirmationDidNotSubmit=True, trustedMultilineSubmissionOnce=True)
+                    await viewer.screenshot(args.output/'selection-clipboard-ime.png')
+                finally:
+                    current_clipboard = await viewer.clipboard()
+                    if current_clipboard.replace('\r\n', '\n') in (selected_phrase, pasted):
+                        await viewer.clipboard(saved_clipboard)
+                        evidence['ownedClipboardRestored'] = True
+                    elif current_clipboard == saved_clipboard:
+                        evidence['ownedClipboardUnchanged'] = True
+                    else:
+                        evidence['newerUserClipboardPreserved'] = True
             await viewer.page_click(100, 130)
             await viewer.key('a', 'KeyA', 65, 2)
-            await viewer.fill('input[maxlength="512"]', human)
+            await viewer.fill('input[maxlength="512"],textarea[maxlength="8192"]', human)
             await viewer.click_text('输入文字', 'Insert text')
             await wait_for(lambda: asyncio.sleep(0, result={'value': human, 'trusted': True} in prefills), 15, 'The shared viewer did not deliver the exact trusted human value')
             await viewer.page_click(100, 190)
@@ -416,6 +499,8 @@ async def main():
             raise
         finally:
             evidence['trustedInputEvents'] = prefills
+            if args.verify_selection_clipboard:
+                evidence.update(clipboardInputEvents=clipboard_inputs, clipboardSubmitEvents=clipboard_receipts, pointerEvents=pointer_receipts)
             evidence['lastUiCommands'] = app.trace[-20:]
             if not evidence['passed'] and viewer:
                 try:

@@ -32,6 +32,9 @@ export const BrowserSessionStateSchema = z.object({
   transport: z.enum(["cdp", "extension", "electron"]),
   capabilities: z.object({
     conversationControl: z.boolean().optional(),
+    dragInput: z.boolean().optional(),
+    clipboardText: z.boolean().optional(),
+    selectionRead: z.boolean().optional(),
     lifecycle: z.boolean().optional(),
     fileTransfer: z.boolean().optional(),
     existingExtension: z.boolean().optional(),
@@ -68,6 +71,32 @@ export const BrowserSessionStateSchema = z.object({
 });
 
 export const BrowserInputSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("copy-selection") }),
+  z.object({
+    kind: z.literal("drag"),
+    points: z
+      .array(
+        z.object({
+          x: z.number().finite().nonnegative(),
+          y: z.number().finite().nonnegative(),
+        }),
+      )
+      .min(2)
+      .max(64),
+  }),
+  z.object({
+    kind: z.literal("paste"),
+    text: z
+      .string()
+      .min(1)
+      .max(8192)
+      .refine((value) =>
+        Array.from(value).every(
+          (character) =>
+            character.charCodeAt(0) >= 32 || "\n\r\t".includes(character),
+        ),
+      ),
+  }),
   z.object({
     kind: z.literal("click"),
     x: z.number().finite().nonnegative(),
@@ -199,6 +228,9 @@ export const BrowserSessionReplySchema = z.object({
   session: BrowserSessionStateSchema,
   existingExtension: ExistingExtensionSchema.nullable().optional(),
   setupInstructions: z.string().max(16000).optional(),
+  selection: z
+    .object({ text: z.string().max(8192), isAvailable: z.boolean() })
+    .optional(),
   frame: z
     .object({
       data: z.string().max(16 * 1024 * 1024),

@@ -1,6 +1,6 @@
 # Shared browser sessions for Desktop and WebUI
 
-Status: cloud browser control, the shared panel, Desktop integration and compact takeover controls are merged. The initial v0.2.33 rollout passed actual Electron, Chromium and Firefox model/browser journeys with the public SDK v0.57.5. Production Moss is now 0.1.76 with browser worker 0.58.0; upgraded-worker WebUI and Desktop model journeys passed on 20 October. Viewer polling improvements are merged in SudoWork #1273. The v0.2.38 candidate pins public SDK 0.58.1 for window recovery and hidden-page input refusal fixes. Its personal Chrome host and complete Electron/model journeys passed; final application delivery and the cloud worker patch upgrade remain open. The optional local extension relay and physical phone browser acceptance also remain open. This document is the source for [the shared design page](https://s.shareone.vip/md/sudowork-browser-sessions).
+Status: the shared panel and browser session core are delivered. SudoWork #1281 removes browser takeover/return buttons in favor of the existing conversation interrupt and ordinary chat; its exact WebUI image and production Moss 0.1.77 passed a real model/browser journey on 20 October. The production browser worker is 0.58.1. Public SDK 0.58.2 has passed isolated cloud Chrome selection, clipboard, lifecycle and native display tests; the application consumer and worker rollout remain in acceptance. The optional local extension relay, complete Sudograph review integration and physical phone browser acceptance remain open. This document is the source for [the shared design page](https://s.shareone.vip/md/sudowork-browser-sessions).
 
 ## 1. Decisions
 
@@ -33,7 +33,7 @@ An Electron `<webview>` is a Chromium guest, not a DOM component available in or
 | Browser path                     | Delivery and evidence                                                                                                                                                                                       |
 | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Desktop local standalone CDP     | Implemented in [SudoWork #1250](https://github.com/sudoprivacy/sudowork/pull/1250); actual Electron/model takeover, compact controls and same-session commands passed.                                      |
-| Desktop app-managed extension    | Public worker support exists. SDK and cloud signed-extension tests do not establish complete Desktop extension application acceptance; that journey remains open.                                           |
+| Desktop app-managed extension    | Not exposed as a third Desktop launch path. Desktop starts a standalone CDP profile or explicitly connects an existing extension profile; managed extension startup belongs to the cloud deployment.        |
 | Desktop existing personal Chrome | Explicit selection, four real host/crash-recovery journeys and a complete Electron/Sonnet handoff passed. SDK 0.58.0 is published; application delivery remains open.                                       |
 | Desktop cloud Chrome             | Actual Electron cloud login, model task, shared panel, independent viewer and exact AI readback passed; deployed release acceptance remains open.                                                           |
 | Shared cloud extension and CDP   | Implemented in the public worker, Moss and shared panel. Real model/file/reconnect and explicit transport-switch journeys passed against the production backend; public frontend rollout is recorded below. |
@@ -177,9 +177,12 @@ was submitted once, and the normal chat message continued the same browser.
 The model reported the exact edited value. Personal Chrome stayed open after
 disconnect and application shutdown. A repeated live VM registry journey also
 passed owner isolation, allocation-free conversation controls, persisted
-cookies/leases and recovery using signed extension 0.4.4. These are development
-acceptance results; final source, WebUI, production delivery and real-phone
-browser acceptance remain separate gates.
+cookies/leases and recovery using signed extension 0.4.4. The correction is
+merged in SudoWork #1281 and Moss #421. The exact WebUI image and production
+Moss 0.1.77 also passed a real headful extension/model journey: trusted Unicode
+login once, login retained after a browser restart, model readback from that
+page, ordinary chat continuation and owned fixture cleanup. Final Desktop
+artifact and real-phone browser acceptance remain separate gates.
 
 The host advertises `capabilities.conversationControl`. Older servers remain
 usable for normal chat when this endpoint is absent, but browser interaction
@@ -206,6 +209,33 @@ adds the following application acceptance requirements:
 
 Comment routing and semantic model-change delivery belong to the bound review
 adapter. Opening this design does not authorize deploying background consumers.
+
+### Joint acceptance checklist, 21 October
+
+The browser side owns sessions, viewers, input arbitration and transport.
+The SudoWork/Sudograph adapter owns conversation/project/model-revision/share
+binding and trusted event routing. Sudograph owns canonical comment targets;
+ShareOne supplies the existing comment and notification contracts. Acceptance
+must join these pieces without creating a second editable model or inbox.
+
+| Requirement | Current status | Actual evidence and remaining work |
+| --- | --- | --- |
+| 1. Independent review surface and reconnect | Browser session/viewer supported; joint binding acceptance required | Real Desktop local Chrome and cloud panel/viewer journeys passed. The Electron viewer opens its exact bound conversation; real renderer reload retained the interrupted question and human lease. A Desktop Electron viewer is distinct from a native Chrome review window. The Sudograph adapter must establish the requested native review entry and project/model/share binding, then verify refresh/reconnect end to end on both hosts. |
+| 2. Exact graph text and canonical comments | Input support in SDK 0.58.2; application adaptation and joint acceptance required | Actual CDP and signed-extension selection tests read the exact dragged phrase over real frame transport. This does not establish authenticated Sudograph comments, stable targets or thread recovery after graph zoom, expansion and language changes; those require the real shared graph and comment adapter. |
+| 3. Clipboard, composition and gestures | SDK and Desktop accepted; WebUI consumer acceptance pending | Public-wheel tests passed page/window selection and Unicode multiline paste. The real Electron/public 0.58.2/Sonnet journey passed exact phrase copy, trusted multiline paste, Chromium composition without premature insertion, one final submission and exact model readback after ordinary chat continuation. Shared UI regressions reject a paste delayed across a tab change. WebUI and physical OS/device IME acceptance remain required. PageSurface drag is bounded and sent on release; continuous drag preview is not implemented. Touch pan remains a local view gesture. |
+| 4. Human/AI collaboration | Ordinary conversation supported and production accepted; comment continuation needs adapter | No browser business handoff buttons. Existing interrupt acknowledges the barrier and rejects stale queued input; fresh normal chat observes and continues the owned browser. Desktop main/child barriers and cloud owner isolation passed. Comment delivery must resolve the registered binding before enqueuing a normal host event; it must not grant browser input during human interaction. Idle/disconnect never resumes AI. |
+| 5. Actual graph interaction latency | Joint acceptance required | The production headful form measured 3.05 rendered frames/s, 234.2 ms median and 740.6 ms p95 frame interval, and 1083.12 ms click feedback. This is a form measurement, not graph acceptance. Measure page processing, frame production/transport and network delay separately for actual graph pan/zoom, selection and comments. |
+| 6. Supported hosts/transports/devices | Core paths supported; additional combinations need adaptation or device acceptance | Local standalone CDP, explicit personal extension and cloud CDP/managed extension have real browser evidence. A cloud viewer needs no local extension or Chrome installation. View-only native review must remain extension free; the native review entry and revision binding belong to the adapter. The cloud-to-local extension relay is optional and unimplemented. Physical iPhone browser input/IME and Safari transport acceptance remain pending; desktop touch emulation does not establish them. |
+
+Desktop standalone can launch branded Chrome with an independent profile and
+CDP. An existing personal default profile uses explicit extension consent;
+these are not equivalent profiles. Cloud standalone and extension both display
+the same VM browser through the shared panel or independent authenticated
+viewer. Headful window frames currently use the SDK X11 adapter through the
+same authenticated input channel. Although Ladder's noVNC adapter is extracted
+and live tested in the public SDK, SudoWork's production window viewer currently
+uses the JPEG/native-input path. Graph fluidity therefore still needs actual
+measurement and any resulting transport work.
 
 ## 8. LLM and tool contract
 
@@ -759,3 +789,36 @@ The full application regression run passed 358 files and 3,299 tests, with
 cloud image separately passed six actual Chrome worker lifecycle and file
 journeys, including both transports; signed persistent-profile upgrade and
 final production acceptance remain separate requirements.
+
+### Public SDK 0.58.2 input acceptance, 21 October
+
+The shared application consumer pins public SDK commit
+`9337b07c6af7961d50883088ed79cce34b81c1f0`. All 199 installed package files
+matched the public wheel, whose SHA-256 is
+`45dc9585cb812cc3c0b7494ed8b059aa76ef89e951fe4a03d44971156feeee3e`.
+An isolated cloud worker retained Google Chrome 155.0.8059.84 and the same
+signed extension 0.4.4. Six consumer tests and ten selection/native/noVNC tests
+passed without SDK source overrides. Profile crash recovery and the exact new
+Moss CI launcher also passed and removed their owned resources.
+
+The actual Electron, personal extension Chrome and Sonnet 4.6 journey passed:
+
+- Exact phrase drag selection and copying to the real local clipboard.
+- Trusted Unicode multiline paste into the same remote page. Windows CRLF
+  clipboard text is normalized before insertion so input listeners receive LF.
+- Chromium composition and confirmation without sending unfinished text.
+- One completed multiline submission, followed by the ordinary human edit and
+  normal chat continuation with exact model readback.
+- Persisted cancellation of the native question after interrupt and reload,
+  exact bound-conversation opening from the viewer, and preserved personal
+  Chrome after disconnect and normal app shutdown.
+
+The live entry is `live_shared_browser.py --existing-profile
+--pending-native-question --verify-selection-clipboard`. The fixture restores
+its owned clipboard value and preserves a newer user value. It measures the
+Chromium composition path; physical operating-system IME and phone acceptance
+remain separate. Fourteen focused input/barrier tests and the canonical suite
+of 358 files and 3,305 tests passed, with 28 existing skips. Desktop, shared
+renderer and WebUI type checks and both application builds passed. These
+results establish the candidate; final artifacts, WebUI input acceptance and
+production worker rollout still require their own delivery checks.
