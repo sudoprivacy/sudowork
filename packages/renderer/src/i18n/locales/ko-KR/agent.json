@@ -136,5 +136,8 @@
   "external.usage.notRecorded": "기록 없음",
   "external.usage.basis": "기능은 현재 어댑터 계약에 근거하며 실시간 연결 상태나 특정 실행의 증거가 아닙니다. 작업 제출 시 허용 여부를 다시 확인합니다.",
   "external.usage.evidence": "소스 신원은 검증되지 않았으며 다이제스트는 검토된 스냅샷만 증명합니다. 복구는 동일한 원격 실행을 조회하며 결과를 알 수 없는 작업을 자동으로 재실행하지 않습니다.",
-  "external.usage.unavailable": "서비스에서 사용 범위 정보를 제공하지 않았습니다. 새로 고침하거나 관리자에게 문의하세요."
+  "external.usage.unavailable": "서비스에서 사용 범위 정보를 제공하지 않았습니다. 새로 고침하거나 관리자에게 문의하세요.",
+  "external.modelRejection.MODEL_CONTENT_DENIED": "실행 서비스 보고: 콘텐츠 정책에 따라 모델로 전송하기 전에 요청이 거부되었습니다. 내용을 수정한 후 다시 제출하세요. 자동으로 재전송하지 않습니다.",
+  "external.modelRejection.MODEL_CLASSIFIER_UNAVAILABLE": "실행 서비스 보고: 콘텐츠 검사를 사용할 수 없어 모델로 전송하기 전에 요청이 중지되었습니다. 관리자에게 문의하세요. 자동으로 재전송하지 않습니다.",
+  "external.modelRejection.MODEL_REDACTION_UNSAFE": "실행 서비스 보고: 안전한 비식별화에 실패하여 모델로 전송하기 전에 요청이 중지되었습니다. 내용을 수정하거나 관리자에게 문의하세요. 자동으로 재전송하지 않습니다."
 }

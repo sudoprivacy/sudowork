@@ -273,7 +273,13 @@ function ExternalChat({ sessionId: routeSessionId, agentId }: IExternalChatProps
                   {task.output_status === 'invalid' && <Alert type='warning' content={t('agent.external.invalidOutput')} />}
                   {task.reconciliation && <Alert type='info' content={t('agent.external.chat.reconciled')} />}
                   {task.policy_decision?.status === 'rejected' && <Alert type='warning' content={t('agent.external.chat.policyRejected', { reason: task.policy_decision.reason })} />}
-                  {task.error_code && !task.policy_decision && <Typography.Paragraph type='secondary'>{t('agent.external.taskError', { code: task.error_code })}</Typography.Paragraph>}
+                  {task.error_code && task.policy_decision?.status !== 'rejected' && (
+                    <Typography.Paragraph type='secondary'>
+                      {task.status === 'failed' && ['MODEL_CONTENT_DENIED', 'MODEL_CLASSIFIER_UNAVAILABLE', 'MODEL_REDACTION_UNSAFE'].includes(task.error_code)
+                        ? t(`agent.external.modelRejection.${task.error_code}`)
+                        : t('agent.external.taskError', { code: task.error_code })}
+                    </Typography.Paragraph>
+                  )}
                 </div>
               </div>
             ))}

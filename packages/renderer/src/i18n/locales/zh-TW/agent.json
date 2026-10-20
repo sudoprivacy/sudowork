@@ -136,5 +136,8 @@
   "external.usage.notRecorded": "未記錄",
   "external.usage.basis": "能力依據為目前轉接器契約，不代表即時連線狀態或某次執行的證明。提交任務時會重新檢查准入。",
   "external.usage.evidence": "來源身分尚未驗證；原始碼摘要只證明審核快照。查詢復原只查詢同一遠端執行，不會自動重新執行結果未知的任務。",
-  "external.usage.unavailable": "服務未提供使用範圍資訊，請重新整理或聯絡管理員確認。"
+  "external.usage.unavailable": "服務未提供使用範圍資訊，請重新整理或聯絡管理員確認。",
+  "external.modelRejection.MODEL_CONTENT_DENIED": "執行服務回報：內容策略在傳送給模型前拒絕了本次請求。請調整內容後重新發起；系統不會自動重送。",
+  "external.modelRejection.MODEL_CLASSIFIER_UNAVAILABLE": "執行服務回報：內容檢測暫不可用，本次模型請求已在傳送前停止。請聯絡管理員；系統不會自動重送。",
+  "external.modelRejection.MODEL_REDACTION_UNSAFE": "執行服務回報：無法安全去識別化，本次模型請求已在傳送前停止。請調整內容或聯絡管理員；系統不會自動重送。"
 }

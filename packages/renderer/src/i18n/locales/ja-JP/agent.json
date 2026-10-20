@@ -136,5 +136,8 @@
   "external.usage.notRecorded": "記録なし",
   "external.usage.basis": "機能は現在のアダプター契約に基づき、接続の稼働状態や個別の実行証拠を示すものではありません。タスク送信時に実行許可を再確認します。",
   "external.usage.evidence": "ソースの身元は未検証です。ダイジェストは審査済みスナップショットのみを証明します。復旧では同じリモート実行を照会し、結果不明のタスクを自動的に再実行しません。",
-  "external.usage.unavailable": "サービスから利用範囲の情報が提供されていません。更新するか管理者に確認してください。"
+  "external.usage.unavailable": "サービスから利用範囲の情報が提供されていません。更新するか管理者に確認してください。",
+  "external.modelRejection.MODEL_CONTENT_DENIED": "実行サービスの報告：コンテンツポリシーにより、モデルへの送信前にリクエストが拒否されました。内容を修正してから再送信してください。自動再送は行いません。",
+  "external.modelRejection.MODEL_CLASSIFIER_UNAVAILABLE": "実行サービスの報告：コンテンツ検査が利用できないため、モデルへの送信前にリクエストを停止しました。管理者に連絡してください。自動再送は行いません。",
+  "external.modelRejection.MODEL_REDACTION_UNSAFE": "実行サービスの報告：安全なマスキングができないため、モデルへの送信前にリクエストを停止しました。内容を修正するか管理者に連絡してください。自動再送は行いません。"
 }

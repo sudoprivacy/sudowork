@@ -401,3 +401,19 @@ it('shows Registry registration separately from remote execution in the shared c
   expect(screen.getByText('agent.external.versions.awaitingEvidence')).toBeTruthy();
   expect(screen.queryByText('agent.external.versions.executed')).toBeNull();
 });
+
+
+it.each(['MODEL_CONTENT_DENIED', 'MODEL_CLASSIFIER_UNAVAILABLE', 'MODEL_REDACTION_UNSAFE'])('shows %s after accepted admission without resending', async (code) => {
+  mocks.history.mockResolvedValue({ success: true, data: [{ ...task, status: 'failed', answer: '', error_code: code, policy_decision: { status: 'accepted' } }] });
+  page('/conversation/external:session-1');
+  expect(await screen.findByText(`agent.external.modelRejection.${code}`)).toBeTruthy();
+  expect(mocks.create).not.toHaveBeenCalled();
+});
+
+it('keeps unknown execution distinct from a confirmed pre-write rejection', async () => {
+  mocks.history.mockResolvedValue({ success: true, data: [{ ...task, status: 'unknown', answer: '', error_code: 'EXECUTION_UNCONFIRMED', policy_decision: { status: 'accepted' } }] });
+  page('/conversation/external:session-1');
+  expect(await screen.findByText('agent.external.taskError')).toBeTruthy();
+  expect(screen.queryByText('agent.external.modelRejection.MODEL_CONTENT_DENIED')).toBeNull();
+  expect(mocks.create).not.toHaveBeenCalled();
+});

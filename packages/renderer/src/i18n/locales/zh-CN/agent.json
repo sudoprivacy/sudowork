@@ -136,5 +136,8 @@
   "external.usage.notRecorded": "未记录",
   "external.usage.basis": "能力依据为当前适配器契约，不代表实时连接状态或某次运行的执行证明。提交任务时会重新检查准入。",
   "external.usage.evidence": "来源身份尚未验证；源码摘要只证明审核快照。查询恢复只查询同一远端运行，不会自动重新执行未知任务。",
-  "external.usage.unavailable": "服务未提供使用范围信息，请刷新或联系管理员确认。"
+  "external.usage.unavailable": "服务未提供使用范围信息，请刷新或联系管理员确认。",
+  "external.modelRejection.MODEL_CONTENT_DENIED": "执行服务报告：内容策略在发送给模型前拒绝了本次请求。请调整内容后重新发起；系统不会自动重发。",
+  "external.modelRejection.MODEL_CLASSIFIER_UNAVAILABLE": "执行服务报告：内容检测暂不可用，本次模型请求已在发送前停止。请联系管理员；系统不会自动重发。",
+  "external.modelRejection.MODEL_REDACTION_UNSAFE": "执行服务报告：无法安全脱敏，本次模型请求已在发送前停止。请调整内容或联系管理员；系统不会自动重发。"
 }
