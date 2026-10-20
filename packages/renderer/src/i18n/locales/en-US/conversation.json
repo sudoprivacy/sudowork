@@ -448,6 +448,11 @@
     "personalDisconnectBody": "Your Chrome, tabs and login state stay open. Agent tools remain paused until you continue through the conversation.",
     "openConversation": "Open conversation",
     "conversationControl": "Use the conversation to interrupt or continue. Touching the page while AI is working interrupts first; check the refreshed page before clicking again.",
-    "conversationUpdateRequired": "Update the server to interrupt and continue this browser through the conversation. Viewing remains available."
+    "conversationUpdateRequired": "Update the server to interrupt and continue this browser through the conversation. Viewing remains available.",
+    "copySelection": "Copy selected text",
+    "pasteClipboard": "Paste into page",
+    "selectionUnavailable": "Select readable text in the remote page before copying.",
+    "clipboardUnavailable": "Clipboard access is unavailable. Paste into the text field below.",
+    "clipboardTooLong": "This text cannot be inserted. Paste a shorter plain text selection."
   }
 }

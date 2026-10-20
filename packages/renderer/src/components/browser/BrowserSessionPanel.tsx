@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { BrowserFileSchema, BrowserInputSchema, BrowserSessionReplySchema, isCurrentBrowserFrame, type BrowserFile, type BrowserInput, type BrowserSessionAction, type BrowserSessionReply, type BrowserSessionState } from '@sudowork/contracts/browser-session';
 import { PageSurface } from '@ai-dev-browser/remote-page';
+import { copyTextFromPromise } from '../../utils/clipboard';
 
 /** Shared remote browser UI. The host authenticates and enforces every action. */
 export default function BrowserSessionPanel({ conversationId, isActive = true, isViewer = false, isControlsOnly = false, initialTransport = 'extension' }: IBrowserSessionPanelProps) {
@@ -12,6 +13,8 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
   const [error, setError] = useState<string | null>(null);
   const [isTransferring, setIsTransferring] = useState(false);
   const [isFileTransferring, setIsFileTransferring] = useState(false);
+  const [isClipboardBusy, setIsClipboardBusy] = useState(false);
+  const [isTextComposing, setIsTextComposing] = useState(false);
   const [url, setUrl] = useState('');
   const [text, setText] = useState('');
   const [dialogText, setDialogText] = useState('');
@@ -31,6 +34,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
   const sessionRef = useRef<BrowserSessionState | null>(null);
   const invokeRef = useRef<((action: BrowserSessionAction) => Promise<BrowserSessionReply>) | undefined>(undefined);
   const isInteractiveRef = useRef(false);
+  const isFrameReadyRef = useRef(false);
   const surfaceModeRef = useRef<'page' | 'window'>('page');
   const generationRef = useRef(0);
   const pendingInputsRef = useRef<Promise<void>>(Promise.resolve());
@@ -55,6 +59,8 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     if (previous && isSameProfile && (next.controlEpoch < previous.controlEpoch || (next.controlEpoch === previous.controlEpoch && next.targetEpoch < previous.targetEpoch))) return;
     if (previous && (!isSameBrowser || next.controlEpoch !== previous.controlEpoch || next.targetEpoch !== previous.targetEpoch)) {
       surfaceRef.current?.clear();
+      isFrameReadyRef.current = false;
+      isInteractiveRef.current = false;
       setIsFrameReady(false);
     }
     sessionRef.current = next;
@@ -83,8 +89,12 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     setTransport(initialTransport);
     setSession(null);
     setError(null);
+    isFrameReadyRef.current = false;
+    isInteractiveRef.current = false;
     setIsFrameReady(false);
     setIsFileTransferring(false);
+    setIsClipboardBusy(false);
+    setIsTextComposing(false);
     fileChoiceRef.current = null;
     if (!isActive || !conversationId) return;
 
@@ -136,6 +146,8 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
         if (!isClosed) {
           setError(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
           surfaceRef.current?.clear();
+          isFrameReadyRef.current = false;
+          isInteractiveRef.current = false;
           setIsFrameReady(false);
         }
       }
@@ -156,6 +168,8 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
   }, [conversationId, initialTransport, invoke, isActive, isControlsOnly, selectedSurface, t, update]);
 
   const isConversationControlSupported = session?.capabilities.conversationControl === true;
+  const isSessionKnown = session !== null;
+  const isDragSupported = session?.capabilities.dragInput === true;
   const isController = isConversationControlSupported && session?.state === 'human' && session.isController && !isTransferring && !isFileTransferring && !error;
   const isStoppedController = isConversationControlSupported && session?.state === 'stopped' && session.isController && session.isHumanControlHeld && !isTransferring && !error;
   isInteractiveRef.current = !!isController && isFrameReady && !isPanning;
@@ -170,8 +184,9 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
 
   const onImageLoad = () => {
     const image = imageRef.current;
-    if (!image) return;
+    if (!image?.getAttribute('src')) return;
     setImageSize((previous) => (previous.width === image.naturalWidth && previous.height === image.naturalHeight ? previous : { width: image.naturalWidth, height: image.naturalHeight }));
+    isFrameReadyRef.current = true;
     setIsFrameReady(true);
   };
 
@@ -210,15 +225,16 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
   };
 
   const queueInput = useCallback(
-    (input: BrowserInput) => {
-      const observed = sessionRef.current;
-      const generation = generationRef.current;
-      const surface = surfaceModeRef.current;
+    (input: BrowserInput, context?: IBrowserInputContext) => {
+      const observed = context ? context.session : sessionRef.current;
+      const generation = context ? context.generation : generationRef.current;
+      const surface = context ? context.surface : surfaceModeRef.current;
       const operation = pendingInputsRef.current.then(() => {
         const current = sessionRef.current;
         if (
           !observed ||
           !current ||
+          !isFrameReadyRef.current ||
           generationRef.current !== generation ||
           current.browserSessionId !== observed.browserSessionId ||
           current.profileId !== observed.profileId ||
@@ -293,27 +309,34 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
   };
 
   useEffect(() => {
-    if (!imageRef.current) return;
-    const surface = new PageSurface(imageRef.current, (value: unknown) => {
-      const current = sessionRef.current;
-      if (!isInteractiveRef.current || !current || current.state !== 'human' || !current.isController) return;
-      const input = BrowserInputSchema.safeParse(value);
-      if (!input.success) return;
-      const generation = generationRef.current;
-      void queueInput(input.data)
-        .then((reply) => {
-          if (generationRef.current === generation) updateRef.current(reply.session);
-        })
-        .catch((failure: unknown) => {
-          if (generationRef.current === generation) Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
-        });
-    });
+    if (!imageRef.current || !isSessionKnown) return;
+    const surface = new PageSurface(
+      imageRef.current,
+      (value: unknown) => {
+        const current = sessionRef.current;
+        if (!isInteractiveRef.current || !current || current.state !== 'human' || !current.isController) return;
+        const input = BrowserInputSchema.safeParse(value);
+        if (!input.success) return;
+        const generation = generationRef.current;
+        void queueInput(input.data)
+          .then((reply) => {
+            if (generationRef.current === generation) updateRef.current(reply.session);
+          })
+          .catch((failure: unknown) => {
+            if (generationRef.current === generation) Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
+          });
+      },
+      { drag: isDragSupported }
+    );
     surfaceRef.current = surface;
     return () => {
       surface.dispose();
+      isFrameReadyRef.current = false;
+      isInteractiveRef.current = false;
+      setIsFrameReady(false);
       surfaceRef.current = null;
     };
-  }, [queueInput, t, isControlsOnly]);
+  }, [queueInput, t, isControlsOnly, isSessionKnown, isDragSupported]);
 
   const onInsertText = async () => {
     const current = sessionRef.current;
@@ -321,12 +344,74 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     const generation = generationRef.current;
     const submitted = text;
     try {
-      const reply = await queueInput({ kind: 'text', text: submitted });
+      const input = BrowserInputSchema.safeParse({ kind: current.capabilities.clipboardText ? 'paste' : 'text', text: submitted });
+      if (!input.success) throw new Error(t('conversation.browserSession.clipboardTooLong'));
+      const reply = await queueInput(input.data);
       if (generationRef.current !== generation) return;
       update(reply.session);
       setText((value) => (value === submitted ? '' : value));
     } catch (failure) {
       Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
+    }
+  };
+
+  const onCopySelection = async () => {
+    const current = sessionRef.current;
+    if (!isController || !current?.capabilities.selectionRead || current.state !== 'human' || !current.isController || !isFrameReadyRef.current || isClipboardBusy) return;
+    const context = { session: current, generation: generationRef.current, surface: surfaceModeRef.current };
+    setIsClipboardBusy(true);
+    try {
+      const selection = queueInput({ kind: 'copy-selection' }, context).then((reply) => {
+        const active = sessionRef.current;
+        if (
+          generationRef.current !== context.generation ||
+          !active ||
+          active.browserSessionId !== current.browserSessionId ||
+          active.profileId !== current.profileId ||
+          active.controlEpoch !== current.controlEpoch ||
+          active.targetEpoch !== current.targetEpoch ||
+          active.state !== 'human' ||
+          !active.isController ||
+          reply.session.browserSessionId !== current.browserSessionId ||
+          reply.session.profileId !== current.profileId ||
+          reply.session.controlEpoch !== current.controlEpoch ||
+          reply.session.targetEpoch !== current.targetEpoch
+        )
+          throw new Error(t('conversation.browserSession.unavailable'));
+        update(reply.session);
+        if (!reply.selection?.isAvailable || !reply.selection.text) throw new Error(t('conversation.browserSession.selectionUnavailable'));
+        return reply.selection.text;
+      });
+      // Begin the write in this gesture; WebKit receives remote data as a promise.
+      await copyTextFromPromise(selection);
+    } catch (failure) {
+      if (generationRef.current === context.generation) Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.clipboardUnavailable'));
+    } finally {
+      if (generationRef.current === context.generation) setIsClipboardBusy(false);
+    }
+  };
+
+  const onPasteClipboard = async () => {
+    const current = sessionRef.current;
+    if (!isController || !current?.capabilities.clipboardText || current.state !== 'human' || !current.isController || !isFrameReadyRef.current || isClipboardBusy) return;
+    const context = { session: current, generation: generationRef.current, surface: surfaceModeRef.current };
+    setIsClipboardBusy(true);
+    try {
+      if (!navigator.clipboard?.readText) throw new Error(t('conversation.browserSession.clipboardUnavailable'));
+      // Read only on this explicit user gesture. Freeze the destination before
+      // the browser's clipboard permission UI can yield to another task/tab.
+      // Windows clipboard reads use CRLF. Normalize before trusted insertion
+      // so remote input listeners see the same text as native browser paste.
+      const pasted = (await navigator.clipboard.readText()).replace(/\r\n/g, '\n');
+      if (!pasted) return;
+      const input = BrowserInputSchema.safeParse({ kind: 'paste', text: pasted });
+      if (!input.success) throw new Error(t('conversation.browserSession.clipboardTooLong'));
+      const reply = await queueInput(input.data, context);
+      if (generationRef.current === context.generation) update(reply.session);
+    } catch (failure) {
+      if (generationRef.current === context.generation) Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.clipboardUnavailable'));
+    } finally {
+      if (generationRef.current === context.generation) setIsClipboardBusy(false);
     }
   };
 
@@ -432,6 +517,8 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
         if (generationRef.current !== generation || !current || current.state !== 'human' || !current.isController) return;
         setIsTransferring(true);
         surfaceRef.current?.clear();
+        isFrameReadyRef.current = false;
+        isInteractiveRef.current = false;
         setIsFrameReady(false);
         try {
           const epochs = { controlEpoch: current.controlEpoch, targetEpoch: current.targetEpoch };
@@ -696,6 +783,20 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
           {t('conversation.browserSession.interactPage')}
         </Button>
       </div>
+      {isController && (session?.capabilities.selectionRead || session?.capabilities.clipboardText) ? (
+        <div className='flex flex-wrap gap-2'>
+          {session.capabilities.selectionRead ? (
+            <Button size='small' disabled={!isFrameReady || isClipboardBusy} onClick={() => void onCopySelection()}>
+              {t('conversation.browserSession.copySelection')}
+            </Button>
+          ) : null}
+          {session.capabilities.clipboardText ? (
+            <Button size='small' disabled={!isFrameReady || isClipboardBusy} onClick={() => void onPasteClipboard()}>
+              {t('conversation.browserSession.pasteClipboard')}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
       <div
         ref={viewportRef}
         aria-label={t('conversation.browserSession.imageViewport')}
@@ -715,6 +816,18 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
             draggable={false}
             tabIndex={isController && !isPanning ? 0 : -1}
             onLoad={onImageLoad}
+            onKeyDownCapture={(event) => {
+              if (!(event.ctrlKey || event.metaKey) || event.altKey || event.nativeEvent.isComposing || !isInteractiveRef.current) return;
+              if (event.key.toLowerCase() === 'c' && session?.capabilities.selectionRead) {
+                event.preventDefault();
+                event.stopPropagation();
+                void onCopySelection();
+              } else if (event.key.toLowerCase() === 'v' && session?.capabilities.clipboardText) {
+                event.preventDefault();
+                event.stopPropagation();
+                void onPasteClipboard();
+              }
+            }}
             className={imageZoom === null ? 'max-w-full max-h-full object-contain outline-none' : 'max-w-none max-h-none shrink-0 outline-none'}
             style={{
               width: imageZoom !== null && imageSize.width ? imageSize.width * imageZoom : undefined,
@@ -730,8 +843,36 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
       {isController ? (
         <>
           <div className='flex gap-1'>
-            <Input aria-label={t('conversation.browserSession.text')} value={text} maxLength={512} onChange={setText} onPressEnter={() => void onInsertText()} />
-            <Button size='mini' disabled={!text} onClick={() => void onInsertText()}>
+            {session?.capabilities.clipboardText ? (
+              <Input.TextArea
+                aria-label={t('conversation.browserSession.text')}
+                value={text}
+                maxLength={8192}
+                autoSize={{ minRows: 2, maxRows: 5 }}
+                onChange={setText}
+                onCompositionStart={() => setIsTextComposing(true)}
+                onCompositionEnd={() => setIsTextComposing(false)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && !isTextComposing && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) {
+                    event.preventDefault();
+                    void onInsertText();
+                  }
+                }}
+              />
+            ) : (
+              <Input
+                aria-label={t('conversation.browserSession.text')}
+                value={text}
+                maxLength={512}
+                onChange={setText}
+                onCompositionStart={() => setIsTextComposing(true)}
+                onCompositionEnd={() => setIsTextComposing(false)}
+                onPressEnter={(event) => {
+                  if (!isTextComposing && !event?.nativeEvent.isComposing && event?.nativeEvent.keyCode !== 229) void onInsertText();
+                }}
+              />
+            )}
+            <Button size='mini' disabled={!text || isTextComposing || !isFrameReady || isClipboardBusy} onClick={() => void onInsertText()}>
               {t('conversation.browserSession.insert')}
             </Button>
           </div>
@@ -740,6 +881,12 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
       {session?.state === 'human' && error ? <div role='alert'>{t('conversation.browserSession.disconnected')}</div> : null}
     </div>
   );
+}
+
+interface IBrowserInputContext {
+  session: BrowserSessionState;
+  generation: number;
+  surface: 'page' | 'window';
 }
 
 interface IBrowserSessionPanelProps {

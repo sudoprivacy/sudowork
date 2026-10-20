@@ -207,6 +207,14 @@ while the actual model is waiting on its native question card. The journey
 requires the card to show cancellation, stops treating chat input as an answer,
 and completes the same trusted human edit and fresh model readback after return.
 
+Add `--verify-selection-clipboard` for the shared viewer's real drag selection,
+local clipboard, multiline paste and Chromium composition path. The fixture
+requires the exact selected phrase, Unicode text received through trusted input,
+no submission during IME confirmation, and one final submission. Clipboard
+content written by the fixture is restored only if it still belongs to the
+fixture; a newer user clipboard value is preserved. The Chromium composition
+check does not establish physical operating-system IME or iPhone acceptance.
+
 ### First-use browser runtime installation
 
 `live_browser_runtime_install.py` launches actual Electron with a fresh isolated
@@ -220,7 +228,7 @@ journeys and uploads its receipt and Electron log.
 
 ```powershell
 bun build apps/desktop/tests/integration/browserRuntimeInstall.live.ts --tsconfig-override=apps/desktop/tsconfig.json --target=node --format=cjs --external electron --outfile=desktop-browser-install-live.cjs
-python apps/desktop/tests/e2e/live_browser_runtime_install.py --bundle desktop-browser-install-live.cjs --output C:/path/to/new-installer-evidence --version 0.58.1
+python apps/desktop/tests/e2e/live_browser_runtime_install.py --bundle desktop-browser-install-live.cjs --output C:/path/to/new-installer-evidence --version 0.58.2
 ```
 
 Use `xvfb-run -a` for this command on Linux without a display. A working Python

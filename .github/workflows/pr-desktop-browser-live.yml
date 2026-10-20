@@ -41,7 +41,7 @@ jobs:
       - name: Install dependencies
         run: bun install --no-frozen-lockfile
       - name: Install the official public worker
-        run: python -m pip --isolated install --index-url https://pypi.org/simple "ai-dev-browser[remote]==0.58.1" pytest pytest-asyncio
+        run: python -m pip --isolated install --index-url https://pypi.org/simple "ai-dev-browser[remote]==0.58.2" pytest pytest-asyncio
       - name: Build the shared contracts and stdio transport
         run: |
           bun run --filter=@sudowork/contracts build
@@ -67,7 +67,7 @@ jobs:
           installer_test=(python apps/desktop/tests/e2e/live_browser_runtime_install.py
             --bundle desktop-browser-install-live.cjs
             --output "$RUNNER_TEMP/browser-runtime-cold-install"
-            --version 0.58.1)
+            --version 0.58.2)
           if [[ "$RUNNER_OS" == "Linux" ]]; then
             xvfb-run -a "${installer_test[@]}"
           else
