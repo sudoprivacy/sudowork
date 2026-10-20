@@ -207,6 +207,25 @@ while the actual model is waiting on its native question card. The journey
 requires the card to show cancellation, stops treating chat input as an answer,
 and completes the same trusted human edit and fresh model readback after return.
 
+### First-use browser runtime installation
+
+`live_browser_runtime_install.py` launches actual Electron with a fresh isolated
+home and user-data directory. Its bundled entry calls the product's
+`PythonRuntimeService.prepareBrowserWorkerRuntime()`, creates the app-owned venv
+and installs the pinned worker from public PyPI. It checks the installed package
+path, version, absence of a source override and reuse on the second call. It
+uses no model credentials and leaves the user's Python packages unchanged.
+The Windows/Linux PR workflow runs this separately from the preinstalled-worker
+journeys and uploads its receipt and Electron log.
+
+```powershell
+bun build apps/desktop/tests/integration/browserRuntimeInstall.live.ts --target=node --format=cjs --external electron --outfile=desktop-browser-install-live.cjs
+python apps/desktop/tests/e2e/live_browser_runtime_install.py --bundle desktop-browser-install-live.cjs --output C:/path/to/new-installer-evidence --version 0.58.0
+```
+
+Use `xvfb-run -a` for this command on Linux without a display. A working Python
+installation must be available, as required by the product's normal setup flow.
+
 ## Rules
 
 1. `primitives/` and `ops/` are AUTO-GENERATED. Never hand-edit.

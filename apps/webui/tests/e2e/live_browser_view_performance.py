@@ -19,6 +19,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from ai_dev_browser.core.browser import browser_start, browser_stop
 from playwright.async_api import async_playwright, expect
+from live_browser_permissions import approve_browser_permission
 
 
 async def main(args):
@@ -36,8 +37,10 @@ async def main(args):
     ]
     nonce = uuid.uuid4().hex[:10]
     expected = "Human login 中文 " + nonce
+    is_profile_acceptance = getattr(args, "verify_profile_persistence", False)
     receipts = []
     visits = []
+    authenticated_visits = []
     evidence = {
         "origin": origin,
         "headful": True,
@@ -71,6 +74,13 @@ async def main(args):
 
         def do_GET(self):
             visits.append(self.path)
+            is_signed_in = (
+                is_profile_acceptance
+                and "fixture_login=" + nonce
+                in self.headers.get("Cookie", "").split("; ")
+            )
+            if is_signed_in:
+                authenticated_visits.append(self.path)
             body = (
                 """<!doctype html><meta charset="utf-8"><title>Remote login fixture</title>
 <style>body{margin:0;font:24px sans-serif}input,button{position:absolute;left:40px;width:360px;height:48px;font:24px sans-serif}input{top:100px}button{top:170px}</style>
@@ -79,6 +89,14 @@ async def main(args):
 submit.onclick=async e=>{const response=await fetch('/submit',{method:'POST',body:JSON.stringify({value:document.querySelector('#login').value,trusted:e.isTrusted})});
 if(response.ok){clearInterval(ticker);document.body.style.background='rgb(0,128,0)';document.querySelector('#result').textContent='Signed in';}};</script>"""
             ).encode()
+            if is_signed_in:
+                body = (
+                    '<!doctype html><meta charset="utf-8">'
+                    '<title>Persisted remote login</title>'
+                    '<p id="result">Signed in</p><p id="identity">'
+                    + expected
+                    + "</p>"
+                ).encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
@@ -124,16 +142,43 @@ if(response.ok){clearInterval(ticker);document.body.style.background='rgb(0,128,
                 nonlocal is_termination_attempted
                 if session_id and not is_termination_attempted:
                     is_termination_attempted = True
-                    stopped = await context.request.post(
-                        origin + "/api/conversations/" + session_id + "/terminate",
-                        headers={"Origin": origin},
-                        data={},
+                    # Real UI metadata reads can overlap an explicit terminate.
+                    # A successful HTTP response alone must not hide recovery
+                    # that resurrects the old execution and retains its profile.
+                    model_url = origin + "/api/conversations/" + session_id + "/model"
+                    metadata, stopped = await asyncio.gather(
+                        context.request.get(model_url),
+                        context.request.post(
+                            origin + "/api/conversations/" + session_id + "/terminate",
+                            headers={"Origin": origin},
+                            data={},
+                        ),
                     )
-                    evidence["ownedSessionTerminated"] = stopped.status == 200
+                    evidence["terminationAcknowledged"] = stopped.status == 200
                     await require_status(stopped, "Terminate owned fixture")
-                    assert evidence["ownedSessionTerminated"], (
-                        "Owned fixture cleanup was not acknowledged"
+                    await require_status(
+                        metadata, "Read fixture metadata during termination"
                     )
+                    for _ in range(3):
+                        current = await context.request.get(model_url)
+                        await require_status(
+                            current, "Read terminated fixture metadata"
+                        )
+                        listed = await context.request.get(
+                            origin + "/api/conversations"
+                        )
+                        await require_status(
+                            listed, "Verify fixture remains terminated"
+                        )
+                        conversations = (await listed.json())["conversations"]
+                        assert all(
+                            item["id"] != session_id for item in conversations
+                        ), (
+                            "A terminated fixture was resurrected by a concurrent metadata read"
+                        )
+                        await asyncio.sleep(0.1)
+                    evidence["ownedSessionTerminated"] = True
+                    evidence["terminationSurvivedConcurrentMetadataReads"] = True
 
             cleanup.push_async_callback(terminate_owned_session)
             try:
@@ -282,18 +327,33 @@ if(response.ok){clearInterval(ticker);document.body.style.background='rgb(0,128,
                     panel.get_by_role("button", name=labels["return"], exact=True)
                 ).to_be_enabled(timeout=30000)
                 is_browser_owned = True
+                # Takeover changes the frame epoch. Wait for the refreshed
+                # surface before typing; the stale frame's recovery temporarily
+                # disables navigation, so Enter during that transition is lost.
+                image = panel.get_by_role("img", name=labels["page"], exact=True)
+                await expect(image).to_be_visible()
+                await expect(image).to_have_js_property("naturalWidth", 1280)
                 url_input = panel.get_by_role(
                     "textbox", name=labels["address"], exact=True
                 )
+                await expect(url_input).to_be_enabled()
                 await url_input.fill(fixture + "/review?run=" + nonce)
-                await url_input.press("Enter")
+                async with page.expect_response(
+                    lambda response: response.request.method == "POST"
+                    and response.url
+                    == origin + "/api/conversations/" + session_id + "/browser"
+                    and response.request.post_data_json.get("kind") == "navigate"
+                ) as navigation:
+                    await url_input.press("Enter")
+                await require_status(
+                    await navigation.value, "Navigate to the owned fixture"
+                )
                 deadline = time.monotonic() + 15
                 while not any(nonce in path for path in visits):
                     assert time.monotonic() < deadline, (
                         "The actual cloud Chrome did not reach this run's isolated fixture"
                     )
                     await asyncio.sleep(0.1)
-                image = panel.get_by_role("img", name=labels["page"], exact=True)
                 await expect(image).to_be_visible()
                 await expect(image).to_have_js_property("naturalWidth", 1280)
                 await image.evaluate("""image => {
@@ -403,10 +463,162 @@ if(response.ok){clearInterval(ticker);document.body.style.background='rgb(0,128,
                 )
                 evidence["trustedUnicodeLoginOnce"] = True
                 await page.screenshot(path=str(args.output / "human-login.png"))
+                if is_profile_acceptance:
+                    before_restart = await context.request.post(
+                        origin + "/api/conversations/" + session_id + "/browser",
+                        headers={"Origin": origin},
+                        data={"kind": "state"},
+                    )
+                    await require_status(before_restart, "Read signed-in profile")
+                    old_profile = (await before_restart.json())["session"]
+                    await panel.get_by_role(
+                        "button", name=labels["stop"], exact=True
+                    ).click()
+                    await page.get_by_role("dialog").get_by_role(
+                        "button", name=labels["stop"], exact=True
+                    ).click()
+                    await expect(
+                        panel.get_by_role("button", name=labels["start"], exact=True)
+                    ).to_be_enabled(timeout=30000)
+                    await panel.get_by_role(
+                        "button", name=labels["start"], exact=True
+                    ).click()
+                    await expect(
+                        panel.get_by_role("button", name=labels["return"], exact=True)
+                    ).to_be_enabled(timeout=90000)
+                    restarted = await context.request.post(
+                        origin + "/api/conversations/" + session_id + "/browser",
+                        headers={"Origin": origin},
+                        data={"kind": "state"},
+                    )
+                    await require_status(restarted, "Read restarted profile")
+                    new_profile = (await restarted.json())["session"]
+                    assert new_profile["profileId"] == old_profile["profileId"]
+                    assert new_profile["targetEpoch"] > old_profile["targetEpoch"]
+                    await url_input.fill(fixture + "/review?resumed=" + nonce)
+                    await url_input.press("Enter")
+                    deadline = time.monotonic() + 15
+                    while not any(
+                        "resumed=" + nonce in path for path in authenticated_visits
+                    ):
+                        assert time.monotonic() < deadline, (
+                            "The restarted Chrome did not retain its real login cookie"
+                        )
+                        await asyncio.sleep(0.1)
+                    assert len(receipts) == 1, "Profile restart must not replay login"
+                    evidence["profileLoginSurvivedBrowserRestart"] = True
+                    print(
+                        json.dumps({"stage": "profileLoginSurvivedBrowserRestart"}),
+                        flush=True,
+                    )
+                    await page.screenshot(path=str(args.output / "persisted-login.png"))
+
+                    chat = await context.new_page()
+                    observations = []
+
+                    def capture_observation(socket):
+                        if "/ws/conversations/" + session_id in socket.url:
+                            socket.on(
+                                "framereceived",
+                                lambda payload: observations.append(payload),
+                            )
+
+                    chat.on("websocket", capture_observation)
+                    await chat.goto(
+                        origin + "/#/conversation/" + session_id,
+                        wait_until="domcontentloaded",
+                    )
+                    await expect(chat.locator("textarea").first).to_be_visible(
+                        timeout=30000
+                    )
+                    note = panel.get_by_role("textbox", name=labels["note"], exact=True)
+                    await note.fill(
+                        "Observe the current browser page through its browser tools. "
+                        "Report the exact text of #result and #identity. Do not navigate, "
+                        "click or submit. Keep this browser open."
+                    )
+                    await panel.get_by_role(
+                        "button", name=labels["return"], exact=True
+                    ).click()
+                    deadline = time.monotonic() + 180
+                    assistant = ""
+                    is_finished = False
+                    has_browser_tool = False
+                    processed = 0
+                    last_tool = None
+                    approved_ids = set()
+                    approvals = []
+                    while not is_finished:
+                        for payload in observations[processed:]:
+                            processed += 1
+                            if not isinstance(payload, str):
+                                continue
+                            message = json.loads(payload)
+                            if message.get("kind") != "upstream":
+                                continue
+                            event = message.get("event", {})
+                            if event.get("type") == "tool_use":
+                                tool_input = event.get("input", {})
+                                if isinstance(tool_input, str):
+                                    tool_input = json.loads(tool_input)
+                                last_tool = (event.get("name", ""), tool_input)
+                                if last_tool[0].startswith("mcp__sudowork-browser__"):
+                                    has_browser_tool = True
+                            if event.get("type") == "control_request":
+                                request_id = event.get("request_id")
+                                if request_id not in approved_ids:
+                                    approvals.append(
+                                        await approve_browser_permission(
+                                            chat, event, last_tool
+                                        )
+                                    )
+                                    approved_ids.add(request_id)
+                            if event.get("type") == "assistant":
+                                content = event.get("message", {}).get("content", [])
+                                if isinstance(content, str):
+                                    assistant += content
+                                else:
+                                    for block in content:
+                                        if not isinstance(block, dict):
+                                            continue
+                                        assistant += block.get("text", "")
+                                        if (
+                                            block.get("type") == "tool_use"
+                                            and "browser" in block.get("name", "").lower()
+                                        ):
+                                            has_browser_tool = True
+                            if event.get("type") == "result":
+                                assert not event.get("is_error")
+                                is_finished = True
+                        assert time.monotonic() < deadline, (
+                            "AI did not finish observing the persisted login"
+                        )
+                        if not is_finished:
+                            await asyncio.sleep(0.25)
+                    assert (
+                        has_browser_tool
+                        and expected in assistant
+                        and "Signed in" in assistant
+                    )
+                    assert len(receipts) == 1
+                    evidence["realModelObservedPersistedLogin"] = True
+                    evidence["observationApprovals"] = approvals
+                    await panel.get_by_role(
+                        "button", name=labels["take"], exact=True
+                    ).click()
+                    await expect(
+                        panel.get_by_role("button", name=labels["return"], exact=True)
+                    ).to_be_enabled(timeout=30000)
+                    await chat.close()
                 assert evidence["renderedFramesPerSecond"] >= args.minimum_fps, (
                     "Remote view did not meet the configured real acceptance rate"
                 )
                 evidence["passed"] = True
+            except BaseException as error:
+                evidence["workflowFailure"] = (
+                    type(error).__name__ + ": " + str(error).split("\nCall log:", 1)[0]
+                )
+                raise
             finally:
                 if tasks:
                     await asyncio.gather(*tasks)
@@ -419,6 +631,25 @@ if(response.ok){clearInterval(ticker);document.body.style.background='rgb(0,128,
                         )
                         await require_status(current, "Read owned fixture before Stop")
                         state = (await current.json())["session"]
+                        if (
+                            is_profile_acceptance
+                            and evidence.get("profileLoginSurvivedBrowserRestart")
+                            and state["state"] == "ai"
+                        ):
+                            # This test itself returned its owned profile to AI.
+                            # A failed observation must still stop its own turn
+                            # through the normal acknowledged takeover barrier.
+                            taken = await context.request.post(
+                                origin + "/api/conversations/" + session_id + "/browser",
+                                headers={"Origin": origin},
+                                data={
+                                    "kind": "take",
+                                    "controlEpoch": state["controlEpoch"],
+                                    "targetEpoch": state["targetEpoch"],
+                                },
+                            )
+                            await require_status(taken, "Take the owned observation fixture")
+                            state = (await taken.json())["session"]
                         if state["state"] != "stopped":
                             assert (
                                 state["state"] == "human" and state["isController"]
@@ -566,4 +797,5 @@ if __name__ == "__main__":
     parser.add_argument("--fixture-port", type=int, default=0)
     parser.add_argument("--fixture-origin")
     parser.add_argument("--minimum-fps", type=float, default=0)
+    parser.add_argument("--verify-profile-persistence", action="store_true")
     asyncio.run(main(parser.parse_args()))

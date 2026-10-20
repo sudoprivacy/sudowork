@@ -166,6 +166,16 @@ credentials, browser cookies and base64 frame contents are excluded. The
 functional assertions always run; `--minimum-fps` adds an environment-specific
 rate requirement when the deployment has a stable measured network budget.
 
+Add `--verify-profile-persistence` to complete the isolated sign-in workflow:
+stop through the real confirmation dialog, start the same profile again, verify
+its login cookie reaches the fixture, then Return through the panel with a note
+asking AI to inspect the current page. The expected human value is not supplied
+in that note. The test handles scoped one-time browser permissions with the same
+helper as the other live journeys and requires exact model readback from actual
+browser tools. A proxy used for this fixture must forward its `Cookie` request
+header as well as the `Set-Cookie` response header. Cleanup also overlaps metadata
+reads with termination and checks that subsequent reads do not resurrect it.
+
 ## Browser lifecycle controls
 
 `live_browser_lifecycle.py` covers the actual shared panel's Start, Restart,
