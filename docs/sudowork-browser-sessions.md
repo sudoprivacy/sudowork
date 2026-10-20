@@ -842,3 +842,53 @@ form measurements, not actual graph performance or physical phone acceptance.
 The checked-in live entry is `live_browser_view_performance.py
 --verify-selection-clipboard --verify-profile-persistence`; both the fixture
 and the final application APIs remain real.
+
+### Packaged Desktop correction and first-use acceptance, 21 October
+
+The official Windows artifact from `007c4505` contained the browser skill but
+omitted the SDK Python modules and MCP catalog. Its app-relative vendor glob
+did not reach the repository-root submodule. Packaged hosts could therefore
+install the public runtime yet fail to locate their tool catalog. The actual
+artifact failed the new missing-assets check before this correction.
+
+The Desktop packaging configuration now copies the pinned SDK and its license
+to `resources/ai-dev-browser`, a location already supported by the host and
+skill resolver. The repository license notice also uses its actual root path.
+The existing packaged-integrity CI step now checks every delivered SDK file
+against its pinned source, the public MCP tool names and the SDK license, in
+addition to all renderer assets. Both checks passed on a normally built Windows
+candidate. This is a candidate result; a newly published official artifact must
+still pass delivery acceptance before stable promotion.
+
+The actual packaged executable, with `app.isPackaged` true and a private empty
+data directory, then passed the complete real-model journey using gpt-6-luna.
+Its normal first-use installer provisioned public SDK 0.58.2 in 21.92 seconds.
+The live test observes this installation as a separate setup phase; the existing
+20-second explicit-profile-consent check is unchanged. No runtime preinstallation,
+source override or application archive modification was used.
+
+The journey verified explicit personal-profile selection, a pending native
+question cancelled through the existing interrupt and still cancelled after
+reload, exact remote phrase copy, trusted multiline paste and Chromium
+composition, one final submission, ordinary chat continuation with exact model
+readback, and opening the exact conversation from its viewer. Disconnect and
+normal app shutdown preserved the selected personal Chrome. Both temporary
+model configuration copies and all owned app services were cleaned.
+
+### Actual shared graph exploration, 21 October
+
+An authenticated production WebUI viewer displayed the real
+[`sudograph-northwind` review](https://s.shareone.vip/s/sudograph-northwind)
+from Sudograph revision `9876b6895c25386e0310b8bf954dd9e08aa87282`.
+Visible viewer gestures zoomed and panned the graph, opened a text-comment
+popup for Sales by Category, expanded its four fields and switched language
+while retaining the expansion and selection. No local extension was needed.
+The same live run restored its owned fixture, completed profile/model checks,
+and cleaned its browser, conversation and temporary key.
+
+This exploration did not post a comment: the isolated cloud profile reached
+ShareOne's normal login dialog and needs a reviewer login. Exact canonical
+quote/target identity, reopening the same submitted thread and the adapter's
+project/revision/share binding still require joint acceptance. The recorded
+gesture-driver durations do not measure page-to-frame or network latency;
+actual graph feedback and transport segmentation remain open.

@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { execFileSync } from 'child_process';
+import { createHash } from 'crypto';
 import { describe, expect, it } from 'vitest';
 
 function toPosixPath(value: string): string {
@@ -132,5 +133,24 @@ describe('Packaged i18n build integrity', () => {
     const missing = expectedFiles.filter((file) => !asarEntries.has(file));
 
     expect(missing).toEqual([]);
+  });
+
+  runOrSkip('should ship the pinned browser tools and MCP catalog on the real filesystem', () => {
+    const sdkRoot = path.resolve(__dirname, '../../../../vendor/ai-dev-browser');
+    const source = path.join(sdkRoot, 'ai_dev_browser');
+    const resources = path.dirname(appAsarPath as string);
+    const bundled = path.join(resources, 'ai-dev-browser', 'ai_dev_browser');
+    expect(fs.existsSync(bundled), 'The packaged browser Python directory is missing').toBe(true);
+    const expectedFiles = listFilesRecursive(source).filter((file) => !toPosixPath(file).includes('/__pycache__/') && !file.endsWith('.pyc'));
+    const digest = (file: string) => createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+    for (const original of expectedFiles) {
+      const relative = path.relative(source, original);
+      const delivered = path.join(bundled, relative);
+      expect(fs.existsSync(delivered), `Missing pinned browser asset: ${relative}`).toBe(true);
+      expect(digest(delivered), `Changed pinned browser asset: ${relative}`).toBe(digest(original));
+    }
+    const catalog = JSON.parse(fs.readFileSync(path.join(bundled, 'remote', 'mcp-tools.json'), 'utf8')) as { name: string }[];
+    expect(catalog.map((tool) => tool.name)).toEqual(expect.arrayContaining(['browser_launch', 'browser_observe', 'browser_action']));
+    expect(digest(path.join(resources, 'ai-dev-browser', 'LICENSE'))).toBe(digest(path.join(sdkRoot, 'LICENSE')));
   });
 });
