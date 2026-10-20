@@ -126,11 +126,19 @@ function connection(): BrowserConnection {
     ws: { readyState: 1, OPEN: 1, send: vi.fn() },
   } as unknown as BrowserConnection
 }
-function coordinator(activity = vi.fn(async () => ({ attemptId: 'current', state: 'busy' }))) {
+function coordinator(
+  activity = vi.fn(async () => ({ attemptId: 'current', state: 'busy' })),
+  browserControl?: (
+    ctx: unknown,
+    sessionId: string,
+    intent: 'interrupt' | 'continue',
+  ) => Promise<boolean>,
+) {
   return new ConversationCoordinator({
     pool: {} as never,
     config: {} as never,
     auth: {} as never,
+    browserControl,
     moss: {
       get: vi.fn(async () => ({
         sessionId: 'session-a',
@@ -162,6 +170,51 @@ beforeEach(() => {
 })
 
 describe('conversation reconnect during generation', () => {
+  test('uses one normal chat turn after the browser observation barrier and the existing stop for interruption', async () => {
+    const intents: string[] = []
+    const service = coordinator(undefined, async (_ctx, _sid, intent) => {
+      intents.push(intent)
+      return true
+    })
+    const browser = connection()
+    service.subscribe(browser)
+    await service.handleClientMessage(browser, {
+      kind: 'send',
+      text: 'I finished signing in. Continue.',
+    })
+    expect(intents).toEqual(['continue'])
+    expect(state.sockets[0]!.send).toHaveBeenCalledOnce()
+    await service.handleClientMessage(browser, { kind: 'stop' })
+    expect(intents).toEqual(['continue', 'interrupt'])
+    expect(state.sockets[0]!.send).toHaveBeenCalledTimes(2)
+  })
+
+  test('does not deliver an old prepared message after interrupt and leaves the browser with the user', async () => {
+    let release!: () => void
+    const barrier = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const intents: string[] = []
+    const service = coordinator(undefined, async (_ctx, _sid, intent) => {
+      intents.push(intent)
+      if (intent === 'continue') await barrier
+      return true
+    })
+    const browser = connection()
+    service.subscribe(browser)
+    const sending = service.handleClientMessage(browser, {
+      kind: 'send',
+      text: 'Continue before I interrupt.',
+    })
+    await vi.waitFor(() => expect(intents).toEqual(['continue']))
+    const stopping = service.handleClientMessage(browser, { kind: 'stop' })
+    await vi.waitFor(() => expect(state.sockets[0]!.send).toHaveBeenCalledOnce())
+    release()
+    await Promise.all([sending, stopping])
+    expect(intents).toEqual(['continue', 'interrupt'])
+    expect(state.sockets[0]!.send).toHaveBeenCalledOnce()
+  })
+
   test('reports a typed runtime update refusal and never delivers the reserved prompt', async () => {
     const service = coordinator(),
       browser = connection()

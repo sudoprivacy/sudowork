@@ -153,7 +153,7 @@ async def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--port', type=int, required=True)
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--controls-window', action='store_true', help='Take and return control from the compact native window while BrowserPanel is hidden')
+    parser.add_argument('--controls-window', action='store_true', help='Open the bound viewer from the compact status window while BrowserPanel is hidden')
     parser.add_argument('--windows-evidence', type=Path, help='Optional isolated Electron bootstrap window metadata')
     parser.add_argument('--existing-profile', action='store_true', help='Explicitly connect an isolated already-running extension Chrome instead of launching a managed browser')
     parser.add_argument('--offline-entry', action='store_true', help='Choose the ordinary local Desktop entry on a fresh login screen')
@@ -254,7 +254,7 @@ async def main():
                 evidence['normalModelSettingsSaved'] = True
             await app.click_text('新建任务', 'New task')
             await asyncio.sleep(.25)
-            prompt = f'Use only sudowork-browser for this browser task. I need to see its Chrome window, so use headful mode. Open http://127.0.0.1:{fixture.server_port}, enter AI_BEFORE_{nonce} in Handoff value, and reply {ready}. Do not submit. Wait for explicit user handoff. After the user returns control, observe again and report the exact field value and page status without typing or submitting.'
+            prompt = f'Use only sudowork-browser for this browser task. I need to see its Chrome window, so use headful mode. Open http://127.0.0.1:{fixture.server_port}, enter AI_BEFORE_{nonce} in Handoff value, and reply {ready}. Do not submit. Wait for my next message. When I tell you I finished editing, freshly observe and report the exact field value and page status without typing or submitting.'
             bootstrap = f'Reply exactly SESSION_BOOTSTRAP_{nonce}. Do not use tools. I will connect my existing Chrome through the Browser panel next.'
             await app.fill('textarea', bootstrap if args.existing_profile else prompt)
             await app.key('Enter', 'Enter', 13)
@@ -276,8 +276,8 @@ async def main():
                     return '已连接你的 Chrome profile' in text or 'Your connected Chrome profile' in text
                 await wait_for(connected_personal, 30, 'The real agent barrier and selected personal Chrome were not acknowledged')
                 task = prompt.replace('I need to see its Chrome window, so use headful mode.', 'Use the existing Chrome profile the user just connected. Call browser_observe first. Do not use browser_launch or change its profile or launch mode.')
-                await app.fill('input[maxlength="2000"]', task)
-                await app.click_text('交回 AI', 'Return to AI')
+                await app.fill('textarea', task)
+                await app.key('Enter', 'Enter', 13)
             async def ready_reply():
                 await app.wheel(1000)
                 has_prefilled = any(value == {'value': f'AI_BEFORE_{nonce}', 'trusted': True} for value in prefills)
@@ -288,7 +288,7 @@ async def main():
             print('Actual model prepared the shared browser', flush=True)
             if args.pending_native_question:
                 question = f'NATIVE_HANDOFF_{nonce}'
-                await app.fill('textarea', f'Use your native AskUserQuestion tool now. Ask exactly "{question}: Ready to take browser control?" with choices "Take control" and "Keep AI control". Wait for my answer. Do not use browser tools or answer the question yourself.')
+                await app.fill('textarea', f'Use your native AskUserQuestion tool now. Ask exactly "{question}: Can you handle this browser step?" with choices "I will handle it" and "Keep working". Wait for my answer. Do not use browser tools or answer the question yourself.')
                 await app.key('Enter', 'Enter', 13)
                 async def native_question_pending():
                     return await app.read("Boolean(document.querySelector('textarea[placeholder=\"输入回答\"],textarea[placeholder=\"Enter answer\"]'))") and question in await app.text()
@@ -309,7 +309,15 @@ async def main():
                 text = await control_ui.text()
                 return 'AI 正在控制浏览器' in text or 'AI is controlling' in text
             await wait_for(browser_ready, 20, 'The panel did not connect to the AI browser')
-            await control_ui.click_text('接管浏览器', 'Take control')
+            await control_ui.click_text('在新标签页查看', 'Open viewer tab')
+            async def new_viewer():
+                return next((t for t in await targets() if '#/browser-viewer/' in t.get('url', '')), None)
+            viewer = UI(session, await wait_for(new_viewer, 20, 'The separate viewer did not open'))
+            async def viewer_ready():
+                return await viewer.read("Boolean(window.electronAPI && document.querySelector('[data-testid=browser-session-panel] img')?.naturalWidth)")
+            await wait_for(viewer_ready, 40, 'The viewer preload, bridge or real browser frame is unavailable')
+            assert not await viewer.read("[...document.querySelectorAll('button')].some(e=>['Take control','Return to AI','接管浏览器','交回 AI'].includes(e.textContent.trim()))"), 'Browser handoff buttons must not be required'
+            await viewer.page_click(100, 130)
             async def held():
                 text = await control_ui.text()
                 return '你已接管' in text or 'Human control' in text
@@ -343,12 +351,6 @@ async def main():
                     native = await wait_for(compact_metadata, 10, 'The native control window is not always on top')
                     assert native['bounds']['width'] <= 500 and native['bounds']['height'] <= 300
             await app.screenshot(args.output/'human-panel.png')
-            await control_ui.click_text('在新标签页查看', 'Open viewer tab')
-            async def new_viewer():
-                return next((t for t in await targets() if '#/browser-viewer/' in t.get('url', '')), None)
-            viewer = UI(session, await wait_for(new_viewer, 20, 'The separate viewer did not open'))
-            async def viewer_ready():
-                return await viewer.read("Boolean(window.electronAPI && document.querySelector('[data-testid=browser-session-panel] img')?.naturalWidth)")
             await wait_for(viewer_ready, 40, 'The viewer preload, bridge or real browser frame is unavailable')
             await viewer.page_click(100, 130)
             await viewer.key('a', 'KeyA', 65, 2)
@@ -359,7 +361,8 @@ async def main():
             await wait_for(lambda: asyncio.sleep(0, result=len(receipts) > 0), 10, 'The trusted human submit did not reach the page')
             assert receipts == [{'value': human, 'trusted': True}], receipts
             await viewer.screenshot(args.output/'human-viewer.png')
-            await (control_ui if controls else viewer).click_text('交回 AI', 'Return to AI')
+            await app.fill('textarea', 'I finished editing and submitting in the shared browser. Freshly observe it and report the exact current field value and page status. Do not type or submit again.')
+            await app.key('Enter', 'Enter', 13)
             async def model_readback():
                 # Follow the actual chat as a user, without changing app state.
                 await app.wheel(1000)
@@ -381,9 +384,9 @@ async def main():
             await wait_for(slash_eval,20,'Browser evaluation did not reach the shared page')
             await app.screenshot(args.output/'shared-browser-commands.png')
             assert receipts == [{'value': human,'trusted':True}]
-            evidence.update(actualModel=True, headful=None if args.existing_profile else True, viewerBridge=True, sharedSession=True, humanValue=human, pageStatus=status, trustedSubmissions=receipts, noReplay=True, modelTurnFinished=True, slashCommands=True)
+            evidence.update(actualModel=True, headful=None if args.existing_profile else True, viewerBridge=True, sharedSession=True, humanValue=human, pageStatus=status, trustedSubmissions=receipts, noReplay=True, modelTurnFinished=True, slashCommands=True, conversationInterruptAndContinue=True, noBrowserHandoffButtons=True)
             if args.existing_profile:
-                await viewer.click_text('接管浏览器', 'Take control')
+                await viewer.page_click(100, 130)
                 async def personal_held():
                     text = await viewer.text()
                     return '你已接管' in text or 'Human control' in text
@@ -394,6 +397,11 @@ async def main():
                     return not await viewer.read("document.body.textContent.includes('已连接你的 Chrome profile') || document.body.textContent.includes('Your connected Chrome profile')")
                 await wait_for(disconnected_personal, 20, 'The selected personal Chrome did not disconnect')
                 evidence.update(existingPersonalProfile=True, explicitProfileSelection=True, personalDisconnected=True)
+            await viewer.click_text('打开会话', 'Open conversation')
+            async def bound_conversation_opened():
+                return await viewer.read('location.hash') == await app.read('location.hash') and nonce in await viewer.text()
+            await wait_for(bound_conversation_opened, 20, 'The viewer did not open its exact bound conversation')
+            evidence['sameConversationOpenedFromViewer'] = True
             evidence['trustedAiPrefill'] = {'value': f'AI_BEFORE_{nonce}', 'trusted': True}
             if controls:
                 evidence.update(compactControls=True, browserPanelHiddenDuringHandoff=True, noPixelViewerInControls=True, nativeAlwaysOnTop=bool(args.windows_evidence))

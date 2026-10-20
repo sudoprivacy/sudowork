@@ -277,6 +277,7 @@ export default defineConfig({
         'src/process/task/acpWorkspaceTracking.ts',
         'src/process/task/CronCommandDetector.ts',
         'src/process/task/turnInputCoordinator.ts',
+        '../../packages/moss-client/src/MossBrowserConversation.ts',
         // Common
         'src/common/chatLib.ts',
         'src/common/nexus/hubErrors.ts',

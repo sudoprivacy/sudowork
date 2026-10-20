@@ -141,59 +141,79 @@ sequenceDiagram
 
 Pairing binds tenant, user, device, execution session, allowed browser/tab scope and expiry. Revocation is immediate. The extension makes an outbound connection; no public local CDP listener or inbound router configuration is required. Existing Chrome keeps its headless/headful mode. Reconnecting proves the same browser identity or asks the user to pair again.
 
-## 7. User handoff UX
+## 7. Conversation controls the workflow
 
-The panel and viewer tab share the same status and actions. A compact session control also remains available outside BrowserPanel so users of native Chrome can hand off explicitly.
+The agent decides when human help is needed and asks through its native
+question/options or ordinary conversation. There are no mandatory **Take
+control**, **Return to AI**, or separate handoff-note controls in the browser.
+The existing conversation interrupt and a fresh user message are the workflow.
 
-| State                                 | What the user sees                             | Controls                                              | What AI receives                                        |
-| ------------------------------------- | ---------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------- |
-| Stopped                               | Browser is not running                         | Start; transport and mode selection                   | Start capabilities and no active target                 |
-| AI control                            | AI is controlling this browser                 | Take control; observe; open viewer                    | Current lease and target identity                       |
-| Pausing                               | Waiting for the current operation to stop      | Cancel request if no lease has transferred; view only | New writes blocked; in-flight completion required       |
-| Human control                         | You are controlling this browser; AI is paused | Navigation, typing, tabs, uploads; Return to AI       | Waiting state, reason and control epoch; no retry loop  |
-| Returning                             | Reconnecting and observing the current page    | View only; cancel continuation                        | Fresh observation required; prior queued writes invalid |
-| Disconnected while human owns control | Connection lost; AI remains paused             | Reconnect; explicit end or return after reconnection  | No automatic lease transfer                             |
-| Error or uncertain execution          | Operation status could not be confirmed        | Inspect/reconnect/end; no unsafe automatic retry      | Structured failure and observation requirement          |
+| User intent | Host behavior | Browser input |
+| --- | --- | --- |
+| Open, refresh, reconnect, pan or zoom a viewer | Preserve its authorised conversation/session binding | View only; no lease transfer |
+| Interrupt from the conversation | Stop the current task and acknowledge its browser/tool barrier | Enable only after acknowledgement |
+| Touch the remote page while AI owns it | Invoke the same conversation interrupt | Discard the initiating gesture; require a fresh frame and a new gesture |
+| Work in an attached personal Chrome window | Interrupt in the conversation before native input | No claim that arbitrary OS input is detected |
+| Send a fresh message or supported native answer | Drain input, advance epochs, observe and release the browser lease before that message proceeds | Stale queued gestures are rejected |
+| Lose the viewer connection | Preserve human intent and the persistent profile | Never resume from an idle timer or disconnect |
 
-### Taking control
+Desktop keeps the acknowledged main/child tool barrier because local agents may
+have shell access. Cloud browsers retain the server lease across every agent
+and viewer. A failed barrier or observation keeps input blocked and reports the
+failure. Conversation continuation does not create a synthetic second user turn.
+Input admitted before an interrupt cannot later resume a paused browser.
 
-1. The user clicks **Take control** in the panel, viewer or session control.
-2. The server advances the control epoch and blocks new AI operations from the main agent and children. Queued actions from the earlier epoch are discarded.
-3. An already-running atomic input sequence finishes, including mouse/key release. For unisolated Desktop shell access, the runtime must stop all affected tool execution and verify no browser operation remains active. A UI-only pause cannot grant the human lease.
-4. Only after that barrier succeeds does the UI show **You are controlling** and enable human input. Failure leaves input disabled with a clear retry/end action.
-5. The user completes login, consent, CAPTCHA or another manual step in the same tab and profile. Native windows and window-view Chrome settings are covered by the same explicit lease.
+The independent viewer links to its bound conversation. It does not guess the
+latest active task or introduce a second handoff UI. Selecting a personal
+Chrome profile remains an explicit connection/consent action.
 
-### Returning to AI
+### Delivery and acceptance of this correction
 
-1. The user clicks **Return to AI**; optional text explains what they changed.
-2. Human input is disabled and the control epoch changes again.
-3. The runtime obtains current tabs, active target, URL and a fresh screenshot/DOM observation. It rejects actions planned against the old target or epoch.
-4. The agent receives a continuation message: human control ended, what the user reported, current target identity and an instruction to observe before acting.
-5. Execution resumes after the observation barrier. It does not replay a stale submit, purchase, navigation or click.
+This contract was clarified on 2026-10-20. Earlier evidence below describes the
+previous button-based workflow and does not establish acceptance of this one.
+The first actual Electron/Sonnet 4.6 journey passed with the public SDK 0.58.1:
+native question cancellation survived renderer reload, a trusted Unicode edit
+was submitted once, and the normal chat message continued the same browser.
+The model reported the exact edited value. Personal Chrome stayed open after
+disconnect and application shutdown. A repeated live VM registry journey also
+passed owner isolation, allocation-free conversation controls, persisted
+cookies/leases and recovery using signed extension 0.4.4. These are development
+acceptance results; final source, WebUI, production delivery and real-phone
+browser acceptance remain separate gates.
 
-Closing a tab/window, losing connectivity or a browser timeout never silently returns control to AI. Another viewer can observe but cannot replace the human controller without explicit authenticated transfer. Manual input outside the panel requires the same explicit handoff; do not imply that arbitrary OS input is automatically detected.
+The host advertises `capabilities.conversationControl`. Older servers remain
+usable for normal chat when this endpoint is absent, but browser interaction
+requires a server upgrade; their viewer remains available. Actual 401/403,
+missing-session and uncertain errors are preserved. There is no retry through
+another route. Interrupted native questions stay cancelled; use a fresh chat
+message to continue after an interrupt.
 
-```mermaid
-stateDiagram-v2
-  [*] --> AI
-  AI --> Pausing: Take control
-  Pausing --> Human: Operations drained
-  Pausing --> Error: Barrier failed
-  Human --> Disconnected: Viewer lost
-  Disconnected --> Human: Controller reconnects
-  Human --> Observing: Return to AI
-  Observing --> AI: Fresh observation confirmed
-  Observing --> Error: Observation failed
-  Error --> Human: Explicit recovery
-```
+The [Sudograph integration review](https://github.com/sudoprivacy/sudograph/blob/main/docs/review-session-events.md#browser-acceptance-to-share-with-its-owner)
+adds the following application acceptance requirements:
+
+- Recover the exact task, tenant, source revision and browser binding after
+  refresh/reconnect in Desktop and authenticated WebUI.
+- In the real remote graph, select an exact phrase, comment on its canonical
+  object, and reopen that thread after zoom, expansion and language changes.
+- Verify local/remote clipboard, Unicode/IME composition and selection gestures.
+  A pixel stream does not provide DOM selection or clipboard semantics itself.
+- Complete review through the bound conversation/comments without business
+  handoff buttons; retain the lease and reject stale queued input.
+- Measure pan/zoom and comment feedback using the actual graph and transport.
+  A source-reading or model-readback test does not establish those results.
+- Keep view-only review available without a local extension and document
+  unsupported devices/transports. A phone viewport is not a physical phone test.
+
+Comment routing and semantic model-change delivery belong to the bound review
+adapter. Opening this design does not authorize deploying background consumers.
 
 ## 8. LLM and tool contract
 
 Tools return structured state with `browserSessionId`, browser identity, `profileId`, active `targetId`, `controlEpoch`, `targetEpoch`, controller and capabilities. Each write must match the current lease and epochs.
 
 - During human control, tool requests return `browser_control_held_by_user` with a wait instruction. They do not poll, recreate the browser, switch profiles or use a different transport to bypass the lease.
-- The agent explains why human input is needed through its native question/options or ordinary conversation. For example: "Please take control of the browser and sign in. Choose Return to AI when ready." No separate custom question interface is required.
-- The user establishes ownership with the shared Take control action. A native option or a typed "done" message alone is not proof of a control transfer. If a future native option performs the transition directly, it must call the same authenticated host action and wait for the tool barrier acknowledgement.
+- The agent explains why human input is needed through its native question/options or ordinary conversation. For example: "Please sign in using the shared browser and tell me when you are ready." Use the native conversation; do not invent browser handoff buttons.
+- Conversation intent is routed through authenticated host transitions. A prompt or chat string alone never bypasses the server lease or the acknowledged input/tool barrier.
 - After return, the first operation is a fresh observation. A child agent cannot use a cached screenshot from before handoff.
 - Read-only access is an exact allowlist. Arbitrary JavaScript evaluation is a write because it can change page state. Closing, restarting, navigating and changing tabs are also writes.
 - Cancellation and session termination remain available while paused. They do not transfer control or imply that an uncertain write had no effect.
@@ -207,7 +227,7 @@ Agent shell access must not expose an unrestricted browser endpoint or the human
 - Desktop standalone Chrome and cloud Chrome use the same public page surface. The native Desktop Chrome window remains available when headful. Cloud headful window view exposes Chrome UI when needed, including profile sign-in and extension management.
 - Opening a viewer tab uses the existing authenticated session. Credentials are not placed in the URL. A copied link requires login and current session permission.
 - Target changes advance `targetEpoch`; stale frames and input are rejected. Coordinates are calculated from the actual remote viewport, including resizing and mobile touch input.
-- View scale is local to each panel or viewer. Fit preserves the overview; explicit scales make small controls readable without resizing Chrome or changing its profile. Selecting a scale enters Move view. Pointer dragging scrolls only the local image, and remote pointer, wheel and keyboard events are blocked until the user selects Interact with page. Ownership still requires Take control.
+- View scale is local to each panel or viewer. Fit preserves the overview; explicit scales make small controls readable without resizing Chrome or changing its profile. Selecting a scale enters Move view. Pointer dragging scrolls only the local image, and remote pointer, wheel and keyboard events are blocked until the user selects Interact with page. Ownership follows the acknowledged conversation interrupt.
 - Reconnection verifies browser identity. It never attaches silently to another user's browser or starts a replacement because a transient connection failed.
 - Uploads and downloads belong to the same authenticated session. Desktop picks local files; WebUI stages files through authorized upload/download routes. Cloud pages cannot read arbitrary viewer-device paths.
 - Page view and window view are two surfaces of the same headful browser. Headless has page view only; requesting Chrome UI requires an explicit headful restart.

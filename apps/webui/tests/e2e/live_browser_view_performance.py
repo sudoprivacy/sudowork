@@ -20,6 +20,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from ai_dev_browser.core.browser import browser_start, browser_stop
 from playwright.async_api import async_playwright, expect
 from live_browser_permissions import approve_browser_permission, browser_tool_name
+from live_browser_ui import interrupt_shared_browser, continue_from_conversation
 
 
 async def main(args):
@@ -321,16 +322,12 @@ if(response.ok){clearInterval(ticker);document.body.style.background='rgb(0,128,
                         and initial["transport"] == "extension"
                     )
                 if initial["state"] == "ai":
-                    await panel.get_by_role(
-                        "button", name=labels["take"], exact=True
-                    ).click()
+                    await interrupt_shared_browser(page, panel, labels)
                 else:
                     assert (
                         initial["state"] == "human" and initial["isController"]
                     ), "The fixture's real human lease is not available"
-                await expect(
-                    panel.get_by_role("button", name=labels["return"], exact=True)
-                ).to_be_enabled(timeout=30000)
+                await expect(panel.get_by_text(labels['state']['human'], exact=True)).to_be_visible(timeout=30000)
                 is_browser_owned = True
                 # Takeover changes the frame epoch. Wait for the refreshed
                 # surface before typing; the stale frame's recovery temporarily
@@ -585,9 +582,7 @@ if(response.ok){clearInterval(ticker);document.body.style.background='rgb(0,128,
                     await panel.get_by_role(
                         "button", name=labels["start"], exact=True
                     ).click()
-                    await expect(
-                        panel.get_by_role("button", name=labels["return"], exact=True)
-                    ).to_be_enabled(timeout=90000)
+                    await expect(panel.get_by_text(labels['state']['human'], exact=True)).to_be_visible(timeout=90000)
                     restarted = await context.request.post(
                         origin + "/api/conversations/" + session_id + "/browser",
                         headers={"Origin": origin},
@@ -633,15 +628,11 @@ if(response.ok){clearInterval(ticker);document.body.style.background='rgb(0,128,
                     await expect(chat.locator("textarea").first).to_be_visible(
                         timeout=30000
                     )
-                    note = panel.get_by_role("textbox", name=labels["note"], exact=True)
-                    await note.fill(
+                    await continue_from_conversation(chat,
                         "Observe the current browser page through its browser tools. "
                         "Report the exact text of #result and #identity. Do not navigate, "
                         "click or submit. Keep this browser open."
                     )
-                    await panel.get_by_role(
-                        "button", name=labels["return"], exact=True
-                    ).click()
                     deadline = time.monotonic() + 180
                     assistant = ""
                     is_finished = False
@@ -708,12 +699,7 @@ if(response.ok){clearInterval(ticker);document.body.style.background='rgb(0,128,
                     assert len(receipts) == 1
                     evidence["realModelObservedPersistedLogin"] = True
                     evidence["observationApprovals"] = approvals
-                    await panel.get_by_role(
-                        "button", name=labels["take"], exact=True
-                    ).click()
-                    await expect(
-                        panel.get_by_role("button", name=labels["return"], exact=True)
-                    ).to_be_enabled(timeout=30000)
+                    await interrupt_shared_browser(page, panel, labels)
                     await chat.close()
                 assert (
                     evidence["renderedFramesPerSecond"] >= args.minimum_fps
@@ -809,18 +795,9 @@ if(response.ok){clearInterval(ticker);document.body.style.background='rgb(0,128,
                         )
                         state = (await current.json())["session"]
                         marker = "VIEW_CLEANUP_" + nonce
-                        returned = await context.request.post(
-                            origin + "/api/conversations/" + session_id + "/browser",
-                            headers={"Origin": origin},
-                            data={
-                                "kind": "return",
-                                "controlEpoch": state["controlEpoch"],
-                                "targetEpoch": state["targetEpoch"],
-                                "note": "The isolated browser fixture is finished. Keep Chrome stopped. Do not use tools or restart the browser. Reply exactly "
-                                + marker,
-                            },
+                        await continue_from_conversation(chat,
+                            "The isolated browser fixture is finished. Keep Chrome stopped. Do not use tools or restart the browser. Reply exactly " + marker,
                         )
-                        await require_status(returned, "Return stopped fixture to AI")
                         evidence["humanLeaseReturned"] = True
                         deadline = time.monotonic() + 180
                         assistant = ""

@@ -98,6 +98,9 @@ if (config) {
   const idle = await host!.invoke(binding.sessionId, { kind: 'state' });
   assert.equal(idle.session.state, 'stopped');
   assert.equal(runtimePreparations, 0, 'Tool discovery must not allocate Python or Chrome');
+  assert.equal(await host!.interruptConversation(binding.sessionId), false);
+  await host!.prepareUserMessage(binding.sessionId);
+  assert.equal(runtimePreparations, 0, 'Ordinary conversation controls must not allocate Python or Chrome');
 }
 let stdio: Client | undefined;
 if (isStdio) {
@@ -156,7 +159,8 @@ try {
   await tool('browser_action', { kind: 'navigate', url: `http://127.0.0.1:${address.port}`, ...epochs(initial) });
   const observed = (await tool('browser_observe', {})).session;
   for (const viewerId of [randomUUID(), randomUUID()]) await worker.invoke({ kind: 'attach', viewerId, surface: 'page' });
-  const held = ((await worker.invoke({ kind: 'take', ...epochs(observed) })) as { session: typeof observed }).session;
+  if (host) assert.equal(await host.interruptConversation(binding.sessionId), true);
+  const held = ((await worker.invoke(host ? { kind: 'state' } : { kind: 'take', ...epochs(observed) })) as { session: typeof observed }).session;
   assert(held.isController && held.isHumanControlHeld);
   const blocked = await tool('browser_action', { kind: 'command', method: 'Runtime.evaluate', paramsJson: JSON.stringify({ expression: "document.querySelector('#name').value='bypass'" }), ...epochs(held) }, true);
   assert.equal(blocked, 'browser_control_held_by_user');
@@ -168,12 +172,13 @@ try {
   }
   await worker.invoke({ kind: 'input', input: { kind: 'click', x: 80, y: 40 }, ...epochs(held) });
   await worker.invoke({ kind: 'input', input: { kind: 'text', text: 'Desktop human 中文' }, ...epochs(held) });
-  const returned = ((await worker.invoke({ kind: 'return', note: 'Read the edited field before continuing', ...epochs(held) })) as { session: typeof held }).session;
+  if (host) await host.prepareUserMessage(binding.sessionId);
+  const returned = ((await worker.invoke(host ? { kind: 'state' } : { kind: 'return', note: 'Read the edited field before continuing', ...epochs(held) })) as { session: typeof held }).session;
   assert.equal(returned.browserSessionId, initial.browserSessionId);
   assert.equal(returned.profileId, initial.profileId);
   if (host) {
     assert.equal(runtimePreparations, 1);
-    assert.deepEqual(returns, [...(isPersonal ? ['Use the connected personal Chrome'] : []), 'Read the edited field before continuing']);
+    assert.deepEqual(returns, isPersonal ? ['Use the connected personal Chrome'] : [], 'A normal chat continuation must not create another model turn');
     assert.equal(control.status().state, 'ai');
   }
   await tool('browser_observe', {});

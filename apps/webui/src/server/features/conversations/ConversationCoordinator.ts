@@ -7,7 +7,7 @@ import { getMossContext, MossUnauthorizedError } from '../auth/authService.js'
 import { findPrincipalById, resolveSessionOwnerPrincipalId } from '../auth/principalRepository.js'
 import { requireAccessibleSession, SessionForbiddenError } from './conversationService.js'
 import type { WebSessionRow } from '../auth/sessionRepository.js'
-import type { MossSessionPort } from '@sudowork/moss-client'
+import type { MossSessionPort, MossCallContext } from '@sudowork/moss-client'
 import {
   MossHttpError,
   MossNetworkError,
@@ -75,6 +75,8 @@ interface Entry {
   pendingDelivery: PendingDelivery | null
   upstreamOpening: Promise<void> | null
   events: Promise<void>
+  browserIntent: Promise<unknown>
+  inputEpoch: number
 }
 
 interface PendingDelivery {
@@ -88,6 +90,11 @@ export interface CoordinatorDeps {
   config: AppConfig
   auth: AuthDeps
   moss: MossSessionPort
+  browserControl?: (
+    ctx: MossCallContext,
+    sessionId: string,
+    intent: 'interrupt' | 'continue',
+  ) => Promise<boolean>
 }
 
 export class ConversationCoordinator {
@@ -128,6 +135,8 @@ export class ConversationCoordinator {
         pendingDelivery: null,
         upstreamOpening: null,
         events: Promise.resolve(),
+        browserIntent: Promise.resolve(),
+        inputEpoch: 0,
       }
       this.entries.set(k, entry)
     }
@@ -138,6 +147,20 @@ export class ConversationCoordinator {
     if (ws.readyState === ws.OPEN) {
       ws.send(JSON.stringify(event))
     }
+  }
+
+  private browserIntent(
+    entry: Entry,
+    ctx: MossCallContext,
+    intent: 'interrupt' | 'continue',
+    epoch: number,
+  ): Promise<unknown> {
+    const pending = entry.browserIntent.then(() => {
+      if (intent === 'continue' && epoch !== entry.inputEpoch) return false
+      return this.deps.browserControl?.(ctx, entry.mossSessionId, intent)
+    })
+    entry.browserIntent = pending.catch(() => {})
+    return pending
   }
 
   /** Preserve upstream event order without delaying concurrent client rejection. */
@@ -523,6 +546,7 @@ export class ConversationCoordinator {
     }
     const msg = parsed.data
     const entry = this.entryFor(conn.principalId, conn.mossSessionId)
+    const inputEpoch = entry.inputEpoch
     let delivery: PendingDelivery | undefined
 
     try {
@@ -591,6 +615,9 @@ export class ConversationCoordinator {
         await this.broadcastLockState(entry)
 
         await this.ensureUpstream(entry, conn)
+        // A cancelled native question cannot release a later human lease.
+        // Fresh chat is the supported continuation after interruption.
+        if (msg.kind === 'send') await this.browserIntent(entry, authorized, 'continue', inputEpoch)
         const payload =
           msg.kind === 'send'
             ? buildUserMessage({
@@ -604,6 +631,10 @@ export class ConversationCoordinator {
               })
             : buildAnswerQuestionMessage(entry.mossSessionId, msg.parentToolUseId, msg.text)
 
+        if (inputEpoch !== entry.inputEpoch) {
+          if (delivery) await this.releasePendingDelivery(entry, delivery)
+          return
+        }
         if (
           delivery &&
           (entry.pendingDelivery !== delivery ||
@@ -726,14 +757,24 @@ export class ConversationCoordinator {
           principalId: conn.principalId,
           mossSessionId: entry.mossSessionId,
         })
-        if (lock?.writerWebSessionId !== conn.webSession.id) {
+        if (lock?.state === 'uncertain') {
+          this.sendTo(conn.ws, { kind: 'error', code: 'LOCK_UNCERTAIN' })
+          return
+        }
+        if (lock?.state === 'running' && lock.writerWebSessionId !== conn.webSession.id) {
           this.sendTo(conn.ws, { kind: 'error', code: 'NOT_WRITER' })
           return
+        }
+        entry.inputEpoch++
+        if (entry.pendingDelivery && entry.pendingDelivery.phase !== 'submitted') {
+          await this.releasePendingDelivery(entry, entry.pendingDelivery)
         }
         await this.ensureUpstream(entry, conn)
         if (!entry.upstream?.send(buildInterruptMessage())) {
           this.sendTo(conn.ws, { kind: 'error', code: 'UPSTREAM_NOT_CONNECTED' })
+          return
         }
+        await this.browserIntent(entry, authorized, 'interrupt', entry.inputEpoch)
       }
     } catch (err) {
       if (delivery) {
