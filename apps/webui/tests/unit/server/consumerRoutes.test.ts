@@ -349,3 +349,32 @@ describe('consumer 转发：既有路径回归', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 })
+
+describe('account profile forwarding', () => {
+  test.each(['/user/update-profile', '/user/avatar', '/auth/change-password'])(
+    'requires a session and uses its identity for %s',
+    async (path) => {
+      expect((await request(setupApp(false)).post(`/api/v1${path}`).send({})).status).toBe(401)
+      expect(fetchMock).not.toHaveBeenCalled()
+      fetchMock.mockResolvedValueOnce(
+        jsonResponse({ success: false, msg: 'old password invalid' }, 403),
+      )
+      const response = await request(setupApp())
+        .post(`/api/v1${path}`)
+        .set('Authorization', 'Bearer forged')
+        .send({ nickname: 'Display' })
+      expect(response.status).toBe(403)
+      expect(response.body.msg).toBe('old password invalid')
+      expect(fetchMock).toHaveBeenCalledWith(
+        `http://moss.test/api/v1${path}`,
+        expect.objectContaining({
+          method: 'POST',
+          headers: expect.objectContaining({ Authorization: 'Bearer tok-1' }),
+        }),
+      )
+      expect((await request(setupApp()).post(`/api/v1${path}/other-user`).send({})).status).toBe(
+        404,
+      )
+    },
+  )
+})

@@ -39,7 +39,7 @@ const Sider: React.FC = () => {
 
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { logout, user: currentUser, isGuest } = useAuth();
+  const { logout, user: currentUser, enterpriseProfile, isGuest } = useAuth();
   const { isEnterprise, mode } = useAppMode();
   const { isCronVisible } = useCronAccess();
   const [isBatchMode, setIsBatchMode] = useState(false);
@@ -81,8 +81,8 @@ const Sider: React.FC = () => {
   // 从 AuthContext 获取实际用户信息（手机号脱敏展示）
   const userInfo = {
     email: maskPhone(currentUser?.phone || ''),
-    name: currentUser?.nickname || t('settings.userProfile.defaultNickname', 'Sudowork 用户'),
-    avatar: null as string | null,
+    name: (isEnterprise ? enterpriseProfile?.nickname || enterpriseProfile?.username : undefined) || currentUser?.nickname || t('settings.userProfile.defaultNickname', 'Sudowork 用户'),
+    avatar: isEnterprise ? enterpriseProfile?.avatar : null,
   };
 
   const effectiveTab: SidebarTabKey = !isCronVisible && activeTab === 'scheduled' ? 'timeline' : activeTab;

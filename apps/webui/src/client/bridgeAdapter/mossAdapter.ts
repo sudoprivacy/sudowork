@@ -1680,12 +1680,50 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
       updated_at: Date.now(),
     })
   },
+  'eeclaw.update-user-profile': async ({ nickname }) => {
+    try {
+      return await apiFetch('/api/v1/user/update-profile', {
+        method: 'POST',
+        body: JSON.stringify({ nickname }),
+      })
+    } catch (error) {
+      return fail(errMessage(error))
+    }
+  },
+  'eeclaw.update-user-avatar': async ({ avatar }) => {
+    try {
+      return await apiFetch('/api/v1/user/avatar', {
+        method: 'POST',
+        body: JSON.stringify({ avatar }),
+      })
+    } catch (error) {
+      return fail(errMessage(error))
+    }
+  },
+  'eeclaw.change-password': async ({ oldPassword, newPassword }) => {
+    try {
+      return await apiFetch('/api/v1/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({ oldPassword, newPassword }),
+      })
+    } catch (error) {
+      return fail(errMessage(error))
+    }
+  },
   'eeclaw.get-user-profile': async () => {
     // Same lenient field rules as the console ProfilePage (moss may return
     // snake_case or camelCase depending on version).
     const raw = await apiFetch<Record<string, unknown>>('/api/settings/profile').catch(() => null)
+    if (!raw) return fail('profile_request_failed')
     const p = ((raw && typeof raw === 'object' ? ((raw as { data?: unknown }).data ?? raw) : {}) ??
       {}) as {
+      user_id?: string
+      login_name?: string
+      nickname?: string
+      avatar?: string | null
+      can_change_password?: boolean
+      organization_id?: string
+      organization_name?: string
       username?: unknown
       name?: unknown
       displayName?: unknown
@@ -1697,6 +1735,13 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     const usage = (p.usage ?? {}) as Record<string, unknown>
     const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0)
     return ok({
+      user_id: p.user_id,
+      login_name: p.login_name,
+      nickname: p.nickname,
+      avatar: p.avatar,
+      can_change_password: p.can_change_password === true,
+      organization_id: p.organization_id,
+      organization_name: p.organization_name,
       username: String(p.username ?? p.name ?? p.displayName ?? '—'),
       department: String(p.department ?? p.departmentName ?? '—'),
       role: String(p.role ?? 'user'),

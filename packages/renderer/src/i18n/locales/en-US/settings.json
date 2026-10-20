@@ -967,7 +967,12 @@
     "nicknameRequired": "Nickname cannot be empty",
     "loginExpired": "Login session expired. Please log in again.",
     "nicknameUpdated": "Nickname updated",
-    "updateFailed": "Update failed"
+    "updateFailed": "Update failed",
+    "loginAccount": "Login account",
+    "organization": "Organization",
+    "role": "Role",
+    "noLocalPassword": "This account has no local password. Contact your organization administrator.",
+    "loadFailed": "Could not load your profile. Please retry."
   },
   "avatarSelector": {
     "title": "Choose Avatar",
@@ -1193,7 +1198,10 @@
     "confirm": "Confirm",
     "oldPasswordRequired": "Please enter current password",
     "newPasswordRequired": "Please enter new password",
-    "success": "Password changed successfully"
+    "success": "Password changed successfully",
+    "confirmPassword": "Confirm new password",
+    "mismatch": "The new passwords do not match",
+    "signInAgain": "Password updated. Please sign in again."
   },
   "exportLogs": "Export Logs",
   "exportLogsDesc": "Package all sudowork and scode logs into a zip file.",
@@ -1472,5 +1480,27 @@
   },
   "mcpPersonalEmptyTitle": "No personal MCP servers",
   "mcpPersonalEmptyInstallHint": "Browse the MCP library to install a server, or use the button above to install from JSON.",
-  "mcpPersonalEmptyRestrictedHint": "Your organization does not allow personal MCP installation. Open Enterprise MCP to view the services provided by your organization."
+  "mcpPersonalEmptyRestrictedHint": "Your organization does not allow personal MCP installation. Open Enterprise MCP to view the services provided by your organization.",
+  "enterpriseConnection": {
+    "title": "Enterprise connection",
+    "tenantName": "Company name",
+    "status": "Active connection",
+    "serverUrl": "Server address",
+    "connected": "Connected",
+    "checking": "Checking…",
+    "disconnected": "Disconnected",
+    "recheck": "Check again",
+    "invalidUrl": "Enter a valid HTTP or HTTPS server origin, without a path, query or credentials.",
+    "verificationFailed": "Could not verify or save this address. The active connection has not been replaced.",
+    "updated": "Server updated. Please sign in again."
+  },
+  "accountAvatar": {
+    "title": "Change avatar",
+    "preview": "Avatar preview",
+    "preset": "Preset {{number}}",
+    "upload": "Upload image",
+    "reset": "Restore default",
+    "fileHint": "PNG, JPEG or WebP, up to 2 MiB.",
+    "updated": "Avatar updated"
+  }
 }

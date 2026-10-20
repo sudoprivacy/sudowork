@@ -105,6 +105,8 @@ export default defineConfig({
       // 新增功能时，将对应的源文件路径添加到此数组
       // 例如: 'src/process/services/newService.ts'
       include: [
+        '../../packages/renderer/src/pages/settings/profile/components/EnterpriseAvatar.tsx',
+        '../../packages/renderer/src/pages/settings/enterprise/index.tsx',
         'src/process/services/browserPanel/LocalBrowserWorker.ts',
         'src/process/services/browserPanel/LocalBrowserSessions.ts',
         'src/process/services/browserPanel/browserViewerUrl.ts',

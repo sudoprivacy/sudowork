@@ -1,10 +1,10 @@
 import React from 'react';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => {
   Object.defineProperty(window, 'electronAPI', { configurable: true, value: {} });
-  return { get: vi.fn(), set: vi.fn(), reporting: vi.fn(), prepareRuntime: vi.fn(), modelPreference: vi.fn() };
+  return { get: vi.fn(), set: vi.fn(), reporting: vi.fn(), prepareRuntime: vi.fn(), modelPreference: vi.fn(), profile: vi.fn(), onToken: undefined as undefined | ((data: { access_token: string; refresh_token: string; expires_at: number }) => void) };
 });
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock('@sudowork/common/storage', () => ({ ConfigStorage: { get: state.get, set: state.set } }));
@@ -17,7 +17,13 @@ vi.mock('@sudowork/host-bridge/desktopLoginSetup', () => ({
 vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
   eeclaw: {
     prepareLocalRuntime: { invoke: state.prepareRuntime },
-    tokenRefreshed: { on: () => () => undefined },
+    getUserProfile: { invoke: state.profile },
+    tokenRefreshed: {
+      on: (callback: typeof state.onToken) => {
+        state.onToken = callback;
+        return () => undefined;
+      },
+    },
     authRequired: { on: () => () => undefined },
   },
 }));
@@ -53,6 +59,7 @@ beforeEach(() => {
   state.set.mockResolvedValue(undefined);
   state.prepareRuntime.mockResolvedValue({ success: true, data: { execution: { isLocalAllowed: true, isRemoteAllowed: true, defaultTarget: 'local' }, localRuntime: { userId: 'user', organizationId: 'org', status: 'ready' } } });
   state.modelPreference.mockResolvedValue(undefined);
+  state.profile.mockResolvedValue({ success: true, data: { user_id: 'user', username: 'Display', nickname: 'Display' } });
 });
 afterEach(cleanup);
 
@@ -111,4 +118,18 @@ it('does not restore an unchecked session if reading migration state fails', asy
   await waitFor(() => expect(screen.getByText('unauthenticated:true:')).toBeTruthy());
   expect(state.set).not.toHaveBeenCalled();
   expect(state.prepareRuntime).not.toHaveBeenCalled();
+});
+
+it('keeps the account profile across token refresh without starting another profile request', async () => {
+  render(
+    <AuthProvider>
+      <SessionState />
+    </AuthProvider>
+  );
+  await waitFor(() => expect(state.profile).toHaveBeenCalledTimes(1));
+  await act(async () => {
+    state.onToken?.({ access_token: 'refreshed-token', refresh_token: 'refreshed-refresh', expires_at: Date.now() + 3600000 });
+  });
+  expect(state.profile).toHaveBeenCalledTimes(1);
+  expect(JSON.parse(localStorage.getItem('eeclaw_auth_v1')!).user.nickname).toBe('Display');
 });
