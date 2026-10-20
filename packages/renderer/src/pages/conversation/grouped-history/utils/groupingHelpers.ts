@@ -15,6 +15,8 @@ import { compareConversationsByLatestActivity, getConversationAgentRef } from '.
 import type { AgentGroup, ConversationItem, GroupedHistoryResult, ScheduledGroup, SidebarTabKey, TimelineItem, TimelineSection, WorkspaceGroup } from '../types';
 import { getConversationSortOrder } from './sortOrderHelpers';
 
+export const isConversationArchived = (conversation: ConversationItem): boolean => conversation.extra?.archived === true;
+
 export const getConversationTimelineLabel = (conversation: ConversationItem, t: (key: string) => string): string => {
   const time = getActivityTime(conversation as TChatConversation);
   return getTimelineLabel(time, Date.now(), t);

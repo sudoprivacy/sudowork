@@ -9,6 +9,8 @@ export interface ConversationMeta {
   title: string | null
   pinned: boolean
   pinnedAt: number | null
+  archived: boolean
+  archivedAt: number | null
   /** 会话所选模型（getConversationMetaMap 的列表场景不提供该字段） */
   modelId?: string | null
 }
@@ -22,9 +24,11 @@ export async function getConversationMeta(
     title: string | null
     pinned: boolean
     pinned_at: string | null
+    archived: boolean
+    archived_at: string | null
     model_id: string | null
   }>(
-    `SELECT title, pinned, pinned_at, model_id FROM conversation_meta
+    `SELECT title, pinned, pinned_at, archived, archived_at, model_id FROM conversation_meta
      WHERE principal_id = $1 AND moss_session_id = $2`,
     [principalId, mossSessionId],
   )
@@ -34,6 +38,8 @@ export async function getConversationMeta(
     title: row.title,
     pinned: row.pinned,
     pinnedAt: row.pinned_at === null ? null : Number(row.pinned_at),
+    archived: row.archived,
+    archivedAt: row.archived_at === null ? null : Number(row.archived_at),
     modelId: row.model_id,
   }
 }
@@ -51,8 +57,10 @@ export async function getConversationMetaMap(
     title: string | null
     pinned: boolean
     pinned_at: string | null
+    archived: boolean
+    archived_at: string | null
   }>(
-    `SELECT moss_session_id, title, pinned, pinned_at FROM conversation_meta
+    `SELECT moss_session_id, title, pinned, pinned_at, archived, archived_at FROM conversation_meta
      WHERE principal_id = $1 AND moss_session_id = ANY($2)`,
     [principalId, mossSessionIds],
   )
@@ -61,6 +69,8 @@ export async function getConversationMetaMap(
       title: row.title,
       pinned: row.pinned,
       pinnedAt: row.pinned_at === null ? null : Number(row.pinned_at),
+      archived: row.archived,
+      archivedAt: row.archived_at === null ? null : Number(row.archived_at),
     })
   }
   return map
@@ -108,6 +118,7 @@ export async function setConversationTitleIfUnset(
 export interface MetaUpdate {
   title?: string
   pinned?: boolean
+  archived?: boolean
 }
 
 /** 重命名/置顶（部分更新）。置顶时若 pinned_at 为空则写入当前时间。 */
@@ -128,12 +139,34 @@ export async function updateConversationMeta(
     insertVals.push(`$${params.length}`)
     sets.push(`title = $${params.length}`)
   }
-  if (update.pinned !== undefined) {
+  // Archiving always unpins, even if a stale client submits both fields.
+  if (update.pinned !== undefined && update.archived !== true) {
     params.push(update.pinned)
+    insertCols.push('pinned', 'pinned_at')
+    insertVals.push(
+      `$${params.length}`,
+      `CASE WHEN $${params.length} THEN (extract(epoch from now()) * 1000)::bigint ELSE NULL END`,
+    )
     sets.push(`pinned = $${params.length}`)
     if (update.pinned)
       sets.push('pinned_at = COALESCE(pinned_at, (extract(epoch from now()) * 1000)::bigint)')
     else sets.push('pinned_at = NULL')
+  }
+  if (update.archived !== undefined) {
+    params.push(update.archived)
+    insertCols.push('archived', 'archived_at')
+    insertVals.push(
+      `$${params.length}`,
+      `CASE WHEN $${params.length} THEN (extract(epoch from now()) * 1000)::bigint ELSE NULL END`,
+    )
+    sets.push(`archived = $${params.length}`)
+    if (update.archived) {
+      sets.push('archived_at = COALESCE(archived_at, (extract(epoch from now()) * 1000)::bigint)')
+      sets.push('pinned = false')
+      sets.push('pinned_at = NULL')
+    } else {
+      sets.push('archived_at = NULL')
+    }
   }
   await pool.query(
     `INSERT INTO conversation_meta (${insertCols.join(', ')})

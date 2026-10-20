@@ -27,4 +27,32 @@ describe('remote deliverable history', () => {
     mocks.tree.mockRejectedValue(new Error('offline'));
     expect(await deliverablesService.listRemoteForConversation('conversation')).toEqual([entry]);
   });
+  it('recovers unlinked workspace outputs after turn snapshots time out', async () => {
+    mocks.messages.mockReturnValue({
+      data: [
+        { type: 'text', position: 'right', content: { content: 'Input [[NEXUS_FILES]]\n/tmp/input.txt' }, createdAt: 1 },
+        { type: 'text', position: 'left', content: { content: '文件已创建' }, createdAt: 2 },
+      ],
+      hasMore: false,
+    });
+    mocks.tree.mockResolvedValue({
+      relativePath: '',
+      isFile: false,
+      children: [
+        { relativePath: 'input.txt', fullPath: '/workspace/input.txt', isFile: true, mtime: 1_700_000_000 },
+        { relativePath: 'e2e-deliverable.txt', fullPath: '/workspace/e2e-deliverable.txt', isFile: true, size: 17, mtime: 1_700_000_001 },
+      ],
+    });
+
+    const entries = await deliverablesService.listRemoteForConversation('conversation');
+
+    expect(entries).toEqual([
+      expect.objectContaining({
+        relativePath: 'e2e-deliverable.txt',
+        path: '/workspace/e2e-deliverable.txt',
+        size: 17,
+        createdAt: 1_700_000_001_000,
+      }),
+    ]);
+  });
 });

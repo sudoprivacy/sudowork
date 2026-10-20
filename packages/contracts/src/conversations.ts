@@ -172,6 +172,9 @@ export const ConversationListItemSchema = z.object({
   pinned: z.boolean(),
   /** 置顶排序键（pinned_at，epoch 毫秒）；未置顶为 null */
   pinnedAt: z.number().nullable(),
+  archived: z.boolean(),
+  /** 归档时间（epoch 毫秒）；未归档为 null */
+  archivedAt: z.number().nullable(),
 })
 export type ConversationListItem = z.infer<typeof ConversationListItemSchema>
 
@@ -180,6 +183,8 @@ export const UpdateConversationMetaRequestSchema = z.object({
   title: z.string().trim().min(1).max(100).optional(),
   /** 置顶/取消置顶 */
   pinned: z.boolean().optional(),
+  /** 归档/恢复 */
+  archived: z.boolean().optional(),
 })
 export type UpdateConversationMetaRequest = z.infer<typeof UpdateConversationMetaRequestSchema>
 

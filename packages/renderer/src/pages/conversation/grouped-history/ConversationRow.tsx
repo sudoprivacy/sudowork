@@ -7,6 +7,7 @@
 import { Checkbox, Dropdown, Menu, Tooltip } from '@arco-design/web-react';
 import { DeleteOne, EditOne, Export, Loading, MessageOne, Pushpin } from '@icon-park/react';
 import classNames from 'classnames';
+import { Archive, ArchiveRestore } from 'lucide-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TChatConversation } from '@sudowork/common/storage';
@@ -23,7 +24,7 @@ import type { ConversationRowProps } from './types';
 
 const ConversationRow: React.FC<ConversationRowProps> = (props) => {
   const { conversation, collapsed, tooltipEnabled, batchMode, checked, selected, menuVisible } = props;
-  const { onToggleChecked, onConversationClick, onOpenMenu, onMenuVisibleChange, onEditStart, onDelete, onExport, onTogglePin, getJobStatus } = props;
+  const { onToggleChecked, onConversationClick, onOpenMenu, onMenuVisibleChange, onEditStart, onDelete, onExport, onTogglePin, onToggleArchive, getJobStatus } = props;
   const { t } = useTranslation();
 
   // Check if this is a Moss session
@@ -33,6 +34,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
   const { info: assistantInfo } = usePresetAssistantInfo(isMossSession ? null : (conversation as TChatConversation));
   // For Moss sessions, use isPinned property; for local conversations, use isConversationPinned
   const isPinned = isMossSession ? ((conversation as { isPinned?: boolean }).isPinned ?? false) : isConversationPinned(conversation as TChatConversation);
+  const isArchived = conversation.extra?.archived === true;
   const cronStatus = getJobStatus(conversation.id);
   const ptyActiveCount = useTerminalActiveCount(conversation.id);
   const siderTooltipProps = getSiderTooltipProps(tooltipEnabled);
@@ -150,18 +152,24 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
                       onExport(conversation as TChatConversation);
                       return;
                     }
+                    if (key === 'archive') {
+                      onToggleArchive(conversation);
+                      return;
+                    }
                     if (key === 'delete') {
                       onDelete(conversation);
                     }
                   }}
                 >
                   {/* Pin menu - available for both local and Moss sessions */}
-                  <Menu.Item key='pin'>
-                    <div className='flex items-center gap-2'>
-                      <Pushpin theme='outline' size='14' />
-                      <span>{isPinned ? t('conversation.history.unpin') : t('conversation.history.pin')}</span>
-                    </div>
-                  </Menu.Item>
+                  {!isArchived && (
+                    <Menu.Item key='pin'>
+                      <div className='flex items-center gap-2'>
+                        <Pushpin theme='outline' size='14' />
+                        <span>{isPinned ? t('conversation.history.unpin') : t('conversation.history.pin')}</span>
+                      </div>
+                    </Menu.Item>
+                  )}
                   {/* Rename menu - available for all sessions (including Moss sessions saved locally) */}
                   <Menu.Item key='rename'>
                     <div className='flex items-center gap-2'>
@@ -178,6 +186,12 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
                       </div>
                     </Menu.Item>
                   )}
+                  <Menu.Item key='archive'>
+                    <div className='flex items-center gap-2'>
+                      {isArchived ? <ArchiveRestore size={14} /> : <Archive size={14} />}
+                      <span>{t(isArchived ? 'conversation.history.restore' : 'conversation.history.archive')}</span>
+                    </div>
+                  </Menu.Item>
                   <Menu.Item key='delete'>
                     <div className='flex items-center gap-2 text-warning'>
                       <DeleteOne theme='outline' size='14' />

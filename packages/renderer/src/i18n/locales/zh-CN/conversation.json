@@ -126,6 +126,7 @@
     "earlier": "更早",
     "noHistory": "暂无对话历史",
     "noScheduledTask": "暂无执行记录",
+    "noArchived": "暂无已归档会话",
     "actionNewConversation": "新建任务",
     "deleteTitle": "删除",
     "deleteConfirm": "确定删除该对话吗？",
@@ -166,10 +167,16 @@
     "pinned": "已置顶",
     "pinFailed": "置顶操作失败",
     "pinnedSection": "置顶",
+    "archive": "归档",
+    "restore": "恢复",
+    "archiveSuccess": "归档成功",
+    "restoreSuccess": "恢复成功",
+    "archiveFailed": "归档操作失败",
     "deleteSuccess": "删除成功",
     "deleteFailed": "删除失败",
     "timeline": "对话",
-    "scheduledTab": "定时任务"
+    "scheduledTab": "定时任务",
+    "archivedTab": "已归档"
   },
   "tabs": {
     "closeAll": "关闭全部",

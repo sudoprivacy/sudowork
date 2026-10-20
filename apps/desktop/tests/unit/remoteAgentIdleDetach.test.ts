@@ -358,6 +358,19 @@ describe('RemoteAgent idle detach', () => {
     expect(internals(agent).connection).not.toBeNull();
   });
 
+  it('clears incomplete tool cards when a remote turn is cancelled', async () => {
+    const RemoteAgent = await loadRemoteAgent();
+    const agent = makeAgent(RemoteAgent);
+
+    await agent.sendMessage({ content: 'run a long command', msg_id: 'm1' });
+    responseStreamEmit.mockClear();
+    await agent.stop();
+
+    const types = responseStreamEmit.mock.calls.map(([message]) => message.type);
+    expect(types).toEqual(['clear_incomplete_tools', 'content', 'finish']);
+    expect(internals(agent).turnActive).toBe(false);
+  });
+
   it('cancels the timer when a new stream message arrives', async () => {
     const RemoteAgent = await loadRemoteAgent();
     const agent = makeAgent(RemoteAgent);

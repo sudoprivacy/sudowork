@@ -1757,6 +1757,47 @@ describe('mossAdapter: newly created conversation list reads', () => {
     await ipc.moss.deleteSession.invoke({ sessionId: 'sess-delete' })
     expect(await ipc.database.getUserConversations.invoke({})).toEqual([])
   })
+
+  it('projects archived metadata and forwards reversible archive updates', async () => {
+    stubFetch({
+      '/api/conversations': {
+        conversations: [{ id: 'archived-session', archived: true, archivedAt: 42 }],
+      },
+    })
+    expect(await ipc.database.getUserConversations.invoke({})).toMatchObject([
+      { id: 'archived-session', extra: { archived: true, archivedAt: 42 } },
+    ])
+
+    const fetchMock = stubFetch({ '/meta': { ok: true } })
+    expect(
+      await ipc.conversation.update.invoke({
+        id: 'archived-session',
+        updates: { extra: { archived: false } } as never,
+        mergeExtra: true,
+      }),
+    ).toBe(true)
+    const request = fetchMock.mock.calls[0]?.[1] as RequestInit
+    expect(request.method).toBe('PATCH')
+    expect(JSON.parse(String(request.body))).toEqual({ archived: false })
+  })
+
+  it('returns false when conversation metadata or deletion is rejected', async () => {
+    stubFetch({
+      '/meta': { status: 500, body: { error: 'META_WRITE_FAILED' } },
+      '/api/conversations/rejected-delete': {
+        status: 503,
+        body: { error: 'DELETE_UNAVAILABLE' },
+      },
+    })
+
+    await expect(
+      ipc.conversation.update.invoke({
+        id: 'rejected-update',
+        updates: { name: 'Not saved' },
+      }),
+    ).resolves.toBe(false)
+    await expect(ipc.conversation.remove.invoke({ id: 'rejected-delete' })).resolves.toBe(false)
+  })
 })
 
 describe('mossAdapter: chat.send.message shares msgId between the WS send frame and the user echo', () => {

@@ -41,6 +41,7 @@
     "earlier": "이전",
     "noHistory": "채팅 기록 없음",
     "noScheduledTask": "실행 기록 없음",
+    "noArchived": "보관된 대화가 없습니다",
     "actionNewConversation": "새 작업",
     "deleteTitle": "삭제",
     "deleteConfirm": "이 채팅을 삭제하시겠습니까?",
@@ -81,10 +82,16 @@
     "pinned": "Pinned",
     "pinFailed": "Pin operation failed",
     "pinnedSection": "Pinned",
+    "archive": "보관",
+    "restore": "복원",
+    "archiveSuccess": "보관했습니다",
+    "restoreSuccess": "복원했습니다",
+    "archiveFailed": "보관 작업에 실패했습니다",
     "deleteSuccess": "삭제되었습니다",
     "deleteFailed": "삭제에 실패했습니다",
     "timeline": "대화",
-    "scheduledTab": "예약 작업"
+    "scheduledTab": "예약 작업",
+    "archivedTab": "보관됨"
   },
   "dropdown": {
     "cliEngines": "CLI Agents",

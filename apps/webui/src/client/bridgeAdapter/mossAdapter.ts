@@ -780,6 +780,8 @@ interface ConversationListItem {
   title?: string | null
   pinned?: boolean
   pinnedAt?: number | null
+  archived?: boolean
+  archivedAt?: number | null
 }
 
 /**
@@ -864,6 +866,8 @@ function toChatConversation(
       templateRef: item.templateRef ?? undefined,
       pinned: item.pinned ?? false,
       pinnedAt: item.pinnedAt ?? undefined,
+      archived: item.archived ?? false,
+      archivedAt: item.archivedAt ?? undefined,
       mossSessionId: item.id,
       ...(item.managementContext ? { agentManagement: item.managementContext } : {}),
       ...(cronJobId ? { cronJobId } : {}),
@@ -2184,6 +2188,8 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
       title: createdTitle || null,
       pinned: false,
       pinnedAt: null,
+      archived: false,
+      archivedAt: null,
     })
     return toChatConversation(
       {
@@ -2236,15 +2242,24 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
   },
   'update-conversation': async (req) => {
     const id = String(req?.id ?? '')
-    const updates = (req?.updates ?? {}) as { name?: unknown; extra?: { pinned?: unknown } }
+    const updates = (req?.updates ?? {}) as {
+      name?: unknown
+      extra?: { pinned?: unknown; archived?: unknown }
+    }
     const body: Record<string, unknown> = {}
     if (typeof updates.name === 'string') body.title = updates.name
     if (typeof updates?.extra?.pinned === 'boolean') body.pinned = updates.extra.pinned
+    if (typeof updates?.extra?.archived === 'boolean') body.archived = updates.extra.archived
     if (Object.keys(body).length > 0) {
-      await apiFetch(`/api/conversations/${encodeURIComponent(id)}/meta`, {
-        method: 'PATCH',
-        body: JSON.stringify(body),
-      }).catch(() => {})
+      try {
+        await apiFetch(`/api/conversations/${encodeURIComponent(id)}/meta`, {
+          method: 'PATCH',
+          body: JSON.stringify(body),
+        })
+      } catch (error) {
+        console.warn('[mossAdapter] conversation update failed:', error)
+        return false
+      }
     }
     return true
   },
@@ -2256,11 +2271,17 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     return ok()
   },
   'remove-conversation': async (req) => {
-    await apiFetch(`/api/conversations/${encodeURIComponent(String(req?.id ?? ''))}`, {
-      method: 'DELETE',
-    })
-    pendingCreatedConversations.delete(String(req?.id ?? ''))
-    return true
+    const id = String(req?.id ?? '')
+    try {
+      await apiFetch(`/api/conversations/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      })
+      pendingCreatedConversations.delete(id)
+      return true
+    } catch (error) {
+      console.warn('[mossAdapter] conversation removal failed:', error)
+      return false
+    }
   },
 
   // --- models ---
