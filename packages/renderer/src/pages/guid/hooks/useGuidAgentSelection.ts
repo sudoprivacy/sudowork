@@ -664,7 +664,11 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl, isOntologyE
     const candidates = customAgents.filter((agent) => agent.enabled !== false && (!isOntologyEntry || !!agent.ontologyBinding));
     return isOntologyEntry ? candidates.find((agent) => agent.id === assistantFromUrl) : resolveAssistantReference(candidates, assistantFromUrl);
   }, [assistantFromUrl, customAgents, isOntologyEntry]);
-  const isAgentSelectionPending = Boolean(assistantFromUrl && (!requestedAssistant || selectedAgentInfo?.customAgentId !== requestedAssistant.id));
+  // A personal Agent from the URL is the durable session identity. Its task
+  // template is selected independently, so selectedAgentInfo may intentionally
+  // point at that template after the identity has resolved.
+  const isPersonalAgentRequest = isPersonalAgentRef(assistantFromUrl);
+  const isAgentSelectionPending = Boolean(assistantFromUrl && (!requestedAssistant || (!isPersonalAgentRequest && selectedAgentInfo?.customAgentId !== requestedAssistant.id)));
 
   // Pre-select the resolved identity when its catalog entry becomes available.
   useEffect(() => {
