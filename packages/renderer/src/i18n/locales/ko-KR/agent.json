@@ -188,6 +188,15 @@
       "phase": {
         "started": "Started",
         "completed": "Completed"
+      },
+      "native": {
+        "passed": "네이티브 실행 검증 통과",
+        "rejected": "네이티브 실행 검증 미통과",
+        "scope": "텍스트 출력, 모델 호출 횟수, 실행 기록 및 정리를 검증합니다. 답변의 정확성을 보장하지 않습니다.",
+        "output_text": "출력 텍스트가 제약을 벗어났습니다",
+        "model_call_count": "모델 호출 횟수가 제약을 벗어났습니다",
+        "native_trace": "네이티브 실행 기록이 불완전합니다",
+        "execution_cleanup": "실행 또는 정리가 확인되지 않았습니다"
       }
     }
   }

@@ -1,4 +1,4 @@
-// Derived from Moss dc4a6c66777ef51e3f41b8eac9a4f828bed0a388:contracts/agent-federation/v1alpha1/contract.ts. DO NOT EDIT.
+// Derived from Moss b6aa8883929ebc24ce480168dc870a4529834770:contracts/agent-federation/v1alpha1/contract.ts. DO NOT EDIT.
 /** Moss-owned federation boundary. Experimental; ADR-003/004 remain Proposed. */
 export const AGENT_FEDERATION_API = 'agent-federation.sudo.dev/v1alpha1' as const
 export const STANDARD_HTTP_PROTOCOLS = ['openai-chat-completions/v1', 'mcp/2025-06-18', 'a2a/0.3.0'] as const

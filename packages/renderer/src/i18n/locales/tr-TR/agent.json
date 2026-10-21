@@ -188,6 +188,15 @@
       "phase": {
         "started": "Started",
         "completed": "Completed"
+      },
+      "native": {
+        "passed": "Yerel yürütme doğrulaması başarılı",
+        "rejected": "Yerel yürütme doğrulaması başarısız",
+        "scope": "Metin çıktısı, model çağrısı sayısı, yürütme izi ve temizleme doğrulanır. Yanıtın doğruluğu garanti edilmez.",
+        "output_text": "Çıktı metni sınırların dışında",
+        "model_call_count": "Beklenmeyen model çağrısı sayısı",
+        "native_trace": "Yerel yürütme izi eksik",
+        "execution_cleanup": "Yürütme veya temizleme doğrulanmadı"
       }
     }
   }

@@ -188,6 +188,15 @@
       "phase": {
         "started": "开始",
         "completed": "完成"
+      },
+      "native": {
+        "passed": "原生执行校验通过",
+        "rejected": "原生执行校验未通过",
+        "scope": "校验范围：文本输出、模型调用次数、运行轨迹及清理确认；不代表回答内容正确。",
+        "output_text": "输出文本不符合约束",
+        "model_call_count": "模型调用次数不符合约束",
+        "native_trace": "原生运行轨迹不完整",
+        "execution_cleanup": "执行或清理未确认"
       }
     }
   }

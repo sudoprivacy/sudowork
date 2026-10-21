@@ -53,3 +53,13 @@ it('does not display foreign evidence and allows explicit refresh after failure'
   await waitFor(() => expect(screen.queryByText('agent.hosted.evidence.failed')).toBeNull());
   expect(screen.getByText(/fixed-v1/)).toBeTruthy();
 });
+
+it('shows native execution checks separately from answer correctness', async () => {
+  mocks.evidence.mockResolvedValue({ success: true, data: { ...page, native_verification: { verdict: 'rejected', failures: ['native_trace'] } } });
+  render(<HostedTaskEvidencePanel taskId='task-a' />);
+  fireEvent.click(screen.getByRole('button', { name: 'agent.hosted.evidence.show' }));
+  await screen.findByText('agent.hosted.evidence.native.rejected');
+  expect(screen.getByText('agent.hosted.evidence.native.scope')).toBeTruthy();
+  expect(screen.getByText('agent.hosted.evidence.native.native_trace')).toBeTruthy();
+  expect(screen.queryByText('agent.hosted.evidence.native.passed')).toBeNull();
+});

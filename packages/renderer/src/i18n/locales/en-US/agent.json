@@ -188,6 +188,15 @@
       "phase": {
         "started": "Started",
         "completed": "Completed"
+      },
+      "native": {
+        "passed": "Native execution checks passed",
+        "rejected": "Native execution checks did not pass",
+        "scope": "Checks cover text output, model call count, execution trace, and cleanup. They do not establish answer correctness.",
+        "output_text": "Output text is outside the supported limits",
+        "model_call_count": "Unexpected model call count",
+        "native_trace": "Incomplete native execution trace",
+        "execution_cleanup": "Execution or cleanup is unconfirmed"
       }
     }
   }

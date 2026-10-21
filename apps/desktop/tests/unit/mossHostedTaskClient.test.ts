@@ -113,3 +113,15 @@ it('accepts scoped read-only evidence and rejects currency substitution, crossed
   await expect(port.evidence('t1', -1)).rejects.toThrow();
   expect(transport).not.toHaveBeenCalled();
 });
+
+it('retains native verification and rejects contradictory success without losing unknown evidence', async () => {
+  const native_verification = { kind: 'NativeOutputVerification' as const, policy: 'native-text-completion-v1' as const, profile_digest: `sha256:${'a'.repeat(64)}`, output_digest: `sha256:${'b'.repeat(64)}`, verdict: 'passed' as const, failures: [] };
+  const done = { ...task, status: 'succeeded' as const, cleanup: 'confirmed' as const, sequence: 5, answer: '42', native_verification };
+  expect(applyHostedEventsPage(task, 0, snapshot(done)).native_verification).toEqual(native_verification);
+  const rejected = { ...native_verification, verdict: 'rejected' as const, failures: ['execution_cleanup' as const] };
+  expect(() => applyHostedEventsPage(task, 0, snapshot({ ...done, native_verification: rejected }))).toThrow();
+  expect(() => applyHostedEventsPage(task, 0, snapshot({ ...done, native_verification: { ...native_verification, failures: rejected.failures } }))).toThrow();
+  expect(applyHostedEventsPage(task, 0, snapshot({ ...done, status: 'unknown', cleanup: 'unknown', native_verification: rejected })).native_verification).toEqual(rejected);
+  const transport = vi.fn().mockResolvedValue({ success: true, data: { ...evidence, native_verification } });
+  expect((await createMossHostedTaskPort(transport).evidence('t1')).native_verification).toEqual(native_verification);
+});

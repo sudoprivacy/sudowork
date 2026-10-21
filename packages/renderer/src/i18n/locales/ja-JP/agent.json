@@ -188,6 +188,15 @@
       "phase": {
         "started": "Started",
         "completed": "Completed"
+      },
+      "native": {
+        "passed": "ネイティブ実行の検証に合格",
+        "rejected": "ネイティブ実行の検証に未合格",
+        "scope": "出力テキスト、モデル呼び出し回数、実行記録、クリーンアップを検証します。回答の正しさは保証しません。",
+        "output_text": "出力テキストが制約を満たしていません",
+        "model_call_count": "モデル呼び出し回数が制約を満たしていません",
+        "native_trace": "ネイティブ実行記録が不完全です",
+        "execution_cleanup": "実行またはクリーンアップが未確認です"
       }
     }
   }

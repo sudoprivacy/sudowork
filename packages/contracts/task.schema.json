@@ -869,6 +869,231 @@
             "limits",
             "runtime_authority_id"
           ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "api_version": {
+              "const": "task.sudo.dev/v1alpha1"
+            },
+            "kind": {
+              "const": "TaskExecutionResolution"
+            },
+            "resolution_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,100}$"
+            },
+            "task_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,100}$"
+            },
+            "reason_code": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            },
+            "policy_version": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "policy_snapshot_digest": {
+              "type": "string",
+              "pattern": "^sha256:[a-f0-9]{64}$"
+            },
+            "decided_at": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "status": {
+              "const": "accepted"
+            },
+            "attempt_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,100}$"
+            },
+            "execution_mode": {
+              "const": "internal_hosted"
+            },
+            "resolved_runtime": {
+              "const": "native_sudocode"
+            },
+            "resolution_mode": {
+              "const": "default"
+            },
+            "governance_org_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 150
+            },
+            "agent": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "principal": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "trust_domain": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    },
+                    "agent_name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    }
+                  },
+                  "required": [
+                    "trust_domain",
+                    "agent_name"
+                  ]
+                },
+                "version": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "source_digest": {
+                  "type": "string",
+                  "pattern": "^sha256:[a-f0-9]{64}$"
+                },
+                "version_evidence": {
+                  "const": "immutable_native_artifact"
+                },
+                "release_digest": {
+                  "type": "string",
+                  "pattern": "^sha256:[a-f0-9]{64}$"
+                },
+                "resolved_from_channel": {
+                  "enum": [
+                    "stable",
+                    "canary"
+                  ]
+                },
+                "channel_revision": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "registry": {
+                  "$ref": "#/$defs/AgentRegistryEvidence"
+                }
+              },
+              "required": [
+                "principal",
+                "version",
+                "source_digest",
+                "version_evidence",
+                "registry",
+                "release_digest"
+              ]
+            },
+            "catalog_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,150}$"
+            },
+            "asset_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@-]{0,149}$"
+            },
+            "artifact_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,150}$"
+            },
+            "metadata_digest": {
+              "type": "string",
+              "pattern": "^sha256:[a-f0-9]{64}$"
+            },
+            "artifact": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "spec_digest": {
+                  "type": "string",
+                  "pattern": "^sha256:[a-f0-9]{64}$"
+                },
+                "image_id": {
+                  "type": "string",
+                  "pattern": "^sha256:[a-f0-9]{64}$"
+                },
+                "dependency_lock_digest": {
+                  "type": "string",
+                  "pattern": "^sha256:[a-f0-9]{64}$"
+                },
+                "profile": {
+                  "const": "sudocode-dify-independent-text-v1alpha1"
+                }
+              },
+              "required": [
+                "spec_digest",
+                "image_id",
+                "dependency_lock_digest",
+                "profile"
+              ]
+            },
+            "limits": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "timeout_ms": {
+                  "type": "integer",
+                  "minimum": 100,
+                  "maximum": 300000
+                },
+                "max_model_calls": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 32
+                }
+              },
+              "required": [
+                "timeout_ms",
+                "max_model_calls"
+              ]
+            },
+            "runtime_authority_id": {
+              "type": "string",
+              "pattern": "^sha256:[a-f0-9]{64}$"
+            },
+            "native_profile_digest": {
+              "type": "string",
+              "pattern": "^sha256:[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "api_version",
+            "kind",
+            "resolution_id",
+            "task_id",
+            "reason_code",
+            "reason",
+            "policy_version",
+            "policy_snapshot_digest",
+            "decided_at",
+            "status",
+            "attempt_id",
+            "execution_mode",
+            "resolved_runtime",
+            "resolution_mode",
+            "governance_org_id",
+            "agent",
+            "catalog_id",
+            "asset_id",
+            "artifact_id",
+            "metadata_digest",
+            "artifact",
+            "limits",
+            "runtime_authority_id",
+            "native_profile_digest"
+          ]
         }
       ]
     },
@@ -1056,6 +1281,9 @@
               "type": "null"
             }
           ]
+        },
+        "native_verification": {
+          "$ref": "#/$defs/NativeOutputVerification"
         }
       },
       "required": [
@@ -1515,6 +1743,9 @@
         },
         "trace_has_more": {
           "type": "boolean"
+        },
+        "native_verification": {
+          "$ref": "#/$defs/NativeOutputVerification"
         }
       },
       "required": [
@@ -1531,6 +1762,65 @@
         "trace_has_more"
       ],
       "additionalProperties": false
+    },
+    "NativeOutputVerification": {
+      "additionalProperties": false,
+      "description": "Deterministic execution-shape checks, not independent business correctness.",
+      "properties": {
+        "kind": {
+          "const": "NativeOutputVerification",
+          "default": "NativeOutputVerification",
+          "title": "Kind",
+          "type": "string"
+        },
+        "policy": {
+          "const": "native-text-completion-v1",
+          "default": "native-text-completion-v1",
+          "title": "Policy",
+          "type": "string"
+        },
+        "profile_digest": {
+          "pattern": "^sha256:[a-f0-9]{64}$",
+          "title": "Profile Digest",
+          "type": "string"
+        },
+        "output_digest": {
+          "pattern": "^sha256:[a-f0-9]{64}$",
+          "title": "Output Digest",
+          "type": "string"
+        },
+        "verdict": {
+          "enum": [
+            "passed",
+            "rejected"
+          ],
+          "title": "Verdict",
+          "type": "string"
+        },
+        "failures": {
+          "items": {
+            "enum": [
+              "output_text",
+              "model_call_count",
+              "native_trace",
+              "execution_cleanup"
+            ],
+            "type": "string"
+          },
+          "title": "Failures",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "policy",
+        "profile_digest",
+        "output_digest",
+        "verdict",
+        "failures"
+      ],
+      "title": "NativeOutputVerification",
+      "type": "object"
     }
   }
 }

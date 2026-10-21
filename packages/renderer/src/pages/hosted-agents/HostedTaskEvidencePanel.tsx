@@ -59,6 +59,15 @@ export default function HostedTaskEvidencePanel({ taskId }: IHostedTaskEvidenceP
                   <Typography.Paragraph className='break-all'>{t('agent.hosted.evidence.digest', { digest: evidence.release.spec_digest })}</Typography.Paragraph>
                 </>
               )}
+              {evidence.native_verification && (
+                <div className='space-y-2'>
+                  <Tag color={evidence.native_verification.verdict === 'passed' ? 'green' : 'orange'}>{t(`agent.hosted.evidence.native.${evidence.native_verification.verdict}`)}</Tag>
+                  <Typography.Paragraph type='secondary'>{t('agent.hosted.evidence.native.scope')}</Typography.Paragraph>
+                  {evidence.native_verification.failures.map((failure) => (
+                    <Typography.Paragraph key={failure}>{t(`agent.hosted.evidence.native.${failure}`)}</Typography.Paragraph>
+                  ))}
+                </div>
+              )}
               <Tag>{t(`agent.hosted.evidence.usage.${evidence.usage.status}`)}</Tag>
               {evidence.usage.status !== 'not_invoked' && (
                 <>
