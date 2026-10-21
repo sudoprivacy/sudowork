@@ -4,8 +4,9 @@ import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
 import { SWRConfig } from 'swr';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TChatConversation } from '@sudowork/common/storage';
+import type { IMyAgent } from '@sudowork/common/personalAgents';
 
-const state = vi.hoisted(() => ({ get: vi.fn(), conversations: [] as TChatConversation[], closePreview: vi.fn(), openTab: vi.fn() }));
+const state = vi.hoisted(() => ({ get: vi.fn(), conversations: [] as TChatConversation[], agents: [] as IMyAgent[], closePreview: vi.fn(), openTab: vi.fn() }));
 vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
   conversation: { get: { invoke: state.get } },
   skillHub: { changed: { on: () => () => {} } },
@@ -15,7 +16,7 @@ vi.mock('@renderer/utils/platform', () => ({ isWebBridgeAvailable: () => true })
 vi.mock('@renderer/utils/emitter', () => ({ addEventListener: () => () => {}, emitter: { emit: vi.fn() } }));
 vi.mock('@renderer/pages/conversation/preview', () => ({ usePreviewContext: () => ({ closePreview: state.closePreview }) }));
 vi.mock('@renderer/pages/conversation/context/ConversationTabsContext', () => ({ useConversationTabs: () => ({ openTab: state.openTab }) }));
-vi.mock('@renderer/pages/conversation/context/ConversationHistoryContext', () => ({ useConversationHistory: () => ({ conversations: state.conversations }) }));
+vi.mock('@renderer/pages/conversation/context/ConversationHistoryContext', () => ({ useConversationHistory: () => ({ conversations: state.conversations, agents: state.agents }) }));
 vi.mock('@renderer/hooks/usePresetAssistantInfo', () => ({ usePresetAssistantInfo: () => ({}) }));
 vi.mock('@renderer/components/AgentStatusBanner', () => ({ default: () => null }));
 vi.mock('@renderer/components/AcpModelSelector', () => ({ default: () => null }));
@@ -23,7 +24,13 @@ vi.mock('@renderer/pages/conversation/ChatSider', () => ({ default: () => null }
 vi.mock('@renderer/pages/conversation/workspace/TaskPanelHeaderContext', () => ({ TaskPanelHeaderProvider: ({ children }: PropsWithChildren) => children }));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock('@renderer/pages/conversation/acp/AcpChat', () => ({
-  default: ({ conversation_id }: { conversation_id: string }) => <textarea aria-label={`Send to ${conversation_id}`} />,
+  default: ({ conversation_id, agentName, sessionMode }: { conversation_id: string; agentName?: string; sessionMode?: string }) => (
+    <>
+      <textarea aria-label={`Send to ${conversation_id}`} />
+      <output aria-label={`Recipient ${conversation_id}`}>{agentName}</output>
+      <output aria-label={`Permission mode ${conversation_id}`}>{sessionMode}</output>
+    </>
+  ),
 }));
 vi.mock('@renderer/pages/conversation/ChatLayout', () => ({
   default: function Frame({ children, conversationId, executionTarget }: PropsWithChildren<{ conversationId?: string; executionTarget?: 'local' | 'remote' }>) {
@@ -64,6 +71,7 @@ function renderConversation() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  state.agents = [];
   state.conversations = ['current', 'next'].map((id) => ({ id, name: id, type: 'remote-agent', createTime: 1, modifyTime: 1, extra: {} }) as TChatConversation);
 });
 afterEach(cleanup);
@@ -120,5 +128,34 @@ describe('Conversation navigation', () => {
     await waitFor(() => expect(screen.getByLabelText('Execution target')).toHaveTextContent('remote'));
     fireEvent.click(screen.getByText('Next session'));
     await waitFor(() => expect(screen.getByLabelText('Execution target')).toHaveTextContent('local'));
+  });
+
+  it('uses a friendly Agent name instead of exposing an internal personal reference', async () => {
+    const reference = 'moss-agent:own:22222222-2222-4222-8222-222222222222';
+    state.agents = [{ ref: reference, displayName: 'Friendly Agent', kind: 'own' }];
+    state.conversations = [{ id: 'current', name: 'current', type: 'remote-agent', createTime: 1, modifyTime: 1, extra: { mossAssistantRef: reference, agentName: reference } } as TChatConversation];
+    state.get.mockResolvedValue(state.conversations[0]);
+    renderConversation();
+    await waitFor(() => expect(screen.getByLabelText('Recipient current')).toHaveTextContent('Friendly Agent'));
+    expect(screen.getByLabelText('Recipient current')).not.toHaveTextContent('moss-agent:');
+  });
+
+  it('uses a generic Agent label when an internal reference is no longer in the catalogue', async () => {
+    const reference = 'moss-agent:own:33333333-3333-4333-8333-333333333333';
+    state.conversations = [{ id: 'current', name: 'current', type: 'remote-agent', createTime: 1, modifyTime: 1, extra: { mossAssistantRef: reference, agentName: reference } } as TChatConversation];
+    state.get.mockResolvedValue(state.conversations[0]);
+    renderConversation();
+    await waitFor(() => expect(screen.getByLabelText('Recipient current')).toHaveTextContent('conversation.sidebar.myAgent'));
+    expect(screen.getByLabelText('Recipient current')).not.toHaveTextContent('moss-agent:');
+  });
+
+  it.each([
+    { dangerouslySkipPermissions: true, expectedMode: 'yolo' },
+    { dangerouslySkipPermissions: false, expectedMode: 'default' },
+  ])('restores the persisted remote permission mode ($expectedMode)', async ({ dangerouslySkipPermissions, expectedMode }) => {
+    state.conversations = [{ id: 'current', name: 'current', type: 'remote-agent', createTime: 1, modifyTime: 1, extra: { sessionMode: 'remote', dangerouslySkipPermissions } } as TChatConversation];
+    state.get.mockResolvedValue(state.conversations[0]);
+    renderConversation();
+    await waitFor(() => expect(screen.getByLabelText('Permission mode current')).toHaveTextContent(expectedMode));
   });
 });

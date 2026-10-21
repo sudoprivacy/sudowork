@@ -103,3 +103,8 @@ export function supportsModeSwitch(backend: string | undefined): boolean {
   if (!backend) return false;
   return backend in AGENT_MODES && AGENT_MODES[backend].length > 0;
 }
+
+/** Remote sessions accept a permission mode at creation time but cannot change it live. */
+export function supportsLiveModeSwitch(backend: string | undefined): boolean {
+  return supportsModeSwitch(backend) && backend !== 'remote-agent';
+}

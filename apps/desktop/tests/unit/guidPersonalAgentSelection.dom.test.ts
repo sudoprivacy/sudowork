@@ -10,6 +10,7 @@ const state = vi.hoisted(() => ({
   loadMossModels: vi.fn(),
   loadUserModel: vi.fn(),
   local: [] as any[],
+  cloud: [] as any[],
   available: [{ backend: 'scode', name: 'Sudo Code' }],
   mine: [{ ref: 'moss-agent:own:22222222-2222-4222-8222-222222222222', displayName: 'Research', kind: 'own' }],
   listeners: new Map<string, () => void>(),
@@ -23,7 +24,7 @@ vi.mock('@renderer/utils/emitter', () => ({ emitter: { on: (event: string, callb
 vi.mock('@sudowork/host-bridge/ipcBridge', () => {
   const installed = async () => ({ data: await state.loadInstalled() });
   return {
-    eeclaw: { getMyAgents: { invoke: async () => ({ success: true, data: state.mine }) }, getCloudAssistants: { invoke: async () => ({ data: [] }) }, setSessionMode: { invoke: async () => undefined } },
+    eeclaw: { getMyAgents: { invoke: async () => ({ success: true, data: state.mine }) }, getCloudAssistants: { invoke: async () => ({ data: state.cloud }) }, setSessionMode: { invoke: async () => undefined } },
     extensions: { getAssistants: { invoke: async () => [] } },
     assistantHub: { getInstalledAssistants: { invoke: installed }, getInstalledAssistantsWithVisibility: { invoke: installed } },
     acpConversation: { refreshCustomAgents: { invoke: async () => undefined }, rescanAgents: { invoke: async () => undefined }, probeModelInfo: { invoke: async () => ({ success: false }) }, getAvailableAgents: { invoke: async () => ({ data: state.available }) } },
@@ -42,6 +43,7 @@ beforeEach(() => {
   state.loadMossModels.mockReset().mockResolvedValue({ success: false });
   state.loadUserModel.mockReset().mockResolvedValue({ success: false });
   state.local = [];
+  state.cloud = [];
   setRendererSessionMode('remote');
   state.readConfig.mockReset().mockImplementation(async (key: string) => (key === 'guid.sessionMode' ? state.mode : undefined));
   state.loadInstalled
@@ -83,6 +85,17 @@ describe('personal Agent selection through picker refreshes', () => {
       expect(result.current.sessionMode).toBe('remote');
       expect(result.current.selectedAgentInfo?.customAgentId).toBe(ref);
     });
+  });
+
+  it('keeps the personal Agent ready while an independent task template is selected', async () => {
+    state.cloud = [{ key: 'recruiter-template', name: 'Recruiter' }];
+    const ref = state.mine[0].ref;
+    const { result } = renderHook(() => useGuidAgentSelection({ localeKey: 'en-US', assistantFromUrl: ref }));
+    await waitFor(() => expect(result.current.selectedAgentInfo?.customAgentId).toBe(ref));
+    expect(result.current.isAgentSelectionPending).toBe(false);
+    act(() => result.current.setSelectedAgentKey('custom:recruiter-template'));
+    await waitFor(() => expect(result.current.selectedAgentInfo?.customAgentId).toBe('recruiter-template'));
+    expect(result.current.isAgentSelectionPending).toBe(false);
   });
 
   it('loads cloud models after switching away during an unfinished request', async () => {
