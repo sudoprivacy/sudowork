@@ -42,9 +42,10 @@ const ALLOWED = [
   { method: 'PUT', path: /^\/roles\/[^/]+$/ },
   { method: 'GET', path: /^\/admin\/public-links\/[^/]+\/qr$/ },
   { method: 'GET', path: /^\/admin\/operations$/ },
+  { method: 'GET', path: /^\/admin\/operations\/tasks\/[a-f0-9-]+$/ },
   {
     method: 'POST',
-    path: /^\/admin\/operations\/(backup|restore|verify-upgrade|upgrade|rollback|reindex)$/,
+    path: /^\/admin\/operations\/(backup|restore|verify-upgrade|upgrade|rollback|reindex|model-check)$/,
   },
 ]
 

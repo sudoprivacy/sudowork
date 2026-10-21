@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ParkApiError, type ParkApi } from './api'
 import { DEFAULT_PARK_LOGO, parkLogoUrl } from '../brand'
+import { ParkApiError, type ParkApi } from './api'
 import { encodeLogo, isValidLogo, LOGO_ACCEPT } from './logoUpload'
-import type { PageId } from './index'
 import { parkLabels as t } from './labels'
 import { isPolicyFileName, POLICY_FILE_ACCEPT, POLICY_FILE_MAX_BYTES } from './policyUpload'
 import styles from './park.module.css'
+import BoxOperationsPage from './operations'
+import type { PageId } from './index'
 
 interface Config {
   display_name: string
@@ -72,17 +73,6 @@ interface AuditEvent {
   ip_address: string | null
   created_at: number
 }
-interface BoxStatus {
-  version: string | null
-  uptime_seconds: number
-  memory: { total_bytes: number; free_bytes: number }
-  disk: { total_bytes: number; free_bytes: number }
-  health: Array<{ url: string; healthy: boolean; status: number }>
-  model: unknown
-  archives: string[]
-  upgrades: string[]
-  available_actions: Record<string, boolean>
-}
 
 function localTime(value: number): string {
   return new Intl.DateTimeFormat('zh-CN', {
@@ -120,9 +110,12 @@ function PoliciesPage({ api }: { api: ParkApi }) {
   const [isSaving, setIsSaving] = useState(false)
   const [confirmDeleteId, setConfirmDeleteId] = useState('')
   const confirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  useEffect(() => () => {
-    if (confirmTimer.current) clearTimeout(confirmTimer.current)
-  }, [])
+  useEffect(
+    () => () => {
+      if (confirmTimer.current) clearTimeout(confirmTimer.current)
+    },
+    [],
+  )
   function requestDelete(documentId: string): void {
     if (confirmDeleteId === documentId) {
       if (confirmTimer.current) clearTimeout(confirmTimer.current)
@@ -156,12 +149,15 @@ function PoliciesPage({ api }: { api: ParkApi }) {
       setDocuments([])
       return
     }
-    void api.get<{ documents: PolicyDocument[] }>(
-      `admin/policy/nodes/${encodeURIComponent(selectedNodeId)}/documents`,
-    ).then((result) => setDocuments(result.documents)).catch(() => {
-      setMessage(t.failed)
-      setIsError(true)
-    })
+    void api
+      .get<{ documents: PolicyDocument[] }>(
+        `admin/policy/nodes/${encodeURIComponent(selectedNodeId)}/documents`,
+      )
+      .then((result) => setDocuments(result.documents))
+      .catch(() => {
+        setMessage(t.failed)
+        setIsError(true)
+      })
   }, [api, selectedNodeId])
   useEffect(() => {
     const wiki = wikis.find((item) => item.id === selectedWikiId)
@@ -223,7 +219,13 @@ function PoliciesPage({ api }: { api: ParkApi }) {
     const file = event.target.files?.[0]
     if (!file || !selectedNodeId) return
     if (!isPolicyFileName(file.name) || !file.size || file.size > POLICY_FILE_MAX_BYTES) {
-      setMessage(!isPolicyFileName(file.name) ? t.policyFileUnsupported : !file.size ? t.policyFileEmpty : t.policyFileTooLarge)
+      setMessage(
+        !isPolicyFileName(file.name)
+          ? t.policyFileUnsupported
+          : !file.size
+            ? t.policyFileEmpty
+            : t.policyFileTooLarge,
+      )
       setIsError(true)
       event.target.value = ''
       return
@@ -246,7 +248,12 @@ function PoliciesPage({ api }: { api: ParkApi }) {
       setMessage(t.saved)
       setIsError(false)
     } catch (error) {
-      setMessage(`${t.policyUploadFailed}${failureReason(error)}`)
+      const reason =
+        error instanceof ParkApiError &&
+        error.reason === '仅支持 TXT、MD、MARKDOWN、DOCX、PDF 政策文件。'
+          ? t.policyFileUnsupported
+          : failureReason(error)
+      setMessage(`${t.policyUploadFailed}${reason}`)
       setIsError(true)
     } finally {
       setIsSaving(false)
@@ -315,25 +322,153 @@ function PoliciesPage({ api }: { api: ParkApi }) {
       <section className={styles.panel}>
         <h2 className={styles.panelTitle}>{t.policyDirectory}</h2>
         <form className={styles.formGrid} onSubmit={(event) => void onCreateNode(event)}>
-          <label className={styles.field}>{t.policyDirectoryName}<input className={styles.input} name="name" required /></label>
-          <label className={styles.field}>{t.policyParentDirectory}<select className={styles.select} name="parent_id" defaultValue=""><option value="">{t.policyRootDirectory}</option>{nodes.map((node) => <option key={node.id} value={node.id}>{node.name}</option>)}</select></label>
-          <button className={styles.button} type="submit" disabled={isSaving}>{t.create}</button>
+          <label className={styles.field}>
+            {t.policyDirectoryName}
+            <input className={styles.input} name="name" required />
+          </label>
+          <label className={styles.field}>
+            {t.policyParentDirectory}
+            <select className={styles.select} name="parent_id" defaultValue="">
+              <option value="">{t.policyRootDirectory}</option>
+              {nodes.map((node) => (
+                <option key={node.id} value={node.id}>
+                  {node.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button className={styles.button} type="submit" disabled={isSaving}>
+            {t.create}
+          </button>
         </form>
         <div className={styles.sectionGap}>
-          <label className={styles.field}>{t.policyCurrentDirectory}<select className={styles.select} value={selectedNodeId} onChange={(event) => setSelectedNodeId(event.target.value)}><option value="">{t.empty}</option>{nodes.map((node) => <option key={node.id} value={node.id}>{node.name}</option>)}</select></label>
+          <label className={styles.field}>
+            {t.policyCurrentDirectory}
+            <select
+              className={styles.select}
+              value={selectedNodeId}
+              onChange={(event) => setSelectedNodeId(event.target.value)}
+            >
+              <option value="">{t.empty}</option>
+              {nodes.map((node) => (
+                <option key={node.id} value={node.id}>
+                  {node.name}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
       </section>
       <section className={`${styles.panel} ${styles.sectionGap}`}>
         <h2 className={styles.panelTitle}>{t.policyFiles}</h2>
-        <label className={styles.field}>{t.policyUpload}<input className={styles.input} type="file" accept={POLICY_FILE_ACCEPT} onChange={(event) => void onUpload(event)} disabled={!selectedNodeId || isSaving} /></label>
-        <div className={styles.list}>{documents.length ? documents.map((document) => <div className={styles.listItem} key={document.id}><div><strong>{document.fileName}</strong><p className={styles.muted}>{Math.ceil(document.sizeBytes / 1024)} KB · {localTime(document.uploadedAt)}</p></div><button className={styles.buttonDanger} type="button" onClick={() => requestDelete(document.id)} disabled={isSaving}>{confirmDeleteId === document.id ? t.documentDeleteConfirm : t.documentDelete}</button></div>) : <div className={styles.empty}>{t.empty}</div>}</div>
+        <label className={styles.field}>
+          {t.policyUpload}
+          <input
+            className={styles.input}
+            type="file"
+            accept={POLICY_FILE_ACCEPT}
+            onChange={(event) => void onUpload(event)}
+            disabled={!selectedNodeId || isSaving}
+          />
+        </label>
+        <div className={styles.list}>
+          {documents.length ? (
+            documents.map((document) => (
+              <div className={styles.listItem} key={document.id}>
+                <div>
+                  <strong>{document.fileName}</strong>
+                  <p className={styles.muted}>
+                    {Math.ceil(document.sizeBytes / 1024)} KB · {localTime(document.uploadedAt)}
+                  </p>
+                </div>
+                <button
+                  className={styles.buttonDanger}
+                  type="button"
+                  onClick={() => requestDelete(document.id)}
+                  disabled={isSaving}
+                >
+                  {confirmDeleteId === document.id ? t.documentDeleteConfirm : t.documentDelete}
+                </button>
+              </div>
+            ))
+          ) : (
+            <div className={styles.empty}>{t.empty}</div>
+          )}
+        </div>
       </section>
       <section className={`${styles.panel} ${styles.sectionGap}`}>
         <h2 className={styles.panelTitle}>{t.policyKnowledgeBase}</h2>
-        <label className={styles.field}>{t.policyWiki}<select className={styles.select} value={selectedWikiId} onChange={(event) => setSelectedWikiId(event.target.value)}><option value="">{t.policyCreateWiki}</option>{wikis.map((wiki) => <option key={wiki.id} value={wiki.id}>{wiki.name}</option>)}</select></label>
-        <div className={styles.list}>{documents.map((document) => <label className={styles.listItem} key={document.id}><span><input type="checkbox" checked={selectedDocumentIds.includes(document.id)} onChange={(event) => setSelectedDocumentIds((current) => event.target.checked ? [...new Set([...current, document.id])] : current.filter((id) => id !== document.id))} /> {document.fileName}</span></label>)}</div>
-        {!selectedWikiId && <form className={styles.formGrid} onSubmit={(event) => void onCreateWiki(event)}><label className={styles.field}>{t.policyWikiName}<input className={styles.input} name="name" required /></label><button className={styles.button} type="submit" disabled={isSaving || !selectedDocumentIds.length}>{t.policyCreateWiki}</button></form>}
-        {selectedWikiId && <div className={styles.inlineActions}><button className={styles.button} type="button" onClick={() => void onSaveAndBuild()} disabled={isSaving || !selectedDocumentIds.length}>{t.policySaveAndBuild}</button><span className={styles.pill}>{buildStatus ? (t.policyBuildStatuses[buildStatus.wiki_build_status] ?? buildStatus.wiki_build_status) : t.loading}</span>{buildStatus?.last_build_error && <span className={styles.errorLine}>{buildStatus.last_build_error}</span>}</div>}
+        <label className={styles.field}>
+          {t.policyWiki}
+          <select
+            className={styles.select}
+            value={selectedWikiId}
+            onChange={(event) => setSelectedWikiId(event.target.value)}
+          >
+            <option value="">{t.policyCreateWiki}</option>
+            {wikis.map((wiki) => (
+              <option key={wiki.id} value={wiki.id}>
+                {wiki.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className={styles.list}>
+          {documents.map((document) => (
+            <label className={styles.listItem} key={document.id}>
+              <span>
+                <input
+                  type="checkbox"
+                  checked={selectedDocumentIds.includes(document.id)}
+                  onChange={(event) =>
+                    setSelectedDocumentIds((current) =>
+                      event.target.checked
+                        ? [...new Set([...current, document.id])]
+                        : current.filter((id) => id !== document.id),
+                    )
+                  }
+                />{' '}
+                {document.fileName}
+              </span>
+            </label>
+          ))}
+        </div>
+        {!selectedWikiId && (
+          <form className={styles.formGrid} onSubmit={(event) => void onCreateWiki(event)}>
+            <label className={styles.field}>
+              {t.policyWikiName}
+              <input className={styles.input} name="name" required />
+            </label>
+            <button
+              className={styles.button}
+              type="submit"
+              disabled={isSaving || !selectedDocumentIds.length}
+            >
+              {t.policyCreateWiki}
+            </button>
+          </form>
+        )}
+        {selectedWikiId && (
+          <div className={styles.inlineActions}>
+            <button
+              className={styles.button}
+              type="button"
+              onClick={() => void onSaveAndBuild()}
+              disabled={isSaving || !selectedDocumentIds.length}
+            >
+              {t.policySaveAndBuild}
+            </button>
+            <span className={styles.pill}>
+              {buildStatus
+                ? (t.policyBuildStatuses[buildStatus.wiki_build_status] ??
+                  buildStatus.wiki_build_status)
+                : t.loading}
+            </span>
+            {buildStatus?.last_build_error && (
+              <span className={styles.errorLine}>{buildStatus.last_build_error}</span>
+            )}
+          </div>
+        )}
       </section>
     </>
   )
@@ -598,7 +733,9 @@ function QuestionsPage({ api }: { api: ParkApi }) {
             <div className={styles.empty}>{t.empty}</div>
           )}
         </div>
-        <h2 className={`${styles.panelTitle} ${styles.sectionGap}`}>{editing ? t.edit : t.create}</h2>
+        <h2 className={`${styles.panelTitle} ${styles.sectionGap}`}>
+          {editing ? t.edit : t.create}
+        </h2>
         <form
           className={styles.formGrid}
           onSubmit={(event) => void onSave(event)}
@@ -761,7 +898,12 @@ function AssistantPage({ api }: { api: ParkApi }) {
         >
           <label className={styles.field}>
             {t.assistantStatus}
-            <select className={styles.select} name="status" defaultValue={data.status ?? 'draft'} disabled={isSaving}>
+            <select
+              className={styles.select}
+              name="status"
+              defaultValue={data.status ?? 'draft'}
+              disabled={isSaving}
+            >
               {['draft', 'pending_review', 'published', 'disabled'].map((status) => (
                 <option value={status} key={status}>
                   {t.statuses[status as keyof typeof t.statuses]}
@@ -861,8 +1003,16 @@ function AssistantPage({ api }: { api: ParkApi }) {
             />
           </label>
           <div className={`${styles.inlineActions} ${styles.fieldWide}`}>
-            <button className={styles.button} type="submit" disabled={isSaving}>{t.save}</button>
-            <span role="status" aria-live="polite" className={isSaveError ? styles.errorLine : styles.statusLine}>{message}</span>
+            <button className={styles.button} type="submit" disabled={isSaving}>
+              {t.save}
+            </button>
+            <span
+              role="status"
+              aria-live="polite"
+              className={isSaveError ? styles.errorLine : styles.statusLine}
+            >
+              {message}
+            </span>
           </div>
         </form>
       )}
@@ -1224,186 +1374,14 @@ function AuditPage({ api }: { api: ParkApi }) {
   )
 }
 
-function OperationsPage({ api }: { api: ParkApi }) {
-  const [data, setData] = useState<BoxStatus | null>(null)
-  const [archive, setArchive] = useState('')
-  const [upgradePackage, setUpgradePackage] = useState('')
-  const [message, setMessage] = useState('')
-  const [isBusy, setIsBusy] = useState(false)
-  const reload = useCallback(
-    async () => setData(await api.get<BoxStatus>('admin/operations')),
-    [api],
-  )
-  useEffect(() => {
-    void reload().catch(() => setMessage(t.failed))
-  }, [reload])
-  async function onAction(
-    action: 'backup' | 'restore' | 'verify-upgrade' | 'upgrade' | 'rollback' | 'reindex',
-  ) {
-    const prompt =
-      action === 'restore'
-        ? t.confirmRestore
-        : action === 'upgrade'
-          ? t.confirmUpgrade
-          : action === 'rollback'
-            ? t.confirmRollback
-            : null
-    if (prompt && !window.confirm(prompt)) return
-    setIsBusy(true)
-    try {
-      await api.send(`admin/operations/${action}`, 'POST', {
-        name: action === 'restore' ? archive : upgradePackage,
-      })
-      await reload()
-      setMessage(t.operationSuccess)
-    } catch {
-      setMessage(t.operationFailed)
-    } finally {
-      setIsBusy(false)
-    }
-  }
-  if (!data) return <div className={styles.message}>{message || t.loading}</div>
-  const gigabytes = (value: number) => `${(value / 1024 ** 3).toFixed(1)} GB`
-  return (
-    <>
-      <Feedback message={message} isError={message === t.operationFailed} />
-      <div className={styles.grid}>
-        <section className={styles.panel}>
-          <h2 className={styles.panelTitle}>{t.operationStatus}</h2>
-          <div className={styles.listItem}>
-            <strong>{data.version ?? t.notConfigured}</strong>
-            <p>Uptime · {data.uptime_seconds}s</p>
-          </div>
-          <h2 className={`${styles.panelTitle} ${styles.sectionGap}`}>{t.health}</h2>
-          <div className={styles.list}>
-            {data.health.length ? (
-              data.health.map((item) => (
-                <div className={styles.listItem} key={item.url}>
-                  <strong>
-                    {item.healthy ? t.healthy : t.unhealthy} · {item.status}
-                  </strong>
-                  <p>{item.url}</p>
-                </div>
-              ))
-            ) : (
-              <div className={styles.empty}>{t.notConfigured}</div>
-            )}
-          </div>
-        </section>
-        <section className={styles.panel}>
-          <h2 className={styles.panelTitle}>{t.resources}</h2>
-          <div className={styles.listItem}>
-            <strong>
-              Disk · {gigabytes(data.disk.free_bytes)} / {gigabytes(data.disk.total_bytes)}
-            </strong>
-            <p>
-              Memory · {gigabytes(data.memory.free_bytes)} / {gigabytes(data.memory.total_bytes)}
-            </p>
-          </div>
-          <div className={`${styles.listItem} ${styles.sectionGap}`}>
-            <strong>Model</strong>
-            <pre>{JSON.stringify(data.model, null, 2)}</pre>
-          </div>
-        </section>
-      </div>
-      <div className={`${styles.grid} ${styles.sectionGap}`}>
-        <section className={styles.panel}>
-          <h2 className={styles.panelTitle}>
-            {t.backup} / {t.restore}
-          </h2>
-          <div className={styles.inlineActions}>
-            <button
-              className={styles.button}
-              disabled={isBusy || !data.available_actions.backup}
-              onClick={() => void onAction('backup')}
-            >
-              {t.backup}
-            </button>
-            <select
-              className={styles.select}
-              value={archive}
-              onChange={(event) => setArchive(event.target.value)}
-            >
-              <option value="">{t.archive}</option>
-              {data.archives.map((name) => (
-                <option value={name} key={name}>
-                  {name}
-                </option>
-              ))}
-            </select>
-            <button
-              className={styles.buttonDanger}
-              disabled={isBusy || !archive || !data.available_actions.restore}
-              onClick={() => void onAction('restore')}
-            >
-              {t.restore}
-            </button>
-          </div>
-        </section>
-        <section className={styles.panel}>
-          <h2 className={styles.panelTitle}>
-            {t.upgrade} / {t.rollback}
-          </h2>
-          <div className={styles.inlineActions}>
-            <select
-              className={styles.select}
-              value={upgradePackage}
-              onChange={(event) => setUpgradePackage(event.target.value)}
-            >
-              <option value="">{t.upgradePackage}</option>
-              {data.upgrades.map((name) => (
-                <option value={name} key={name}>
-                  {name}
-                </option>
-              ))}
-            </select>
-            <button
-              className={styles.buttonSecondary}
-              disabled={isBusy || !upgradePackage}
-              onClick={() => void onAction('verify-upgrade')}
-            >
-              {t.verifySignature}
-            </button>
-            <button
-              className={styles.button}
-              disabled={isBusy || !upgradePackage || !data.available_actions.upgrade}
-              onClick={() => void onAction('upgrade')}
-            >
-              {t.applyUpgrade}
-            </button>
-            <button
-              className={styles.buttonDanger}
-              disabled={isBusy || !data.available_actions.rollback}
-              onClick={() => void onAction('rollback')}
-            >
-              {t.rollback}
-            </button>
-          </div>
-        </section>
-      </div>
-      <section className={`${styles.panel} ${styles.sectionGap}`}>
-        <h2 className={styles.panelTitle}>{t.reindex}</h2>
-        <button
-          className={styles.button}
-          disabled={isBusy || !data.available_actions.reindex}
-          onClick={() => void onAction('reindex')}
-        >
-          {t.run}
-        </button>
-      </section>
-    </>
-  )
-}
-
 export function OperatorPage({ id, api, onBrandSaved }: IOperatorPageProps) {
   if (id === 'policies') return <PoliciesPage api={api} />
-  if (id === 'content')
-    return <ContentSettingsPage api={api} onBrandSaved={onBrandSaved} />
+  if (id === 'content') return <ContentSettingsPage api={api} onBrandSaved={onBrandSaved} />
   if (id === 'assistant') return <AssistantPage api={api} />
   if (id === 'publicLinks') return <LinksPage api={api} />
   if (id === 'rateLimits') return <RateLimitsPage api={api} />
   if (id === 'audit') return <AuditPage api={api} />
-  return <OperationsPage api={api} />
+  return <BoxOperationsPage api={api} />
 }
 
 interface IContentSettingsPageProps {

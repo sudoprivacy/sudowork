@@ -1,6 +1,8 @@
 import { zh as t } from './locale'
 import './style.css'
 import { DEFAULT_PARK_LOGO, parkLogoUrl, setParkFavicon } from '../brand'
+import { renderMarkdown, disposeMarkdown } from './MarkdownBody'
+import { renderSources, type SourceRef } from './sources'
 
 interface PublicContext {
   display_name: string
@@ -15,13 +17,6 @@ interface QuickQuestion {
   id: string
   question: string
   sort_order: number
-}
-
-interface SourceRef {
-  policy_id?: string
-  name: string
-  version: string
-  section: string
 }
 
 interface SessionStatus {
@@ -166,8 +161,10 @@ function addMessage(kind: 'user' | 'assistant', label: string, value: string): H
   const caption = document.createElement('span')
   caption.className = 'message-label'
   caption.textContent = label
-  const paragraph = document.createElement('p')
-  paragraph.textContent = value
+  const paragraph = document.createElement(kind === 'assistant' ? 'div' : 'p')
+  paragraph.className = kind === 'assistant' ? 'message-body markdown-body' : 'message-body'
+  if (kind === 'assistant') renderMarkdown(paragraph, value)
+  else paragraph.textContent = value
   content.append(caption, paragraph)
   row.append(content)
   log.append(row)
@@ -191,27 +188,6 @@ function notifySessionClosed(id: string): void {
   addSystemMessage(t.sessionClosed)
 }
 
-function addSources(content: HTMLElement, sources: SourceRef[]): void {
-  for (const source of sources) {
-    const card = document.createElement('div')
-    card.className = 'policy-source'
-    const icon = document.createElement('span')
-    icon.className = 'source-icon'
-    icon.textContent = '▤'
-    const details = document.createElement('div')
-    const label = document.createElement('span')
-    label.className = 'source-label'
-    label.textContent = source.policy_id ? t.sourceLabel : t.materialSourceLabel
-    const title = document.createElement('strong')
-    title.textContent = source.name
-    const location = document.createElement('span')
-    location.textContent = `${source.version} · ${source.section}`
-    details.append(label, title, location)
-    card.append(icon, details)
-    content.append(card)
-  }
-}
-
 async function sendQuestion(value: string): Promise<void> {
   const message = value.trim()
   if (!message || !sessionId || isSending) return
@@ -220,7 +196,7 @@ async function sendQuestion(value: string): Promise<void> {
   const userContent = addMessage('user', t.visitor, message)
   questionInput.value = ''
   const content = addMessage('assistant', t.assistant, t.sending)
-  const paragraph = content.querySelector('p')!
+  const paragraph = content.querySelector<HTMLElement>('.message-body')!
   try {
     const requestId = crypto.randomUUID()
     const send = () => fetch(`/public/sessions/${sessionId}/messages`, {
@@ -238,6 +214,7 @@ async function sendQuestion(value: string): Promise<void> {
       const error = await response.json() as { error?: string }
       if (error.error === 'CAPTCHA_REQUIRED') {
         userContent.parentElement?.remove()
+        disposeMarkdown(paragraph)
         content.parentElement?.remove()
         questionInput.value = message
         syncSendButton()
@@ -249,7 +226,7 @@ async function sendQuestion(value: string): Promise<void> {
       const error = await response.json().catch(() => ({})) as { error?: string }
       if (error.error === 'SESSION_CAPACITY_REACHED') {
         isCapacityBlocked = true
-        paragraph.textContent = t.sessionCapacity
+        renderMarkdown(paragraph, t.sessionCapacity)
         return
       }
     }
@@ -271,9 +248,9 @@ async function sendQuestion(value: string): Promise<void> {
         const payload = /^data: (.+)$/m.exec(frame)?.[1]
         if (event === 'delta' && payload) {
           answer += (JSON.parse(payload) as { text: string }).text
-          paragraph.textContent = answer
+          renderMarkdown(paragraph, answer)
         }
-        if (event === 'sources' && payload) addSources(content, JSON.parse(payload) as SourceRef[])
+        if (event === 'sources' && payload) renderSources(content, JSON.parse(payload) as SourceRef[], sessionId!)
         if (event === 'error') throw new Error('Assistant response failed')
         if (event === 'done') isDone = true
         separator = pending.indexOf('\n\n')
@@ -281,15 +258,15 @@ async function sendQuestion(value: string): Promise<void> {
       log.scrollTop = log.scrollHeight
     }
     if (!isDone) throw new Error('Assistant response interrupted')
-    if (!answer) paragraph.textContent = t.noBasis
+    if (!answer) renderMarkdown(paragraph, t.noBasis)
     hasConsulted = true
     syncContactForm()
     await pollSessionStatus()
   } catch (error) {
     if (error instanceof PublicApiError && error.code === 'SESSION_CAPACITY_REACHED') {
       isCapacityBlocked = true
-      paragraph.textContent = t.sessionCapacity
-    } else paragraph.textContent = t.unavailable
+      renderMarkdown(paragraph, t.sessionCapacity)
+    } else renderMarkdown(paragraph, t.unavailable)
   } finally {
     isSending = false
     syncSendButton()

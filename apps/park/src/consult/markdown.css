@@ -1,0 +1,226 @@
+.markdown-body {
+  font-size: 14px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.message-content > .markdown-body {
+  padding: 16px 18px;
+}
+.assistant-message .markdown-body :is(h1, h2, h3, h4, h5, h6, code, table) {
+  font-size: inherit;
+}
+.markdown-body > :first-child {
+  margin-top: 0;
+}
+.markdown-body > :last-child {
+  margin-bottom: 0;
+}
+.markdown-body p {
+  margin: 0 0 1em;
+}
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  margin: 1.4em 0 0.6em;
+  color: #263c48;
+  line-height: 1.4;
+}
+.markdown-body h1 {
+  font-size: 1.45em;
+}
+.markdown-body h2 {
+  font-size: 1.25em;
+}
+.markdown-body h3 {
+  font-size: 1.1em;
+}
+.markdown-body ul,
+.markdown-body ol {
+  padding-left: 1.6em;
+  margin: 0.7em 0 1em;
+}
+.markdown-body li {
+  margin: 0.35em 0;
+}
+.markdown-body li p {
+  margin: 0.3em 0;
+}
+.markdown-body blockquote {
+  margin: 1em 0;
+  padding: 0.5em 1em;
+  border-left: 3px solid #b69b69;
+  color: #5b6b72;
+  background: #fffdf7;
+}
+.markdown-body a {
+  color: #32697e;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.markdown-body code {
+  font-family: inherit;
+  font-size: 0.9em;
+  background: #e6ebe9;
+  padding: 0.15em 0.35em;
+  border-radius: 3px;
+}
+.markdown-body pre {
+  font-family: inherit;
+  overflow-x: auto;
+  padding: 14px;
+  background: #e6ebe9;
+  border-radius: 5px;
+}
+.markdown-body pre code {
+  padding: 0;
+  background: transparent;
+  white-space: pre;
+}
+.markdown-table {
+  overflow-x: auto;
+  margin: 1em 0;
+}
+.markdown-body table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.95em;
+}
+.markdown-body th,
+.markdown-body td {
+  padding: 9px 12px;
+  border: 1px solid #d4deda;
+  text-align: left;
+  min-width: 90px;
+}
+.markdown-body th {
+  background: #e8efeb;
+}
+.markdown-body hr {
+  border: 0;
+  border-top: 1px solid #d4deda;
+  margin: 1.3em 0;
+}
+.message-body:not(.markdown-body) {
+  white-space: pre-wrap;
+}
+.message-sources {
+  display: grid;
+  gap: 6px;
+}
+.source-open {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #263c48;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.source-open:hover {
+  color: #32697e;
+  text-decoration: underline;
+}
+.source-open:focus-visible,
+.source-preview button:focus-visible {
+  outline: 2px solid #32697e;
+  outline-offset: 3px;
+}
+.policy-source > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.source-preview {
+  width: min(880px, calc(100vw - 32px));
+  max-height: calc(100dvh - 48px);
+  padding: 0;
+  border: 1px solid #d4deda;
+  border-radius: 10px;
+  background: #fffdf9;
+  color: #344b57;
+  box-shadow: 0 20px 80px #172d3940;
+}
+.source-preview::backdrop {
+  background: #172d3970;
+}
+.source-preview-inner {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 50px);
+}
+.source-preview header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 26px 12px;
+}
+.source-preview header span {
+  color: #9d7742;
+  font-size: 11px;
+}
+.source-preview h2 {
+  font-size: 20px;
+  margin: 6px 0;
+  overflow-wrap: anywhere;
+}
+.source-preview header button {
+  align-self: flex-start;
+  border: 0;
+  background: transparent;
+  font-size: 28px;
+  color: #687781;
+  cursor: pointer;
+}
+.source-preview-hint {
+  margin: 0;
+  padding: 0 26px 14px;
+  font-size: 12px;
+  color: #687781;
+}
+.source-preview nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 26px;
+  border-block: 1px solid #eadfc8;
+  max-height: 120px;
+  overflow-y: auto;
+}
+.source-preview nav button {
+  border: 1px solid #d8c9ac;
+  border-radius: 5px;
+  background: #fff8e9;
+  padding: 5px 9px;
+  color: #765b30;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.source-preview-body {
+  padding: 24px 26px;
+  overflow: auto;
+  min-height: 120px;
+}
+.source-preview-body .is-referenced {
+  background-color: #fff3d9;
+  box-shadow: -3px 0 #b69b69;
+}
+@media (max-width: 600px) {
+  .message-content > .markdown-body {
+    padding: 12px;
+  }
+  .source-preview header,
+  .source-preview-body {
+    padding: 16px;
+  }
+  .source-preview nav {
+    padding: 10px 16px;
+  }
+  .source-preview-hint {
+    padding: 0 16px 12px;
+  }
+}

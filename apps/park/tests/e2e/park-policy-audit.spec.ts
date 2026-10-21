@@ -14,12 +14,22 @@ test.beforeEach(async ({ page }) => {
 test('upload types, audit names and redaction defaults reflect backend data', async ({ page }) => {
   const input = page.locator('input[type="file"]')
   await expect(input).toHaveAttribute('accept', '.txt,.md,.markdown,.docx,.pdf')
-  await expect(page.getByText(/最大 50MB，支持 TXT、MD、MARKDOWN、DOCX、PDF/)).toBeVisible()
+  await expect(page.getByText(/最大 50MB，支持 TXT、MD、DOCX、PDF/)).toBeVisible()
   const section = page.getByRole('heading', { name: '政策文件目录' }).locator('..')
   const name = `审计验证-${Date.now()}`
   await section.getByLabel('目录名称').fill(name)
   await section.getByRole('button', { name: '新建' }).click()
   await section.getByLabel('当前目录').selectOption({ label: name })
+  for (const extension of ['md', 'markdown']) {
+    await input.setInputFiles({
+      name: `政策提示验证.${extension}`,
+      mimeType: 'text/markdown',
+      buffer: Buffer.from('# 政策\n可申请服务。'),
+    })
+    await expect(
+      page.locator('strong').filter({ hasText: `政策提示验证.${extension}` }),
+    ).toBeVisible()
+  }
   let uploadRequests = 0
   page.on('request', (request) => {
     if (request.method() === 'POST' && /\/documents$/.test(request.url())) uploadRequests++
@@ -29,7 +39,7 @@ test('upload types, audit names and redaction defaults reflect backend data', as
     mimeType: 'video/mp4',
     buffer: Buffer.from('unsupported'),
   })
-  await expect(page.getByText('仅支持 TXT、MD、MARKDOWN、DOCX、PDF 政策文件。')).toBeVisible()
+  await expect(page.getByText('仅支持 TXT、MD、DOCX、PDF 政策文件。')).toBeVisible()
   expect(uploadRequests).toBe(0)
   await page.goto(`${parkUrl}/park/admin/audit`)
   await expect(page.getByLabel('脱敏摘要最大长度')).toHaveValue('4000')
