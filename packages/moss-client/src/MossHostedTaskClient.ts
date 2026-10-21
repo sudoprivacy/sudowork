@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { TASK_API, type HostedAgent, type HostedEventsPage, type HostedSession, type HostedTask, type SubmitTask } from '@sudowork/contracts/task';
+import { TASK_API, type HostedAgent, type HostedTaskEvidence, type HostedEventsPage, type HostedSession, type HostedTask, type SubmitTask } from '@sudowork/contracts/task';
 import type { MossAgentFetch } from './MossAgentClient.js';
 
 const id = z.string().regex(/^[A-Za-z0-9_-]{1,100}$/);
@@ -30,6 +30,38 @@ const pageSchema = z.object({
     type: z.enum(['status', 'trace']), task: taskSchema, trace: z.object({ node: z.string(), phase: z.enum(['started', 'completed']), origin: z.literal('worker_reported') }).strict().optional(),
   }).strict()).max(1000), next_cursor: stamp, has_more: z.boolean(),
 }).strict();
+
+const evidenceSchema = z
+  .object({
+    api_version: z.literal(TASK_API),
+    kind: z.literal('HostedTaskEvidence'),
+    task_id: id,
+    task_sequence: stamp.positive(),
+    captured_at: stamp,
+    cleanup: z.enum(['not_started', 'pending', 'confirmed', 'unknown']),
+    release: z
+      .object({ version: z.string().min(1).max(150), artifact_id: assetId, spec_digest: digest, image_id: digest, registration_digest: digest })
+      .strict()
+      .nullable(),
+    usage: z
+      .object({
+        authority: z.literal('sudorouter'),
+        unit: z.literal('router_quota'),
+        status: z.enum(['pending', 'verified', 'not_invoked']),
+        verified_quota: stamp,
+        verified_prompt_tokens: stamp,
+        verified_completion_tokens: stamp,
+        pending_calls: stamp,
+        calls: z
+          .array(z.object({ id: assetId, model: z.string().min(1).max(256), status: z.enum(['preparing', 'dispatching', 'completed', 'rejected', 'unknown']), ledger_status: z.enum(['pending', 'router_verified']), token_cleanup: z.enum(['pending', 'confirmed']), ledger_entries: stamp }).strict())
+          .max(32),
+      })
+      .strict(),
+    trace: z.array(z.object({ sequence: stamp.positive(), created_at: stamp, node: z.string().min(1).max(200), phase: z.enum(['started', 'completed']), origin: z.literal('worker_reported') }).strict()).max(100),
+    trace_next_cursor: stamp,
+    trace_has_more: z.boolean(),
+  })
+  .strict();
 
 export interface HostedTaskInput {
   agent_id: string;
@@ -74,6 +106,7 @@ export interface MossHostedTaskPort {
   history(sessionId: string): Promise<HostedTask[]>;
   create(input: HostedTaskInput): Promise<HostedTask>;
   events(taskId: string, cursor: number): Promise<HostedEventsPage>;
+  evidence(taskId: string, cursor?: number): Promise<HostedTaskEvidence>;
   cancel(taskId: string): Promise<HostedTask>;
   reconcile(taskId: string): Promise<HostedTask>;
   close(taskId: string, note: string): Promise<HostedTask>;
@@ -123,6 +156,17 @@ export function createMossHostedTaskPort(fetchTask: MossAgentFetch): MossHostedT
       const page = await read(pageSchema, `/api/v1/tasks/${id.parse(taskId)}/events?cursor=${stamp.parse(cursor)}`);
       if (page.events.some(event => event.task_id !== taskId || event.task.id !== taskId) || (page.task && page.task.id !== taskId)) throw new Error('HOSTED_TASK_IDENTITY_MISMATCH');
       return page;
+    },
+    async evidence(taskId, cursor = 0) {
+      const value = await read(evidenceSchema, `/api/v1/tasks/${id.parse(taskId)}/evidence?cursor=${stamp.parse(cursor)}`);
+      let previous = cursor;
+      if (value.task_id !== taskId || value.trace_next_cursor < cursor || value.trace_next_cursor > value.task_sequence || (value.trace_has_more && !value.trace.length) || (value.usage.status !== 'pending' && value.usage.pending_calls > 0)) throw new Error('HOSTED_EVIDENCE_MISMATCH');
+      for (const event of value.trace) {
+        if (event.sequence <= previous || event.sequence > value.trace_next_cursor) throw new Error('HOSTED_EVIDENCE_MISMATCH');
+        previous = event.sequence;
+      }
+      if (value.trace_has_more && previous !== value.trace_next_cursor) throw new Error('HOSTED_EVIDENCE_MISMATCH');
+      return value;
     },
     cancel: taskId => taskAction(taskId, 'cancel', {}),
     reconcile: taskId => taskAction(taskId, 'reconcile', {}),

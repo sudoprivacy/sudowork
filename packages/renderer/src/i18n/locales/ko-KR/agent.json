@@ -158,6 +158,35 @@
     "unknown": "결과를 알 수 없습니다. 확인은 실행 및 자격 증명 정리만 수행하며 작업을 재전송하거나 성공으로 변경하지 않습니다.",
     "reconcile": "실행 및 회수 확인",
     "closeNote": "확인 결과 입력 (작업 결과는 변경되지 않음)",
-    "close": "이 대화 닫기"
+    "close": "이 대화 닫기",
+    "evidence": {
+      "show": "Run evidence",
+      "hide": "Hide evidence",
+      "failed": "Evidence could not be refreshed. Previously displayed data may be stale.",
+      "captured": "Retrieved: {{time}}",
+      "artifact": "Artifact: {{id}}",
+      "digest": "Specification: {{digest}}",
+      "quota": "Verified subtotal: {{quota}} Router quota",
+      "tokens": "Verified tokens: input {{input}}, output {{output}}",
+      "pending": "Usage is still being verified. These subtotals are not final usage or monetary amounts.",
+      "traceOrigin": "Node trace is reported by the worker; it is not independent verification.",
+      "noTrace": "No node trace has been recorded.",
+      "more": "Load more trace",
+      "usage": {
+        "pending": "Usage pending",
+        "verified": "Router usage verified",
+        "not_invoked": "No model dispatch recorded"
+      },
+      "cleanup": {
+        "not_started": "Runtime not started",
+        "pending": "Cleanup pending",
+        "confirmed": "Runtime cleanup confirmed",
+        "unknown": "Cleanup unconfirmed"
+      },
+      "phase": {
+        "started": "Started",
+        "completed": "Completed"
+      }
+    }
   }
 }

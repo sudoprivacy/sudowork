@@ -78,3 +78,38 @@ describe('hosted task consumer boundary', () => {
     expect(transport.mock.calls[0][0]).toEqual({ method: 'POST', path: '/api/v1/tasks/t2/close', body: { note: 'confirmed cleanup' } });
   });
 });
+
+const evidence = {
+  api_version: TASK_API,
+  kind: 'HostedTaskEvidence',
+  task_id: 't1',
+  task_sequence: 5,
+  captured_at: 10,
+  cleanup: 'confirmed',
+  release: null,
+  usage: { authority: 'sudorouter', unit: 'router_quota', status: 'pending', verified_quota: 0, verified_prompt_tokens: 0, verified_completion_tokens: 0, pending_calls: 1, calls: [] },
+  trace: [{ sequence: 4, created_at: 4, node: 'answer', phase: 'completed', origin: 'worker_reported' }],
+  trace_next_cursor: 5,
+  trace_has_more: false,
+};
+it('accepts scoped read-only evidence and rejects currency substitution, crossed tasks, trace gaps and private fields', async () => {
+  const transport = vi.fn().mockResolvedValue({ success: true, data: evidence }),
+    port = createMossHostedTaskPort(transport);
+  await expect(port.evidence('t1')).resolves.toEqual(evidence);
+  expect(transport.mock.calls[0][0]).toEqual({ method: 'GET', path: '/api/v1/tasks/t1/evidence?cursor=0' });
+  for (const invalid of [
+    { ...evidence, task_id: 't2' },
+    { ...evidence, usage: { ...evidence.usage, unit: 'USD' } },
+    { ...evidence, usage: { ...evidence.usage, status: 'verified' } },
+    { ...evidence, routerToken: 'private' },
+    { ...evidence, trace_next_cursor: 3 },
+    { ...evidence, trace: [], trace_has_more: true },
+  ]) {
+    transport.mockResolvedValue({ success: true, data: invalid });
+    await expect(port.evidence('t1')).rejects.toThrow();
+  }
+  transport.mockClear();
+  await expect(port.evidence('../admin')).rejects.toThrow();
+  await expect(port.evidence('t1', -1)).rejects.toThrow();
+  expect(transport).not.toHaveBeenCalled();
+});

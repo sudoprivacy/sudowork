@@ -1,4 +1,4 @@
-// Derived from Moss 56bba4747bbce69af1bda6e55ab9c6c31efd94bd:contracts/task/v1alpha1/contract.ts. DO NOT EDIT.
+// Derived from Moss d1affcde8a127b7b1a54107d57281864a3f92060:contracts/task/v1alpha1/contract.ts. DO NOT EDIT.
 import type { ResourceRef } from '@sudo/contracts/common/v1/resource-ref'
 
 /** Product Task ingress implementation; ADR-003/004 remain Proposed. */
@@ -139,4 +139,28 @@ export interface HostedEventsPage {
   events: HostedTaskEvent[]
   next_cursor: number
   has_more: boolean
+}
+
+/** Read-only evidence projection. Usage is Router quota, never an invented currency. */
+export interface HostedTaskEvidence {
+  api_version: typeof TASK_API
+  kind: 'HostedTaskEvidence'
+  task_id: string
+  task_sequence: number
+  captured_at: number
+  cleanup: HostedTask['cleanup']
+  release: { version: string; artifact_id: string; spec_digest: string; image_id: string; registration_digest: string } | null
+  usage: {
+    authority: 'sudorouter'
+    unit: 'router_quota'
+    status: 'pending' | 'verified' | 'not_invoked'
+    verified_quota: number
+    verified_prompt_tokens: number
+    verified_completion_tokens: number
+    pending_calls: number
+    calls: { id: string; model: string; status: 'preparing' | 'dispatching' | 'completed' | 'rejected' | 'unknown'; ledger_status: 'pending' | 'router_verified'; token_cleanup: 'pending' | 'confirmed'; ledger_entries: number }[]
+  }
+  trace: { sequence: number; created_at: number; node: string; phase: 'started' | 'completed'; origin: 'worker_reported' }[]
+  trace_next_cursor: number
+  trace_has_more: boolean
 }

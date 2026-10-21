@@ -593,6 +593,13 @@ export function initEeclawBridge(): void {
       return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'HOSTED_TASK_REQUEST_FAILED' };
     }
   });
+  ipcBridge.hostedTasks.evidence.provider(async (input) => {
+    try {
+      return { success: true, data: await hostedTaskPort.evidence(input.taskId, input.cursor) };
+    } catch {
+      return { success: false, msg: 'HOSTED_EVIDENCE_UNAVAILABLE' };
+    }
+  });
   ipcBridge.hostedTasks.cancel.provider(async (input) => {
     try {
       return { success: true, data: await hostedTaskPort.cancel(input.taskId) };

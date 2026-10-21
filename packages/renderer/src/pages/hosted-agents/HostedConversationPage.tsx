@@ -1,3 +1,4 @@
+import HostedTaskEvidencePanel from './HostedTaskEvidencePanel';
 import { Alert, Button, Input, Spin, Tag, Typography } from '@arco-design/web-react';
 import { ArrowUp, Plus } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -267,6 +268,7 @@ function HostedChat({ identity, sessionId: routeSessionId, agentId }: IHostedCha
                     </Button>
                   )}
                 </div>
+                <HostedTaskEvidencePanel taskId={task.id} />
                 {task.error_code && <Typography.Paragraph type='secondary'>{t('agent.external.taskError', { code: task.error_code })}</Typography.Paragraph>}
                 {task.status === 'unknown' && (
                   <div className='space-y-2 mt-2'>

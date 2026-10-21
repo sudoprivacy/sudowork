@@ -158,6 +158,35 @@
     "unknown": "実行結果が不明です。照合は実行と認証情報の回収のみ行い、タスクを再送したり成功に変更したりしません。",
     "reconcile": "実行と回収を照合",
     "closeNote": "照合結果を記入（タスク結果は変更されません）",
-    "close": "この会話を閉じる"
+    "close": "この会話を閉じる",
+    "evidence": {
+      "show": "Run evidence",
+      "hide": "Hide evidence",
+      "failed": "Evidence could not be refreshed. Previously displayed data may be stale.",
+      "captured": "Retrieved: {{time}}",
+      "artifact": "Artifact: {{id}}",
+      "digest": "Specification: {{digest}}",
+      "quota": "Verified subtotal: {{quota}} Router quota",
+      "tokens": "Verified tokens: input {{input}}, output {{output}}",
+      "pending": "Usage is still being verified. These subtotals are not final usage or monetary amounts.",
+      "traceOrigin": "Node trace is reported by the worker; it is not independent verification.",
+      "noTrace": "No node trace has been recorded.",
+      "more": "Load more trace",
+      "usage": {
+        "pending": "Usage pending",
+        "verified": "Router usage verified",
+        "not_invoked": "No model dispatch recorded"
+      },
+      "cleanup": {
+        "not_started": "Runtime not started",
+        "pending": "Cleanup pending",
+        "confirmed": "Runtime cleanup confirmed",
+        "unknown": "Cleanup unconfirmed"
+      },
+      "phase": {
+        "started": "Started",
+        "completed": "Completed"
+      }
+    }
   }
 }

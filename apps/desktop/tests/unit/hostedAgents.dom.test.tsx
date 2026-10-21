@@ -3,8 +3,8 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { TASK_API } from '@sudowork/contracts/task';
-const mocks = vi.hoisted(() => ({ agents: vi.fn(), sessions: vi.fn(), history: vi.fn(), create: vi.fn(), events: vi.fn(), cancel: vi.fn(), reconcile: vi.fn(), close: vi.fn(), clear: vi.fn(), emit: vi.fn(), identity: 'account-a' }));
-vi.mock('@sudowork/host-bridge/ipcBridge', () => ({ hostedTasks: Object.fromEntries(['agents', 'sessions', 'history', 'create', 'events', 'cancel', 'reconcile', 'close'].map((key) => [key, { invoke: mocks[key as 'agents'] }])) }));
+const mocks = vi.hoisted(() => ({ agents: vi.fn(), sessions: vi.fn(), history: vi.fn(), create: vi.fn(), events: vi.fn(), evidence: vi.fn(), cancel: vi.fn(), reconcile: vi.fn(), close: vi.fn(), clear: vi.fn(), emit: vi.fn(), identity: 'account-a' }));
+vi.mock('@sudowork/host-bridge/ipcBridge', () => ({ hostedTasks: Object.fromEntries(['agents', 'sessions', 'history', 'create', 'events', 'evidence', 'cancel', 'reconcile', 'close'].map((key) => [key, { invoke: mocks[key as 'agents'] }])) }));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock('@renderer/pages/external-agents/useExternalDirectory', () => ({ useExternalIdentity: () => mocks.identity }));
 vi.mock('@renderer/utils/emitter', () => ({ emitter: { emit: mocks.emit }, addEventListener: () => () => {} }));

@@ -28,7 +28,7 @@
     "switching": "正在切換 Agent..."
   },
   "mine": {
-    "title": "我的 Agent",
+    "title": "我的智能體",
     "create": "建立 Agent",
     "description": "Agent 屬於目前帳號。選擇一個 Agent 開始對話，也可以建立新的個人 Agent。",
     "loadFailed": "載入 Agent 失敗，請重試。",
@@ -158,6 +158,35 @@
     "unknown": "執行結果待核對。核對僅清理殘留執行和憑證，不會重送任務或將結果改為成功。",
     "reconcile": "核對執行與回收",
     "closeNote": "填寫核對結論（不會改變任務結果）",
-    "close": "關閉此對話"
+    "close": "關閉此對話",
+    "evidence": {
+      "show": "執行證據",
+      "hide": "收起證據",
+      "failed": "證據重新整理失敗，已顯示的資訊可能已過時。",
+      "captured": "讀取時間：{{time}}",
+      "artifact": "製品：{{id}}",
+      "digest": "定義摘要：{{digest}}",
+      "quota": "已核對小計：{{quota}} Router quota",
+      "tokens": "已核對 Token：輸入 {{input}}，輸出 {{output}}",
+      "pending": "用量仍在核對，小計不是最終用量，也不代表貨幣金額。",
+      "traceOrigin": "節點 trace 由執行製品回報，不代表獨立驗證結論。",
+      "noTrace": "尚未記錄節點 trace。",
+      "more": "載入更多 trace",
+      "usage": {
+        "pending": "用量待核對",
+        "verified": "Router 用量已核對",
+        "not_invoked": "未記錄模型派發"
+      },
+      "cleanup": {
+        "not_started": "執行環境未啟動",
+        "pending": "等待清理執行環境",
+        "confirmed": "執行環境已確認清理",
+        "unknown": "執行環境清理未確認"
+      },
+      "phase": {
+        "started": "開始",
+        "completed": "完成"
+      }
+    }
   }
 }

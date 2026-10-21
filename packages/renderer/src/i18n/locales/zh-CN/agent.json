@@ -28,7 +28,7 @@
     "switching": "正在切换 Agent..."
   },
   "mine": {
-    "title": "我的 Agent",
+    "title": "我的智能体",
     "create": "创建 Agent",
     "description": "Agent 属于当前账号。选择一个 Agent 开始会话，也可以创建新的个人 Agent。",
     "loadFailed": "加载 Agent 失败，请重试。",
@@ -158,6 +158,35 @@
     "unknown": "执行结果待核对。核对仅清理残留执行和凭证，不会重发任务或将结果改成成功。",
     "reconcile": "核对执行与回收",
     "closeNote": "填写核对结论（不会改变任务结果）",
-    "close": "关闭此会话"
+    "close": "关闭此会话",
+    "evidence": {
+      "show": "运行证据",
+      "hide": "收起证据",
+      "failed": "证据刷新失败，已显示的信息可能已过时。",
+      "captured": "读取时间：{{time}}",
+      "artifact": "制品：{{id}}",
+      "digest": "定义摘要：{{digest}}",
+      "quota": "已核对小计：{{quota}} Router quota",
+      "tokens": "已核对 Token：输入 {{input}}，输出 {{output}}",
+      "pending": "用量仍在核对，小计不是最终用量，也不代表货币金额。",
+      "traceOrigin": "节点 trace 由运行制品报告，不代表独立验证结论。",
+      "noTrace": "暂未记录节点 trace。",
+      "more": "加载更多 trace",
+      "usage": {
+        "pending": "用量待核对",
+        "verified": "Router 用量已核对",
+        "not_invoked": "未记录模型派发"
+      },
+      "cleanup": {
+        "not_started": "运行环境未启动",
+        "pending": "等待清理运行环境",
+        "confirmed": "运行环境已确认清理",
+        "unknown": "运行环境清理未确认"
+      },
+      "phase": {
+        "started": "开始",
+        "completed": "完成"
+      }
+    }
   }
 }

@@ -1,4 +1,4 @@
-import type { HostedAgent, HostedTask, HostedSession, HostedEventsPage } from '@sudowork/contracts/task';
+import type { HostedAgent, HostedTaskEvidence, HostedTask, HostedSession, HostedEventsPage } from '@sudowork/contracts/task';
 import type { AgentReleaseOptions } from '@sudowork/contracts/agent-federation';
 import type { ExternalTaskEvidence } from '@sudowork/contracts/external-provider';
 import type { ExternalProviderAccess, ExternalPilotPolicy, ExternalAgentAdmin, ExternalProviderMember, ExternalConnectionInspection, InspectExternalConnection, OnboardExternalAgent, UpdateExternalAgent , CreateExternalTask, ExternalAgent, ExternalEventsPage, ExternalSession, ExternalTask } from '@sudowork/contracts/external-provider';
@@ -3657,6 +3657,7 @@ export const externalProviders = {
 };
 
 export const hostedTasks = {
+  evidence: bridge.buildProvider<IBridgeResponse<HostedTaskEvidence>, { taskId: string; cursor?: number }>('hosted-tasks.evidence'),
   agents: bridge.buildProvider<IBridgeResponse<HostedAgent[]>, void>('hosted-tasks.agents'),
   sessions: bridge.buildProvider<IBridgeResponse<HostedSession[]>, void>('hosted-tasks.sessions'),
   history: bridge.buildProvider<IBridgeResponse<HostedTask[]>, { sessionId: string }>('hosted-tasks.history'),
