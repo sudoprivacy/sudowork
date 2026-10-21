@@ -73,7 +73,11 @@ export default function ExternalTaskEvidence({ taskId, onClose }: IExternalTaskE
           )}
           {evidence.execution ? (
             <>
-              <Typography.Text>{t('agent.external.versions.run', { id: evidence.execution.provider_run_id })}</Typography.Text>
+              <Typography.Text>{evidence.execution.provider_run_id ? t('agent.external.versions.run', { id: evidence.execution.provider_run_id }) : t('agent.external.protocol.noRun')}</Typography.Text>
+              {evidence.execution.protocol && <Typography.Text>{evidence.execution.protocol}</Typography.Text>}
+              {evidence.execution.provider_response_id && <Typography.Text>{t('agent.external.protocol.response', { id: evidence.execution.provider_response_id })}</Typography.Text>}
+              {evidence.execution.trace_id && <Typography.Text>{t('agent.external.protocol.trace', { id: evidence.execution.trace_id })}</Typography.Text>}
+              {evidence.execution.usage && <Typography.Text>{t('agent.external.protocol.usage', { input: evidence.execution.usage.input_tokens, output: evidence.execution.usage.output_tokens })}</Typography.Text>}
               {evidence.execution.execution_revision ? <Typography.Text>{t('agent.external.versions.executed', { revision: evidence.execution.execution_revision })}</Typography.Text> : <Alert type='info' content={t('agent.external.versions.snapshotOnly')} />}
             </>
           ) : (

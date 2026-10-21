@@ -197,7 +197,7 @@ function ExternalChat({ sessionId: routeSessionId, agentId }: IExternalChatProps
       headerLeft={
         <div className='flex gap-2 items-center'>
           <Typography.Text bold>{title}</Typography.Text>
-          <Tag>{provider && ['dify', 'custom_http'].includes(provider) ? t(`agent.external.provider.${provider}`) : provider || t('agent.external.chat.hosted')}</Tag>
+          <Tag>{agent?.protocol || (provider && ['dify', 'custom_http'].includes(provider) ? t(`agent.external.provider.${provider}`) : provider || t('agent.external.chat.hosted'))}</Tag>
         </div>
       }
       headerExtra={
@@ -207,6 +207,7 @@ function ExternalChat({ sessionId: routeSessionId, agentId }: IExternalChatProps
       }
     >
       <div className='flex flex-col flex-1 min-h-0'>
+        {agent?.conversation_mode === 'single_turn' && <Alert type='info' content={t('agent.external.protocol.singleTurn')} />}
         <div
           ref={scroll}
           role='log'
@@ -275,9 +276,7 @@ function ExternalChat({ sessionId: routeSessionId, agentId }: IExternalChatProps
                   {task.policy_decision?.status === 'rejected' && <Alert type='warning' content={t('agent.external.chat.policyRejected', { reason: task.policy_decision.reason })} />}
                   {task.error_code && task.policy_decision?.status !== 'rejected' && (
                     <Typography.Paragraph type='secondary'>
-                      {task.status === 'failed' && ['MODEL_CONTENT_DENIED', 'MODEL_CLASSIFIER_UNAVAILABLE', 'MODEL_REDACTION_UNSAFE'].includes(task.error_code)
-                        ? t(`agent.external.modelRejection.${task.error_code}`)
-                        : t('agent.external.taskError', { code: task.error_code })}
+                      {task.status === 'failed' && ['MODEL_CONTENT_DENIED', 'MODEL_CLASSIFIER_UNAVAILABLE', 'MODEL_REDACTION_UNSAFE'].includes(task.error_code) ? t(`agent.external.modelRejection.${task.error_code}`) : t('agent.external.taskError', { code: task.error_code })}
                     </Typography.Paragraph>
                   )}
                 </div>

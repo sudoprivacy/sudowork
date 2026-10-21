@@ -2,6 +2,30 @@ import { expect, it, vi } from 'vitest';
 import { applyExternalEventsPage, createMossExternalProviderPort } from '@sudowork/moss-client/external-providers';
 import { EXTERNAL_PROVIDER_API, type ExternalTask, type ExternalTaskEvent } from '@sudowork/contracts/external-provider';
 
+it('accepts standard protocol evidence without inventing MCP task handles and rejects inconsistent claims', async () => {
+  const execution = { protocol: 'mcp/2025-06-18', trace_id: 'a'.repeat(32), version_evidence: 'source_snapshot_only', resume: 'unsupported' };
+  const evidence = { api_version: EXTERNAL_PROVIDER_API, kind: 'ExternalTaskEvidence', task_id: 'task-1', session_id: 'session-1', attempt_id: 'attempt-1', status: 'succeeded', execution };
+  const request = vi.fn().mockResolvedValue({ success: true, data: evidence });
+  const port = createMossExternalProviderPort(request);
+  expect((await port.evidence('task-1')).execution?.provider_run_id).toBeUndefined();
+  for (const invalid of [
+    { ...execution, provider_run_id: 'invented' },
+    { ...execution, trace_id: undefined },
+    { ...execution, protocol: undefined },
+    { ...execution, usage: { source: 'provider_reported', input_tokens: 1, output_tokens: 2 } },
+  ]) {
+    request.mockResolvedValue({ success: true, data: { ...evidence, execution: invalid } });
+    await expect(port.evidence('task-1')).rejects.toThrow();
+  }
+  const openai = { ...execution, protocol: 'openai-chat-completions/v1', provider_response_id: 'chatcmpl-1', usage: { source: 'provider_reported', input_tokens: 3, output_tokens: 1 } };
+  request.mockResolvedValue({ success: true, data: { ...evidence, execution: openai } });
+  expect((await port.evidence('task-1')).execution?.usage?.source).toBe('provider_reported');
+  request.mockResolvedValue({ success: true, data: { ...evidence, execution: { ...openai, usage: { ...openai.usage, input_tokens: -1 } } } });
+  await expect(port.evidence('task-1')).rejects.toThrow();
+  request.mockResolvedValue({ success: true, data: { ...evidence, execution: { ...execution, protocol: 'a2a/0.3.0', provider_run_id: 'remote-task' } } });
+  expect((await port.evidence('task-1')).execution?.provider_run_id).toBe('remote-task');
+});
+
 it('rejects invalid task input and path injection before transport', async () => {
   const request = vi.fn(),
     port = createMossExternalProviderPort(request);

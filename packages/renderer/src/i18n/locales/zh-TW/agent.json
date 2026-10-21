@@ -139,5 +139,10 @@
   "external.usage.unavailable": "服務未提供使用範圍資訊，請重新整理或聯絡管理員確認。",
   "external.modelRejection.MODEL_CONTENT_DENIED": "執行服務回報：內容策略在傳送給模型前拒絕了本次請求。請調整內容後重新發起；系統不會自動重送。",
   "external.modelRejection.MODEL_CLASSIFIER_UNAVAILABLE": "執行服務回報：內容檢測暫不可用，本次模型請求已在傳送前停止。請聯絡管理員；系統不會自動重送。",
-  "external.modelRejection.MODEL_REDACTION_UNSAFE": "執行服務回報：無法安全去識別化，本次模型請求已在傳送前停止。請調整內容或聯絡管理員；系統不會自動重送。"
+  "external.modelRejection.MODEL_REDACTION_UNSAFE": "執行服務回報：無法安全去識別化，本次模型請求已在傳送前停止。請調整內容或聯絡管理員；系統不會自動重送。",
+  "external.protocol.singleTurn": "每則訊息獨立執行，不會向此智慧體傳送先前的對話歷史。",
+  "external.protocol.noRun": "此協定未傳回遠端任務編號。",
+  "external.protocol.response": "回應編號：{{id}}",
+  "external.protocol.trace": "閘道追蹤：{{id}}",
+  "external.protocol.usage": "服務方回報的 Token：輸入 {{input}}，輸出 {{output}}。不代表已核驗計費。"
 }

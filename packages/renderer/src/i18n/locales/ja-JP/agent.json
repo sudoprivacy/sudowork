@@ -139,5 +139,10 @@
   "external.usage.unavailable": "サービスから利用範囲の情報が提供されていません。更新するか管理者に確認してください。",
   "external.modelRejection.MODEL_CONTENT_DENIED": "実行サービスの報告：コンテンツポリシーにより、モデルへの送信前にリクエストが拒否されました。内容を修正してから再送信してください。自動再送は行いません。",
   "external.modelRejection.MODEL_CLASSIFIER_UNAVAILABLE": "実行サービスの報告：コンテンツ検査が利用できないため、モデルへの送信前にリクエストを停止しました。管理者に連絡してください。自動再送は行いません。",
-  "external.modelRejection.MODEL_REDACTION_UNSAFE": "実行サービスの報告：安全なマスキングができないため、モデルへの送信前にリクエストを停止しました。内容を修正するか管理者に連絡してください。自動再送は行いません。"
+  "external.modelRejection.MODEL_REDACTION_UNSAFE": "実行サービスの報告：安全なマスキングができないため、モデルへの送信前にリクエストを停止しました。内容を修正するか管理者に連絡してください。自動再送は行いません。",
+  "external.protocol.singleTurn": "各メッセージは独立して実行されます。過去の会話はこのエージェントに送信されません。",
+  "external.protocol.noRun": "このプロトコルはリモートタスクIDを返していません。",
+  "external.protocol.response": "応答ID：{{id}}",
+  "external.protocol.trace": "ゲートウェイトレース：{{id}}",
+  "external.protocol.usage": "サービス側の申告トークン：入力 {{input}}、出力 {{output}}。検証済みの課金情報ではありません。"
 }

@@ -99,6 +99,24 @@ it('starts from the organization directory and uses the conversation route witho
   expect(screen.getByTestId('location')).toHaveTextContent('/conversation/external%3Anew?agent=agent-1');
 });
 
+it('shows the reviewed protocol and single-turn boundary in the shared conversation', async () => {
+  mocks.agents.mockResolvedValue({ success: true, data: [{ ...agent, provider: 'custom_http', protocol: 'mcp/2025-06-18', conversation_mode: 'single_turn' }] });
+  page();
+  await screen.findByText('mcp/2025-06-18');
+  await screen.findByText('agent.external.protocol.singleTurn');
+  expect(mocks.create).not.toHaveBeenCalled();
+});
+
+it('shows unavailable remote task identity for MCP without rendering an invented run', async () => {
+  mocks.evidence.mockResolvedValue({ success: true, data: { task_id: 'task-1', execution: { protocol: 'mcp/2025-06-18', trace_id: 'a'.repeat(32), version_evidence: 'source_snapshot_only', resume: 'unsupported' } } });
+  page('/conversation/external:session-1');
+  await screen.findByText('42');
+  fireEvent.click(screen.getByRole('button', { name: 'agent.external.versions.evidence' }));
+  await screen.findByText('agent.external.protocol.noRun');
+  expect(screen.queryByText('agent.external.versions.run')).toBeNull();
+  expect(mocks.create).not.toHaveBeenCalled();
+});
+
 it('keeps administrator usage in the client and exposes no onboarding or management', async () => {
   mocks.access.mockResolvedValue({ success: true, data: { can_manage: true, can_manage_policy: true, credential_storage_available: true } });
   render(
@@ -401,7 +419,6 @@ it('shows Registry registration separately from remote execution in the shared c
   expect(screen.getByText('agent.external.versions.awaitingEvidence')).toBeTruthy();
   expect(screen.queryByText('agent.external.versions.executed')).toBeNull();
 });
-
 
 it.each(['MODEL_CONTENT_DENIED', 'MODEL_CLASSIFIER_UNAVAILABLE', 'MODEL_REDACTION_UNSAFE'])('shows %s after accepted admission without resending', async (code) => {
   mocks.history.mockResolvedValue({ success: true, data: [{ ...task, status: 'failed', answer: '', error_code: code, policy_decision: { status: 'accepted' } }] });

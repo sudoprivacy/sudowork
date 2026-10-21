@@ -139,5 +139,10 @@
   "external.usage.unavailable": "서비스에서 사용 범위 정보를 제공하지 않았습니다. 새로 고침하거나 관리자에게 문의하세요.",
   "external.modelRejection.MODEL_CONTENT_DENIED": "실행 서비스 보고: 콘텐츠 정책에 따라 모델로 전송하기 전에 요청이 거부되었습니다. 내용을 수정한 후 다시 제출하세요. 자동으로 재전송하지 않습니다.",
   "external.modelRejection.MODEL_CLASSIFIER_UNAVAILABLE": "실행 서비스 보고: 콘텐츠 검사를 사용할 수 없어 모델로 전송하기 전에 요청이 중지되었습니다. 관리자에게 문의하세요. 자동으로 재전송하지 않습니다.",
-  "external.modelRejection.MODEL_REDACTION_UNSAFE": "실행 서비스 보고: 안전한 비식별화에 실패하여 모델로 전송하기 전에 요청이 중지되었습니다. 내용을 수정하거나 관리자에게 문의하세요. 자동으로 재전송하지 않습니다."
+  "external.modelRejection.MODEL_REDACTION_UNSAFE": "실행 서비스 보고: 안전한 비식별화에 실패하여 모델로 전송하기 전에 요청이 중지되었습니다. 내용을 수정하거나 관리자에게 문의하세요. 자동으로 재전송하지 않습니다.",
+  "external.protocol.singleTurn": "각 메시지는 독립적으로 실행됩니다. 이전 대화 기록은 이 에이전트에 전송되지 않습니다.",
+  "external.protocol.noRun": "이 프로토콜은 원격 작업 ID를 반환하지 않았습니다.",
+  "external.protocol.response": "응답 ID: {{id}}",
+  "external.protocol.trace": "게이트웨이 추적: {{id}}",
+  "external.protocol.usage": "서비스가 보고한 토큰: 입력 {{input}}, 출력 {{output}}. 검증된 청구 정보가 아닙니다."
 }

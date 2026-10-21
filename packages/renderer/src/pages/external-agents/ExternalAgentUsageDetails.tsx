@@ -11,6 +11,7 @@ export default function ExternalAgentUsageDetails({ agent }: IExternalAgentUsage
         {usage ? (
           <div className='text-xs'>
             <Typography.Paragraph>{t('agent.external.usage.scope')}</Typography.Paragraph>
+            {agent.conversation_mode === 'single_turn' && <Typography.Paragraph>{t('agent.external.protocol.singleTurn')}</Typography.Paragraph>}
             <Typography.Paragraph>{t('agent.external.usage.classification')}</Typography.Paragraph>
             <dl className='grid grid-cols-2 gap-2 mb-3'>
               {(['streaming', 'cancel', 'resume', 'version_pin'] as const).map((key) => (

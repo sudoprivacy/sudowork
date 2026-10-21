@@ -139,5 +139,10 @@
   "external.usage.unavailable": "Hizmet kullanım bilgisi sağlamadı. Yenileyin veya yöneticinize başvurun.",
   "external.modelRejection.MODEL_CONTENT_DENIED": "Yürütme hizmeti bildirimi: İçerik politikası, istek modele gönderilmeden önce isteği engelledi. Tekrar göndermeden önce içeriği düzenleyin; otomatik yeniden gönderim yapılmaz.",
   "external.modelRejection.MODEL_CLASSIFIER_UNAVAILABLE": "Yürütme hizmeti bildirimi: İçerik taraması kullanılamadığı için model isteği gönderilmeden durduruldu. Yöneticinize başvurun; otomatik yeniden gönderim yapılmaz.",
-  "external.modelRejection.MODEL_REDACTION_UNSAFE": "Yürütme hizmeti bildirimi: Güvenli maskeleme başarısız olduğu için model isteği gönderilmeden durduruldu. İçeriği düzenleyin veya yöneticinize başvurun; otomatik yeniden gönderim yapılmaz."
+  "external.modelRejection.MODEL_REDACTION_UNSAFE": "Yürütme hizmeti bildirimi: Güvenli maskeleme başarısız olduğu için model isteği gönderilmeden durduruldu. İçeriği düzenleyin veya yöneticinize başvurun; otomatik yeniden gönderim yapılmaz.",
+  "external.protocol.singleTurn": "Her mesaj bağımsız çalışır. Önceki konuşma geçmişi bu ajana gönderilmez.",
+  "external.protocol.noRun": "Bu protokol uzak görev kimliği döndürmedi.",
+  "external.protocol.response": "Yanıt kimliği: {{id}}",
+  "external.protocol.trace": "Ağ geçidi izi: {{id}}",
+  "external.protocol.usage": "Sağlayıcının bildirdiği token: giriş {{input}}, çıkış {{output}}. Doğrulanmış faturalandırma değildir."
 }

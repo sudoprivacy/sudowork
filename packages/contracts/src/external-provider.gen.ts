@@ -1,4 +1,4 @@
-// Derived from Moss 98e57b68bb0f8c709be7c2ecba9026b8b5f4e860:contracts/external-provider/v1/contract.ts. DO NOT EDIT.
+// Derived from Moss 9a4717d82704a69d2a7a12ad1591ed4a48db9b30:contracts/external-provider/v1/contract.ts. DO NOT EDIT.
 /** Moss-owned external-provider pilot wire contract. ADR-003/004 remain Proposed. */
 export const EXTERNAL_PROVIDER_API = 'external-provider.sudo.dev/v1alpha5' as const
 export type Capability = 'supported' | 'unsupported' | 'unknown'
@@ -28,6 +28,8 @@ export interface ExternalAgent {
   provider: string
   execution_mode: 'external_hosted'
   profile: 'synthetic_pilot'
+  protocol?: string
+  conversation_mode?: 'single_turn'
   /** App/workspace and reviewed source are not bound to the API key by this adapter. */
   source_identity_evidence: 'unverified'
   source_digest: string
@@ -84,7 +86,11 @@ export interface ExternalTaskEvidence {
     }
   }
   execution?: {
-    provider_run_id: string
+    provider_run_id?: string
+    provider_response_id?: string
+    protocol?: string
+    trace_id?: string
+    usage?: { source: 'provider_reported'; input_tokens: number; output_tokens: number }
     execution_revision?: string
     version_evidence: 'source_snapshot_only' | 'provider_revision_fenced'
     resume: 'unsupported' | 'query_only'

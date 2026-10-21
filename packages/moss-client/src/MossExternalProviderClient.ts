@@ -135,6 +135,11 @@ const session = z.object({
   created_at: z.number(),
   updated_at: z.number(),
 });
+const standardProtocol = z.enum([
+  "openai-chat-completions/v1",
+  "mcp/2025-06-18",
+  "a2a/0.3.0",
+]);
 const capability = z.enum(["supported", "unsupported", "unknown"]);
 const agentUsage = z.object({
   data_scope: z.literal("synthetic_only"),
@@ -154,6 +159,8 @@ const agent = z.object({
   provider: z.string(),
   execution_mode: z.literal("external_hosted"),
   profile: z.literal("synthetic_pilot"),
+  protocol: z.string().max(100).optional(),
+  conversation_mode: z.literal("single_turn").optional(),
   source_identity_evidence: z.literal("unverified"),
   source_digest: z.string(),
   decoder: z.enum(["text", "reply_actions_v1"]),
@@ -311,7 +318,21 @@ const evidenceSchema = z
       .optional(),
     execution: z
       .object({
-        provider_run_id: z.string().min(1).max(200),
+        provider_run_id: z.string().min(1).max(200).optional(),
+        provider_response_id: z.string().min(1).max(200).optional(),
+        protocol: standardProtocol.optional(),
+        trace_id: z
+          .string()
+          .regex(/^[a-f0-9]{32}$/)
+          .optional(),
+        usage: z
+          .object({
+            source: z.literal("provider_reported"),
+            input_tokens: z.number().int().nonnegative().safe(),
+            output_tokens: z.number().int().nonnegative().safe(),
+          })
+          .strict()
+          .optional(),
         execution_revision: releaseDigest.optional(),
         version_evidence: versionEvidence,
         resume: z.enum(["unsupported", "query_only"]),
@@ -321,6 +342,30 @@ const evidenceSchema = z
   })
   .strict()
   .superRefine((value, context) => {
+    const execution = value.execution;
+    if (execution) {
+      const isStandard = Boolean(execution.protocol);
+      const hasRun = Boolean(execution.provider_run_id),
+        hasResponse = Boolean(execution.provider_response_id);
+      if (
+        (!isStandard &&
+          (!hasRun || execution.trace_id || hasResponse || execution.usage)) ||
+        (isStandard &&
+          (!execution.trace_id ||
+            execution.version_evidence !== "source_snapshot_only" ||
+            execution.resume !== "unsupported")) ||
+        (execution.protocol === "mcp/2025-06-18" && (hasRun || hasResponse)) ||
+        (execution.protocol === "openai-chat-completions/v1" &&
+          (hasRun || !hasResponse)) ||
+        (execution.protocol === "a2a/0.3.0" && hasRun === hasResponse) ||
+        (execution.usage && execution.protocol !== "openai-chat-completions/v1")
+      ) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Protocol execution evidence mismatch",
+        });
+      }
+    }
     if (value.selection?.registry && !value.selection.release_digest)
       context.addIssue({
         code: z.ZodIssueCode.custom,

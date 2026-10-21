@@ -1,6 +1,10 @@
-// Derived from Moss 98e57b68bb0f8c709be7c2ecba9026b8b5f4e860:contracts/agent-federation/v1alpha1/contract.ts. DO NOT EDIT.
+// Derived from Moss 9a4717d82704a69d2a7a12ad1591ed4a48db9b30:contracts/agent-federation/v1alpha1/contract.ts. DO NOT EDIT.
 /** Moss-owned federation boundary. Experimental; ADR-003/004 remain Proposed. */
 export const AGENT_FEDERATION_API = 'agent-federation.sudo.dev/v1alpha1' as const
+export const STANDARD_HTTP_PROTOCOLS = ['openai-chat-completions/v1', 'mcp/2025-06-18', 'a2a/0.3.0'] as const
+export type StandardHttpProtocol = typeof STANDARD_HTTP_PROTOCOLS[number]
+export interface ProtocolUsage { source: 'provider_reported'; input_tokens: number; output_tokens: number }
+
 export const AGENT_HTTP_API = 'agent-http.sudo.dev/v1alpha1' as const
 
 export interface ProviderCapabilities {
@@ -24,7 +28,11 @@ export interface CustomAgentManifest {
   description?: string
   source_revision: string
   execution_mode: 'external_hosted'
-  protocol: typeof AGENT_HTTP_API | 'agent-http.sudo.dev/v1alpha2'
+  protocol: typeof AGENT_HTTP_API | 'agent-http.sudo.dev/v1alpha2' | StandardHttpProtocol
+  /** Required only for standard HTTP profiles; metadata digest is not runtime attestation. */
+  target?: string
+  discovery_digest?: string
+  conversation_mode?: 'single_turn'
   /** Required for durable HTTP; legacy profiles cannot assert an execution revision. */
   execution_revision?: string
   input_profile: 'query_only_v1'
@@ -48,7 +56,11 @@ export interface ExternalRunBinding extends TaskCorrelation {
   external_agent_id: string
   source_identity_evidence?: 'unverified'
   source_digest: string
-  provider_run_id: string
+  provider_run_id?: string
+  provider_response_id?: string
+  provider_protocol?: StandardHttpProtocol
+  trace_id?: string
+  usage?: ProtocolUsage
   provider_session_id?: string
   adapter_version: string
   observability: 'partial'

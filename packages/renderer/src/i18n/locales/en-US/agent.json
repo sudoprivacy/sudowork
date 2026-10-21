@@ -139,5 +139,10 @@
   "external.usage.unavailable": "Usage information was not provided by the service. Refresh or contact your administrator.",
   "external.modelRejection.MODEL_CONTENT_DENIED": "The execution service reports that content policy blocked this request before sending it to the model. Revise the content before submitting again; no automatic retry will occur.",
   "external.modelRejection.MODEL_CLASSIFIER_UNAVAILABLE": "The execution service reports that content screening is unavailable and stopped this model request before sending. Contact your administrator; no automatic retry will occur.",
-  "external.modelRejection.MODEL_REDACTION_UNSAFE": "The execution service reports that safe redaction failed and stopped this model request before sending. Revise the content or contact your administrator; no automatic retry will occur."
+  "external.modelRejection.MODEL_REDACTION_UNSAFE": "The execution service reports that safe redaction failed and stopped this model request before sending. Revise the content or contact your administrator; no automatic retry will occur.",
+  "external.protocol.singleTurn": "Each message runs independently. Previous conversation history is not sent to this Agent.",
+  "external.protocol.noRun": "This protocol did not return a remote task ID.",
+  "external.protocol.response": "Response ID: {{id}}",
+  "external.protocol.trace": "Gateway trace: {{id}}",
+  "external.protocol.usage": "Provider-reported tokens: input {{input}}, output {{output}}. This is not verified billing."
 }

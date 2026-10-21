@@ -139,5 +139,10 @@
   "external.usage.unavailable": "服务未提供使用范围信息，请刷新或联系管理员确认。",
   "external.modelRejection.MODEL_CONTENT_DENIED": "执行服务报告：内容策略在发送给模型前拒绝了本次请求。请调整内容后重新发起；系统不会自动重发。",
   "external.modelRejection.MODEL_CLASSIFIER_UNAVAILABLE": "执行服务报告：内容检测暂不可用，本次模型请求已在发送前停止。请联系管理员；系统不会自动重发。",
-  "external.modelRejection.MODEL_REDACTION_UNSAFE": "执行服务报告：无法安全脱敏，本次模型请求已在发送前停止。请调整内容或联系管理员；系统不会自动重发。"
+  "external.modelRejection.MODEL_REDACTION_UNSAFE": "执行服务报告：无法安全脱敏，本次模型请求已在发送前停止。请调整内容或联系管理员；系统不会自动重发。",
+  "external.protocol.singleTurn": "每条消息独立执行，不会向此智能体发送之前的对话历史。",
+  "external.protocol.noRun": "此协议未返回远端任务编号。",
+  "external.protocol.response": "响应编号：{{id}}",
+  "external.protocol.trace": "网关追踪：{{id}}",
+  "external.protocol.usage": "服务方报告的 Token：输入 {{input}}，输出 {{output}}。不代表已核验计费。"
 }
