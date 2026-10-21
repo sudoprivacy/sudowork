@@ -12,6 +12,7 @@ import { useNavigate } from 'react-router-dom';
 import useSWR from 'swr';
 import { uuid } from '@sudowork/common/utils';
 import type { TChatConversation } from '@sudowork/common/storage';
+import { resolveConversationExecutionTarget } from '@sudowork/common/mossExecution';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import AgentStatusDot from '@renderer/components/AgentStatusBanner';
 import AcpModelSelector from '@renderer/components/AcpModelSelector';
@@ -98,13 +99,14 @@ const _AddNewConversation: React.FC<{ conversation: TChatConversation }> = ({ co
 };
 
 function ChatConversation({ conversation, conversationId = conversation?.id, children }: IChatConversationProps) {
+  const { t } = useTranslation();
   // Remote-agent workspaces are loaded from Moss Server, so they may not have a
   // local workspace path in conversation.extra.
   const workspaceEnabled = Boolean(conversation && (conversation.type === 'remote-agent' || conversation.extra?.workspace));
 
   // 使用统一的 Hook 获取预设助手信息（ACP 会话）
   // Use unified hook for preset assistant info (ACP conversations)
-  const { info: presetAssistantInfo, isLoading: isLoadingPreset } = usePresetAssistantInfo(conversation);
+  const { info: presetAssistantInfo } = usePresetAssistantInfo(conversation);
 
   // Resolve agentName: prefer preset assistant name, then extra.agentName, then undefined
   // 优先使用预设助手名称，然后是 extra.agentName
@@ -129,35 +131,21 @@ function ChatConversation({ conversation, conversationId = conversation?.id, chi
     if (!conversation) return undefined;
     if (conversation.type === 'acp') {
       const extra = conversation.extra as { backend?: string; currentModelId?: string };
-      return <AcpModelSelector conversationId={conversation.id} backend={extra.backend} initialModelId={extra.currentModelId} />;
+      return <AcpModelSelector conversationId={conversation.id} backend={extra.backend} initialModelId={extra.currentModelId} labelPrefix={t('conversation.header.model')} />;
     }
     if (conversation.type === 'remote-agent') {
       const extra = conversation.extra as { currentModelId?: string };
-      return <AcpModelSelector conversationId={conversation.id} backend='remote-agent' initialModelId={extra.currentModelId} />;
+      return <AcpModelSelector conversationId={conversation.id} backend='remote-agent' initialModelId={extra.currentModelId} labelPrefix={t('conversation.header.model')} />;
     }
     return undefined;
-  }, [conversation]);
+  }, [conversation, t]);
 
-  // 如果有预设助手信息，使用预设助手的 logo 和名称；加载中时不进入 fallback；否则使用 backend 的 logo
-  // If preset assistant info exists, use preset logo/name; while loading, avoid fallback; otherwise use backend logo
-  const chatLayoutProps = presetAssistantInfo
-    ? {
-        agentName: presetAssistantInfo.name,
-        agentLogo: presetAssistantInfo.logo,
-        agentLogoIsEmoji: presetAssistantInfo.isEmoji,
-      }
-    : isLoadingPreset
-      ? {} // Still loading custom agents — avoid showing backend logo prematurely
-      : {
-          backend: conversation?.type === 'acp' ? conversation?.extra?.backend : conversation?.type === 'remote-agent' ? 'remote-agent' : undefined,
-          agentName: (conversation?.extra as { agentName?: string })?.agentName,
-        };
-
-  const headerExtraNode = <div className='flex items-center gap-8px'>{conversation && <AgentStatusDot conversation_id={conversation.id} conversationType={conversation.type} />}</div>;
+  const executionTarget = conversation ? resolveConversationExecutionTarget(conversation) : undefined;
+  const headerExtraNode = <div className='flex items-center gap-8px'>{conversation && <AgentStatusDot conversation_id={conversation.id} conversationType={conversation.type} showLabel />}</div>;
 
   return (
     <TaskPanelHeaderProvider>
-      <ChatLayout title={conversation?.name} {...chatLayoutProps} headerLeft={modelSelector} headerExtra={headerExtraNode} sider={<ChatSider conversation={conversation} />} workspaceEnabled={workspaceEnabled} conversationId={conversationId}>
+      <ChatLayout title={conversation?.name} headerLeft={modelSelector} headerExtra={headerExtraNode} sider={<ChatSider conversation={conversation} />} workspaceEnabled={workspaceEnabled} conversationId={conversationId} executionTarget={executionTarget}>
         {children ?? conversationNode}
       </ChatLayout>
     </TaskPanelHeaderProvider>

@@ -51,7 +51,8 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
   const { conversations, archivedConversations, externalHistoryFailed, onRefreshExternalHistory, expandedWorkspaces, pinnedTimeline, pinnedScheduled, timelineSections, scheduledGroups, agentGroups, handleToggleWorkspace } = useConversations();
 
   // Select pinned list based on active tab
-  const pinnedConversations = activeTab === 'agents' || activeTab === 'archived' ? [] : activeTab === 'scheduled' ? pinnedScheduled : pinnedTimeline;
+  const pinnedConversations = activeTab === 'archived' ? [] : activeTab === 'scheduled' ? pinnedScheduled : pinnedTimeline;
+  const displayedPinnedIds = useMemo(() => new Set(pinnedConversations.map((conversation) => conversation.id)), [pinnedConversations]);
 
   // Filter out pinned conversations from scheduled groups to avoid duplicates
   // Only filter based on pinnedScheduled (pinned in scheduled tab)
@@ -538,6 +539,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
           <>
             {agentGroups.map((group) => {
               const isExpanded = isTimelineSectionExpanded(group.ref, false);
+              const unpinnedConversations = group.conversations.filter((conversation) => !displayedPinnedIds.has(conversation.id));
               // The implicit default agent is named after the person; an account
               // with no name falls back to a label rather than showing a blank
               // row or the internal reference.
@@ -561,8 +563,8 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
                   )}
                   {(collapsed || isExpanded) && (
                     <div className='flex flex-col gap-2px min-w-0'>
-                      {group.conversations.length > 0
-                        ? group.conversations.map((conversation) => renderConversation(conversation as ConversationItem, group.ref))
+                      {unpinnedConversations.length > 0
+                        ? unpinnedConversations.map((conversation) => renderConversation(conversation as ConversationItem, group.ref))
                         : !collapsed && <div className='px-12px py-6px text-12px text-secondary'>{t('conversation.sidebar.agentHasNoConversations', '还没有对话')}</div>}
                     </div>
                   )}

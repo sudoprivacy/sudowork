@@ -121,6 +121,7 @@ export default defineConfig({
         '../../packages/renderer/src/pages/conversation/acp/useAcpMessage.ts',
         '../../packages/renderer/src/pages/conversation/context/ConversationHistoryContext.tsx',
         '../../packages/renderer/src/pages/conversation/components/AgentSessionHeader.tsx',
+        '../../packages/renderer/src/pages/conversation/components/ConversationExecutionBadge.tsx',
         '../../packages/renderer/src/pages/conversation/components/HistoryViewSelector.tsx',
         '../../packages/renderer/src/pages/guid/components/SessionCompositionSelector.tsx',
         '../../packages/renderer/src/pages/conversation/components/NewConversationButton.tsx',
@@ -178,6 +179,9 @@ export default defineConfig({
         'src/process/services/mossResourcePreparation.ts',
         // Process / bridge
         'src/process/database/corruptionError.ts',
+        'src/process/database/types.ts',
+        'src/process/bridge/databaseBridge.ts',
+        'src/process/bridge/migrationUtils.ts',
         'src/process/database/workspaceQueries.ts',
         'src/process/startupNotice.ts',
         'src/process/utils/proxyAgent.ts',

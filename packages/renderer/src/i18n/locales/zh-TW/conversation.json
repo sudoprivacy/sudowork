@@ -4,6 +4,12 @@
     "body": "在 Agent 回覆過程中傳送新訊息，會中斷目前回覆並立即處理新訊息。",
     "ok": "打斷"
   },
+  "header": {
+    "agent": "Agent",
+    "model": "模型",
+    "localExecutionHint": "任務在目前裝置執行，可使用你授權的本機檔案與工具。",
+    "remoteExecutionHint": "任務在 Moss Server 執行，執行環境與工作空間位於伺服器。"
+  },
   "welcome": {
     "title": "Hi，今天有什麼安排？",
     "placeholder": "發送訊息、上傳檔案、開啟資料夾或建立定時任務...",

@@ -16,4 +16,19 @@ describe('external conversation projections', () => {
     expect(external[0]).not.toHaveProperty('extra');
     expect(history.timelineSections).toEqual([]);
   });
+
+  it('keeps equal-time native and external rows in a deterministic identity order', () => {
+    const time = Date.now();
+    const native = { id: 'native-a', type: 'acp' as const, name: 'Native', createTime: time, modifyTime: time, extra: { backend: 'scode' as const } };
+    const history: GroupedHistoryResult = {
+      pinnedTimeline: [],
+      pinnedScheduled: [],
+      scheduledGroups: [],
+      agentGroups: [],
+      timelineSections: [{ timeline: 'conversation.history.today', items: [{ type: 'conversation', time, conversation: native }] }],
+    };
+    const external = externalSessionView({ id: 'session-z', agent_id: 'published', agent_name: 'External', title: 'External', created_at: time, updated_at: time, active_task_id: null });
+
+    expect(mergeExternalHistory(history, [external], (key) => key).timelineSections[0].items.map((item) => item.conversation?.id)).toEqual(['native-a', 'external:session-z']);
+  });
 });

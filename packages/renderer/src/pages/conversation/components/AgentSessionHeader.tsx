@@ -37,13 +37,14 @@ export default function AgentSessionHeader({ conversationId, title }: IAgentSess
   }
 
   return (
-    <div className='flex flex-col min-w-0 w-full gap-1'>
-      <span className='truncate text-xs text-secondary' title={agentName}>
-        {agentName}
+    <div className='conversation-agent-session-header flex items-center min-w-0 gap-2'>
+      <span className='conversation-agent-identity inline-flex items-center min-w-0 text-11px' title={agentName}>
+        <span className='conversation-agent-label-prefix shrink-0'>{t('conversation.header.agent')}：</span>
+        <span className='truncate'>{agentName}</span>
       </span>
-      {current.extra?.agentManagement && <span className='text-xs text-secondary'>{t('conversation.agentSessions.ownerBilling', { owner: current.extra.agentManagement.ownerName })}</span>}
-      <div className='flex items-center gap-2 min-w-0'>
-        <Select size='small' className='flex-1 min-w-0' aria-label={t('conversation.agentSessions.select')} value={current.id} disabled={isLoading || isLoadFailed} onChange={onSessionChange} options={options} />
+      {current.extra?.agentManagement && <span className='conversation-agent-owner truncate text-11px text-secondary'>{t('conversation.agentSessions.ownerBilling', { owner: current.extra.agentManagement.ownerName })}</span>}
+      <Select size='small' className='conversation-header-session-select min-w-0' aria-label={t('conversation.agentSessions.select')} value={current.id} disabled={isLoading || isLoadFailed} onChange={onSessionChange} options={options} />
+      <span className='conversation-session-actions flex shrink-0 items-center gap-1'>
         <ConversationTitleMinimap conversationId={conversationId} title={<Button type='text' size='mini' aria-label={t('conversation.agentSessions.messages')} title={t('conversation.agentSessions.messages')} icon={<List size={16} />} />} />
         {!current.extra?.agentManagement && (
           <Tooltip content={t('conversation.agentSessions.new')}>
@@ -55,7 +56,7 @@ export default function AgentSessionHeader({ conversationId, title }: IAgentSess
             {t('common.retry')}
           </Button>
         )}
-      </div>
+      </span>
     </div>
   );
 }

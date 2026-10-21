@@ -5,6 +5,7 @@
  */
 
 import { mainError } from '@process/utils/mainLogger';
+import { mergeConversationHistories } from '@process/database/types';
 import { ipcBridge } from '../../common';
 import { getProviderForConversation, getConversationProvider } from '../providers';
 
@@ -27,8 +28,18 @@ export function initDatabaseBridge(): void {
 
   // Get user conversations (paginated) via Provider
   // 通过 Provider 获取用户会话（分页）
-  ipcBridge.database.getUserConversations.provider(async ({ page = 0, pageSize = 10000, sessionMode }) => {
+  ipcBridge.database.getUserConversations.provider(async ({ page = 0, pageSize = 10000, sessionMode, includeAllExecutionTargets }) => {
     try {
+      if (includeAllExecutionTargets) {
+        // Capture both providers before either async list starts. The provider
+        // factory caches only the most recently selected target, but existing
+        // instances remain valid for this account-scoped unified read.
+        const localProvider = getConversationProvider('local');
+        const remoteProvider = getConversationProvider('remote');
+        if (localProvider === remoteProvider) return localProvider.listConversations(page, pageSize);
+        const [localConversations, remoteConversations] = await Promise.all([localProvider.listConversations(page, pageSize), remoteProvider.listConversations(page, pageSize)]);
+        return mergeConversationHistories(localConversations, remoteConversations);
+      }
       const provider = getConversationProvider(sessionMode);
 
       // For remote provider, this fetches from Moss Server

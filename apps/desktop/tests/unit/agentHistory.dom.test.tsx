@@ -109,6 +109,22 @@ describe('Agent history compatibility', () => {
     expect(screen.queryByRole('button', { name: conversations[0].name })).toBeNull();
   });
 
+  it('keeps pinned sessions above newer activity in the Agent view without duplication', () => {
+    const now = Date.now();
+    const pinned = { id: 'pinned', name: 'Pinned session', type: 'remote-agent', createTime: now - 1000, modifyTime: now - 1000, extra: { presetAssistantId: myAgent.ref, pinned: true, pinnedAt: now - 500 } } as ConversationItem;
+    const newest = { id: 'newest', name: 'Newest session', type: 'remote-agent', createTime: now, modifyTime: now, extra: { presetAssistantId: myAgent.ref } } as ConversationItem;
+    state.conversations = [pinned, newest];
+    state.history = buildGroupedHistory([pinned, newest], t, [], [myAgent]);
+    render(<WorkspaceGroupedHistory activeTab='agents' />);
+
+    const pinnedRow = screen.getByRole('button', { name: pinned.name });
+    fireEvent.click(screen.getByRole('button', { name: `common.expandMore ${myAgent.displayName}` }));
+    const newestRow = screen.getByRole('button', { name: newest.name });
+
+    expect(screen.getAllByRole('button', { name: pinned.name })).toHaveLength(1);
+    expect(pinnedRow.compareDocumentPosition(newestRow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('opens a new conversation under an unused Agent', () => {
     state.history = buildGroupedHistory([], t, [], [myAgent]);
     render(<WorkspaceGroupedHistory activeTab='agents' />);

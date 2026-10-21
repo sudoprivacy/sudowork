@@ -131,7 +131,13 @@ export const groupConversationsByTimelineAndWorkspace = (conversations: Conversa
       });
     });
 
-    items.sort((a, b) => b.time - a.time);
+    items.sort((a, b) => {
+      const timeDiff = b.time - a.time;
+      if (timeDiff !== 0) return timeDiff;
+      const idA = a.conversation?.id || a.workspaceGroup?.workspace || '';
+      const idB = b.conversation?.id || b.workspaceGroup?.workspace || '';
+      return idB.localeCompare(idA);
+    });
 
     sections.push({
       timeline,
@@ -235,7 +241,8 @@ export const buildGroupedHistory = (
       if (orderA !== undefined && orderB !== undefined) return orderA - orderB;
       if (orderA !== undefined) return -1;
       if (orderB !== undefined) return 1;
-      return getConversationPinnedAt(b as TChatConversation) - getConversationPinnedAt(a as TChatConversation);
+      const pinnedAtDiff = getConversationPinnedAt(b as TChatConversation) - getConversationPinnedAt(a as TChatConversation);
+      return pinnedAtDiff || b.id.localeCompare(a.id);
     });
 
   // Split pinned into timeline and scheduled tabs based on pinnedTab field.

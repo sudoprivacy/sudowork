@@ -4,6 +4,12 @@
     "body": "Ajan yanıt verirken bir mesaj göndermek geçerli yanıtı keser ve yeni mesajınızı hemen işler.",
     "ok": "Kes"
   },
+  "header": {
+    "agent": "Ajan",
+    "model": "Model",
+    "localExecutionHint": "Bu görev mevcut cihazda çalışır ve izin verilen yerel dosyaları ve araçları kullanabilir.",
+    "remoteExecutionHint": "Bu görev Moss Server üzerinde çalışır; çalışma ortamı ve çalışma alanı sunucudadır."
+  },
   "welcome": {
     "title": "Merhaba, bugünkü planın nedir?",
     "placeholder": "Mesaj gönder, dosya yükle veya klasör aç...",

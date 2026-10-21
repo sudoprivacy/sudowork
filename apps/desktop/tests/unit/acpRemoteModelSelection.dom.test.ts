@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
@@ -42,6 +42,13 @@ describe('remote conversation model selection', () => {
   it('uses the user preference when the conversation has no selected model', async () => {
     render(React.createElement(AcpModelSelector, { conversationId: 'new-owner', backend: 'remote-agent' }));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Admin GPT' })).toBeTruthy());
+  });
+
+  it('keeps the model dropdown behavior when the header prefix is shown', async () => {
+    render(React.createElement(AcpModelSelector, { conversationId: 'managed-owner', backend: 'remote-agent', initialModelId: 'claude-haiku-5-5', labelPrefix: '模型' }));
+    const trigger = await screen.findByRole('button', { name: '模型 · Owner Haiku' });
+    fireEvent.click(trigger);
+    expect(await screen.findByText('Admin GPT')).toBeTruthy();
   });
 
   it('ignores a cancelled conversation model request after another conversation opens', async () => {
