@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { useParkAuth } from './auth'
+import { useParkTitle } from './useParkTitle'
 import './login.css'
+import { setParkFavicon } from './brand'
 
 export default function LoginPage() {
   const { state, login } = useParkAuth()
@@ -11,6 +13,29 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [displayName, setDisplayName] = useState('')
+  useParkTitle(displayName)
+
+  useEffect(() => {
+    let isActive = true
+    void fetch('/public/consult/context', { credentials: 'include' })
+      .then((response) => {
+        if (!response.ok) throw new Error(`${response.status}`)
+        return response.json() as Promise<{ display_name: string; logo_url: string | null }>
+      })
+      .then((context) => {
+        if (isActive) {
+          setDisplayName(context.display_name)
+          setParkFavicon(context.logo_url)
+        }
+      })
+      .catch(() => {
+        if (isActive) setDisplayName('')
+      })
+    return () => {
+      isActive = false
+    }
+  }, [])
 
   if (state.status === 'authenticated') return <Navigate to="/park" replace />
 

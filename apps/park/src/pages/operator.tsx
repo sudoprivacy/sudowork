@@ -1,7 +1,10 @@
-import { useCallback, useEffect, useState } from 'react'
-import type { ParkApi } from './api'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { ParkApiError, type ParkApi } from './api'
+import { DEFAULT_PARK_LOGO, parkLogoUrl } from '../brand'
+import { encodeLogo, isValidLogo, LOGO_ACCEPT } from './logoUpload'
 import type { PageId } from './index'
 import { parkLabels as t } from './labels'
+import { isPolicyFileName, POLICY_FILE_ACCEPT, POLICY_FILE_MAX_BYTES } from './policyUpload'
 import styles from './park.module.css'
 
 interface Config {
@@ -12,17 +15,34 @@ interface Config {
   service_catalog: string
   service_catalog_version: string
   contact_enabled: number
+  consent_text: string
 }
-interface Policy {
+interface PolicyNode {
   id: string
-  title: string
-  version: string
-  section: string
-  content: string
-  status: string
-  effective_from: number
-  effective_until: number | null
-  updated_at: number
+  parentId: string | null
+  name: string
+  autoManaged: boolean
+}
+interface PolicyDocument {
+  id: string
+  nodeId: string
+  fileName: string
+  mimeType: string
+  sizeBytes: number
+  uploadedAt: number
+}
+interface PolicyWiki {
+  id: string
+  name: string
+  buildStatus: 'pending' | 'running' | 'succeeded' | 'failed'
+  sourceDocumentIds: string[]
+  lastBuiltAt: number | null
+  lastBuildError: string | null
+}
+interface PolicyBuildStatus {
+  wiki_build_status: PolicyWiki['buildStatus']
+  last_built_at: number | null
+  last_build_error: string | null
 }
 interface QuickQuestion {
   id: string
@@ -41,6 +61,9 @@ interface PublicLinks {
 interface AuditEvent {
   id: string
   actor_user_id: string | null
+  actor_name: string | null
+  action_label: string
+  object_label: string
   action: string
   resource: string
   method: string
@@ -69,40 +92,58 @@ function localTime(value: number): string {
   }).format(value)
 }
 
-function dateInput(value: number | null): string {
-  return value == null
-    ? ''
-    : new Intl.DateTimeFormat('en-CA', {
-        timeZone: 'Asia/Shanghai',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-      }).format(Number(value))
-}
-
-function shanghaiMidnight(value: FormDataEntryValue | null): number | null {
-  return value ? Date.parse(`${String(value)}T00:00:00+08:00`) : null
-}
-
 function Feedback({ message, isError }: { message: string; isError?: boolean }) {
   return message ? (
     <p className={isError ? styles.errorLine : styles.statusLine}>{message}</p>
   ) : null
 }
 
+function failureReason(error: unknown): string {
+  if (error instanceof ParkApiError) {
+    const reason = error.reason
+    if (!reason) return `${t.serverReasonUnavailable}（HTTP ${error.status}）`
+    return t.assistantErrors[reason as keyof typeof t.assistantErrors] ?? reason
+  }
+  return error instanceof TypeError ? t.networkFailure : t.serverReasonUnavailable
+}
+
 function PoliciesPage({ api }: { api: ParkApi }) {
-  const [policies, setPolicies] = useState<Policy[]>([])
-  const [config, setConfig] = useState<Config | null>(null)
+  const [nodes, setNodes] = useState<PolicyNode[]>([])
+  const [documents, setDocuments] = useState<PolicyDocument[]>([])
+  const [wikis, setWikis] = useState<PolicyWiki[]>([])
+  const [selectedNodeId, setSelectedNodeId] = useState('')
+  const [selectedWikiId, setSelectedWikiId] = useState('')
+  const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([])
+  const [buildStatus, setBuildStatus] = useState<PolicyBuildStatus | null>(null)
   const [message, setMessage] = useState('')
   const [isError, setIsError] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [confirmDeleteId, setConfirmDeleteId] = useState('')
+  const confirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => {
+    if (confirmTimer.current) clearTimeout(confirmTimer.current)
+  }, [])
+  function requestDelete(documentId: string): void {
+    if (confirmDeleteId === documentId) {
+      if (confirmTimer.current) clearTimeout(confirmTimer.current)
+      setConfirmDeleteId('')
+      void onDeleteDocument(documentId)
+      return
+    }
+    setConfirmDeleteId(documentId)
+    if (confirmTimer.current) clearTimeout(confirmTimer.current)
+    confirmTimer.current = setTimeout(() => setConfirmDeleteId(''), 3000)
+  }
   const reload = useCallback(async () => {
-    const [policyRows, parkConfig] = await Promise.all([
-      api.get<Policy[]>('admin/policies'),
-      api.get<Config>('admin/config'),
+    const [tree, wikiRows] = await Promise.all([
+      api.get<{ nodes: PolicyNode[] }>('admin/policy/tree'),
+      api.get<{ wikis: PolicyWiki[] }>('admin/policy/wikis'),
     ])
-    setPolicies(policyRows)
-    setConfig(parkConfig)
+    const editableNodes = tree.nodes.filter((node) => !node.autoManaged)
+    setNodes(editableNodes)
+    setWikis(wikiRows.wikis)
+    setSelectedNodeId((current) => current || editableNodes[0]?.id || '')
+    setSelectedWikiId((current) => current || wikiRows.wikis[0]?.id || '')
   }, [api])
   useEffect(() => {
     void reload().catch(() => {
@@ -110,20 +151,62 @@ function PoliciesPage({ api }: { api: ParkApi }) {
       setIsError(true)
     })
   }, [reload])
-  async function onNewPolicy(event: React.FormEvent<HTMLFormElement>) {
+  useEffect(() => {
+    if (!selectedNodeId) {
+      setDocuments([])
+      return
+    }
+    void api.get<{ documents: PolicyDocument[] }>(
+      `admin/policy/nodes/${encodeURIComponent(selectedNodeId)}/documents`,
+    ).then((result) => setDocuments(result.documents)).catch(() => {
+      setMessage(t.failed)
+      setIsError(true)
+    })
+  }, [api, selectedNodeId])
+  useEffect(() => {
+    const wiki = wikis.find((item) => item.id === selectedWikiId)
+    setSelectedDocumentIds(wiki?.sourceDocumentIds ?? [])
+  }, [selectedWikiId, wikis])
+  useEffect(() => {
+    if (!selectedWikiId) {
+      setBuildStatus(null)
+      return
+    }
+    let isCancelled = false
+    let timer: number | undefined
+    const poll = async () => {
+      try {
+        const status = await api.get<PolicyBuildStatus>(
+          `admin/policy/wikis/${encodeURIComponent(selectedWikiId)}/build-status`,
+        )
+        if (isCancelled) return
+        setBuildStatus(status)
+        if (status.wiki_build_status === 'pending' || status.wiki_build_status === 'running') {
+          timer = window.setTimeout(() => void poll(), 2000)
+        }
+      } catch {
+        if (!isCancelled) {
+          setMessage(t.failed)
+          setIsError(true)
+        }
+      }
+    }
+    void poll()
+    return () => {
+      isCancelled = true
+      if (timer !== undefined) window.clearTimeout(timer)
+    }
+  }, [api, selectedWikiId])
+
+  async function onCreateNode(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setIsSaving(true)
     const form = event.currentTarget
     const values = new FormData(form)
-    const until = shanghaiMidnight(values.get('effective_until'))
     try {
-      await api.send('admin/policies', 'POST', {
-        title: values.get('title'),
-        version: values.get('version'),
-        section: values.get('section'),
-        content: values.get('content'),
-        effective_from: shanghaiMidnight(values.get('effective_from')),
-        effective_until: until === null ? null : until + 86_400_000 - 1,
+      await api.send('admin/policy/tree/nodes', 'POST', {
+        name: values.get('name'),
+        parent_id: values.get('parent_id') || null,
       })
       form.reset()
       await reload()
@@ -136,11 +219,46 @@ function PoliciesPage({ api }: { api: ParkApi }) {
       setIsSaving(false)
     }
   }
-  async function onStatus(id: string, status: 'published' | 'offline') {
+  async function onUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    if (!file || !selectedNodeId) return
+    if (!isPolicyFileName(file.name) || !file.size || file.size > POLICY_FILE_MAX_BYTES) {
+      setMessage(!isPolicyFileName(file.name) ? t.policyFileUnsupported : !file.size ? t.policyFileEmpty : t.policyFileTooLarge)
+      setIsError(true)
+      event.target.value = ''
+      return
+    }
+    const input = event.currentTarget
     setIsSaving(true)
     try {
-      await api.send(`admin/policies/${encodeURIComponent(id)}/status`, 'PATCH', { status })
-      await reload()
+      const bytes = new Uint8Array(await file.arrayBuffer())
+      let binary = ''
+      for (const byte of bytes) binary += String.fromCharCode(byte)
+      await api.send(`admin/policy/nodes/${encodeURIComponent(selectedNodeId)}/documents`, 'POST', {
+        file_name: file.name,
+        mime_type: file.type || 'application/octet-stream',
+        content_base64: btoa(binary),
+      })
+      const result = await api.get<{ documents: PolicyDocument[] }>(
+        `admin/policy/nodes/${encodeURIComponent(selectedNodeId)}/documents`,
+      )
+      setDocuments(result.documents)
+      setMessage(t.saved)
+      setIsError(false)
+    } catch (error) {
+      setMessage(`${t.policyUploadFailed}${failureReason(error)}`)
+      setIsError(true)
+    } finally {
+      setIsSaving(false)
+      input.value = ''
+    }
+  }
+  async function onDeleteDocument(id: string) {
+    setIsSaving(true)
+    try {
+      await api.send(`admin/policy/documents/${encodeURIComponent(id)}`, 'DELETE')
+      setDocuments((current) => current.filter((document) => document.id !== id))
+      setSelectedDocumentIds((current) => current.filter((documentId) => documentId !== id))
       setMessage(t.saved)
       setIsError(false)
     } catch {
@@ -150,22 +268,135 @@ function PoliciesPage({ api }: { api: ParkApi }) {
       setIsSaving(false)
     }
   }
+  async function onCreateWiki(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!selectedDocumentIds.length) return
+    setIsSaving(true)
+    const form = event.currentTarget
+    try {
+      const wiki = await api.send<PolicyWiki>('admin/policy/wikis', 'POST', {
+        name: new FormData(form).get('name'),
+        source_document_ids: selectedDocumentIds,
+      })
+      form.reset()
+      await reload()
+      setSelectedWikiId(wiki.id)
+      setMessage(t.saved)
+      setIsError(false)
+    } catch {
+      setMessage(t.saveFailed)
+      setIsError(true)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+  async function onSaveAndBuild() {
+    if (!selectedWikiId || !selectedDocumentIds.length) return
+    setIsSaving(true)
+    try {
+      await api.send(`admin/policy/wikis/${encodeURIComponent(selectedWikiId)}`, 'PATCH', {
+        source_document_ids: selectedDocumentIds,
+      })
+      await api.send(`admin/policy/wikis/${encodeURIComponent(selectedWikiId)}/build`, 'POST')
+      setBuildStatus({ wiki_build_status: 'pending', last_built_at: null, last_build_error: null })
+      setMessage(t.policyBuildStarted)
+      setIsError(false)
+      await reload()
+    } catch {
+      setMessage(t.saveFailed)
+      setIsError(true)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+  return (
+    <>
+      <Feedback message={message} isError={isError} />
+      <section className={styles.panel}>
+        <h2 className={styles.panelTitle}>{t.policyDirectory}</h2>
+        <form className={styles.formGrid} onSubmit={(event) => void onCreateNode(event)}>
+          <label className={styles.field}>{t.policyDirectoryName}<input className={styles.input} name="name" required /></label>
+          <label className={styles.field}>{t.policyParentDirectory}<select className={styles.select} name="parent_id" defaultValue=""><option value="">{t.policyRootDirectory}</option>{nodes.map((node) => <option key={node.id} value={node.id}>{node.name}</option>)}</select></label>
+          <button className={styles.button} type="submit" disabled={isSaving}>{t.create}</button>
+        </form>
+        <div className={styles.sectionGap}>
+          <label className={styles.field}>{t.policyCurrentDirectory}<select className={styles.select} value={selectedNodeId} onChange={(event) => setSelectedNodeId(event.target.value)}><option value="">{t.empty}</option>{nodes.map((node) => <option key={node.id} value={node.id}>{node.name}</option>)}</select></label>
+        </div>
+      </section>
+      <section className={`${styles.panel} ${styles.sectionGap}`}>
+        <h2 className={styles.panelTitle}>{t.policyFiles}</h2>
+        <label className={styles.field}>{t.policyUpload}<input className={styles.input} type="file" accept={POLICY_FILE_ACCEPT} onChange={(event) => void onUpload(event)} disabled={!selectedNodeId || isSaving} /></label>
+        <div className={styles.list}>{documents.length ? documents.map((document) => <div className={styles.listItem} key={document.id}><div><strong>{document.fileName}</strong><p className={styles.muted}>{Math.ceil(document.sizeBytes / 1024)} KB · {localTime(document.uploadedAt)}</p></div><button className={styles.buttonDanger} type="button" onClick={() => requestDelete(document.id)} disabled={isSaving}>{confirmDeleteId === document.id ? t.documentDeleteConfirm : t.documentDelete}</button></div>) : <div className={styles.empty}>{t.empty}</div>}</div>
+      </section>
+      <section className={`${styles.panel} ${styles.sectionGap}`}>
+        <h2 className={styles.panelTitle}>{t.policyKnowledgeBase}</h2>
+        <label className={styles.field}>{t.policyWiki}<select className={styles.select} value={selectedWikiId} onChange={(event) => setSelectedWikiId(event.target.value)}><option value="">{t.policyCreateWiki}</option>{wikis.map((wiki) => <option key={wiki.id} value={wiki.id}>{wiki.name}</option>)}</select></label>
+        <div className={styles.list}>{documents.map((document) => <label className={styles.listItem} key={document.id}><span><input type="checkbox" checked={selectedDocumentIds.includes(document.id)} onChange={(event) => setSelectedDocumentIds((current) => event.target.checked ? [...new Set([...current, document.id])] : current.filter((id) => id !== document.id))} /> {document.fileName}</span></label>)}</div>
+        {!selectedWikiId && <form className={styles.formGrid} onSubmit={(event) => void onCreateWiki(event)}><label className={styles.field}>{t.policyWikiName}<input className={styles.input} name="name" required /></label><button className={styles.button} type="submit" disabled={isSaving || !selectedDocumentIds.length}>{t.policyCreateWiki}</button></form>}
+        {selectedWikiId && <div className={styles.inlineActions}><button className={styles.button} type="button" onClick={() => void onSaveAndBuild()} disabled={isSaving || !selectedDocumentIds.length}>{t.policySaveAndBuild}</button><span className={styles.pill}>{buildStatus ? (t.policyBuildStatuses[buildStatus.wiki_build_status] ?? buildStatus.wiki_build_status) : t.loading}</span>{buildStatus?.last_build_error && <span className={styles.errorLine}>{buildStatus.last_build_error}</span>}</div>}
+      </section>
+    </>
+  )
+}
+
+function ContentSettingsPage({ api, onBrandSaved }: IContentSettingsPageProps) {
+  const [config, setConfig] = useState<Config | null>(null)
+  const [message, setMessage] = useState('')
+  const [isError, setIsError] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [logoFile, setLogoFile] = useState<File | null>(null)
+  const [logoPreview, setLogoPreview] = useState('')
+  useEffect(() => {
+    if (!logoFile) {
+      setLogoPreview('')
+      return
+    }
+    const url = URL.createObjectURL(logoFile)
+    setLogoPreview(url)
+    return () => URL.revokeObjectURL(url)
+  }, [logoFile])
+  function onLogoSelected(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null
+    if (file && !isValidLogo(file)) {
+      setLogoFile(null)
+      event.target.value = ''
+      setMessage(t.logoInvalid)
+      setIsError(true)
+      return
+    }
+    setLogoFile(file)
+    setMessage('')
+    setIsError(false)
+  }
+  const reload = useCallback(async () => setConfig(await api.get<Config>('admin/config')), [api])
+  useEffect(() => {
+    void reload().catch(() => {
+      setMessage(t.failed)
+      setIsError(true)
+    })
+  }, [reload])
   async function onConfig(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setIsSaving(true)
-    const form = new FormData(event.currentTarget)
+    const formElement = event.currentTarget
+    const form = new FormData(formElement)
     try {
       const catalog = JSON.parse(String(form.get('service_catalog') ?? '[]')) as unknown
-      await api.send('admin/config', 'PUT', {
+      const updated = await api.send<Config>('admin/config', 'PUT', {
         display_name: form.get('display_name'),
-        logo_url: form.get('logo_url'),
+        ...(logoFile ? { logo_upload: await encodeLogo(logoFile) } : {}),
         welcome_text: form.get('welcome_text'),
         park_profile: form.get('park_profile'),
         service_catalog: catalog,
         service_catalog_version: form.get('service_catalog_version'),
         contact_enabled: form.get('contact_enabled') === 'on',
+        consent_text: form.get('consent_text'),
       })
-      await reload()
+      setConfig(updated)
+      setLogoFile(null)
+      const fileInput = formElement.querySelector<HTMLInputElement>('input[name="logo_upload"]')
+      if (fileInput) fileInput.value = ''
+      onBrandSaved(updated)
       setMessage(t.saved)
       setIsError(false)
     } catch {
@@ -179,102 +410,11 @@ function PoliciesPage({ api }: { api: ParkApi }) {
     <>
       <Feedback message={message} isError={isError} />
       <section className={styles.panel}>
-        <h2 className={styles.panelTitle}>{t.policyList}</h2>
-        {policies.length ? (
-          <div className={styles.tableWrap}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>{t.title}</th>
-                  <th>{t.version}</th>
-                  <th>{t.section}</th>
-                  <th>{t.status}</th>
-                  <th>{t.effective}</th>
-                  <th>{t.actions}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {policies.map((policy) => (
-                  <tr key={policy.id}>
-                    <td>
-                      <strong>{policy.title}</strong>
-                    </td>
-                    <td>{policy.version}</td>
-                    <td>{policy.section}</td>
-                    <td>
-                      <span className={styles.pill}>
-                        {t.statuses[policy.status as keyof typeof t.statuses] ?? policy.status}
-                      </span>
-                    </td>
-                    <td>
-                      {dateInput(policy.effective_from)} —{' '}
-                      {dateInput(policy.effective_until) || '∞'}
-                    </td>
-                    <td className={styles.inlineActions}>
-                      <button
-                        className={styles.buttonSecondary}
-                        type="button"
-                        onClick={() => void onStatus(policy.id, 'published')}
-                        disabled={isSaving || policy.status === 'published'}
-                      >
-                        {t.publish}
-                      </button>
-                      <button
-                        className={styles.buttonDanger}
-                        type="button"
-                        onClick={() => void onStatus(policy.id, 'offline')}
-                        disabled={isSaving || policy.status === 'offline'}
-                      >
-                        {t.offline}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className={styles.empty}>{t.empty}</div>
-        )}
-      </section>
-      <section className={`${styles.panel} ${styles.sectionGap}`}>
-        <h2 className={styles.panelTitle}>{t.policyCreate}</h2>
-        <form className={styles.formGrid} onSubmit={(event) => void onNewPolicy(event)}>
-          <label className={styles.field}>
-            {t.title}
-            <input className={styles.input} name="title" required />
-          </label>
-          <label className={styles.field}>
-            {t.version}
-            <input className={styles.input} name="version" required />
-          </label>
-          <label className={styles.field}>
-            {t.section}
-            <input className={styles.input} name="section" required />
-          </label>
-          <label className={styles.field}>
-            {t.effectiveFrom}
-            <input className={styles.input} type="date" name="effective_from" required />
-          </label>
-          <label className={styles.field}>
-            {t.effectiveUntil}
-            <input className={styles.input} type="date" name="effective_until" />
-          </label>
-          <label className={`${styles.field} ${styles.fieldWide}`}>
-            {t.policyContent}
-            <textarea className={styles.textarea} name="content" required />
-          </label>
-          <button className={styles.button} type="submit" disabled={isSaving}>
-            {t.create}
-          </button>
-        </form>
-      </section>
-      <section className={`${styles.panel} ${styles.sectionGap}`}>
         <h2 className={styles.panelTitle}>
           {t.parkProfile} / {t.serviceCatalog}
         </h2>
         <form
-          className={styles.formGrid}
+          className={`${styles.formGrid} ${styles.contentForm}`}
           onSubmit={(event) => void onConfig(event)}
           key={(config?.display_name ?? 'new') + (config?.service_catalog_version ?? '')}
         >
@@ -288,15 +428,35 @@ function PoliciesPage({ api }: { api: ParkApi }) {
             />
           </label>
           <label className={styles.field}>
-            {t.logoUrl}
-            <input className={styles.input} name="logo_url" defaultValue={config?.logo_url ?? ''} />
-          </label>
-          <label className={`${styles.field} ${styles.fieldWide}`}>
             {t.welcomeText}
             <input
               className={styles.input}
               name="welcome_text"
               defaultValue={config?.welcome_text ?? ''}
+            />
+          </label>
+          <label className={`${styles.field} ${styles.fieldWide}`}>
+            {t.logoUrl}
+            <input
+              className={styles.input}
+              type="file"
+              name="logo_upload"
+              accept={LOGO_ACCEPT}
+              onChange={onLogoSelected}
+              disabled={isSaving}
+              aria-describedby="logo-upload-hint"
+            />
+            <span id="logo-upload-hint" className={styles.muted}>
+              {t.logoUploadHint}
+            </span>
+            <img
+              className={styles.brandLogo}
+              src={logoPreview || parkLogoUrl(config?.logo_url)}
+              alt=""
+              onError={(event) => {
+                event.currentTarget.onerror = null
+                event.currentTarget.src = DEFAULT_PARK_LOGO
+              }}
             />
           </label>
           <label className={`${styles.field} ${styles.fieldWide}`}>
@@ -334,11 +494,23 @@ function PoliciesPage({ api }: { api: ParkApi }) {
               }
             />
           </label>
+          <label className={`${styles.field} ${styles.fieldWide}`}>
+            {t.consentText}
+            <textarea
+              className={styles.textarea}
+              name="consent_text"
+              maxLength={2000}
+              defaultValue={config?.consent_text ?? ''}
+            />
+          </label>
           <button className={styles.button} type="submit" disabled={isSaving}>
             {t.save}
           </button>
         </form>
       </section>
+      <div className={styles.sectionGap}>
+        <QuestionsPage api={api} />
+      </div>
     </>
   )
 }
@@ -426,9 +598,7 @@ function QuestionsPage({ api }: { api: ParkApi }) {
             <div className={styles.empty}>{t.empty}</div>
           )}
         </div>
-      </section>
-      <section className={`${styles.panel} ${styles.sectionGap}`}>
-        <h2 className={styles.panelTitle}>{editing ? t.edit : t.create}</h2>
+        <h2 className={`${styles.panelTitle} ${styles.sectionGap}`}>{editing ? t.edit : t.create}</h2>
         <form
           className={styles.formGrid}
           onSubmit={(event) => void onSave(event)}
@@ -476,46 +646,122 @@ function QuestionsPage({ api }: { api: ParkApi }) {
   )
 }
 
+interface WikiSourceDocument {
+  id: string
+  fileName: string | null
+  nodeName: string | null
+  sizeBytes: number | null
+  status: 'available' | 'deleted' | 'unavailable'
+}
+interface WikiSourcesResult {
+  built_at: number | null
+  record_status: 'available' | 'unavailable'
+  sources: WikiSourceDocument[]
+}
+
 function AssistantPage({ api }: { api: ParkApi }) {
   const [data, setData] = useState<ConfigValue | null>(null)
+  const [wikis, setWikis] = useState<PolicyWiki[]>([])
+  const [sourceResult, setSourceResult] = useState<WikiSourcesResult | null>(null)
+  const [isSourcesLoading, setIsSourcesLoading] = useState(false)
+  const [isSourcesError, setIsSourcesError] = useState(false)
+  const [sourceRetry, setSourceRetry] = useState(0)
   const [message, setMessage] = useState('')
-  const reload = useCallback(
-    async () => setData(await api.get<ConfigValue>('admin/assistant')),
-    [api],
-  )
+  const [isSaving, setIsSaving] = useState(false)
+  const [isSaveError, setIsSaveError] = useState(false)
+  const reload = useCallback(async () => {
+    const [assistant, wikiRows] = await Promise.all([
+      api.get<ConfigValue>('admin/assistant'),
+      api.get<{ wikis: PolicyWiki[] }>('admin/policy/wikis'),
+    ])
+    setData(assistant)
+    setWikis(wikiRows.wikis)
+  }, [api])
   useEffect(() => {
     void reload().catch(() => setMessage(t.failed))
   }, [reload])
+  const savedWikiId = String(data?.value.policy_wiki_id ?? '')
+  const [viewedWikiId, setViewedWikiId] = useState('')
+  useEffect(() => {
+    setViewedWikiId(
+      (current) => current || (wikis.some((wiki) => wiki.id === savedWikiId) ? savedWikiId : ''),
+    )
+  }, [savedWikiId, wikis])
+  const selectedWikiId = wikis.some((wiki) => wiki.id === viewedWikiId) ? viewedWikiId : ''
+  useEffect(() => {
+    let isActive = true
+    setSourceResult(null)
+    setIsSourcesError(false)
+    setIsSourcesLoading(!!selectedWikiId)
+    if (selectedWikiId) {
+      void api
+        .get<WikiSourcesResult>(`admin/policy/wikis/${encodeURIComponent(selectedWikiId)}/sources`)
+        .then((result) => {
+          if (isActive) setSourceResult(result)
+        })
+        .catch(() => {
+          if (isActive) setIsSourcesError(true)
+        })
+        .finally(() => {
+          if (isActive) setIsSourcesLoading(false)
+        })
+    }
+    return () => {
+      isActive = false
+    }
+  }, [api, selectedWikiId, sourceRetry])
   async function onSave(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (isSaving) return
     const values = new FormData(event.currentTarget)
+    const requestedWikiId = String(values.get('policy_wiki_id') ?? '')
+    setIsSaving(true)
+    setIsSaveError(false)
+    setMessage(t.assistantSaving)
     try {
       await api.send('admin/assistant', 'PUT', {
         status: values.get('status'),
         value: {
-          model: values.get('model'),
-          temperature: Number(values.get('temperature')),
           system_prompt: values.get('system_prompt'),
+          policy_wiki_id: values.get('policy_wiki_id'),
         },
       })
-      await reload()
-      setMessage(t.saved)
-    } catch {
-      setMessage(t.saveFailed)
+      try {
+        const saved = await api.get<ConfigValue>('admin/assistant')
+        setData(saved)
+        if (saved.value.policy_wiki_id === requestedWikiId) {
+          setMessage(t.assistantSaved)
+        } else {
+          setMessage(t.assistantWikiMismatch)
+          setIsSaveError(true)
+        }
+      } catch {
+        setMessage(t.assistantSaveUnconfirmed)
+        setIsSaveError(true)
+      }
+    } catch (error) {
+      setMessage(`${t.assistantSaveFailed}${failureReason(error)}`)
+      setIsSaveError(true)
+    } finally {
+      setIsSaving(false)
     }
   }
   return (
     <section className={styles.panel}>
       <h2 className={styles.panelTitle}>{t.nav.assistant}</h2>
+      {!data && <Feedback message={message} isError />}
       {data && (
         <form
           className={styles.formGrid}
           onSubmit={(event) => void onSave(event)}
           key={data.status}
+          onChange={() => {
+            if (!isSaving) setMessage('')
+          }}
         >
           <label className={styles.field}>
             {t.assistantStatus}
-            <select className={styles.select} name="status" defaultValue={data.status ?? 'draft'}>
+            <select className={styles.select} name="status" defaultValue={data.status ?? 'draft'} disabled={isSaving}>
               {['draft', 'pending_review', 'published', 'disabled'].map((status) => (
                 <option value={status} key={status}>
                   {t.statuses[status as keyof typeof t.statuses]}
@@ -523,41 +769,103 @@ function AssistantPage({ api }: { api: ParkApi }) {
               ))}
             </select>
           </label>
-          <label className={styles.field}>
-            {t.assistantModel}
-            <input
-              className={styles.input}
-              name="model"
-              defaultValue={String(data.value.model ?? '')}
-              required
-            />
-          </label>
-          <label className={styles.field}>
-            {t.assistantTemperature}
-            <input
-              className={styles.input}
-              type="number"
-              min="0"
-              max="2"
-              step="0.1"
-              name="temperature"
-              defaultValue={Number(data.value.temperature ?? 0.2)}
-            />
-          </label>
+          <div className={styles.field}>
+            <span>{t.assistantModel}</span>
+            <p className={styles.muted}>{t.assistantModelManaged}</p>
+          </div>
+          <div className={`${styles.field} ${styles.fieldWide}`}>
+            <label className={styles.field}>
+              {t.policyWiki}
+              <select
+                className={styles.select}
+                name="policy_wiki_id"
+                value={selectedWikiId}
+                onChange={(event) => setViewedWikiId(event.target.value)}
+                required
+                disabled={isSaving}
+              >
+                <option value="">{t.policySelectWiki}</option>
+                {wikis.map((wiki) => (
+                  <option key={wiki.id} value={wiki.id} disabled={wiki.buildStatus !== 'succeeded'}>
+                    {wiki.name} · {t.policyBuildStatuses[wiki.buildStatus]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {selectedWikiId && (
+              <section className={styles.section} aria-live="polite">
+                <div className={styles.caption}>
+                  <strong>
+                    {t.wikiSources}（{sourceResult?.sources.length ?? 0}）
+                  </strong>
+                  <span className={styles.muted}>{t.wikiSourcesHint}</span>
+                </div>
+                {isSourcesLoading ? (
+                  <p>{t.loading}</p>
+                ) : isSourcesError ? (
+                  <div>
+                    <p className={styles.errorLine}>{t.wikiSourcesFailed}</p>
+                    <button
+                      className={styles.buttonSecondary}
+                      type="button"
+                      onClick={() => setSourceRetry((value) => value + 1)}
+                    >
+                      {t.retry}
+                    </button>
+                  </div>
+                ) : sourceResult?.record_status === 'unavailable' ? (
+                  <p className={styles.muted}>{t.wikiRecordUnavailable}</p>
+                ) : (
+                  <div className={styles.list}>
+                    {sourceResult?.sources.length ? (
+                      sourceResult.sources.map((source) => (
+                        <div className={styles.listItem} key={source.id}>
+                          <div>
+                            <strong>{source.fileName ?? t.wikiSourceNameUnavailable}</strong>
+                            {source.status !== 'available' && (
+                              <span className={styles.pill}>
+                                {source.status === 'deleted'
+                                  ? t.wikiSourceDeleted
+                                  : t.wikiSourceUnavailable}
+                              </span>
+                            )}
+                            <p className={styles.muted}>
+                              {[
+                                source.nodeName,
+                                source.sizeBytes === null
+                                  ? null
+                                  : `${Math.ceil(source.sizeBytes / 1024)} KB`,
+                              ]
+                                .filter(Boolean)
+                                .join(' · ')}
+                            </p>
+                            {!source.fileName && <p className={styles.muted}>{source.id}</p>}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className={styles.empty}>{t.empty}</div>
+                    )}
+                  </div>
+                )}
+              </section>
+            )}
+          </div>
           <label className={`${styles.field} ${styles.fieldWide}`}>
             {t.assistantPrompt}
             <textarea
               className={styles.textarea}
               name="system_prompt"
+              disabled={isSaving}
               defaultValue={String(data.value.system_prompt ?? '')}
             />
           </label>
-          <button className={styles.button} type="submit">
-            {t.save}
-          </button>
+          <div className={`${styles.inlineActions} ${styles.fieldWide}`}>
+            <button className={styles.button} type="submit" disabled={isSaving}>{t.save}</button>
+            <span role="status" aria-live="polite" className={isSaveError ? styles.errorLine : styles.statusLine}>{message}</span>
+          </div>
         </form>
       )}
-      <Feedback message={message} isError={message !== t.saved} />
     </section>
   )
 }
@@ -565,6 +873,7 @@ function AssistantPage({ api }: { api: ParkApi }) {
 function LinksPage({ api }: { api: ParkApi }) {
   const [data, setData] = useState<PublicLinks | null>(null)
   const [message, setMessage] = useState('')
+  const [isDeleting, setIsDeleting] = useState(false)
   const reload = useCallback(
     async () => setData(await api.get<PublicLinks>('admin/public-links')),
     [api],
@@ -587,6 +896,26 @@ function LinksPage({ api }: { api: ParkApi }) {
       setMessage(t.saved)
     } catch {
       setMessage(t.saveFailed)
+    }
+  }
+  async function onDelete(link: PublicLinks['links'][number]) {
+    if (isDeleting || link.enabled) return
+    const prompt = t.linkDeleteConfirm
+      .replace('{label}', link.label)
+      .replace('{channel}', link.channel)
+    if (!window.confirm(prompt)) return
+    setIsDeleting(true)
+    try {
+      await api.send(`admin/public-links/${encodeURIComponent(link.id)}`, 'DELETE')
+      await reload()
+      setMessage(t.linkDeleted)
+    } catch (error) {
+      if (error instanceof ParkApiError && error.status === 409) {
+        setMessage(t.linkDeleteRequiresDisabled)
+        await reload().catch(() => undefined)
+      } else setMessage(t.linkDeleteFailed)
+    } finally {
+      setIsDeleting(false)
     }
   }
   async function onQr(channel: string) {
@@ -639,10 +968,21 @@ function LinksPage({ api }: { api: ParkApi }) {
                   <button
                     className={styles.buttonSecondary}
                     type="button"
+                    disabled={isDeleting}
                     onClick={() => void onToggle(link)}
                   >
                     {link.enabled ? t.disabled : t.enabled}
                   </button>
+                  {!link.enabled && (
+                    <button
+                      className={styles.buttonDanger}
+                      type="button"
+                      disabled={isDeleting}
+                      onClick={() => void onDelete(link)}
+                    >
+                      {t.documentDelete}
+                    </button>
+                  )}
                   {link.enabled && linkUrl && (
                     <>
                       <a href={linkUrl.toString()} target="_blank" rel="noreferrer">
@@ -678,7 +1018,7 @@ function LinksPage({ api }: { api: ParkApi }) {
             {t.save}
           </button>
         </form>
-        <Feedback message={message} isError={message !== t.saved} />
+        <Feedback message={message} isError={message !== t.saved && message !== t.linkDeleted} />
       </section>
     </>
   )
@@ -826,7 +1166,8 @@ function AuditPage({ api }: { api: ParkApi }) {
                 name="summary_max_length"
                 min="100"
                 max="4000"
-                defaultValue={Number(redaction.value.summary_max_length ?? 1000)}
+                defaultValue={Number(redaction.value.summary_max_length)}
+                required
               />
             </label>
             <label className={`${styles.field} ${styles.fieldWide}`}>
@@ -856,8 +1197,9 @@ function AuditPage({ api }: { api: ParkApi }) {
               <thead>
                 <tr>
                   <th>{t.date}</th>
-                  <th>{t.owner}</th>
+                  <th>{t.auditActor}</th>
                   <th>{t.actions}</th>
+                  <th>{t.auditObject}</th>
                   <th>{t.status}</th>
                 </tr>
               </thead>
@@ -865,10 +1207,9 @@ function AuditPage({ api }: { api: ParkApi }) {
                 {rows.map((row) => (
                   <tr key={row.id}>
                     <td>{localTime(Number(row.created_at))}</td>
-                    <td>{row.actor_user_id ?? '—'}</td>
-                    <td>
-                      {row.method} {row.path}
-                    </td>
+                    <td>{row.actor_name ?? '—'}</td>
+                    <td>{row.action_label}</td>
+                    <td>{row.object_label}</td>
                     <td>{row.response_status}</td>
                   </tr>
                 ))}
@@ -1054,12 +1395,22 @@ function OperationsPage({ api }: { api: ParkApi }) {
   )
 }
 
-export function OperatorPage({ id, api }: { id: PageId; api: ParkApi }) {
+export function OperatorPage({ id, api, onBrandSaved }: IOperatorPageProps) {
   if (id === 'policies') return <PoliciesPage api={api} />
-  if (id === 'quickQuestions') return <QuestionsPage api={api} />
+  if (id === 'content')
+    return <ContentSettingsPage api={api} onBrandSaved={onBrandSaved} />
   if (id === 'assistant') return <AssistantPage api={api} />
   if (id === 'publicLinks') return <LinksPage api={api} />
   if (id === 'rateLimits') return <RateLimitsPage api={api} />
   if (id === 'audit') return <AuditPage api={api} />
   return <OperationsPage api={api} />
+}
+
+interface IContentSettingsPageProps {
+  api: ParkApi
+  onBrandSaved: (brand: { display_name: string; logo_url: string | null }) => void
+}
+
+interface IOperatorPageProps extends IContentSettingsPageProps {
+  id: PageId
 }

@@ -4,15 +4,8 @@ import { randomUUID } from 'node:crypto'
 const parkUrl = `http://127.0.0.1:${process.env.PARK_E2E_PORT ?? '4176'}`
 const parkApi = `${parkUrl}/park/api/v1/parks/park-1`
 
-test('operator policy and quick-question changes reach public consultation', async ({
-  browser,
-}) => {
+test('operator manages policy files and builds a wiki', async ({ browser }) => {
   const operator = await browser.newContext()
-  const publicVisitor = await browser.newContext()
-  const title = '浏览器写入算力政策'
-  const question = '浏览器写入算力问题？'
-  let policyId: string | undefined
-  let questionId: string | undefined
   try {
     const admin = await operator.newPage()
     await admin.goto(`${parkUrl}/park/login`)
@@ -20,91 +13,176 @@ test('operator policy and quick-question changes reach public consultation', asy
     await admin.getByLabel('密码').fill('park-test-password')
     await admin.getByRole('button', { name: '进入园区管理' }).click()
     await expect(admin).toHaveURL(`${parkUrl}/park/admin/policies`)
+    await expect(admin.getByRole('heading', { name: '政策文件目录' })).toBeVisible()
+    await expect(admin.getByRole('heading', { name: '上传新版本' })).toHaveCount(0)
 
-    const policyForm = admin.getByRole('heading', { name: '上传新版本' }).locator('..')
-    await policyForm.getByLabel('名称').fill(title)
-    await policyForm.getByLabel('版本').fill('v-test')
-    await policyForm.getByLabel('条款位置').fill('测试条款')
-    await policyForm.getByLabel('生效开始').fill('2020-01-01')
-    await policyForm.getByLabel('政策条款内容').fill('算力可申请浏览器写入校验服务。')
-    await policyForm.getByRole('button', { name: '新建' }).click()
-    const row = admin.getByRole('row').filter({ hasText: title })
-    await expect(row).toBeVisible()
-    const policies = (await (
-      await admin.request.get(`${parkApi}/admin/policies`)
-    ).json()) as Array<{
-      id: string
-      title: string
-      status: string
-    }>
-    policyId = policies.find((item) => item.title === title)?.id
-    expect(policyId).toBeTruthy()
-    await row.getByRole('button', { name: '发布' }).click()
-    await expect(row).toContainText('已发布')
+    const directory = `浏览器政策-${Date.now()}`
+    const directorySection = admin.getByRole('heading', { name: '政策文件目录' }).locator('..')
+    await directorySection.getByLabel('目录名称').fill(directory)
+    await directorySection.getByRole('button', { name: '新建' }).click()
+    await directorySection.getByLabel('当前目录').selectOption({ label: directory })
 
-    const visitor = await publicVisitor.newPage()
-    await visitor.goto(`${parkUrl}/consult`)
-    await visitor.locator('#question-input').fill('园区算力服务如何申请？')
-    await visitor.getByRole('button', { name: /发送问题/ }).click()
-    await expect(visitor.getByText(/浏览器写入校验服务/)).toBeVisible()
-    await expect(visitor.getByText(title, { exact: true })).toBeVisible()
+    const fileName = '浏览器算力政策.md'
+    await admin.getByLabel(/^上传政策文件/).setInputFiles({
+      name: fileName,
+      mimeType: 'text/markdown',
+      buffer: Buffer.from('# 算力政策\n企业可申请浏览器校验服务。'),
+    })
+    await expect(admin.locator('strong').filter({ hasText: fileName })).toBeVisible()
 
-    await row.getByRole('button', { name: '下线' }).click()
-    await expect(row).toContainText('已下线')
-    const afterOffline = await visitor.request.get(`${parkUrl}/public/consult/context`)
-    expect(afterOffline.status()).toBe(200)
-    const published = (await (
-      await admin.request.get(`${parkApi}/admin/policies`)
-    ).json()) as Array<{
-      id: string
-      status: string
-    }>
-    expect(published.find((item) => item.id === policyId)?.status).toBe('offline')
-    const afterPublish = await publicVisitor.newPage()
-    await afterPublish.goto(`${parkUrl}/consult`)
-    await afterPublish.locator('#question-input').fill('园区算力服务如何申请？')
-    await afterPublish.getByRole('button', { name: /发送问题/ }).click()
-    await expect(afterPublish.getByText(/算力服务可申请/)).toBeVisible()
-    await expect(afterPublish.getByText(title, { exact: true })).toHaveCount(0)
+    const wikiSection = admin.getByRole('heading', { name: '政策知识库' }).locator('..')
+    await wikiSection.getByRole('combobox', { name: '政策知识库 Wiki' }).selectOption('')
+    await wikiSection.getByLabel(fileName).check()
+    await wikiSection.getByLabel('知识库名称').fill('浏览器政策知识库')
+    await wikiSection.getByRole('button', { name: '新建知识库' }).click()
+    await expect(wikiSection.getByRole('combobox', { name: '政策知识库 Wiki' })).toHaveValue(/.+/)
+    await wikiSection.getByRole('button', { name: '保存来源并构建' }).click()
+    await expect(wikiSection.getByText('构建成功')).toBeVisible({ timeout: 10_000 })
 
-    await admin.goto(`${parkUrl}/park/admin/quick-questions`)
-    const questionForm = admin.getByRole('heading', { name: '新建' }).locator('..')
-    await questionForm.getByLabel('问题').fill(question)
-    await questionForm.getByLabel('排序').fill('2')
-    await questionForm.getByRole('button', { name: '保存' }).click()
-    await expect(admin.getByText(question, { exact: true })).toBeVisible()
-    const questions = (await (
-      await admin.request.get(`${parkApi}/admin/quick-questions`)
-    ).json()) as Array<{
-      id: string
-      question: string
-    }>
-    questionId = questions.find((item) => item.question === question)?.id
-    expect(questionId).toBeTruthy()
-    await visitor.reload()
-    await expect(visitor.getByRole('button', { name: question })).toBeVisible()
-
-    await admin
-      .getByText(question, { exact: true })
-      .locator('..')
-      .getByRole('button', { name: '编辑' })
-      .click()
-    const editForm = admin.getByRole('heading', { name: '编辑' }).locator('..')
-    await editForm.getByLabel('排序').fill('3')
-    await editForm.getByLabel('启用').uncheck()
-    await editForm.getByRole('button', { name: '保存' }).click()
-    await expect(admin.getByText(question, { exact: true }).locator('..')).toContainText('停用')
-    await visitor.reload()
-    await expect(visitor.getByRole('button', { name: question })).toHaveCount(0)
+    expect((await admin.request.get(`${parkApi}/admin/policies`)).status()).toBe(404)
   } finally {
-    if (policyId)
-      await operator.request.patch(`${parkApi}/admin/policies/${policyId}/status`, {
-        data: { status: 'offline' },
-      })
-    if (questionId) await operator.request.delete(`${parkApi}/admin/quick-questions/${questionId}`)
-    await publicVisitor.close()
     await operator.close()
   }
+})
+
+test('content settings update the configured park name in the console', async ({ browser }) => {
+  const operator = await browser.newContext()
+  const admin = await operator.newPage()
+  let original: {
+    display_name: string
+    logo_url: string | null
+    welcome_text: string
+    park_profile: string
+    service_catalog: string
+    service_catalog_version: string
+    contact_enabled: number
+    consent_text: string
+  } | null = null
+  try {
+    await admin.goto(`${parkUrl}/park/login`)
+    await expect(admin).toHaveTitle('测试园区')
+    await admin.getByLabel('账号').fill('operator')
+    await admin.getByLabel('密码').fill('park-test-password')
+    await admin.getByRole('button', { name: '进入园区管理' }).click()
+    await expect(admin).toHaveURL(`${parkUrl}/park/admin/policies`)
+    original = (await (
+      await admin.request.get(`${parkApi}/admin/config`)
+    ).json()) as typeof original
+    await expect(
+      admin.getByRole('navigation', { name: `${original!.display_name} · 园区管理` }),
+    ).toBeVisible()
+
+    await expect(admin).toHaveTitle(original!.display_name)
+    await admin.goto(`${parkUrl}/park/admin/content`)
+    const questionsPanel = admin.getByRole('heading', { name: '快捷问题配置' }).locator('..')
+    await expect(questionsPanel.getByRole('heading', { name: '新建', exact: true })).toBeVisible()
+    await expect(admin.locator('aside').getByText('园', { exact: true })).toHaveCount(0)
+    const section = admin.getByRole('heading', { name: '园区简介 / 服务目录' }).locator('..')
+    await section.getByLabel('园区名称').fill('更新后的测试园区')
+    await section.getByLabel('联系方式处理声明').fill('浏览器更新后的联系方式处理声明。')
+    await section.getByRole('button', { name: '保存' }).click()
+    await expect(
+      admin.getByRole('navigation', { name: '更新后的测试园区 · 园区管理' }),
+    ).toBeVisible()
+    await expect(admin).toHaveTitle('更新后的测试园区')
+    await admin.reload()
+    await expect(admin).toHaveTitle('更新后的测试园区')
+    const publicContext = await admin.request.get(`${parkUrl}/public/consult/context`)
+    expect(((await publicContext.json()) as { display_name: string }).display_name).toBe(
+      '更新后的测试园区',
+    )
+    expect(((await (await admin.request.get(`${parkUrl}/public/consult/context`)).json()) as { consent_text: string }).consent_text).toBe('浏览器更新后的联系方式处理声明。')
+  } finally {
+    if (original) {
+      await admin.request.put(`${parkApi}/admin/config`, {
+        data: {
+          display_name: original.display_name,
+          logo_url: original.logo_url,
+          welcome_text: original.welcome_text,
+          park_profile: original.park_profile,
+          service_catalog: JSON.parse(original.service_catalog),
+          service_catalog_version: original.service_catalog_version,
+          contact_enabled: Boolean(original.contact_enabled),
+          consent_text: original.consent_text,
+        },
+      })
+    }
+    await operator.close()
+  }
+})
+
+test('console content scrolls independently of its menu at desktop and mobile sizes', async ({ page }) => {
+  await page.goto(`${parkUrl}/park/login`)
+  await page.getByLabel('账号').fill('operator')
+  await page.getByLabel('密码').fill('park-test-password')
+  await page.getByRole('button', { name: '进入园区管理' }).click()
+  await page.goto(`${parkUrl}/park/admin/content`)
+  await expect(page.getByRole('heading', { name: '快捷问题配置' })).toBeVisible()
+  for (const viewport of [
+    { width: 1366, height: 768 },
+    { width: 1366, height: 400 },
+    { width: 900, height: 768 },
+    { width: 375, height: 812 },
+  ]) {
+    await page.setViewportSize(viewport)
+    const sidebar = page.locator('aside')
+    const initial = await sidebar.boundingBox()
+    await page.locator('main').evaluate((element) => { element.scrollTop = 600 })
+    await expect.poll(() => page.locator('main').evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
+    expect((await sidebar.boundingBox())!.y).toBe(initial!.y)
+    expect(await page.evaluate(() => window.scrollY)).toBe(0)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1)
+    if (viewport.height === 400) {
+      await sidebar.evaluate((element) => { element.scrollTop = 50 })
+      expect(await sidebar.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
+    }
+  }
+})
+
+test('merged quick-question panel preserves create, edit, cancel and delete', async ({ page }) => {
+  await page.goto(`${parkUrl}/park/login`)
+  await page.getByLabel('账号').fill('operator')
+  await page.getByLabel('密码').fill('park-test-password')
+  await page.getByRole('button', { name: '进入园区管理' }).click()
+  await page.goto(`${parkUrl}/park/admin/content`)
+  const panel = page.getByRole('heading', { name: '快捷问题配置' }).locator('..')
+  const question = `浏览器快捷问题-${Date.now()}`
+  await panel.getByLabel('问题', { exact: true }).fill(question)
+  await panel.getByLabel('排序').fill('20')
+  await panel.getByLabel('启用', { exact: true }).uncheck()
+  await panel.getByRole('button', { name: '保存', exact: true }).click()
+  const item = panel.locator('[class*="listItem"]').filter({ hasText: question })
+  await expect(item.getByText('停用', { exact: true })).toBeVisible()
+  await item.getByRole('button', { name: '编辑', exact: true }).click()
+  await expect(panel.getByLabel('问题', { exact: true })).toHaveValue(question)
+  await panel.getByRole('button', { name: '取消', exact: true }).click()
+  await expect(panel.getByLabel('问题', { exact: true })).toHaveValue('')
+  await item.getByRole('button', { name: '编辑', exact: true }).click()
+  await panel.getByLabel('排序').fill('21')
+  await panel.getByLabel('启用', { exact: true }).check()
+  await panel.getByRole('button', { name: '保存', exact: true }).click()
+  await expect(item.getByText('启用', { exact: true })).toBeVisible()
+  await expect(item).toContainText('排序 21')
+  await item.getByRole('button', { name: '关闭', exact: true }).click()
+  await expect(item).toHaveCount(0)
+})
+
+for (const [role, landing] of [['leader', '/park/overview'], ['recruiter', '/park/leads']] as const) {
+  test(`${role} console uses the configured park title`, async ({ page }) => {
+    await page.goto(`${parkUrl}/park/login`)
+    await expect(page).toHaveTitle('测试园区')
+    await page.getByLabel('账号').fill(role)
+    await page.getByLabel('密码').fill('park-test-password')
+    await page.getByRole('button', { name: '进入园区管理' }).click()
+    await expect(page).toHaveURL(`${parkUrl}${landing}`)
+    await expect(page).toHaveTitle('测试园区')
+  })
+}
+
+test('login title falls back to the generic name when public context fails', async ({ page }) => {
+  await page.route('**/public/consult/context', (route) => route.fulfill({ status: 503, json: { error: 'UNAVAILABLE' } }))
+  await page.goto(`${parkUrl}/park/login`)
+  await expect(page).toHaveTitle('园区管理')
 })
 
 test('operator rate and redaction settings govern persisted public inquiries', async ({
@@ -188,6 +266,77 @@ test('operator rate and redaction settings govern persisted public inquiries', a
     if (redactionBefore)
       await operator.request.put(`${parkApi}/admin/redaction`, { data: redactionBefore })
     await publicVisitor.close()
+    await operator.close()
+  }
+})
+
+test('assistant page lists wiki source files with directories and delete needs confirm', async ({ browser }) => {
+  const operator = await browser.newContext()
+  try {
+    const admin = await operator.newPage()
+    await admin.goto(`${parkUrl}/park/login`)
+    await admin.getByLabel('账号').fill('operator')
+    await admin.getByLabel('密码').fill('park-test-password')
+    await admin.getByRole('button', { name: '进入园区管理' }).click()
+    await expect(admin).toHaveURL(`${parkUrl}/park/admin/policies`)
+
+    const directory = `来源目录-${Date.now()}`
+    const directorySection = admin.getByRole('heading', { name: '政策文件目录' }).locator('..')
+    await directorySection.getByLabel('目录名称').fill(directory)
+    await directorySection.getByRole('button', { name: '新建' }).click()
+    await directorySection.getByLabel('当前目录').selectOption({ label: directory })
+
+    const fileName = '来源算力政策.md'
+    await admin.getByLabel(/^上传政策文件/).setInputFiles({
+      name: fileName,
+      mimeType: 'text/markdown',
+      buffer: Buffer.from('# 算力政策\n来源清单校验内容。'),
+    })
+    await expect(admin.locator('strong').filter({ hasText: fileName })).toBeVisible()
+
+    const wikiSection = admin.getByRole('heading', { name: '政策知识库' }).locator('..')
+    await wikiSection.getByRole('combobox', { name: '政策知识库 Wiki' }).selectOption('')
+    await wikiSection.getByLabel(fileName).check()
+    await wikiSection.getByLabel('知识库名称').fill(`来源知识库-${Date.now()}`)
+    await wikiSection.getByRole('button', { name: '新建知识库' }).click()
+    const wikiSelect = wikiSection.getByRole('combobox', { name: '政策知识库 Wiki' })
+    await expect(wikiSelect).toHaveValue(/.+/)
+    const wikiId = await wikiSelect.inputValue()
+    await wikiSection.getByRole('button', { name: '保存来源并构建' }).click()
+    await expect(wikiSection.getByText('构建成功')).toBeVisible({ timeout: 10_000 })
+
+    // Assistant page shows the wiki's full source list with directory names.
+    await admin.goto(`${parkUrl}/park/admin/assistant`)
+    const assistantForm = admin.getByRole('heading', { name: 'Assistant 管理' }).locator('..')
+    await assistantForm.getByRole('combobox', { name: '政策知识库 Wiki' }).selectOption(wikiId)
+    const sourcesSection = assistantForm.locator('section').filter({
+      has: admin.getByText(/^知识库文件（\d+）$/),
+    })
+    await expect(sourcesSection.locator('strong').filter({ hasText: fileName })).toBeVisible()
+    await expect(sourcesSection.locator('p').filter({ hasText: directory })).toContainText(directory + ' · ')
+
+    // Deleting a file requires an inline second click.
+    await admin.goto(`${parkUrl}/park/admin/policies`)
+    await directorySection.getByLabel('当前目录').selectOption({ label: directory })
+    const deleteButton = admin.getByText(fileName, { exact: true }).locator('..').locator('..').getByRole('button', { name: '删除', exact: true })
+    await deleteButton.click()
+    await expect(admin.getByRole('button', { name: '确认删除？' })).toBeVisible()
+    await expect(admin.locator('strong').filter({ hasText: fileName })).toBeVisible()
+    await admin.getByRole('button', { name: '确认删除？' }).click()
+    await expect(admin.locator('strong').filter({ hasText: fileName })).toHaveCount(0)
+    await admin.goto(`${parkUrl}/park/admin/assistant`)
+    await assistantForm.getByRole('combobox', { name: '政策知识库 Wiki' }).selectOption(wikiId)
+    await expect(sourcesSection.getByText(fileName, { exact: true })).toBeVisible()
+    await expect(sourcesSection.getByText('已删除', { exact: true })).toBeVisible()
+    const positions = await admin.evaluate(() => {
+      const wiki = document.querySelector<HTMLSelectElement>('select[name="policy_wiki_id"]')!
+      const sources = [...document.querySelectorAll('section')].find(element => element.textContent?.startsWith('知识库文件'))!
+      const save = document.querySelector<HTMLButtonElement>('button[type="submit"]')!
+      return { wikiBottom: wiki.getBoundingClientRect().bottom, sourcesTop: sources.getBoundingClientRect().top, sourcesBottom: sources.getBoundingClientRect().bottom, saveTop: save.getBoundingClientRect().top }
+    })
+    expect(positions.sourcesTop).toBeGreaterThanOrEqual(positions.wikiBottom)
+    expect(positions.saveTop).toBeGreaterThan(positions.sourcesBottom)
+  } finally {
     await operator.close()
   }
 })

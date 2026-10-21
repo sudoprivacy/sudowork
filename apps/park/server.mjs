@@ -46,12 +46,12 @@ function json(res, status, value, cookie) {
   res.end(JSON.stringify(value))
 }
 
-async function readJson(req) {
+async function readJson(req, maxBytes = 1_048_576) {
   let size = 0
   const chunks = []
   for await (const chunk of req) {
     size += chunk.length
-    if (size > 1_048_576) throw new ParkBackendError(413, 'REQUEST_TOO_LARGE')
+    if (size > maxBytes) throw new ParkBackendError(413, 'REQUEST_TOO_LARGE')
     chunks.push(chunk)
   }
   try {
@@ -147,7 +147,9 @@ async function proxyParkApi(req, res, requestUrl) {
     json(res, 200, { ok: true }, clearParkCookie(publicOrigin))
     return
   }
-  const body = method === 'GET' || method === 'DELETE' ? undefined : await readJson(req)
+  // Policy document uploads carry base64 payloads up to ~70MB (50MB file × 1.33).
+  const isPolicyUpload = apiPath.startsWith('/api/v1/parks/') && apiPath.includes('/admin/policy/') && apiPath.endsWith('/documents')
+  const body = method === 'GET' || method === 'DELETE' ? undefined : await readJson(req, isPolicyUpload ? 73_400_320 : 1_048_576)
   const upstream = await backend.parkRequest(cookie, `${apiPath}${requestUrl.search}`, method, body)
   res.writeHead(upstream.status, {
     'content-type': 'application/json; charset=utf-8',

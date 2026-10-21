@@ -63,6 +63,64 @@ async function askHighIntentQuestion(page: Page): Promise<void> {
   await expect(page.getByText(/算力服务可申请/)).toBeVisible()
 }
 
+test('an expired consultation session is replaced and the question is retried once', async ({
+  page,
+}) => {
+  await beginConsultation(page)
+  await page.context().addCookies([
+    {
+      name: 'park_session',
+      value: 'stale-session',
+      domain: '127.0.0.1',
+      path: '/public',
+    },
+  ])
+  const messageStatuses: number[] = []
+  page.on('response', (response) => {
+    if (
+      new URL(response.url()).pathname.endsWith('/messages') &&
+      response.request().method() === 'POST'
+    ) {
+      messageStatuses.push(response.status())
+    }
+  })
+  await page
+    .locator('#question-input')
+    .fill('我们是人工智能企业，下个月需要 200 平米场地和算力，如何入驻？')
+  await page.locator('#question-form button[type=submit]').click()
+  await expect.poll(() => messageStatuses).toEqual([401, 200])
+  await expect(page.getByText(/算力服务可申请/)).toBeVisible()
+  const cookie = (await page.context().cookies(`${parkUrl}/public/`)).find(
+    (item) => item.name === 'park_session',
+  )
+  expect(cookie?.value).not.toBe('stale-session')
+})
+
+test('an old cookie with a different path cannot hide the current consultation session', async ({
+  page,
+}) => {
+  await beginConsultation(page)
+  await page.context().addCookies([
+    {
+      name: 'park_session',
+      value: 'stale-session',
+      domain: '127.0.0.1',
+      path: '/public/',
+    },
+  ])
+  const messageStatuses: number[] = []
+  page.on('response', (response) => {
+    if (
+      new URL(response.url()).pathname.endsWith('/messages') &&
+      response.request().method() === 'POST'
+    ) {
+      messageStatuses.push(response.status())
+    }
+  })
+  await askHighIntentQuestion(page)
+  expect(messageStatuses).toEqual([200])
+})
+
 test('park login grants only park roles and keeps the session within /park', async ({
   browser,
 }) => {
@@ -309,6 +367,10 @@ test('phone contact follows the SMS log, verification, consent and recruiter vie
   expect(unverified.status()).toBe(409)
 
   await page.getByRole('button', { name: '发送验证码' }).click()
+  await expect(page.locator('#contact-challenge')).toBeVisible()
+  const challengeAnswer = (await (await request.get(`${mossUrl}/__test__/captcha-answer`)).json()) as { answer: string }
+  await page.locator('#contact-challenge-answer').fill(challengeAnswer.answer)
+  await page.locator('#contact-challenge-submit').click()
   await expect(page.getByText('验证码已发送，请查看短信。')).toBeVisible()
   const smsLogResponse = await request.get(`${mossUrl}/__test__/sms-log`)
   expect(smsLogResponse.status()).toBe(200)
@@ -317,14 +379,12 @@ test('phone contact follows the SMS log, verification, consent and recruiter vie
   expect(sent?.code).toMatch(/^\d{6}$/)
 
   await page.locator('#phone-code').fill(sent!.code === '000000' ? '999999' : '000000')
-  await page.getByRole('button', { name: '核验验证码' }).click()
-  await expect(page.getByText('验证码发送或核验失败，请稍后重试。')).toBeVisible()
+  await page.getByRole('button', { name: /提交联系意向/ }).click()
+  await expect(page.getByText('短信验证码错误或已过期，请重新获取。')).toBeVisible()
   const stillUnverified = await page.request.post(contactPath, { data: { phone, consent: true } })
   expect(stillUnverified.status()).toBe(409)
 
   await page.locator('#phone-code').fill(sent!.code)
-  await page.getByRole('button', { name: '核验验证码' }).click()
-  await expect(page.getByText('手机号码已验证。')).toBeVisible()
   await page.getByRole('button', { name: /提交联系意向/ }).click()
   await expect(page.getByText('联系意向已提交，园区工作人员可按所留方式与您联系。')).toBeVisible()
 
@@ -352,7 +412,7 @@ test('phone contact follows the SMS log, verification, consent and recruiter vie
     expect(detail.contact_status).toBe('verified')
     expect(detail.contact.phone).toBe(phone)
     expect(detail.contact.phone_verified_at).toBeGreaterThan(0)
-    expect(detail.contact.consent_text).toContain('同意')
+    expect(detail.contact.consent_text).toBe('本园区仅为招商对接目的处理您主动提交的联系方式。')
     expect(detail.contact.consent_at).toBeGreaterThan(0)
     expect(detail.contact.retention_until).toBeGreaterThan(detail.contact.consent_at)
   } finally {
@@ -393,8 +453,8 @@ test('all fourteen internal routes render the data for their assigned role', asy
       role: 'operator',
       landing: '/park/admin/policies',
       entries: [
-        ['/park/admin/policies', '政策管理', 'admin/policies'],
-        ['/park/admin/quick-questions', '快捷问题', 'admin/quick-questions'],
+        ['/park/admin/policies', '政策管理', 'admin/policy/tree'],
+        ['/park/admin/content', '内容设置', 'admin/config'],
         ['/park/admin/assistant', 'Assistant 管理', 'admin/assistant'],
         ['/park/admin/public-links', '公开链接', 'admin/public-links'],
         ['/park/admin/rate-limits', '限流配置', 'admin/rate-limits'],
@@ -414,6 +474,9 @@ test('all fourteen internal routes render the data for their assigned role', asy
         await internal.goto(`${parkUrl}${path}`)
         await expect(
           internal.getByRole('heading', { name: title, exact: true, level: 1 }),
+        ).toBeVisible()
+        await expect(
+          internal.getByRole('navigation', { name: '测试园区 · 园区管理' }),
         ).toBeVisible()
         await expect(internal.getByText('正在加载园区数据…')).toHaveCount(0)
         await expect(internal.getByText('数据加载失败，请稍后重试。')).toHaveCount(0)

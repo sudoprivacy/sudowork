@@ -1,0 +1,26 @@
+{
+  "server": { "host": "127.0.0.1", "port": 4174 },
+  "auth": { "mode": "local", "tokenTtlSec": 3600 },
+  "bootstrapAdmin": {
+    "username": "park-admin",
+    "password": "park-acceptance-admin-password"
+  },
+  "storage": {},
+  "runtimeDefaults": {
+    "type": "host",
+    "engine": "scode",
+    "dockerMode": "session",
+    "idleTimeoutMs": 600000,
+    "maxSessions": 32
+  },
+  "wikiIndex": { "enabled": false },
+  "phoneAuth": {
+    "enabled": true,
+    "delivery": "log",
+    "codeTtlSec": 300,
+    "resendCooldownSec": 1,
+    "maxSendsPerHour": 30,
+    "maxVerifyAttempts": 5,
+    "autoCreateOrg": false
+  }
+}

@@ -1,12 +1,19 @@
 .shell {
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
   display: grid;
   grid-template-columns: 226px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   background: #f4f2ed;
   color: #162a43;
   font-family: 'Source Sans 3', 'Microsoft YaHei UI', sans-serif;
 }
 .sidebar {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   background: #122d4b;
   color: #dce5e8;
   padding: 28px 17px;
@@ -22,17 +29,11 @@
   font-size: 14px;
   line-height: 1.4;
 }
-.brandMark {
-  width: 32px;
-  height: 32px;
+.brandLogo {
+  width: 38px;
+  height: 38px;
+  object-fit: contain;
   flex: none;
-  border: 1px solid #d7bd8f;
-  color: #f1e2c0;
-  display: grid;
-  place-items: center;
-  font:
-    19px Georgia,
-    serif;
 }
 .nav {
   display: grid;
@@ -58,8 +59,13 @@
 }
 .workspace {
   min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 .topbar {
+  flex-shrink: 0;
   height: 70px;
   background: #fffefb;
   border-bottom: 1px solid #e1e2dc;
@@ -97,8 +103,13 @@
   border-radius: 3px;
 }
 .main {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
   max-width: 1620px;
-  margin: auto;
+  margin: 0 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 30px 36px 70px;
 }
 .pageHeading {
@@ -407,6 +418,9 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px 17px;
 }
+.contentForm {
+  align-items: start;
+}
 .field {
   display: grid;
   gap: 7px;
@@ -499,8 +513,10 @@
 @media (max-width: 900px) {
   .shell {
     grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
   }
   .sidebar {
+    max-height: 40dvh;
     padding: 13px 18px;
   }
   .brand {
@@ -508,6 +524,7 @@
     border: 0;
   }
   .nav {
+    flex-shrink: 0;
     display: flex;
     overflow: auto;
     margin-top: 12px;
@@ -535,6 +552,9 @@
   .detailMeta {
     grid-template-columns: 1fr 1fr;
   }
+  .contentForm {
+    grid-template-columns: 1fr;
+  }
   .panel {
     padding: 18px;
   }
@@ -550,4 +570,14 @@
   .donut {
     margin-bottom: 18px;
   }
+}
+
+.caption {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.caption strong {
+  font-size: 13px;
 }

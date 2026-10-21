@@ -55,7 +55,11 @@ function App() {
             <Route path="/park/leads/:leadId" element={<ParkConsole />} />
             <Route path="/park/follow-ups" element={<ParkConsole />} />
             <Route path="/park/admin/policies" element={<ParkConsole />} />
-            <Route path="/park/admin/quick-questions" element={<ParkConsole />} />
+            <Route path="/park/admin/content" element={<ParkConsole />} />
+            <Route
+              path="/park/admin/quick-questions"
+              element={<Navigate to="/park/admin/content" replace />}
+            />
             <Route path="/park/admin/assistant" element={<ParkConsole />} />
             <Route path="/park/admin/public-links" element={<ParkConsole />} />
             <Route path="/park/admin/rate-limits" element={<ParkConsole />} />

@@ -83,18 +83,6 @@
   align-items: center;
   gap: 13px;
 }
-.assistant-seal {
-  display: grid;
-  place-items: center;
-  width: 35px;
-  height: 35px;
-  flex: none;
-  border: 1px solid #c3a772;
-  background: #ffffff0e;
-  color: #ead6a7;
-  font: 20px var(--display);
-  border-radius: 5px;
-}
 .assistant-heading {
   display: grid;
   gap: 3px;
@@ -287,13 +275,9 @@
 }
 .composer-actions {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
   gap: 15px;
-}
-.composer-actions > span {
-  font-size: 10px;
-  color: #8b979d;
 }
 .composer-actions button {
   border: 0;
@@ -306,6 +290,14 @@
 }
 .composer-actions button:hover {
   background: #254e78;
+}
+.composer-actions button:disabled {
+  background: #c8ced1;
+  color: #66737b;
+  cursor: not-allowed;
+}
+.composer-actions button:disabled span {
+  color: inherit;
 }
 .composer-actions button span {
   margin-left: 10px;
@@ -320,8 +312,32 @@
   line-height: 1.6;
 }
 .contact-form-section[hidden],
-.challenge-panel[hidden] {
+.challenge-panel[hidden],
+.phone-verification[hidden],
+.contact-challenge[hidden],
+.session-reminder[hidden] {
   display: none !important;
+}
+.session-reminder {
+  margin: 12px 22px 0;
+  border: 1px solid #e3c186;
+  border-radius: 4px;
+  background: #fff8e8;
+  color: #705522;
+  padding: 9px 12px;
+  font-size: 11px;
+  line-height: 1.55;
+}
+.system-message {
+  align-self: center;
+  max-width: 92%;
+  border: 1px solid #d8dee2;
+  border-radius: 999px;
+  background: #f5f7f8;
+  color: #60717d;
+  padding: 7px 13px;
+  font-size: 10px;
+  text-align: center;
 }
 .contact-form-section {
   margin: 26px auto 0;
@@ -447,11 +463,6 @@
     padding: 10px 12px;
     gap: 8px;
   }
-  .assistant-seal {
-    width: 31px;
-    height: 31px;
-    font-size: 17px;
-  }
   .assistant-heading strong {
     font-size: 12px;
   }
@@ -510,9 +521,6 @@
   .question-composer textarea {
     min-height: 37px;
     font-size: 11px;
-  }
-  .composer-actions > span {
-    font-size: 8px;
   }
   .composer-actions button {
     padding: 8px 10px;
