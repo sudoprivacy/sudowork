@@ -144,5 +144,20 @@
   "external.protocol.noRun": "This protocol did not return a remote task ID.",
   "external.protocol.response": "Response ID: {{id}}",
   "external.protocol.trace": "Gateway trace: {{id}}",
-  "external.protocol.usage": "Provider-reported tokens: input {{input}}, output {{output}}. This is not verified billing."
+  "external.protocol.usage": "Provider-reported tokens: input {{input}}, output {{output}}. This is not verified billing.",
+  "hosted": {
+    "directory": "Internally hosted",
+    "description": "Hosted agents published and authorized by your organization.",
+    "unavailable": "Hosted tasks are unavailable or your access has changed. Refresh to try again.",
+    "version": "Pinned version: {{version}}",
+    "synthetic": "Synthetic test text only. Each turn runs independently without chat history. Do not enter real business data.",
+    "cancel": "Request cancellation",
+    "cancelRequested": "Cancellation requested; verifying execution and credential cleanup",
+    "cancelled": "Cancelled",
+    "actionFailed": "Operation unconfirmed. Refresh the task before retrying. Tasks are never resubmitted automatically.",
+    "unknown": "Outcome unknown. Reconciliation only cleans up execution and credentials; it never resubmits the task or declares success.",
+    "reconcile": "Reconcile execution and cleanup",
+    "closeNote": "Record the reconciliation conclusion (does not change the outcome)",
+    "close": "Close this conversation"
+  }
 }

@@ -14,7 +14,7 @@ import { useAgentEntry } from '@renderer/pages/conversation/hooks/useAgentEntry'
 
 const itemKey = (item: { source: string; id: string }) => `${item.source}:${item.id}`;
 
-export default function MossCatalogBrowser({ kind, customContent, builtinContent, publishedContent, onCreate, onInstalled }: IMossCatalogBrowserProps) {
+export default function MossCatalogBrowser({ kind, customContent, builtinContent, publishedContent, hostedContent, onCreate, onInstalled }: IMossCatalogBrowserProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { onOpenAgent } = useAgentEntry();
@@ -203,6 +203,7 @@ export default function MossCatalogBrowser({ kind, customContent, builtinContent
       <div className='flex-1 min-h-0 overflow-auto pb-4'>
         {tab === 'tenant' && publishedContent?.(query)}
         {tab === 'tenant' && kind === 'agents' && <Typography.Title heading={5}>{t('agent.external.published.nativeTitle')}</Typography.Title>}
+        {tab === 'tenant' && kind === 'agents' && hostedContent?.(query)}
         {tab === 'installed' ? (
           <>
             <div className={styles.grid}>
@@ -498,6 +499,7 @@ interface IMossCatalogBrowserProps {
   customContent: React.ReactNode;
   builtinContent?: React.ReactNode;
   publishedContent?: (query: string) => React.ReactNode;
+  hostedContent?: (query: string) => React.ReactNode;
   onCreate: () => void;
   onInstalled: () => Promise<void>;
 }

@@ -4,7 +4,7 @@ const state = vi.hoisted(() => ({ scope: 'account-a', request: vi.fn(), token: v
 vi.mock('electron', () => ({ net: { fetch: state.request } }));
 vi.mock('@process/initStorage', () => ({ ProcessConfig: { getSync: (key: string) => (key === 'eeclaw.serverUrl' ? 'http://moss.test' : state.scope) } }));
 vi.mock('@process/bridge/eeclawBridge', () => ({ getValidToken: state.token }));
-import { externalProviderPort } from '@process/services/mossExternalProviders';
+import { externalProviderPort, hostedTaskPort } from '@process/services/mossExternalProviders';
 afterEach(() => vi.useRealTimers());
 beforeEach(() => {
   vi.clearAllMocks();
@@ -81,4 +81,12 @@ it('aborts a stalled HTTP request without automatically retrying', async () => {
   await rejected;
   expect(signal.aborted).toBe(true);
   expect(state.request).toHaveBeenCalledTimes(1);
+});
+
+it('hosted transport refreshes once with the same formal request', async () => {
+  state.request.mockResolvedValueOnce(Response.json({}, { status: 401 })).mockResolvedValueOnce(Response.json({ success: true, data: [] }));
+  await expect(hostedTaskPort.create({ agent_id: 'a', requested_version: 'v1', query: 'synthetic', idempotency_key: 'hosted-key-123' })).rejects.toThrow();
+  expect(state.request).toHaveBeenCalledTimes(2);
+  expect(state.request.mock.calls[0][1].body).toBe(state.request.mock.calls[1][1].body);
+  expect(JSON.parse(state.request.mock.calls[0][1].body).kind).toBe('SubmitTask');
 });

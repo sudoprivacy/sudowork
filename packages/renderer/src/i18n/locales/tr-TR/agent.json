@@ -144,5 +144,20 @@
   "external.protocol.noRun": "Bu protokol uzak görev kimliği döndürmedi.",
   "external.protocol.response": "Yanıt kimliği: {{id}}",
   "external.protocol.trace": "Ağ geçidi izi: {{id}}",
-  "external.protocol.usage": "Sağlayıcının bildirdiği token: giriş {{input}}, çıkış {{output}}. Doğrulanmış faturalandırma değildir."
+  "external.protocol.usage": "Sağlayıcının bildirdiği token: giriş {{input}}, çıkış {{output}}. Doğrulanmış faturalandırma değildir.",
+  "hosted": {
+    "directory": "Dahili barındırma",
+    "description": "Kuruluşunuzun yayımladığı ve kullanım izni verdiği aracılar.",
+    "unavailable": "Hizmet kullanılamıyor veya erişiminiz değişti. Yenileyin.",
+    "version": "Sabit sürüm: {{version}}",
+    "synthetic": "Yalnızca sentetik test metni desteklenir. Her tur geçmiş olmadan bağımsız çalışır. Gerçek iş verileri girmeyin.",
+    "cancel": "İptal iste",
+    "cancelRequested": "İptal istendi; yürütme ve kimlik bilgisi temizliği doğrulanıyor",
+    "cancelled": "İptal edildi",
+    "actionFailed": "İşlem doğrulanamadı. Yeniden denemeden önce durumu yenileyin. Görevler otomatik gönderilmez.",
+    "unknown": "Sonuç bilinmiyor. Uzlaştırma yalnızca yürütmeyi ve kimlik bilgilerini temizler; görevi yeniden göndermez veya başarılı saymaz.",
+    "reconcile": "Yürütme ve temizliği doğrula",
+    "closeNote": "Uzlaştırma sonucunu girin (görev sonucu değişmez)",
+    "close": "Bu konuşmayı kapat"
+  }
 }

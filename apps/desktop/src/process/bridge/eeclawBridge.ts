@@ -6,7 +6,7 @@
 
 import { net } from 'electron';
 import { hasValidLoginIdentity } from '@sudowork/common/authLogin';
-import { externalProviderPort } from '@process/services/mossExternalProviders';
+import { hostedTaskPort, externalProviderPort } from '@process/services/mossExternalProviders';
 import { ipcBridge } from '@/common';
 // Match renderer SMS requests: Chromium honors system proxies and certificate settings.
 import { ProcessConfig } from '@process/initStorage';
@@ -558,6 +558,62 @@ export function initEeclawBridge(): void {
    * it knows which of the three kinds a stored reference is and where each
    * kind's name lives.
    */
+  ipcBridge.hostedTasks.agents.provider(async () => {
+    try {
+      return { success: true, data: await hostedTaskPort.agents() };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'HOSTED_TASK_REQUEST_FAILED' };
+    }
+  });
+  ipcBridge.hostedTasks.sessions.provider(async () => {
+    try {
+      return { success: true, data: await hostedTaskPort.sessions() };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'HOSTED_TASK_REQUEST_FAILED' };
+    }
+  });
+  ipcBridge.hostedTasks.history.provider(async (input) => {
+    try {
+      return { success: true, data: await hostedTaskPort.history(input.sessionId) };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'HOSTED_TASK_REQUEST_FAILED' };
+    }
+  });
+  ipcBridge.hostedTasks.create.provider(async (input) => {
+    try {
+      return { success: true, data: await hostedTaskPort.create(input) };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'HOSTED_TASK_REQUEST_FAILED' };
+    }
+  });
+  ipcBridge.hostedTasks.events.provider(async (input) => {
+    try {
+      return { success: true, data: await hostedTaskPort.events(input.taskId, input.cursor) };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'HOSTED_TASK_REQUEST_FAILED' };
+    }
+  });
+  ipcBridge.hostedTasks.cancel.provider(async (input) => {
+    try {
+      return { success: true, data: await hostedTaskPort.cancel(input.taskId) };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'HOSTED_TASK_REQUEST_FAILED' };
+    }
+  });
+  ipcBridge.hostedTasks.reconcile.provider(async (input) => {
+    try {
+      return { success: true, data: await hostedTaskPort.reconcile(input.taskId) };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'HOSTED_TASK_REQUEST_FAILED' };
+    }
+  });
+  ipcBridge.hostedTasks.close.provider(async (input) => {
+    try {
+      return { success: true, data: await hostedTaskPort.close(input.taskId, input.note) };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'HOSTED_TASK_REQUEST_FAILED' };
+    }
+  });
   ipcBridge.externalProviders.context.provider(async () => {
     const server = ProcessConfig.getSync('eeclaw.serverUrl');
     const scope = ProcessConfig.getSync('eeclaw.accountScope');

@@ -87,6 +87,7 @@ const mainAliases = [
   // Bundle the shared workspace packages from source (see externalizeDepsPlugin
   // exclude below) so the packaged/dev main process never depends on a prior
   // `dist` build of them.
+  { find: '@sudowork/moss-client/hosted-tasks', replacement: resolve('../../packages/moss-client/src/MossHostedTaskClient.ts') },
   { find: '@sudowork/moss-client/external-providers', replacement: resolve('../../packages/moss-client/src/MossExternalProviderClient.ts') },
   { find: '@sudowork/moss-client/agents', replacement: resolve('../../packages/moss-client/src/MossAgentClient.ts') },
   { find: '@sudowork/moss-client', replacement: resolve('../../packages/moss-client/src/index.ts') },
@@ -238,6 +239,7 @@ export default defineConfig(({ mode }) => {
           browserPageViewAlias,
           browserSessionContractAlias,
           ...commonAliasEntries(),
+          { find: '@sudowork/moss-client/hosted-tasks', replacement: resolve('../../packages/moss-client/src/MossHostedTaskClient.ts') },
           { find: '@sudowork/moss-client/external-providers', replacement: resolve('../../packages/moss-client/src/MossExternalProviderClient.ts') },
           { find: '@sudowork/contracts/external-provider', replacement: resolve('../../packages/contracts/src/external-provider.gen.ts') },
           { find: '@sudowork/contracts/task', replacement: resolve('../../packages/contracts/src/task.gen.ts') },

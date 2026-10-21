@@ -18,6 +18,7 @@ const requireFromHostBridge = createRequire(abs('../../packages/host-bridge/pack
 const officeAiPlatformEntry = requireFromHostBridge.resolve('@office-ai/platform')
 
 const bridgeAlias = [
+  { find: '@sudowork/moss-client/hosted-tasks', replacement: abs('../../packages/moss-client/src/MossHostedTaskClient.ts') },
   browserPageViewAlias,
   {
     find: '@sudowork/contracts/browser-session',
@@ -59,7 +60,9 @@ export default defineConfig({
     // Bound Windows worker startup and DOM contention without extending test deadlines.
     maxWorkers: process.platform === 'win32' ? 2 : undefined,
     coverage: {
-      include: ['src/**/*.{ts,tsx}'],
+      include: [
+        '../../packages/moss-client/src/MossHostedTaskClient.ts',
+        '../../packages/renderer/src/pages/hosted-agents/**/*.{ts,tsx}','src/**/*.{ts,tsx}'],
     },
     projects: [
       {

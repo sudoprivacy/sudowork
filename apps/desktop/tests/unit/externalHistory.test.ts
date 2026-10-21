@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { hostedSessionView } from '@renderer/pages/hosted-agents/navigation';
 import type { GroupedHistoryResult } from '@renderer/pages/conversation/grouped-history/types';
 import { externalSessionView } from '@renderer/pages/external-agents/navigation';
 import { mergeExternalHistory } from '@renderer/pages/external-agents/history';
@@ -31,4 +32,15 @@ describe('external conversation projections', () => {
 
     expect(mergeExternalHistory(history, [external], (key) => key).timelineSections[0].items.map((item) => item.conversation?.id)).toEqual(['native-a', 'external:session-z']);
   });
+});
+
+it('keeps hosted sessions distinct from external/native sessions and out of personal groups', () => {
+  const now = Date.now();
+  const history: GroupedHistoryResult = { pinnedTimeline: [], pinnedScheduled: [], scheduledGroups: [], agentGroups: [], timelineSections: [] };
+  const hosted = hostedSessionView({ id: 'same-id', agent_id: 'catalog', title: 'Hosted', updated_at: now, status: 'running', closed: false });
+  const external = externalSessionView({ id: 'same-id', agent_id: 'catalog', agent_name: 'External', title: 'External', created_at: now, updated_at: now, active_task_id: null });
+  const merged = mergeExternalHistory(history, [hosted, external], (key) => key);
+  expect(merged.timelineSections.flatMap((section) => section.items).map((item) => item.conversation?.id)).toEqual(['hosted:same-id', 'external:same-id']);
+  expect(merged.agentGroups).toEqual([]);
+  expect(hosted.type).toBe('hosted-artifact');
 });

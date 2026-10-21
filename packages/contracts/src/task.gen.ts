@@ -1,4 +1,4 @@
-// Derived from Moss 9a4717d82704a69d2a7a12ad1591ed4a48db9b30:contracts/task/v1alpha1/contract.ts. DO NOT EDIT.
+// Derived from Moss 56bba4747bbce69af1bda6e55ab9c6c31efd94bd:contracts/task/v1alpha1/contract.ts. DO NOT EDIT.
 import type { ResourceRef } from '@sudo/contracts/common/v1/resource-ref'
 
 /** Product Task ingress implementation; ADR-003/004 remain Proposed. */
@@ -53,10 +53,90 @@ export type TaskExecutionResolution = ResolutionBase & (
     configuration_revision: number
     provider_kind: 'dify' | 'custom_http'
   }
+  | {
+    status: 'accepted'
+    attempt_id: string
+    execution_mode: 'internal_hosted'
+    resolved_runtime: 'hosted_artifact'
+    runtime_authority_id: string
+    resolution_mode: 'default'
+    governance_org_id: string
+    catalog_id: string
+    asset_id: string
+    artifact_id: string
+    metadata_digest: string
+    agent: { principal: AgentPrincipalRef; version: string; source_digest: string; version_evidence: 'immutable_hosted_artifact'; registry: { authority: 'nexus_registry'; principal: AgentPrincipalRef; registration_digest: string; signing_key_id: string; evidence: 'signed_registration_only' }; release_digest: string; resolved_from_channel?: string; channel_revision?: number }
+    artifact: { spec_digest: string; image_id: string; dependency_lock_digest: string; profile: 'dify-0.6.0-linear-text-v1' | 'langgraph-stdio-v1' }
+    limits: { timeout_ms: number; max_model_calls: number }
+  }
 )
 export interface TaskRecord {
   api_version: typeof TASK_API
   kind: 'TaskRecord'
   spec: TaskSpec
   resolution: TaskExecutionResolution
+}
+
+/** Text-only internal hosted task projection, separate from ExternalTask. */
+export interface HostedTask {
+  api_version: typeof TASK_API
+  kind: 'HostedTask'
+  id: string
+  session_id: string
+  catalog_id: string
+  asset_id: string
+  attempt_id: string | null
+  status: 'accepted' | 'dispatching' | 'running' | 'succeeded' | 'failed' | 'rejected' | 'unknown' | 'cancelled'
+  query: string
+  answer: string
+  error_code: string | null
+  created_at: number
+  updated_at: number
+  deadline_at: number
+  session_sequence: number
+  sequence: number
+  cleanup: 'not_started' | 'pending' | 'confirmed' | 'unknown'
+  cancel_requested_at: number | null
+}
+export interface HostedTaskEvent {
+  api_version: typeof TASK_API
+  kind: 'HostedTaskEvent'
+  task_id: string
+  sequence: number
+  created_at: number
+  type: 'status' | 'trace'
+  task: HostedTask
+  trace?: { node: string; phase: 'started' | 'completed'; origin: 'worker_reported' }
+}
+
+export interface HostedAgent {
+  api_version: typeof TASK_API
+  kind: 'HostedAgent'
+  id: string
+  name: string
+  description: string | null
+  execution_mode: 'internal_hosted'
+  asset_id: string
+  version: string
+  spec_digest: string
+  source_platform: string
+  data_scope: 'synthetic'
+  conversation_mode: 'independent_turns'
+}
+export interface HostedSession {
+  id: string
+  agent_id: string
+  title: string
+  updated_at: number
+  status: string
+  closed: boolean
+}
+export interface HostedEventsPage {
+  api_version: typeof TASK_API
+  kind: 'HostedEventsPage'
+  task?: HostedTask
+  snapshot_sequence?: number
+  events: HostedTaskEvent[]
+  next_cursor: number
+  has_more: boolean
 }

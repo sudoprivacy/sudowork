@@ -1,3 +1,5 @@
+import { createMossHostedTaskPort, type HostedTaskInput } from '@sudowork/moss-client/hosted-tasks'
+import type { MossAgentFetch } from '@sudowork/moss-client/agents'
 import type * as ExternalContract from '@sudowork/contracts/external-provider'
 import {
   createMossExternalProviderPort,
@@ -209,7 +211,7 @@ export async function readExternalContext(signal: AbortSignal) {
   }
   return context
 }
-export const externalBrowserPort = createMossExternalProviderPort((request) =>
+const requestMossTask: MossAgentFetch = (request) =>
   withExternalRequestDeadline(async (signal) => {
     if (!externalIdentity) await readExternalContext(signal)
     const identity = externalIdentity
@@ -223,8 +225,9 @@ export const externalBrowserPort = createMossExternalProviderPort((request) =>
     signal.throwIfAborted()
     if (identity !== externalIdentity) throw new Error('EXTERNAL_IDENTITY_CHANGED')
     return result
-  }),
-)
+  })
+export const externalBrowserPort = createMossExternalProviderPort(requestMossTask)
+export const hostedBrowserPort = createMossHostedTaskPort(requestMossTask)
 const externalProviderPort = externalBrowserPort
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -1757,6 +1760,14 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
   // of the three kinds a stored reference is and where each kind's name lives;
   // doing it here would put the template-is-not-an-agent distinction into the
   // browser and give it a reason to read the organization catalog.
+  'hosted-tasks.agents': async () => ok(await hostedBrowserPort.agents()),
+  'hosted-tasks.sessions': async () => ok(await hostedBrowserPort.sessions()),
+  'hosted-tasks.history': async (req) => ok(await hostedBrowserPort.history((req as { sessionId: string }).sessionId)),
+  'hosted-tasks.create': async (req) => ok(await hostedBrowserPort.create(req as unknown as HostedTaskInput)),
+  'hosted-tasks.events': async (req) => { const input = req as { taskId: string; cursor: number }; return ok(await hostedBrowserPort.events(input.taskId, input.cursor)) },
+  'hosted-tasks.cancel': async (req) => ok(await hostedBrowserPort.cancel((req as { taskId: string }).taskId)),
+  'hosted-tasks.reconcile': async (req) => ok(await hostedBrowserPort.reconcile((req as { taskId: string }).taskId)),
+  'hosted-tasks.close': async (req) => { const input = req as { taskId: string; note: string }; return ok(await hostedBrowserPort.close(input.taskId, input.note)) },
   'external-providers.context': async () => withExternalRequestDeadline(readExternalContext),
   'external-providers.access': async () => {
     return ok(await externalProviderPort.access())

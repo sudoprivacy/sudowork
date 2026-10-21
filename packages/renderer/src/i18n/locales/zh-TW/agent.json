@@ -144,5 +144,20 @@
   "external.protocol.noRun": "此協定未傳回遠端任務編號。",
   "external.protocol.response": "回應編號：{{id}}",
   "external.protocol.trace": "閘道追蹤：{{id}}",
-  "external.protocol.usage": "服務方回報的 Token：輸入 {{input}}，輸出 {{output}}。不代表已核驗計費。"
+  "external.protocol.usage": "服務方回報的 Token：輸入 {{input}}，輸出 {{output}}。不代表已核驗計費。",
+  "hosted": {
+    "directory": "內部託管",
+    "description": "組織已審核發布並授權給你的託管智慧體。",
+    "unavailable": "內部託管服務暫不可用，或目前權限已變更。請重新整理。",
+    "version": "固定版本：{{version}}",
+    "synthetic": "目前僅支援合成測試文字，每輪獨立執行，不攜帶歷史上下文。請勿輸入真實業務資料。",
+    "cancel": "請求取消",
+    "cancelRequested": "已請求取消，正在確認執行停止及憑證回收",
+    "cancelled": "已取消",
+    "actionFailed": "操作未確認，請重新整理任務狀態後重試；不會自動重送任務。",
+    "unknown": "執行結果待核對。核對僅清理殘留執行和憑證，不會重送任務或將結果改為成功。",
+    "reconcile": "核對執行與回收",
+    "closeNote": "填寫核對結論（不會改變任務結果）",
+    "close": "關閉此對話"
+  }
 }

@@ -180,3 +180,15 @@ it('bounds token refresh and never dispatches a late retry after the proxy deadl
     vi.useRealTimers()
   }
 })
+
+it('hosted routes require a session and forward cleanup under the same caller', async () => {
+  expect((await request(app()).get('/api/v1/hosted-agents')).status).toBe(401)
+  await request(app('member')).get('/api/v1/hosted-agents?after=cursor')
+  expect(upstream).toHaveBeenLastCalledWith('http://moss.test', { method: 'GET', path: '/api/v1/hosted-agents', accessToken: 'member', searchParams: { after: 'cursor' } }, expect.any(Number))
+  for (const action of ['cancel', 'reconcile', 'close']) {
+    const body = action === 'close' ? { note: 'Cleanup confirmed' } : {}
+    await request(app('member')).post(`/api/v1/tasks/task-1/${action}`).send(body)
+    expect(upstream).toHaveBeenLastCalledWith('http://moss.test', { method: 'POST', path: `/api/v1/tasks/task-1/${action}`, accessToken: 'member', body }, expect.any(Number))
+  }
+  expect((await request(app('member')).post('/api/v1/hosted-agents/register').send({})).status).toBe(404)
+})

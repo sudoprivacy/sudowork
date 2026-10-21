@@ -1,3 +1,4 @@
+import PublishedHostedAgents from '@renderer/pages/hosted-agents/PublishedHostedAgents';
 import PublishedExternalAgents from '@renderer/pages/external-agents/PublishedExternalAgents';
 /**
  * @license
@@ -1728,6 +1729,7 @@ const AgentSettings: React.FC = () => {
           <MossCatalogBrowser
             kind='agents'
             publishedContent={(query) => <PublishedExternalAgents query={query} />}
+            hostedContent={(query) => <PublishedHostedAgents query={query} />}
             customContent={renderCustomAssistantGridWithEnterpriseActions(customAssistants)}
             onCreate={() => {
               void handleCreate();
@@ -1819,6 +1821,7 @@ const AgentSettings: React.FC = () => {
                     <>
                       <PublishedExternalAgents query={hubSearchQuery} />
                       <Typography.Title heading={5}>{t('agent.external.published.nativeTitle')}</Typography.Title>
+                      <PublishedHostedAgents query={hubSearchQuery} />
                     </>
                   )}
                   {/* Enterprise mode: show tenant assistants from local tenant/ directory */}

@@ -144,5 +144,20 @@
   "external.protocol.noRun": "此协议未返回远端任务编号。",
   "external.protocol.response": "响应编号：{{id}}",
   "external.protocol.trace": "网关追踪：{{id}}",
-  "external.protocol.usage": "服务方报告的 Token：输入 {{input}}，输出 {{output}}。不代表已核验计费。"
+  "external.protocol.usage": "服务方报告的 Token：输入 {{input}}，输出 {{output}}。不代表已核验计费。",
+  "hosted": {
+    "directory": "内部托管",
+    "description": "组织已审核发布并授权给你的托管智能体。",
+    "unavailable": "内部托管服务暂不可用，或当前权限已变化。请刷新重试。",
+    "version": "固定版本：{{version}}",
+    "synthetic": "当前仅支持合成测试文本，每轮独立执行，不携带历史上下文。请勿输入真实业务资料。",
+    "cancel": "请求取消",
+    "cancelRequested": "取消已请求，正在确认执行停止和凭证回收",
+    "cancelled": "已取消",
+    "actionFailed": "操作未确认，请刷新任务状态后重试；任务不会自动重发。",
+    "unknown": "执行结果待核对。核对仅清理残留执行和凭证，不会重发任务或将结果改成成功。",
+    "reconcile": "核对执行与回收",
+    "closeNote": "填写核对结论（不会改变任务结果）",
+    "close": "关闭此会话"
+  }
 }

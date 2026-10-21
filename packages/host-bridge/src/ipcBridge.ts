@@ -1,3 +1,4 @@
+import type { HostedAgent, HostedTask, HostedSession, HostedEventsPage } from '@sudowork/contracts/task';
 import type { AgentReleaseOptions } from '@sudowork/contracts/agent-federation';
 import type { ExternalTaskEvidence } from '@sudowork/contracts/external-provider';
 import type { ExternalProviderAccess, ExternalPilotPolicy, ExternalAgentAdmin, ExternalProviderMember, ExternalConnectionInspection, InspectExternalConnection, OnboardExternalAgent, UpdateExternalAgent , CreateExternalTask, ExternalAgent, ExternalEventsPage, ExternalSession, ExternalTask } from '@sudowork/contracts/external-provider';
@@ -3653,4 +3654,15 @@ export const externalProviders = {
     IBridgeResponse<ExternalEventsPage>,
     { taskId: string; cursor: number }
   >("external-providers.events"),
+};
+
+export const hostedTasks = {
+  agents: bridge.buildProvider<IBridgeResponse<HostedAgent[]>, void>('hosted-tasks.agents'),
+  sessions: bridge.buildProvider<IBridgeResponse<HostedSession[]>, void>('hosted-tasks.sessions'),
+  history: bridge.buildProvider<IBridgeResponse<HostedTask[]>, { sessionId: string }>('hosted-tasks.history'),
+  create: bridge.buildProvider<IBridgeResponse<HostedTask>, { agent_id: string; requested_version?: string; session_id?: string; query: string; idempotency_key: string }>('hosted-tasks.create'),
+  events: bridge.buildProvider<IBridgeResponse<HostedEventsPage>, { taskId: string; cursor: number }>('hosted-tasks.events'),
+  cancel: bridge.buildProvider<IBridgeResponse<HostedTask>, { taskId: string }>('hosted-tasks.cancel'),
+  reconcile: bridge.buildProvider<IBridgeResponse<HostedTask>, { taskId: string }>('hosted-tasks.reconcile'),
+  close: bridge.buildProvider<IBridgeResponse<HostedTask>, { taskId: string; note: string }>('hosted-tasks.close'),
 };

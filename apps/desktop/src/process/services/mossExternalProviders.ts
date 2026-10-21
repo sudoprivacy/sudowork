@@ -1,9 +1,11 @@
 import { net } from 'electron';
+import { createMossHostedTaskPort } from '@sudowork/moss-client/hosted-tasks';
+import type { MossAgentFetch } from '@sudowork/moss-client/agents';
 import { createMossExternalProviderPort, withExternalRequestDeadline } from '@sudowork/moss-client/external-providers';
 import { ProcessConfig } from '@process/initStorage';
 import { getValidToken } from '@process/bridge/eeclawBridge';
 
-export const externalProviderPort = createMossExternalProviderPort((request) =>
+const requestMossTask: MossAgentFetch = (request) =>
   withExternalRequestDeadline(async (signal) => {
     const server = ProcessConfig.getSync('eeclaw.serverUrl');
     const scope = ProcessConfig.getSync('eeclaw.accountScope');
@@ -37,5 +39,6 @@ export const externalProviderPort = createMossExternalProviderPort((request) =>
     }
     assertIdentity();
     return data;
-  })
-);
+  });
+export const externalProviderPort = createMossExternalProviderPort(requestMossTask);
+export const hostedTaskPort = createMossHostedTaskPort(requestMossTask);

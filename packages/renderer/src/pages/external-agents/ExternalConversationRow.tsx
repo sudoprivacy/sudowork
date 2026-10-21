@@ -1,3 +1,4 @@
+import { hostedConversationPath } from '../hosted-agents/navigation';
 import { Button, Tooltip } from '@arco-design/web-react';
 import { MessageCircle } from 'lucide-react';
 import classNames from 'classnames';
@@ -18,7 +19,7 @@ export default function ExternalConversationRow({ conversation, isSelected, isBa
         className={classNames('chat-history__item !px-3 !py-2 !h-auto !w-full !justify-start !rounded-lg conversation-item', isSelected ? '!bg-active conversation-item--selected' : 'hover:bg-hover')}
         onClick={() => {
           cleanupSiderTooltips();
-          void navigate(externalConversationPath(conversation.sessionId));
+          void navigate(conversation.type === 'hosted-artifact' ? hostedConversationPath(conversation.sessionId) : externalConversationPath(conversation.sessionId));
           onOpen?.();
         }}
       >

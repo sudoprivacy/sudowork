@@ -309,7 +309,8 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
   );
 
   const renderConversation = (conversation: UnifiedHistoryConversation, scope?: string) => {
-    if (conversation.type === 'external-provider') return <ExternalConversationRow key={`${scope || ''}:${conversation.id}`} conversation={conversation} isSelected={id === conversation.id} isBatchMode={batchMode} isCollapsed={collapsed} onOpen={onSessionClick} />;
+    if (conversation.type === 'external-provider' || conversation.type === 'hosted-artifact')
+      return <ExternalConversationRow key={`${scope || ''}:${conversation.id}`} conversation={conversation} isSelected={id === conversation.id} isBatchMode={batchMode} isCollapsed={collapsed} onOpen={onSessionClick} />;
     return <ConversationRow key={scope ? `${scope}:${conversation.id}` : conversation.id} {...getConversationRowProps(conversation)} />;
   };
 

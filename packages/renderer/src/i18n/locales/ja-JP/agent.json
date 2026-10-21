@@ -144,5 +144,20 @@
   "external.protocol.noRun": "このプロトコルはリモートタスクIDを返していません。",
   "external.protocol.response": "応答ID：{{id}}",
   "external.protocol.trace": "ゲートウェイトレース：{{id}}",
-  "external.protocol.usage": "サービス側の申告トークン：入力 {{input}}、出力 {{output}}。検証済みの課金情報ではありません。"
+  "external.protocol.usage": "サービス側の申告トークン：入力 {{input}}、出力 {{output}}。検証済みの課金情報ではありません。",
+  "hosted": {
+    "directory": "内部ホスト",
+    "description": "組織が公開し、利用を許可したエージェント。",
+    "unavailable": "サービスが利用できないか、権限が変更されました。再読み込みしてください。",
+    "version": "固定バージョン：{{version}}",
+    "synthetic": "合成テスト用テキストのみ対応しています。各ターンは履歴なしで独立して実行されます。実際の業務データは入力しないでください。",
+    "cancel": "キャンセルを要求",
+    "cancelRequested": "キャンセル要求済み。実行停止と認証情報の回収を確認中",
+    "cancelled": "キャンセル済み",
+    "actionFailed": "操作を確認できません。再読み込みしてから再試行してください。タスクは自動再送されません。",
+    "unknown": "実行結果が不明です。照合は実行と認証情報の回収のみ行い、タスクを再送したり成功に変更したりしません。",
+    "reconcile": "実行と回収を照合",
+    "closeNote": "照合結果を記入（タスク結果は変更されません）",
+    "close": "この会話を閉じる"
+  }
 }

@@ -24,6 +24,15 @@ export function createExternalProviderRouter(deps: { auth: AuthDeps; request: Mo
     })
   })
   const routes: Array<{ method: 'get' | 'post'; path: string }> = [
+    { method: 'get', path: '/hosted-agents' },
+    { method: 'get', path: '/hosted-agents/:id/versions' },
+    { method: 'get', path: '/hosted-sessions' },
+    { method: 'get', path: '/hosted-sessions/:id/tasks' },
+    { method: 'get', path: '/tasks/:id' },
+    { method: 'get', path: '/tasks/:id/specification' },
+    { method: 'post', path: '/tasks/:id/cancel' },
+    { method: 'post', path: '/tasks/:id/reconcile' },
+    { method: 'post', path: '/tasks/:id/close' },
     { method: 'get', path: '/external-agents/access' },
     { method: 'get', path: '/external-agents/admin/policy' },
     { method: 'get', path: '/external-agents/admin/members' },

@@ -1,3 +1,4 @@
+import { useHostedHistory } from '@renderer/pages/hosted-agents/useHostedHistory';
 import { useExternalHistory } from '@renderer/pages/external-agents/useExternalHistory';
 import { mergeExternalHistory } from '@renderer/pages/external-agents/history';
 /**
@@ -61,6 +62,7 @@ export const useConversations = () => {
 
   const { jobs: cronJobs } = useAllCronJobs();
   const externalHistory = useExternalHistory();
+  const hostedHistory = useHostedHistory();
 
   const activeConversations = useMemo(() => conversations.filter((conversation) => !isConversationArchived(conversation)), [conversations]);
   const archivedConversations = useMemo(() => conversations.filter(isConversationArchived).sort((a, b) => (b.extra?.archivedAt ?? b.modifyTime) - (a.extra?.archivedAt ?? a.modifyTime)), [conversations]);
@@ -70,7 +72,7 @@ export const useConversations = () => {
     return result;
   }, [activeConversations, t, cronJobs, myAgents]);
 
-  const { pinnedTimeline, pinnedScheduled, timelineSections, scheduledGroups, agentGroups } = useMemo(() => mergeExternalHistory(groupedHistory, externalHistory.conversations, t), [groupedHistory, externalHistory.conversations, t]);
+  const { pinnedTimeline, pinnedScheduled, timelineSections, scheduledGroups, agentGroups } = useMemo(() => mergeExternalHistory(groupedHistory, [...externalHistory.conversations, ...hostedHistory.conversations], t), [groupedHistory, externalHistory.conversations, hostedHistory.conversations, t]);
 
   // Auto-expand all workspaces on first load only (#1156)
   useEffect(() => {
