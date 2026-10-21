@@ -116,6 +116,9 @@
         },
         "conversation_mode": {
           "const": "single_turn"
+        },
+        "execution_context": {
+          "$ref": "#/$defs/TaskGrantProfile"
         }
       },
       "required": [
@@ -160,7 +163,8 @@
               "execution_revision": {
                 "type": "string",
                 "pattern": "^sha256:[a-f0-9]{64}$"
-              }
+              },
+              "execution_context": false
             }
           },
           "else": {
@@ -1304,6 +1308,43 @@
         "registration_digest",
         "signing_key_id",
         "evidence"
+      ]
+    },
+    "TaskGrantProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "profile": {
+          "const": "sudo-task-grant/v1"
+        },
+        "model_resource": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/@-]*$"
+        },
+        "tool_resources": {
+          "type": "array",
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "pattern": "^mcp:[A-Za-z0-9_-]+/[A-Za-z0-9_.-]+$"
+          }
+        },
+        "max_model_calls": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32
+        }
+      },
+      "required": [
+        "profile",
+        "model_resource",
+        "tool_resources",
+        "max_model_calls"
       ]
     }
   }

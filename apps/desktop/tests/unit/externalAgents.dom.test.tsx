@@ -434,3 +434,16 @@ it('keeps unknown execution distinct from a confirmed pre-write rejection', asyn
   expect(screen.queryByText('agent.external.modelRejection.MODEL_CONTENT_DENIED')).toBeNull();
   expect(mocks.create).not.toHaveBeenCalled();
 });
+
+for (const [code, key] of [
+  ['EXTERNAL_EXECUTION_CLEANUP_PENDING', 'agent.external.taskCleanupPending'],
+  ['PROVIDER_CREDENTIAL_DISCLOSURE', 'agent.external.credentialDisclosure'],
+]) {
+  it(`explains ${code} without claiming success or resending an unknown task`, async () => {
+    mocks.sessions.mockResolvedValue({ success: true, data: [session] });
+    mocks.history.mockResolvedValue({ success: true, data: [{ ...task, status: 'unknown', error_code: code }] });
+    page('/conversation/external:session-1');
+    await screen.findByText(key);
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+}

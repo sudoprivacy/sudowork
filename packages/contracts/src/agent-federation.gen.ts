@@ -1,4 +1,4 @@
-// Derived from Moss d1affcde8a127b7b1a54107d57281864a3f92060:contracts/agent-federation/v1alpha1/contract.ts. DO NOT EDIT.
+// Derived from Moss dc4a6c66777ef51e3f41b8eac9a4f828bed0a388:contracts/agent-federation/v1alpha1/contract.ts. DO NOT EDIT.
 /** Moss-owned federation boundary. Experimental; ADR-003/004 remain Proposed. */
 export const AGENT_FEDERATION_API = 'agent-federation.sudo.dev/v1alpha1' as const
 export const STANDARD_HTTP_PROTOCOLS = ['openai-chat-completions/v1', 'mcp/2025-06-18', 'a2a/0.3.0'] as const
@@ -6,6 +6,23 @@ export type StandardHttpProtocol = typeof STANDARD_HTTP_PROTOCOLS[number]
 export interface ProtocolUsage { source: 'provider_reported'; input_tokens: number; output_tokens: number }
 
 export const AGENT_HTTP_API = 'agent-http.sudo.dev/v1alpha1' as const
+export const TASK_GRANT_PROFILE = 'sudo-task-grant/v1' as const
+export interface TaskGrantProfile {
+  profile: typeof TASK_GRANT_PROFILE
+  model_resource: string
+  tool_resources: string[]
+  max_model_calls: number
+}
+/** Ephemeral capability: never persist in TaskSpec, Registry, logs, prompts or user-visible history. */
+export interface TaskExecutionContext extends TaskCorrelation, TaskGrantProfile {
+  org_id: string
+  grant_id: string
+  spec_digest: string
+  expires_at: number
+  model_gateway: string
+  tool_gateway: string
+  access_token: string
+}
 
 export interface ProviderCapabilities {
   supports_streaming: boolean
@@ -38,6 +55,8 @@ export interface CustomAgentManifest {
   input_profile: 'query_only_v1'
   output_profile: 'text_v1'
   capabilities: ProviderCapabilities
+  /** Explicitly reviewed task identity profile; absent means no execution credential is sent. */
+  execution_context?: TaskGrantProfile
 }
 
 /** Created by authenticated ingress; provider identifiers never populate these fields. */
