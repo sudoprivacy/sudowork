@@ -169,6 +169,7 @@ describe('useConversations - workspace expansion', () => {
     const { result } = renderConversationHook();
     await act(async () => {});
 
+    expect(mockInvoke).toHaveBeenCalledWith({ page: 0, pageSize: 10000, includeAllExecutionTargets: true });
     expect(testState.activeIds).toEqual(['active']);
     expect(result.current.archivedConversations.map((conversation) => conversation.id)).toEqual(['new-archive', 'old-archive']);
   });

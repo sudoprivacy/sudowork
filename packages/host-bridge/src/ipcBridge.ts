@@ -854,7 +854,7 @@ export const mcporterService = {
 // Database operations
 export const database = {
   getConversationMessages: bridge.buildProvider<import('@sudowork/common/chatTypes').TMessage[], { conversation_id: string; page?: number; pageSize?: number }>('database.get-conversation-messages'),
-  getUserConversations: bridge.buildProvider<import('@sudowork/common/storageTypes').TChatConversation[], { page?: number; pageSize?: number; sessionMode?: 'remote' | 'local' }>('database.get-user-conversations'),
+  getUserConversations: bridge.buildProvider<import('@sudowork/common/storageTypes').TChatConversation[], { page?: number; pageSize?: number; sessionMode?: 'remote' | 'local'; includeAllExecutionTargets?: boolean }>('database.get-user-conversations'),
   /** 渠道对话创建/更新/删除时，主进程通知渲染进程刷新对话列表 */
   conversationChanged: bridge.buildEmitter<{
     conversationId: string;

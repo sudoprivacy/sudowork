@@ -46,4 +46,11 @@ describe('groupConversationsByTimelineAndWorkspace', () => {
     expect(isConversationArchived(makeConversation())).toBe(false);
     expect(isConversationArchived(makeConversation({ extra: { backend: 'scode', archived: true, archivedAt: 10 } }))).toBe(true);
   });
+
+  it('uses conversation identity as a stable fallback when activity times tie', () => {
+    const time = Date.now();
+    const sections = groupConversationsByTimelineAndWorkspace([makeConversation({ id: 'conversation-a', createTime: time, modifyTime: time, extra: { backend: 'scode' } }), makeConversation({ id: 'conversation-b', createTime: time, modifyTime: time, extra: { backend: 'scode' } })], t);
+
+    expect(sections.flatMap((section) => section.items).map((item) => item.conversation?.id)).toEqual(['conversation-b', 'conversation-a']);
+  });
 });

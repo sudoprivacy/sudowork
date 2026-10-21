@@ -28,7 +28,6 @@ import TeamMemberListTab from './components/TeamMemberListTab';
 import TeamLeaderEmptyState from './components/TeamLeaderEmptyState';
 import TeamWarmupOverlay from './components/TeamWarmupOverlay';
 import { useTeamWarmup } from './hooks/useTeamWarmup';
-import { resolveTeamAssistantIcon, toChatLayoutAgentLogo } from './utils/teamAssistantIcon';
 
 function TeamDetailPage() {
   const { t } = useTranslation();
@@ -171,20 +170,13 @@ function TeamDetailPage() {
   const isLeaderFailed = Boolean(leader?.slot_id && statusMap.get(leader.slot_id) === 'failed');
   const isTeamMemberTabActive = activeRightPanelTab === 'team';
   const currentLeaderConv = leaderConv?.id === leader.conversation_id ? leaderConv : undefined;
-  const leaderIcon = resolveTeamAssistantIcon({ assistantId: leader.assistant_id, source: leader.source, backend: leader.assistant_backend, avatar: leader.icon, name: leader.assistant_name });
-  const leaderLogoProps = toChatLayoutAgentLogo(leaderIcon);
-
   return (
     <ChatLayout
       title={currentTeam.name}
-      backend={leader.source === 'assistant' && leaderLogoProps.agentLogo ? undefined : leader.assistant_backend}
-      agentName={leader.assistant_name}
-      agentLogo={leaderLogoProps.agentLogo}
-      agentLogoIsEmoji={leaderLogoProps.agentLogoIsEmoji}
       conversationId={leader.conversation_id}
       workspaceEnabled
       rightSiderWidthOverride={isTeamMemberTabActive ? { widthPx: 440 } : null}
-      headerLeft={<AcpModelSelector conversationId={leader.conversation_id} backend={leader.assistant_backend} />}
+      headerLeft={<AcpModelSelector conversationId={leader.conversation_id} backend={leader.assistant_backend} labelPrefix={t('conversation.header.model')} />}
       headerExtra={
         isLeaderFailed ? (
           <button type='button' title={t('team.actions.retryStart')} className='inline-flex cursor-pointer items-center gap-4px rounded-full bg-red-500/10 px-8px py-2px text-12px text-red-500 hover:bg-red-500/20' onClick={() => void retryLeaderStart()}>

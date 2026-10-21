@@ -46,7 +46,7 @@ vi.mock('@/process/utils/mainLogger', () => ({
 
 vi.mock('@/process/database/export', () => ({
   getDatabase: () => ({
-    getConversation: () => ({ success: true, data: { id: 'conv-1', extra: {} } }),
+    getConversation: () => ({ success: true, data: { id: 'conv-1', modifyTime: 123, extra: {} } }),
     updateConversation: updateConversationSpy,
     createConversation: vi.fn(),
     deleteConversation: vi.fn(() => ({ success: true })),
@@ -234,6 +234,7 @@ describe('RemoteAgent idle detach', () => {
     confirmationRemoveEmit.mockClear();
     conversationChangedEmit.mockClear();
     updateConversationSpy.mockClear();
+    updateConversationSpy.mockReturnValue({ success: true });
     terminateSessionSpy.mockClear();
     resumeSessionSpy.mockReset();
     processConfigGetSync.mockReset();
@@ -263,6 +264,8 @@ describe('RemoteAgent idle detach', () => {
       })
     );
     expect(responseStreamEmit).toHaveBeenCalledWith(expect.objectContaining({ type: 'user_content', msg_id: 'user-1' }));
+    expect(updateConversationSpy).toHaveBeenCalledWith('conv-1', { modifyTime: expect.any(Number) });
+    expect(conversationChangedEmit).toHaveBeenCalledWith({ conversationId: 'conv-1', source: 'sudowork', action: 'updated' });
     const connection = FakeMossWsConnection.instances[0];
     expect(connection.sendMessageCalls).toBe(1);
     connection.callbacks.onMessage?.({ type: 'content', conversation_id: 'moss-session-1', msg_id: 'assistant-1', data: 'Saved reply' });
@@ -286,6 +289,7 @@ describe('RemoteAgent idle detach', () => {
       )
     );
     expect((await agent.sendMessage({ content: 'must not be delivered', msg_id: 'refused' })).success).toBe(false);
+    expect(updateConversationSpy.mock.calls.some((call) => call.length === 2 && typeof call[1]?.modifyTime === 'number')).toBe(false);
     expect(FakeMossWsConnection.instances).toHaveLength(0);
     expect(responseStreamEmit).toHaveBeenCalledWith(expect.objectContaining({ type: 'error', data: 'RUNTIME_UPDATE_REQUIRED', errorClass: 'runtime_update_required' }));
     expect(JSON.stringify(responseStreamEmit.mock.calls)).not.toContain('private');
@@ -306,7 +310,9 @@ describe('RemoteAgent idle detach', () => {
       'conv-1',
       expect.objectContaining({
         extra: expect.objectContaining({ mossSessionId: 'moss-session-1', mossSessionPending: false }),
-      })
+        modifyTime: 123,
+      }),
+      { preserveModifyTime: true }
     );
     expect(FakeMossWsConnection.instances[0]!.sendMessageCalls).toBe(0);
     resumeSessionSpy.mockResolvedValueOnce({ wsUrl: 'ws://moss.example/session', session: {} });

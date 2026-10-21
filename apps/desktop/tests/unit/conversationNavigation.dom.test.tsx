@@ -26,12 +26,13 @@ vi.mock('@renderer/pages/conversation/acp/AcpChat', () => ({
   default: ({ conversation_id }: { conversation_id: string }) => <textarea aria-label={`Send to ${conversation_id}`} />,
 }));
 vi.mock('@renderer/pages/conversation/ChatLayout', () => ({
-  default: function Frame({ children, conversationId }: PropsWithChildren<{ conversationId?: string }>) {
+  default: function Frame({ children, conversationId, executionTarget }: PropsWithChildren<{ conversationId?: string; executionTarget?: 'local' | 'remote' }>) {
     const [isWorkspaceOpen, setIsWorkspaceOpen] = useState(true);
     return (
       <section aria-label='Conversation frame'>
         <header>
           <span>{conversationId}</span>
+          <output aria-label='Execution target'>{executionTarget}</output>
           <button onClick={() => setIsWorkspaceOpen((isOpen) => !isOpen)}>Toggle workspace</button>
         </header>
         {isWorkspaceOpen && <aside>Workspace</aside>}
@@ -109,5 +110,15 @@ describe('Conversation navigation', () => {
     fireEvent.click(screen.getByRole('button', { name: 'common.retry' }));
     await waitFor(() => expect(screen.getByRole('textbox', { name: 'Send to next' })).toBeInTheDocument());
     expect(screen.getByRole('region', { name: 'Conversation frame' })).toBe(frame);
+  });
+
+  it('updates the execution location from persisted conversation metadata', async () => {
+    state.conversations = [{ id: 'current', name: 'current', type: 'remote-agent', createTime: 1, modifyTime: 1, extra: {} } as TChatConversation, { id: 'next', name: 'next', type: 'acp', createTime: 1, modifyTime: 1, extra: { backend: 'scode', executionTarget: 'local' } } as TChatConversation];
+    state.get.mockImplementation(({ id }: { id: string }) => Promise.resolve(state.conversations.find((conversation) => conversation.id === id)));
+    renderConversation();
+
+    await waitFor(() => expect(screen.getByLabelText('Execution target')).toHaveTextContent('remote'));
+    fireEvent.click(screen.getByText('Next session'));
+    await waitFor(() => expect(screen.getByLabelText('Execution target')).toHaveTextContent('local'));
   });
 });

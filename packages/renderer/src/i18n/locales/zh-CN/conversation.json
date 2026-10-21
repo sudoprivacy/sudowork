@@ -102,6 +102,12 @@
     "body": "在 Agent 回复过程中发送新消息，会中断当前回复并立即处理新消息。",
     "ok": "打断"
   },
+  "header": {
+    "agent": "Agent",
+    "model": "模型",
+    "localExecutionHint": "任务在当前设备运行，可使用你授权的本地文件和工具。",
+    "remoteExecutionHint": "任务在 Moss Server 运行，运行环境和工作空间位于服务器。"
+  },
   "welcome": {
     "title": "Hi，今天有什么安排？",
     "placeholder": "发消息、上传文件或打开文件夹...",

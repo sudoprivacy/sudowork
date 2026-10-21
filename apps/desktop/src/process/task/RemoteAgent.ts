@@ -402,11 +402,17 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
         extraUpdate.workspace = mossWorkDir;
       }
 
-      void db.updateConversation(this.conversation_id, {
-        extra: extraUpdate,
-        status: 'finished',
-        modifyTime: Date.now(),
-      } as Partial<TChatConversation>);
+      void db.updateConversation(
+        this.conversation_id,
+        {
+          extra: extraUpdate,
+          status: 'finished',
+          // Opening or resuming history is not new user activity. Preserve the
+          // server-derived timestamp so navigation cannot reorder the sidebar.
+          modifyTime: existing.data.modifyTime,
+        } as Partial<TChatConversation>,
+        { preserveModifyTime: true }
+      );
     } catch (error) {
       mainError('RemoteAgent', `Failed to update resumed Moss session info: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -459,10 +465,10 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
         ...existing.data,
         extra: extraUpdate,
         status: 'finished',
-        modifyTime: Date.now(),
+        modifyTime: existing.data.modifyTime,
       } as unknown as TChatConversation;
 
-      db.updateConversation(this.conversation_id, updatedConversation);
+      db.updateConversation(this.conversation_id, updatedConversation, { preserveModifyTime: true });
       mainLog('RemoteAgent', `Updated conversation ${this.conversation_id} with Moss session: ${this.mossSessionId}, mossWorkDir: ${isRemotePath ? sessionWorkDir : 'N/A'}, workspace: ${existing.data.extra?.workspace || 'N/A'}`);
 
       // Emit refresh event to update sidebar
@@ -753,6 +759,19 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
 
       if (!result.success) {
         this.emitErrorMessage(result.msg || 'Send failed');
+      } else {
+        // A successfully accepted user turn is real activity. History reads,
+        // runtime resume and metadata hydration preserve modifyTime, so the
+        // send boundary is the single place that promotes a remote Session.
+        const db = getDatabase();
+        const updated = db.updateConversation(this.conversation_id, { modifyTime: Date.now() });
+        if (updated.success) {
+          ipcBridge.database.conversationChanged.emit({
+            conversationId: this.conversation_id,
+            source: 'sudowork',
+            action: 'updated',
+          });
+        }
       }
 
       return result;

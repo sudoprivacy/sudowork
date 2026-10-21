@@ -4,6 +4,12 @@
     "body": "Sending a message while the agent is replying will interrupt the current reply and process your new message immediately.",
     "ok": "Interrupt"
   },
+  "header": {
+    "agent": "Agent",
+    "model": "Model",
+    "localExecutionHint": "This task runs on this device and can use authorized local files and tools.",
+    "remoteExecutionHint": "This task runs on Moss Server; its runtime and workspace are on the server."
+  },
   "welcome": {
     "title": "Hi, what's your plan for today?",
     "placeholder": "Send a message, upload files, or open a folder...",
