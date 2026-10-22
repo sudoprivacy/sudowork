@@ -265,7 +265,10 @@ jobs:
           bun-version-file: package.json
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        # This Node-only gate uses @lydell/node-pty's platform prebuild. Avoid
+        # unrelated workspace/native install scripts consuming its test budget;
+        # the test still requires the real addon and downloaded scode binary.
+        run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Download scode binary (windows archive)
         run: bun run scode:download
