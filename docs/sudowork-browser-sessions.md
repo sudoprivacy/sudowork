@@ -32,15 +32,15 @@ An Electron `<webview>` is a Chromium guest, not a DOM component available in or
 
 ### Implementation and acceptance coverage
 
-| Browser path                     | Delivery and evidence                                                                                                                                                                                                                             |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Desktop local standalone CDP     | Implemented in [SudoWork #1250](https://github.com/sudoprivacy/sudowork/pull/1250); actual Electron/model takeover, compact controls and same-session commands passed.                                                                            |
-| Desktop app-managed extension    | Not exposed as a third Desktop launch path. Desktop starts a standalone CDP profile or explicitly connects an existing extension profile; managed extension startup belongs to the cloud deployment.                                              |
-| Desktop existing personal Chrome | Explicit selection, real host/crash-recovery and Electron/model journeys passed. Public SDK 0.58.2 and the corrected packaged candidate passed clipboard/composition and profile preservation; official corrected artifact delivery remains open. |
-| Desktop cloud Chrome             | Actual Electron cloud login, model task, shared panel, independent viewer and exact AI readback passed; deployed release acceptance remains open.                                                                                                 |
-| Shared cloud extension and CDP   | Implemented in the public worker, Moss and shared panel. Real model/file/reconnect and explicit transport-switch journeys passed against the production backend; public frontend rollout is recorded below.                                       |
-| WebUI local extension relay      | Optional planned capability with explicit pairing and revocation.                                                                                                                                                                                 |
-| Viewing clients                  | Real Chromium and Firefox 155 on Windows passed. The touch UI candidate passed a 390 by 844 Chromium touch journey; physical phone and Safari browser acceptance remain open.                                                                     |
+| Browser path                     | Delivery and evidence                                                                                                                                                                                                                                                                                                         |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Desktop local standalone CDP     | Implemented in [SudoWork #1250](https://github.com/sudoprivacy/sudowork/pull/1250); actual Electron/model takeover, compact controls and same-session commands passed.                                                                                                                                                        |
+| Desktop app-managed extension    | Not exposed as a third Desktop launch path. Desktop starts a standalone CDP profile or explicitly connects an existing extension profile; managed extension startup belongs to the cloud deployment.                                                                                                                          |
+| Desktop existing personal Chrome | Explicit selection, real host/crash-recovery and Electron/model journeys passed. The official corrected Windows nightly passed clipboard/composition, normal runtime installation and profile preservation with SDK 0.58.2; the touch source also passed the real model journey and cold installation with public SDK 0.58.3. |
+| Desktop cloud Chrome             | Actual Electron cloud login, model task, shared panel, independent viewer and exact AI readback passed; deployed release acceptance remains open.                                                                                                                                                                             |
+| Shared cloud extension and CDP   | Implemented in the public worker, Moss and shared panel. Real model/file/reconnect and explicit transport-switch journeys passed against the production backend; public frontend rollout is recorded below.                                                                                                                   |
+| WebUI local extension relay      | Optional planned capability with explicit pairing and revocation.                                                                                                                                                                                                                                                             |
+| Viewing clients                  | Real Chromium and Firefox 155 on Windows passed. The touch UI candidate passed a 390 by 844 Chromium touch journey; physical phone and Safari browser acceptance remain open.                                                                                                                                                 |
 
 ## 3. Architecture
 
@@ -925,3 +925,61 @@ Chrome closed normally. This is a private transport baseline. Production
 integration must retain authenticated task/session binding and enforce the
 existing input lease for every native operation; the public WebUI continues
 to use its existing JPEG/native-input path.
+
+### SDK release and official Desktop artifact, 22 October
+
+SDK 0.58.3 was tagged from the merged, identical tested tree after all ten
+applicable CI jobs passed. It adds explicit touch selection and dragging,
+retains the owned extension launch page until the caller navigates, and bounds
+Chrome endpoint discovery. Real Chrome 156 acceptance includes both Windows
+and a managed Linux browser with the existing memory and process limits.
+Production still runs Chrome 155 and SDK 0.58.2 until the new worker passes its
+own VM canary; the Linux 256-process test has little remaining headroom.
+
+SudoWork #1283 is merged. The official Windows nightly from `d0d70b9` now
+contains the exact pinned SDK files, license and MCP browser tool catalog.
+The downloaded release ZIP matches its published SHA256 and passed the same
+packaged browser asset check used in CI. That unmodified official executable
+then passed the complete real-model journey with gpt-6-luna: its normal cold
+installer provisioned SDK 0.58.2 in 38.05 seconds; explicit personal-profile
+selection, clipboard, Chinese composition, one trusted submission, native
+question cancellation, reload, conversation interrupt and exact model readback
+all passed. Disconnect and normal app shutdown preserved personal Chrome;
+temporary model configuration and owned services were cleaned. An earlier
+truncated Actions download was retained as failed evidence and never executed.
+
+The shared touch UI now targets SDK 0.58.3 for both its bundled surface code
+and installed browser worker. Its combined suite passed 3,325 tests with 29
+conditional skips; Desktop and WebUI type checks and the Desktop build passed.
+The built source then passed the real gpt-6-luna journey, including its normal
+cold runtime installer, native question cancellation, clipboard/composition,
+same-session model continuation and personal-profile preservation. Final CI,
+delivery, actual graph comments and physical phone input remain open. Touch selection is an explicit
+viewing gesture mode; normal touch scrolling stays local until that mode is
+selected. Conversation interrupt and native agent communication remain the
+user-facing coordination flow.
+
+### Public graph transport and native drag correction, 22 October
+
+The actual published graph was observed through the production WebUI viewer
+and the same managed Chrome session. It loaded slowly. After confirming that
+the Chrome menu was closed, two wheel zooms produced changed viewer frames
+after 1,212.6 and 1,331.7 milliseconds. Two native window drags produced no
+visible graph movement. Earlier samples taken with the Chrome menu still open
+are excluded. The image-load observations and screenshots remain evidence;
+the HTTP observer had a shutdown error, so its durations do not establish full
+transfer latency or separate page processing from network time.
+
+An isolated branded Chrome 156 container then reproduced the original native
+failure against the same graph source while the page transport panned correctly.
+The X11 motion batch could collapse into one movement, which only crossed the
+canvas editor's drag threshold. Pacing the native press and successive motions
+made two window gestures move the actual graph by their exact 100 by 50 pixel
+displacement. This candidate passed with 256 PIDs, 1536 MiB and 1.5 CPUs, using
+four-CPU affinity to match the production VM's CPU count. It has not been
+released or deployed. A new real-canvas CI regression checks the first and
+second gestures with CDP and the signed extension; both fail against the
+original runtime and pass with the candidate. All 11 selection/clipboard cases
+also passed at the SDK's existing 384 PID test budget. The smaller 256 PID
+experiment exhausted its limit when a two-browser test started; its failed
+receipt is retained. Production worker limits are unchanged.
