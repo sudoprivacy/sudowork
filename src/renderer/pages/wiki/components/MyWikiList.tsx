@@ -11,11 +11,12 @@ import { useTranslation } from 'react-i18next';
 import type { WikiBuildStatusResponse, WikiRecord } from '../api/types';
 import type { WikiApi } from '../api/wikiApi';
 import { wikiErrorMessage } from '../utils/errors';
+import { isBuildActive } from '../utils/buildState';
 import { formatTime } from '../utils/files';
 import WikiStatusBadge from './WikiStatusBadge';
 
 /** The user's private wikis with build, enable, edit, delete and view actions. */
-export default function MyWikiList({ api, wikis, isLoading, buildStatuses, onCreate, onEdit, onView, onChanged }: IMyWikiListProps) {
+export default function MyWikiList({ api, wikis, isLoading, buildStatuses, onCreate, onEdit, onView, onChanged, onBuildStarted }: IMyWikiListProps) {
   const { t } = useTranslation();
 
   const run = async (action: () => Promise<unknown>, successKey?: string) => {
@@ -76,8 +77,7 @@ export default function MyWikiList({ api, wikis, isLoading, buildStatuses, onCre
             width: 300,
             render: (_: unknown, wiki: WikiRecord) => {
               const live = buildStatuses[wiki.id];
-              const status = live?.wiki_build_status ?? wiki.buildStatus;
-              const isBuilding = status === 'running' || status === 'pending';
+              const isBuilding = isBuildActive(live, wiki.buildStatus);
               const jobId = live?.latest_job?.id;
               return (
                 <Space size={4}>
@@ -86,7 +86,17 @@ export default function MyWikiList({ api, wikis, isLoading, buildStatuses, onCre
                       {t('wiki.myWikis.cancel')}
                     </Button>
                   ) : (
-                    <Button size='mini' type='text' disabled={isBuilding || wiki.enabled === false} onClick={() => run(() => api.buildWiki(wiki.id), 'wiki.myWikis.buildStarted')}>
+                    <Button
+                      size='mini'
+                      type='text'
+                      disabled={isBuilding || wiki.enabled === false}
+                      onClick={() =>
+                        run(async () => {
+                          await api.buildWiki(wiki.id);
+                          onBuildStarted();
+                        }, 'wiki.myWikis.buildStarted')
+                      }
+                    >
                       {wiki.hasBuilt ? t('wiki.myWikis.rebuild') : t('wiki.myWikis.build')}
                     </Button>
                   )}
@@ -121,4 +131,6 @@ interface IMyWikiListProps {
   onEdit: (wiki: WikiRecord) => void;
   onView: (wiki: WikiRecord) => void;
   onChanged: () => void;
+  /** A build was started; restarts progress tracking. */
+  onBuildStarted: () => void;
 }

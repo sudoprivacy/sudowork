@@ -12,7 +12,7 @@ import MarkdownView from '@/renderer/components/Markdown';
 import type { WikiApi } from '../api/wikiApi';
 import type { WikiSearchMatch } from '../api/types';
 import { wikiErrorMessage } from '../utils/errors';
-import { isWikiContentFile, wikiLinkTarget } from '../utils/wikiLinks';
+import { cleanWikiMarkdown, isWikiContentFile, wikiLinkTarget } from '../utils/wikiLinks';
 
 /** Read-only view of a built wiki: its markdown files plus full-text search. */
 export default function WikiViewerDrawer({ api, wiki, onClose }: IWikiViewerDrawerProps) {
@@ -31,7 +31,7 @@ export default function WikiViewerDrawer({ api, wiki, onClose }: IWikiViewerDraw
       setActiveFile(path);
       setIsLoadingContent(true);
       try {
-        setContent(await api.readWikiFile(wikiId, path));
+        setContent(cleanWikiMarkdown(await api.readWikiFile(wikiId, path)));
       } catch (err) {
         setContent('');
         Message.error(wikiErrorMessage(t, err));

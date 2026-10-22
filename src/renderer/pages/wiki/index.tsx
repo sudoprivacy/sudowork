@@ -116,10 +116,17 @@ export default function WikiPage() {
   }, [loadDocuments]);
 
   const buildingIds = useMemo(() => myWikis.filter((w) => w.buildStatus === 'running' || w.buildStatus === 'pending').map((w) => w.id), [myWikis]);
-  const buildStatuses = useBuildTracker(api, buildingIds, () => {
-    void loadMyWikis();
-    void loadUsable();
-  });
+  const [buildGeneration, setBuildGeneration] = useState(0);
+  const onBuildStarted = useCallback(() => setBuildGeneration((n) => n + 1), []);
+  const buildStatuses = useBuildTracker(
+    api,
+    buildingIds,
+    () => {
+      void loadMyWikis();
+      void loadUsable();
+    },
+    buildGeneration
+  );
 
   const onDocumentsChanged = () => {
     void loadDocuments();
@@ -173,6 +180,7 @@ export default function WikiPage() {
         Message.success(t('wiki.form.saved'));
       } else {
         await api.createWiki({ ...input, build: isBuildNow });
+        if (isBuildNow) onBuildStarted();
         Message.success(isBuildNow ? t('wiki.myWikis.buildStarted') : t('wiki.form.saved'));
       }
       setWikiModal(null);
@@ -203,9 +211,21 @@ export default function WikiPage() {
           />
         </Card>
         <div className='flex min-h-0 flex-col gap-4 overflow-auto'>
-          <Card bordered>{selectedNode && <DocumentPanel api={api} nodeId={selectedNode.id} nodeName={selectedNode.id === rootId ? t('wiki.tree.root') : selectedNode.name} documents={documents} isLoading={isLoadingDocs} remainingBytes={tree.quota_bytes - tree.usage_bytes} onChanged={onDocumentsChanged} />}</Card>
           <Card bordered>
-            <MyWikiList api={api} wikis={myWikis} isLoading={isLoadingWikis} buildStatuses={buildStatuses} onCreate={() => void openWikiModal(null)} onEdit={(wiki) => void openWikiModal(wiki)} onView={(wiki) => setViewing({ id: wiki.id, name: wiki.name })} onChanged={() => void loadMyWikis()} />
+            {selectedNode && <DocumentPanel api={api} nodeId={selectedNode.id} nodeName={selectedNode.id === rootId ? t('wiki.tree.root') : selectedNode.name} documents={documents} isLoading={isLoadingDocs} remainingBytes={tree.quota_bytes - tree.usage_bytes} onChanged={onDocumentsChanged} />}
+          </Card>
+          <Card bordered>
+            <MyWikiList
+              api={api}
+              wikis={myWikis}
+              isLoading={isLoadingWikis}
+              buildStatuses={buildStatuses}
+              onCreate={() => void openWikiModal(null)}
+              onEdit={(wiki) => void openWikiModal(wiki)}
+              onView={(wiki) => setViewing({ id: wiki.id, name: wiki.name })}
+              onChanged={() => void loadMyWikis()}
+              onBuildStarted={onBuildStarted}
+            />
           </Card>
         </div>
       </div>

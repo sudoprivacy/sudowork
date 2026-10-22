@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { batchBySize, fileToBase64, filterOptionByText, splitRelativePath } from '@/renderer/pages/wiki/utils/files';
 import { visibilityFrom, visibleToFrom } from '@/renderer/pages/wiki/utils/visibility';
-import { isWikiContentFile, wikiLinkTarget } from '@/renderer/pages/wiki/utils/wikiLinks';
+import { cleanWikiMarkdown, isWikiContentFile, wikiLinkTarget } from '@/renderer/pages/wiki/utils/wikiLinks';
 
 describe('wiki visibility mapping', () => {
   it('reads null as everyone', () => {
@@ -73,5 +73,16 @@ describe('wiki viewer links', () => {
     expect(wikiLinkTarget('https://example.com/a.md', 'WIKI.md')).toBeNull();
     expect(wikiLinkTarget('#top', 'WIKI.md')).toBeNull();
     expect(wikiLinkTarget('images/x.png', 'WIKI.md')).toBeNull();
+  });
+});
+
+describe('wiki page cleanup', () => {
+  it('strips build markers and front matter but keeps the body', () => {
+    const raw = '<!-- @final -->\n---\ntitle: 会议室\ntype: chunk\n---\n\n## 大会议室\n提前 2 天预订。<!-- img-id: x -->\n';
+    expect(cleanWikiMarkdown(raw)).toBe('## 大会议室\n提前 2 天预订。\n');
+  });
+
+  it('leaves plain pages and mid-page rules alone', () => {
+    expect(cleanWikiMarkdown('# Title\n\ntext\n\n---\n\nmore')).toBe('# Title\n\ntext\n\n---\n\nmore');
   });
 });

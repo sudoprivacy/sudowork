@@ -7,14 +7,17 @@
 import { useEffect, useRef, useState } from 'react';
 import type { WikiBuildStatusResponse } from '../api/types';
 import type { WikiApi } from '../api/wikiApi';
+import { isBuildActive } from '../utils/buildState';
 
 const POLL_MS = 3000;
 
 /**
  * Follow the builds of the given wikis: server-sent `build-events` first, polling
  * `build-status` if the stream fails. Calls `onFinished` when a build ends.
+ * Bump `generation` whenever a build is started so a wiki that was already
+ * tracked (e.g. `pending` after a cancel) is followed again.
  */
-export function useBuildTracker(api: WikiApi, activeWikiIds: string[], onFinished: (wikiId: string) => void): Record<string, WikiBuildStatusResponse> {
+export function useBuildTracker(api: WikiApi, activeWikiIds: string[], onFinished: (wikiId: string) => void, generation = 0): Record<string, WikiBuildStatusResponse> {
   const [statuses, setStatuses] = useState<Record<string, WikiBuildStatusResponse>>({});
   const onFinishedRef = useRef(onFinished);
   onFinishedRef.current = onFinished;
@@ -28,7 +31,7 @@ export function useBuildTracker(api: WikiApi, activeWikiIds: string[], onFinishe
     const apply = (wikiId: string, status: WikiBuildStatusResponse) => {
       if (isDisposed) return;
       setStatuses((prev) => ({ ...prev, [wikiId]: status }));
-      if (status.wiki_build_status !== 'running' && status.wiki_build_status !== 'pending') onFinishedRef.current(wikiId);
+      if (!isBuildActive(status, status.wiki_build_status)) onFinishedRef.current(wikiId);
     };
 
     const poll = (wikiId: string) => {
@@ -37,7 +40,7 @@ export function useBuildTracker(api: WikiApi, activeWikiIds: string[], onFinishe
           .getBuildStatus(wikiId)
           .then((s) => {
             apply(wikiId, s);
-            if (s.wiki_build_status !== 'running' && s.wiki_build_status !== 'pending') clearInterval(timer);
+            if (!isBuildActive(s, s.wiki_build_status)) clearInterval(timer);
           })
           .catch(() => {});
       }, POLL_MS);
@@ -77,7 +80,7 @@ export function useBuildTracker(api: WikiApi, activeWikiIds: string[], onFinishe
       isDisposed = true;
       cleanups.forEach((fn) => fn());
     };
-  }, [api, key]);
+  }, [api, key, generation]);
 
   return statuses;
 }

@@ -22,3 +22,9 @@ export function wikiLinkTarget(href: string, fromFile: string | null): string | 
   }
   return resolved.join('/') || null;
 }
+
+/** Drop moss build markers (`<!-- … -->`) and a leading YAML front-matter block so pages render as prose. */
+export function cleanWikiMarkdown(content: string): string {
+  const withoutComments = content.replace(/<!--[\s\S]*?-->/g, '').replace(/^\s+/, '');
+  return withoutComments.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '').replace(/^\s+/, '');
+}
