@@ -148,14 +148,14 @@ question/options or ordinary conversation. There are no mandatory **Take
 control**, **Return to AI**, or separate handoff-note controls in the browser.
 The existing conversation interrupt and a fresh user message are the workflow.
 
-| User intent | Host behavior | Browser input |
-| --- | --- | --- |
-| Open, refresh, reconnect, pan or zoom a viewer | Preserve its authorised conversation/session binding | View only; no lease transfer |
-| Interrupt from the conversation | Stop the current task and acknowledge its browser/tool barrier | Enable only after acknowledgement |
-| Touch the remote page while AI owns it | Invoke the same conversation interrupt | Discard the initiating gesture; require a fresh frame and a new gesture |
-| Work in an attached personal Chrome window | Interrupt in the conversation before native input | No claim that arbitrary OS input is detected |
-| Send a fresh message or supported native answer | Drain input, advance epochs, observe and release the browser lease before that message proceeds | Stale queued gestures are rejected |
-| Lose the viewer connection | Preserve human intent and the persistent profile | Never resume from an idle timer or disconnect |
+| User intent                                     | Host behavior                                                                                   | Browser input                                                           |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Open, refresh, reconnect, pan or zoom a viewer  | Preserve its authorised conversation/session binding                                            | View only; no lease transfer                                            |
+| Interrupt from the conversation                 | Stop the current task and acknowledge its browser/tool barrier                                  | Enable only after acknowledgement                                       |
+| Touch the remote page while AI owns it          | Invoke the same conversation interrupt                                                          | Discard the initiating gesture; require a fresh frame and a new gesture |
+| Work in an attached personal Chrome window      | Interrupt in the conversation before native input                                               | No claim that arbitrary OS input is detected                            |
+| Send a fresh message or supported native answer | Drain input, advance epochs, observe and release the browser lease before that message proceeds | Stale queued gestures are rejected                                      |
+| Lose the viewer connection                      | Preserve human intent and the persistent profile                                                | Never resume from an idle timer or disconnect                           |
 
 Desktop keeps the acknowledged main/child tool barrier because local agents may
 have shell access. Cloud browsers retain the server lease across every agent
@@ -218,14 +218,14 @@ binding and trusted event routing. Sudograph owns canonical comment targets;
 ShareOne supplies the existing comment and notification contracts. Acceptance
 must join these pieces without creating a second editable model or inbox.
 
-| Requirement | Current status | Actual evidence and remaining work |
-| --- | --- | --- |
-| 1. Independent review surface and reconnect | Browser session/viewer supported; joint binding acceptance required | Real Desktop local Chrome and cloud panel/viewer journeys passed. The Electron viewer opens its exact bound conversation; real renderer reload retained the interrupted question and human lease. A Desktop Electron viewer is distinct from a native Chrome review window. The Sudograph adapter must establish the requested native review entry and project/model/share binding, then verify refresh/reconnect end to end on both hosts. |
-| 2. Exact graph text and canonical comments | Input support in SDK 0.58.2; application adaptation and joint acceptance required | Actual CDP and signed-extension selection tests read the exact dragged phrase over real frame transport. This does not establish authenticated Sudograph comments, stable targets or thread recovery after graph zoom, expansion and language changes; those require the real shared graph and comment adapter. |
-| 3. Clipboard, composition and gestures | SDK, Desktop and production WebUI accepted; physical IME and touch selection need acceptance/adaptation | Public-wheel tests passed page/window selection and Unicode multiline paste. Real Electron/public 0.58.2/Sonnet and production WebUI/Moss 0.1.77/public 0.58.2 journeys passed exact phrase copy, trusted multiline paste, Chromium composition without premature insertion, one final submission and real model continuation. Shared UI regressions reject a paste delayed across a tab change. Physical OS/device IME remains unverified. Mouse/pen drag is bounded and sent on release; continuous drag preview is not implemented. Touch supports taps, remote scrolling and local viewport movement; remote text selection and graph dragging need an explicit touch gesture mode and real-device acceptance. |
-| 4. Human/AI collaboration | Ordinary conversation supported and production accepted; comment continuation needs adapter | No browser business handoff buttons. Existing interrupt acknowledges the barrier and rejects stale queued input; fresh normal chat observes and continues the owned browser. Desktop main/child barriers and cloud owner isolation passed. Comment delivery must resolve the registered binding before enqueuing a normal host event; it must not grant browser input during human interaction. Idle/disconnect never resumes AI. |
-| 5. Actual graph interaction latency | Joint acceptance required | The production headful form measured 3.05 rendered frames/s, 234.2 ms median and 740.6 ms p95 frame interval, and 1083.12 ms click feedback. This is a form measurement, not graph acceptance. Measure page processing, frame production/transport and network delay separately for actual graph pan/zoom, selection and comments. |
-| 6. Supported hosts/transports/devices | Core paths supported; additional combinations need adaptation or device acceptance | Local standalone CDP, explicit personal extension and cloud CDP/managed extension have real browser evidence. A cloud viewer needs no local extension or Chrome installation. View-only native review must remain extension free; the native review entry and revision binding belong to the adapter. The cloud-to-local extension relay is optional and unimplemented. Physical iPhone browser input/IME and Safari transport acceptance remain pending; desktop touch emulation does not establish them. |
+| Requirement                                 | Current status                                                                                          | Actual evidence and remaining work                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1. Independent review surface and reconnect | Browser session/viewer supported; joint binding acceptance required                                     | Real Desktop local Chrome and cloud panel/viewer journeys passed. The Electron viewer opens its exact bound conversation; real renderer reload retained the interrupted question and human lease. A Desktop Electron viewer is distinct from a native Chrome review window. The Sudograph adapter must establish the requested native review entry and project/model/share binding, then verify refresh/reconnect end to end on both hosts.                                                                                                                                                                                                                                                                        |
+| 2. Exact graph text and canonical comments  | Input support in SDK 0.58.2; application adaptation and joint acceptance required                       | Actual CDP and signed-extension selection tests read the exact dragged phrase over real frame transport. This does not establish authenticated Sudograph comments, stable targets or thread recovery after graph zoom, expansion and language changes; those require the real shared graph and comment adapter.                                                                                                                                                                                                                                                                                                                                                                                                    |
+| 3. Clipboard, composition and gestures      | SDK, Desktop and production WebUI accepted; physical IME and touch selection need acceptance/adaptation | Public-wheel tests passed page/window selection and Unicode multiline paste. Real Electron/public 0.58.2/Sonnet and production WebUI/Moss 0.1.77/public 0.58.2 journeys passed exact phrase copy, trusted multiline paste, Chromium composition without premature insertion, one final submission and real model continuation. Shared UI regressions reject a paste delayed across a tab change. Physical OS/device IME remains unverified. Mouse/pen drag is bounded and sent on release; continuous drag preview is not implemented. Touch supports taps, remote scrolling and local viewport movement; remote text selection and graph dragging need an explicit touch gesture mode and real-device acceptance. |
+| 4. Human/AI collaboration                   | Ordinary conversation supported and production accepted; comment continuation needs adapter             | No browser business handoff buttons. Existing interrupt acknowledges the barrier and rejects stale queued input; fresh normal chat observes and continues the owned browser. Desktop main/child barriers and cloud owner isolation passed. Comment delivery must resolve the registered binding before enqueuing a normal host event; it must not grant browser input during human interaction. Idle/disconnect never resumes AI.                                                                                                                                                                                                                                                                                  |
+| 5. Actual graph interaction latency         | Joint acceptance required                                                                               | The production headful form measured 3.05 rendered frames/s, 234.2 ms median and 740.6 ms p95 frame interval, and 1083.12 ms click feedback. This is a form measurement, not graph acceptance. Measure page processing, frame production/transport and network delay separately for actual graph pan/zoom, selection and comments.                                                                                                                                                                                                                                                                                                                                                                                 |
+| 6. Supported hosts/transports/devices       | Core paths supported; additional combinations need adaptation or device acceptance                      | Local standalone CDP, explicit personal extension and cloud CDP/managed extension have real browser evidence. A cloud viewer needs no local extension or Chrome installation. View-only native review must remain extension free; the native review entry and revision binding belong to the adapter. The cloud-to-local extension relay is optional and unimplemented. Physical iPhone browser input/IME and Safari transport acceptance remain pending; desktop touch emulation does not establish them.                                                                                                                                                                                                         |
 
 Desktop standalone can launch branded Chrome with an independent profile and
 CDP. An existing personal default profile uses explicit extension consent;
@@ -879,7 +879,7 @@ model configuration copies and all owned app services were cleaned.
 
 An authenticated production WebUI viewer displayed the real
 [`sudograph-northwind` review](https://s.shareone.vip/s/sudograph-northwind)
-from Sudograph revision `9876b6895c25386e0310b8bf954dd9e08aa87282`.
+from Sudograph revision `8876b6885c25386e0310b8bf954dd9e08aa87282`.
 Visible viewer gestures zoomed and panned the graph, opened a text-comment
 popup for Sales by Category, expanded its four fields and switched language
 while retaining the expansion and selection. No local extension was needed.
@@ -892,3 +892,34 @@ quote/target identity, reopening the same submitted thread and the adapter's
 project/revision/share binding still require joint acceptance. The recorded
 gesture-driver durations do not measure page-to-frame or network latency;
 actual graph feedback and transport segmentation remain open.
+
+### Private noVNC graph baseline, 21 October
+
+A separate temporary VM container ran public SDK 0.58.2, Chrome 155.0.8059.84
+and the extracted noVNC adapter against that same published graph. Its local
+viewer used an existing private SSH tunnel and a separate browser profile.
+The final measurement observed the native RFB WebSocket and sampled the real
+canvas without replacing browser APIs or synthesizing frame content.
+
+One native pan sent input for 1.18 seconds and produced 14 distinct canvas
+updates. Its first changed frame arrived after 369 ms; the last arrived
+132 ms after input dispatch ended. Another pan produced four updates, with
+460 ms first feedback and 220 ms final feedback after dispatch. One wheel
+zoom produced visible feedback after 691 ms. A reverse wheel produced no
+captured change during its 750 ms observation window. These samples establish
+continuous pan feedback, while responsiveness still needs improvement and
+repeatable acceptance on the final public route.
+
+WebSocket message arrival to sampled canvas change ranged from 6 to 20 ms
+for the first pan. Sampling has animation-frame granularity; it is not an
+exact compositor-present timestamp. The baseline does not separate server
+capture from network time. The root-document probe observed no graph input
+events, so graph page processing remains unmeasured. Submitted comment feedback
+also remains unmeasured.
+
+The VM fixture expired normally at its 15-minute deadline and removed its
+Chrome, display, VNC processes, temporary profile and password. The local viewing
+Chrome closed normally. This is a private transport baseline. Production
+integration must retain authenticated task/session binding and enforce the
+existing input lease for every native operation; the public WebUI continues
+to use its existing JPEG/native-input path.
