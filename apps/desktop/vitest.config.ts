@@ -273,7 +273,7 @@ export default defineConfig({
         'src/process/services/ontology/ontologyToolHistory.ts',
         'src/utils/configureChromium.ts',
         // ACP
-        'src/agent/acp/AcpAdapter.ts',
+        '../../packages/common/src/acpAdapter.ts',
         'src/agent/acp/AcpConnection.ts',
         'src/agent/acp/modelInfo.ts',
         'src/agent/acp/ndjson.ts',
