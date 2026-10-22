@@ -137,7 +137,7 @@ export default function ParkConsole() {
               event.currentTarget.src = DEFAULT_PARK_LOGO
             }}
           />
-          <strong>{brand}</strong>
+          <strong>{t.brand}</strong>
         </div>
         <nav className={styles.nav} aria-label={brand}>
           {pages
@@ -155,21 +155,14 @@ export default function ParkConsole() {
       </aside>
       <div className={styles.workspace}>
         <header className={styles.topbar}>
-          <span>{t.nav[page.id]}</span>
+          <h1 className={styles.topbarTitle}>{t.nav[page.id]}</h1>
           <div className={styles.topbarActions}>
-            <span className={styles.dataSource}>{t.demo}</span>
             <button className={styles.logout} type="button" onClick={() => void logout()}>
               退出登录
             </button>
           </div>
         </header>
         <main className={styles.main}>
-          <div className={styles.pageHeading}>
-            <div>
-              <span className={styles.eyebrow}>PARK / {page.id.toUpperCase()}</span>
-              <h1>{t.nav[page.id]}</h1>
-            </div>
-          </div>
           {role === 'park_leader' && <LeaderPage key={page.id} id={page.id} api={api} />}
           {role === 'park_recruiter' && (
             <RecruiterPage

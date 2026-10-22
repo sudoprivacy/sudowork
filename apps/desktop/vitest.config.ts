@@ -106,6 +106,7 @@ export default defineConfig({
       // 例如: 'src/process/services/newService.ts'
       include: [
         '../park/src/consult/MarkdownBody.tsx',
+        '../park/src/pages/leaderTime.tsx',
         '../park/src/consult/sources.tsx',
         'src/process/services/browserPanel/LocalBrowserWorker.ts',
         'src/process/services/browserPanel/LocalBrowserSessions.ts',

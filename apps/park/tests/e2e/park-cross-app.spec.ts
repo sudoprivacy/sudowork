@@ -371,7 +371,7 @@ test('phone contact follows the SMS log, verification, consent and recruiter vie
   const challengeAnswer = (await (await request.get(`${mossUrl}/__test__/captcha-answer`)).json()) as { answer: string }
   await page.locator('#contact-challenge-answer').fill(challengeAnswer.answer)
   await page.locator('#contact-challenge-submit').click()
-  await expect(page.getByText('验证码已发送，请查看短信。')).toBeVisible()
+  await expect(page.locator('#code-note')).toContainText('短信验证码已成功发送')
   const smsLogResponse = await request.get(`${mossUrl}/__test__/sms-log`)
   expect(smsLogResponse.status()).toBe(200)
   const smsLog = (await smsLogResponse.json()) as Array<{ phone: string; code: string }>

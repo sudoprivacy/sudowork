@@ -77,6 +77,15 @@
   color: #6e7a82;
   letter-spacing: 0.1em;
 }
+.topbarTitle {
+  margin: 0;
+  color: #162a43;
+  font:
+    600 22px 'Noto Serif SC',
+    Georgia,
+    serif;
+  letter-spacing: 0;
+}
 .topbarActions {
   display: flex;
   align-items: center;
@@ -580,4 +589,106 @@
 }
 .caption strong {
   font-size: 13px;
+}
+
+.leaderTime {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 14px;
+}
+.leaderTime .field {
+  width: 180px;
+}
+.leaderAsOf {
+  margin: 16px 0 8px;
+}
+.leaderPeriod {
+  margin: 0 0 16px;
+}
+.overviewStat {
+  display: flex;
+  flex-direction: column;
+}
+.overviewStat .panelNote {
+  margin: 8px 0 0;
+}
+.overviewStat .panelNote:last-of-type {
+  margin-bottom: 16px;
+}
+.overviewStat .sparkline {
+  display: block;
+  flex-shrink: 0;
+  margin-top: auto;
+}
+.leaderMonth {
+  position: relative;
+  width: 180px;
+}
+.leaderMonth > button {
+  width: 100%;
+}
+.monthPanel {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 8px);
+  left: 0;
+  width: 280px;
+  padding: 12px;
+  border: 1px solid #d5dddb;
+  border-radius: 8px;
+  background: #fffefb;
+  box-shadow: 0 6px 24px #162a4320;
+}
+.monthYear {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.monthYear input {
+  width: 75px;
+  margin-left: 6px;
+}
+.monthGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.monthGrid button,
+.monthYear button {
+  border: 1px solid #d5dddb;
+  border-radius: 4px;
+  padding: 8px;
+  background: white;
+  color: #162a43;
+  cursor: pointer;
+}
+.monthGrid button[aria-pressed='true'] {
+  background: #173d66;
+  color: white;
+}
+.monthGrid button:disabled,
+.monthYear button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.researchStack {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+}
+.questionTable {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+.questionTable th:last-child,
+.questionTable td:last-child {
+  width: 110px;
+  text-align: right;
+}
+.questionTable td:first-child {
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
