@@ -1,6 +1,8 @@
 # Shared browser sessions for Desktop and WebUI
 
-Status: the shared panel and browser session core are delivered. SudoWork #1281 removes browser takeover/return buttons in favor of the existing conversation interrupt and ordinary chat; its exact WebUI image and production Moss 0.1.77 passed a real model/browser journey on 20 October. The production browser worker is 0.58.1. Public SDK 0.58.2 has passed isolated cloud Chrome selection, clipboard, lifecycle and native display tests; the application consumer and worker rollout remain in acceptance. The optional local extension relay, complete Sudograph review integration and physical phone browser acceptance remain open. This document is the source for [the shared design page](https://s.shareone.vip/md/sudowork-browser-sessions).
+Status, 22 October: the shared panel, session core, conversation interrupt flow and bounded selection/clipboard UI are delivered. SudoWork #1281 and #1282 are merged. The deployed WebUI and Moss 0.1.77 passed real model/browser acceptance with public SDK 0.58.2; the production acceptance owners use the verified 0.58.2 worker. General owner rollout remains open.
+
+The Desktop packaging correction in #1283 passed a normally built packaged candidate with a cold runtime, real model, personal Chrome and clipboard/composition journey; final CI and official artifact delivery remain open. The touch gesture primitive and consuming UI have local live evidence but are not released. Complete Sudograph comment/binding acceptance, actual graph responsiveness on the public route and physical phone browser acceptance remain open. The local extension relay is optional and unimplemented. This document is the source for [the shared design page](https://s.shareone.vip/md/sudowork-browser-sessions).
 
 ## 1. Decisions
 
@@ -30,15 +32,15 @@ An Electron `<webview>` is a Chromium guest, not a DOM component available in or
 
 ### Implementation and acceptance coverage
 
-| Browser path                     | Delivery and evidence                                                                                                                                                                                       |
-| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Desktop local standalone CDP     | Implemented in [SudoWork #1250](https://github.com/sudoprivacy/sudowork/pull/1250); actual Electron/model takeover, compact controls and same-session commands passed.                                      |
-| Desktop app-managed extension    | Not exposed as a third Desktop launch path. Desktop starts a standalone CDP profile or explicitly connects an existing extension profile; managed extension startup belongs to the cloud deployment.        |
-| Desktop existing personal Chrome | Explicit selection, four real host/crash-recovery journeys and a complete Electron/Sonnet handoff passed. SDK 0.58.0 is published; application delivery remains open.                                       |
-| Desktop cloud Chrome             | Actual Electron cloud login, model task, shared panel, independent viewer and exact AI readback passed; deployed release acceptance remains open.                                                           |
-| Shared cloud extension and CDP   | Implemented in the public worker, Moss and shared panel. Real model/file/reconnect and explicit transport-switch journeys passed against the production backend; public frontend rollout is recorded below. |
-| WebUI local extension relay      | Optional planned capability with explicit pairing and revocation.                                                                                                                                           |
-| Viewing clients                  | Real Chromium and Firefox 155 on Windows passed. Physical phone and Safari acceptance remain open; desktop testing does not establish either result.                                                        |
+| Browser path                     | Delivery and evidence                                                                                                                                                                                                                             |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Desktop local standalone CDP     | Implemented in [SudoWork #1250](https://github.com/sudoprivacy/sudowork/pull/1250); actual Electron/model takeover, compact controls and same-session commands passed.                                                                            |
+| Desktop app-managed extension    | Not exposed as a third Desktop launch path. Desktop starts a standalone CDP profile or explicitly connects an existing extension profile; managed extension startup belongs to the cloud deployment.                                              |
+| Desktop existing personal Chrome | Explicit selection, real host/crash-recovery and Electron/model journeys passed. Public SDK 0.58.2 and the corrected packaged candidate passed clipboard/composition and profile preservation; official corrected artifact delivery remains open. |
+| Desktop cloud Chrome             | Actual Electron cloud login, model task, shared panel, independent viewer and exact AI readback passed; deployed release acceptance remains open.                                                                                                 |
+| Shared cloud extension and CDP   | Implemented in the public worker, Moss and shared panel. Real model/file/reconnect and explicit transport-switch journeys passed against the production backend; public frontend rollout is recorded below.                                       |
+| WebUI local extension relay      | Optional planned capability with explicit pairing and revocation.                                                                                                                                                                                 |
+| Viewing clients                  | Real Chromium and Firefox 155 on Windows passed. The touch UI candidate passed a 390 by 844 Chromium touch journey; physical phone and Safari browser acceptance remain open.                                                                     |
 
 ## 3. Architecture
 
