@@ -386,5 +386,34 @@ The private relay must forward `/selection-layout`, `/clipboard-input` and
 desktop clipboard journey separately from `--verify-mobile-view`. It passed
 through the real public WebUI, Moss 0.1.77 and public worker 0.58.2 on 21 October.
 Chromium composition is not physical operating-system IME or iPhone evidence.
-Mouse/pen drag is sent on release; touch text selection and graph dragging
-remain adaptation work. Form measurements do not establish graph fluidity.
+Mouse/pen drag is sent on release. Form measurements do not establish graph fluidity.
+
+### Explicit touch selection
+
+Add `--verify-touch-selection` to the mobile journey to exercise the touch-only
+Scroll page / Select text or drag toggle. The client needs the shared
+`PageSurface` `touchDrag` capability; public worker 0.58.2 already understands
+the unchanged bounded drag operation. The SDK client addition is tracked in
+[ai-dev-browser PR #35](https://github.com/sudoprivacy/ai-dev-browser/pull/35).
+
+```sh
+python apps/webui/tests/e2e/live_browser_view_performance.py \
+  --config /private/browser-live.json \
+  --verify-mobile-view --verify-touch-selection --verify-profile-persistence \
+  --fixture-origin http://worker-reachable-fixture:50181 \
+  --output /private/evidence/mobile-browser-selection-001
+```
+
+The real viewer pans without remote input, switches gesture mode, drags the
+exact remote phrase and copies it through the local clipboard API. It restores
+its clipboard, then completes trusted Unicode login, browser restart, two real
+model turns and normal conversation interruption/continuation. Interrupt input
+targets the intersection of the enlarged image, its clipping viewport and the
+device screen. Touch moves use a physical gesture cadence: instantaneous CDP
+swipes suppress the following compatibility click even in a neutral browser.
+
+This complete journey passed on 21 October with candidate frontend assets and
+the production WebUI/Moss 0.1.77/public worker 0.58.2. Its owned session was
+durably terminated and temporary key revoked. It establishes Chromium touch
+emulation; physical iPhone/Safari selection, OS IME, actual graph dragging and
+continuous drag preview remain separate acceptance requirements.

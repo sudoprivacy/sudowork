@@ -25,6 +25,8 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
   const [imageZoom, setImageZoom] = useState<number | null>(null);
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
   const [isPanning, setIsPanning] = useState(false);
+  const [isTouchDragging, setIsTouchDragging] = useState(false);
+  const isTouchInputAvailable = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
   const viewportRef = useRef<HTMLDivElement>(null);
   const panRef = useRef<{ id: number; x: number; y: number; left: number; top: number } | null>(null);
   const imageRef = useRef<HTMLImageElement>(null);
@@ -326,7 +328,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
             if (generationRef.current === generation) Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
           });
       },
-      { drag: isDragSupported }
+      { drag: isDragSupported, touchDrag: isTouchDragging }
     );
     surfaceRef.current = surface;
     return () => {
@@ -336,7 +338,17 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
       setIsFrameReady(false);
       surfaceRef.current = null;
     };
-  }, [queueInput, t, isControlsOnly, isSessionKnown, isDragSupported]);
+  }, [queueInput, t, isControlsOnly, isSessionKnown, isDragSupported, isTouchDragging]);
+
+  const onTouchGestureChange = (value: string) => {
+    // A second finger can change this control during an unfinished gesture.
+    // Discard that gesture synchronously and wait for a fresh frame.
+    surfaceRef.current?.clear();
+    isFrameReadyRef.current = false;
+    isInteractiveRef.current = false;
+    setIsFrameReady(false);
+    setIsTouchDragging(value === 'drag');
+  };
 
   const onInsertText = async () => {
     const current = sessionRef.current;
@@ -782,6 +794,18 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
         >
           {t('conversation.browserSession.interactPage')}
         </Button>
+        {isTouchInputAvailable && isDragSupported ? (
+          <Button
+            aria-label={t('conversation.browserSession.touchGesture')}
+            aria-pressed={isTouchDragging}
+            type={isTouchDragging ? 'primary' : 'secondary'}
+            disabled={!isController || !isFrameReady || isPanning}
+            onClick={() => onTouchGestureChange(isTouchDragging ? 'scroll' : 'drag')}
+            style={{ minHeight: 44 }}
+          >
+            {t(`conversation.browserSession.${isTouchDragging ? 'touchDrag' : 'touchScroll'}`)}
+          </Button>
+        ) : null}
       </div>
       {isController && (session?.capabilities.selectionRead || session?.capabilities.clipboardText) ? (
         <div className='flex flex-wrap gap-2'>
@@ -834,6 +858,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
               height: imageZoom !== null && imageSize.height ? imageSize.height * imageZoom : undefined,
               pointerEvents: isController && !isPanning ? 'auto' : 'none',
               touchAction: 'none',
+              WebkitTouchCallout: isTouchDragging ? 'none' : undefined,
               visibility: isFrameReady ? 'visible' : 'hidden',
             }}
           />

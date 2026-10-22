@@ -4,9 +4,9 @@ import asyncio
 import time
 
 
-def fixture_html(phrase):
+def fixture_html(phrase, left=40):
     return (
-        '<span id="review-phrase" style="position:absolute;left:40px;top:280px;'
+        f'<span id="review-phrase" style="position:absolute;left:{left}px;top:280px;'
         'font:20px monospace;white-space:pre">'
         + phrase
         + "</span>"
@@ -26,7 +26,8 @@ document.querySelector('#clipboard-submit').onclick=async event=>{
 
 
 async def verify_clipboard(
-    page, panel, labels, phrase, layouts, inputs, submissions, nonce, evidence
+    page, panel, labels, phrase, layouts, inputs, submissions, nonce, evidence,
+    *, gesture="mouse", selection_only=False,
 ):
     async def wait_for(probe, description):
         deadline = time.monotonic() + 15
@@ -49,16 +50,34 @@ async def verify_clipboard(
     pasted = "WebUI clipboard 中文\nSecond line ✓ " + nonce
     composed = "中文输入\nWebUI composed line ✓ " + nonce
     try:
-        await page.mouse.move(x1, y)
-        await page.mouse.down()
-        await page.mouse.move(x2, y, steps=8)
-        await page.mouse.up()
-        await panel.get_by_role("button", name=labels["copySelection"], exact=True).click()
+        if gesture == "touch":
+            visible = await panel.get_by_label(labels["imageViewport"], exact=True).bounding_box()
+            assert visible and visible["x"] < x1 < x2 < visible["x"] + visible["width"]
+            assert visible["y"] < y < visible["y"] + visible["height"]
+            touch = await page.context.new_cdp_session(page)
+            try:
+                await touch.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [{"x": x1, "y": y}]})
+                for step in range(1, 9):
+                    await touch.send("Input.dispatchTouchEvent", {"type": "touchMove", "touchPoints": [{"x": x1 + (x2 - x1) * step / 8, "y": y}]})
+                    await asyncio.sleep(0.03)
+                await touch.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+            finally:
+                await touch.detach()
+            await panel.get_by_role("button", name=labels["copySelection"], exact=True).tap()
+        else:
+            await page.mouse.move(x1, y)
+            await page.mouse.down()
+            await page.mouse.move(x2, y, steps=8)
+            await page.mouse.up()
+            await panel.get_by_role("button", name=labels["copySelection"], exact=True).click()
         deadline = time.monotonic() + 15
         while await page.evaluate("navigator.clipboard.readText()") != phrase:
             assert time.monotonic() < deadline, "The WebUI did not copy the exact selected phrase"
             await asyncio.sleep(0.1)
         evidence["exactPhraseCopiedFromRemoteSelection"] = True
+        if selection_only:
+            evidence["remoteTouchDragSelection"] = gesture == "touch"
+            return
         await page.evaluate("text=>navigator.clipboard.writeText(text)", pasted)
 
         async def click_remote(x, y):

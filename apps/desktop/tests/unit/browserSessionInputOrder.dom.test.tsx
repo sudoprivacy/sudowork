@@ -30,7 +30,7 @@ vi.mock('react-i18next', () => {
 });
 vi.mock('@arco-design/web-react', () => ({
   Button: ({ children, onClick, disabled, ...rest }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
-    <button disabled={disabled} onClick={onClick} aria-label={rest['aria-label']}>
+    <button disabled={disabled} onClick={onClick} aria-label={rest['aria-label']} aria-pressed={rest['aria-pressed']}>
       {children}
     </button>
   ),
@@ -84,6 +84,65 @@ afterEach(() => {
   host.error.mockReset();
   host.confirm.mockReset();
   host.info.mockReset();
+});
+
+it('discards an unfinished touch gesture when switching modes and waits for a fresh frame', async () => {
+  vi.stubGlobal('navigator', { maxTouchPoints: 1 });
+  const base = activeSession();
+  const session = { ...base, capabilities: { ...base.capabilities, dragInput: true } };
+  const actions: BrowserSessionAction[] = [];
+  const frame = { data: 'eA==', width: 100, height: 100, controlEpoch: 4, targetEpoch: 2 };
+  let isFrameHeld = false;
+  let releaseFrame: (() => void) | undefined;
+  host.invoke.mockImplementation(async ({ action }: { action: BrowserSessionAction }) => {
+    if (action.kind === 'input') actions.push(action);
+    if (action.kind === 'frame' && isFrameHeld) {
+      return new Promise((resolve) => {
+        releaseFrame = () => resolve({ success: true, data: { session, frame } });
+      });
+    }
+    return { success: true, data: { session, ...(action.kind === 'frame' ? { frame } : {}) } };
+  });
+  render(<BrowserSessionPanel conversationId='owned-conversation' />);
+  const image = await screen.findByAltText('page');
+  await waitFor(() => expect(image.getAttribute('src')).toMatch(/^data:/));
+  fireEvent.load(image);
+  vi.spyOn(image, 'getBoundingClientRect').mockReturnValue({ x: 0, y: 0, width: 100, height: 100, top: 0, left: 0, right: 100, bottom: 100, toJSON: () => ({}) });
+  Object.defineProperty(image, 'setPointerCapture', { value: vi.fn(), configurable: true });
+  const touch = (type: string, x: number, id: number) => {
+    const event = new MouseEvent(type, { bubbles: true, clientX: x, clientY: 20 });
+    Object.defineProperties(event, { pointerId: { value: id }, pointerType: { value: 'touch' } });
+    fireEvent(image, event);
+  };
+  const gesture = screen.getByRole('button', { name: 'touchGesture' });
+  expect(gesture.getAttribute('aria-pressed')).toBe('false');
+  touch('pointerdown', 10, 1);
+  touch('pointermove', 80, 1);
+  isFrameHeld = true;
+  fireEvent.click(gesture);
+  expect(gesture.getAttribute('aria-pressed')).toBe('true');
+  touch('pointerup', 80, 1);
+  expect(actions).toEqual([]);
+  expect(image.getAttribute('src')).toBeNull();
+  expect(gesture).toHaveProperty('disabled', true);
+  await waitFor(() => expect(releaseFrame).toBeTypeOf('function'));
+  await act(async () => {
+    isFrameHeld = false;
+    releaseFrame?.();
+  });
+  await waitFor(() => expect(image.getAttribute('src')).toMatch(/^data:/));
+  fireEvent.load(image);
+  expect(gesture).toHaveProperty('disabled', false);
+  touch('pointerdown', 10, 2);
+  touch('pointermove', 80, 2);
+  touch('pointerup', 80, 2);
+  await waitFor(() => expect(actions).toHaveLength(1));
+  expect(actions[0]).toMatchObject({ kind: 'input', input: { kind: 'drag' }, controlEpoch: 4, targetEpoch: 2 });
+  if (actions[0].kind === 'input' && actions[0].input.kind === 'drag') {
+    expect(actions[0].input.points[0]).toEqual({ x: 10, y: 20 });
+    expect(actions[0].input.points.at(-1)).toEqual({ x: 80, y: 20 });
+  }
+  expect(host.error).not.toHaveBeenCalled();
 });
 
 it('begins the clipboard write in the user gesture before the remote selection arrives', async () => {
