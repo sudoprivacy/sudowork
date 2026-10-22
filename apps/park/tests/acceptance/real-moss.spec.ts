@@ -337,9 +337,11 @@ test('agent history, idle reclamation, automatic retry, and capacity limits work
     try {
       const blockedPage = await blocked.newPage()
       await blockedPage.goto(`${parkUrl}/consult`, { waitUntil: 'networkidle' })
-      await expect(blockedPage.getByText('当前咨询人数较多，请稍后再试。')).toBeVisible()
-      await blockedPage.locator('#question-input').fill('仍想咨询')
-      await expect(blockedPage.getByRole('button', { name: /发送问题/ })).toBeDisabled()
+      await blockedPage.locator('#question-input').fill('capacity probe')
+      await blockedPage.getByRole('button', { name: /\u53d1\u9001\u95ee\u9898/ }).click()
+      await expect(blockedPage.getByText('\u5f53\u524d\u54a8\u8be2\u4eba\u6570\u8f83\u591a\uff0c\u8bf7\u7a0d\u540e\u518d\u8bd5\u3002')).toBeVisible()
+      await expect(blockedPage.locator('#question-input')).toHaveValue('capacity probe')
+      await expect(blockedPage.getByRole('button', { name: /\u53d1\u9001\u95ee\u9898/ })).toBeDisabled()
     } finally {
       await blocked.close()
     }
@@ -380,9 +382,8 @@ test('agent history, idle reclamation, automatic retry, and capacity limits work
       .toBe('terminated')
     await page.locator('#question-input').fill('请继续说明入驻流程。')
     await page.getByRole('button', { name: /发送问题/ }).click()
-    await expect(
-      page.getByText('本次咨询会话已结束。您仍可继续提问，系统将为您开启新的咨询会话。'),
-    ).toBeVisible()
+    await expect(page.getByText('\u54a8\u8be2\u4f1a\u8bdd\u5df2\u66f4\u65b0\uff0c\u8bf7\u786e\u8ba4\u540e\u518d\u6b21\u63d0\u4ea4\u3002')).toBeVisible()
+    await page.getByRole('button', { name: /\u53d1\u9001\u95ee\u9898/ }).click()
     await expect(page.locator('.assistant-message').last()).toContainText('来源：', {
       timeout: 30_000,
     })

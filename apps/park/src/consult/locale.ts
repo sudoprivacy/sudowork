@@ -81,5 +81,6 @@ export const zh = {
   contactSessionExpired: '咨询会话已过期，请刷新页面后重新操作。',
   sessionClosing: '为保障服务可用，本次咨询已闲置一段时间，会话将于 {time} 后自动结束；发送任意消息可继续本次咨询。',
   sessionClosed: '本次咨询会话已结束。您仍可继续提问，系统将为您开启新的咨询会话。',
+  sessionChanged: '咨询会话已更新，请确认后再次提交。',
   sessionCapacity: '当前咨询人数较多，请稍后再试。',
 } as const

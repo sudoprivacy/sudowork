@@ -13,6 +13,13 @@ if (!['http:', 'https:'].includes(moss.protocol)) throw new Error('MOSS_BASE_URL
 const port = Number(process.env.PORT ?? 4176)
 const host = process.env.HOST ?? '127.0.0.1'
 const publicOrigin = new URL(process.env.PARK_PUBLIC_ORIGIN ?? `http://127.0.0.1:${port}`).origin
+const allowedOrigins = new Set([
+  publicOrigin,
+  ...(process.env.PARK_ALLOWED_ORIGINS ?? '')
+    .split(',')
+    .filter(Boolean)
+    .map((value) => new URL(value.trim()).origin),
+])
 const dist = resolve(import.meta.dirname, 'dist')
 const backend = createParkBackend(moss.origin)
 const proxyKey = process.env.PARK_PUBLIC_PROXY_HMAC_KEY
@@ -127,7 +134,7 @@ async function proxyParkApi(req, res, requestUrl) {
     return
   }
   const origin = req.headers.origin
-  if (origin && origin !== publicOrigin) {
+  if (origin && !allowedOrigins.has(origin)) {
     json(res, 403, { error: 'INVALID_ORIGIN' })
     return
   }

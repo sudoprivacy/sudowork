@@ -4,7 +4,7 @@ import { Navigate, useNavigate } from 'react-router-dom'
 import { useParkAuth } from './auth'
 import { useParkTitle } from './useParkTitle'
 import './login.css'
-import { setParkFavicon } from './brand'
+import { DEFAULT_PARK_LOGO, parkLogoUrl, setParkFavicon } from './brand'
 
 export default function LoginPage() {
   const { state, login } = useParkAuth()
@@ -14,6 +14,7 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [displayName, setDisplayName] = useState('')
+  const [logoUrl, setLogoUrl] = useState(DEFAULT_PARK_LOGO)
   useParkTitle(displayName)
 
   useEffect(() => {
@@ -26,6 +27,7 @@ export default function LoginPage() {
       .then((context) => {
         if (isActive) {
           setDisplayName(context.display_name)
+          setLogoUrl(parkLogoUrl(context.logo_url))
           setParkFavicon(context.logo_url)
         }
       })
@@ -57,10 +59,15 @@ export default function LoginPage() {
     <main className="park-login">
       <div className="park-login__field" aria-hidden="true" />
       <section className="park-login__card" aria-labelledby="park-login-title">
-        <div className="park-login__mark">园</div>
+        <img
+          className="park-login__mark"
+          src={logoUrl}
+          alt={displayName ? `${displayName} logo` : '园区 logo'}
+          onError={() => setLogoUrl(DEFAULT_PARK_LOGO)}
+        />
         <p className="park-login__eyebrow">YUNQI SMART VALLEY</p>
         <h1 id="park-login-title">园区管理</h1>
-        <p className="park-login__intro">云栖智谷产业园</p>
+        <p className="park-login__intro">{displayName}</p>
         <form onSubmit={(event) => void onSubmit(event)}>
           <label htmlFor="park-username">账号</label>
           <input

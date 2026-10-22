@@ -18,6 +18,7 @@ async function commonPublicRoute(route: Route, options: {
   const method = route.request().method()
   if (path === '/public/consult/context') await route.fulfill({ json: context })
   else if (path === '/public/consult/quick-questions') await route.fulfill({ json: [{ id: 'q1', question: '有哪些算力支持？', sort_order: 1 }] })
+  else if (path === '/public/consult/session') await route.fulfill({ json: { session_id: 'test-session', expires_at: Date.now() + 86_400_000 } })
   else if (path === '/public/consult/sessions') await route.fulfill({ status: 201, json: { session_id: 'test-session', expires_at: Date.now() + 86_400_000 } })
   else if (path.endsWith('/status')) await route.fulfill({ json: options.status ?? { closing_at: Date.now() + 30 * 60_000, closed: false } })
   else if (path.endsWith('/messages') && method === 'GET') await route.fulfill({ json: [] })
@@ -32,9 +33,13 @@ async function openContact(page: Page): Promise<void> {
 }
 
 test('the consultation composer sends with Enter and only enables for a question', async ({ page }) => {
+  await page.addInitScript(() => Object.defineProperty(crypto, 'randomUUID', { value: undefined }))
   const sent: string[] = []
   await page.route('**/public/**', (route) => commonPublicRoute(route, {
     onMessage: async (messageRoute) => {
+      expect(messageRoute.request().postDataJSON().client_request_id).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+      )
       sent.push((messageRoute.request().postDataJSON() as { message: string }).message)
       await messageRoute.fulfill({ contentType: 'text/event-stream', body: 'event: delta\ndata: {"text":"已收到"}\n\nevent: done\ndata: {}\n\n' })
     },
@@ -315,6 +320,8 @@ test('stable errors, lifecycle warning and closed-session retry are visible', as
     if (path === '/public/consult/sessions') {
       sessionCount += 1
       await route.fulfill({ status: 201, json: { session_id: `session-${sessionCount}` } })
+    } else if (path === '/public/consult/session') {
+      await route.fulfill({ json: { session_id: `session-${sessionCount}` } })
     } else if (path.endsWith('/status')) {
       await route.fulfill({ json: { closing_at: Date.now() + 3 * 60_000, closed: false } })
     } else if (path.endsWith('/messages') && method === 'POST') {
@@ -329,8 +336,10 @@ test('stable errors, lifecycle warning and closed-session retry are visible', as
   await page.locator('#question-input').fill('继续咨询')
   await page.getByRole('button', { name: /发送问题/ }).click()
   await expect(page.getByText(/本次咨询会话已结束/)).toBeVisible()
-  await expect(page.getByText('新会话回答')).toBeVisible()
-  expect(sessionCount).toBe(2)
+  await expect(page.locator('#question-input')).toHaveValue('\u7ee7\u7eed\u54a8\u8be2')
+  await page.getByRole('button', { name: /\u53d1\u9001\u95ee\u9898/ }).click()
+  await expect(page.getByText('\u65b0\u4f1a\u8bdd\u56de\u7b54')).toBeVisible()
+  expect(sessionCount).toBe(1)
   await openContact(page)
   await page.locator('input[name="phone"]').fill('13812345678')
   await page.locator('#phone-code').fill('000000')
@@ -339,14 +348,86 @@ test('stable errors, lifecycle warning and closed-session retry are visible', as
   await expect(page.getByText('短信验证码错误或已过期，请重新获取。')).toBeVisible()
 })
 
-test('session capacity failure disables consultation input', async ({ page }) => {
-  await page.route('**/public/**', async (route) => {
+test('capacity refusal retains the question and allows retry after the server cooldown', async ({ page }) => {
+  let attempts = 0
+  await page.route('**/public/**', (route) => commonPublicRoute(route, {
+    onMessage: async (messageRoute) => {
+      attempts++
+      await messageRoute.fulfill(attempts === 1
+        ? { status: 503, headers: { 'Retry-After': '1' }, json: { error: 'SESSION_CAPACITY_REACHED' } }
+        : { contentType: 'text/event-stream', body: 'event: delta\ndata: {"text":"retry succeeded"}\n\nevent: done\ndata: {}\n\n' })
+    },
+  }))
+  await page.goto('/consult')
+  await page.locator('#question-input').fill('question')
+  const send = page.getByRole('button', { name: /\u53d1\u9001\u95ee\u9898/ })
+  await send.click()
+  await expect(page.getByText('\u5f53\u524d\u54a8\u8be2\u4eba\u6570\u8f83\u591a\uff0c\u8bf7\u7a0d\u540e\u518d\u8bd5\u3002')).toBeVisible()
+  await expect(page.locator('#question-input')).toHaveValue('question')
+  await expect(send).toBeDisabled()
+  await expect(send).toBeEnabled()
+  await send.click()
+  await expect(page.getByText('retry succeeded')).toBeVisible()
+  expect(attempts).toBe(2)
+})
+
+test('refresh restores history and a cookie identity change preserves the draft without sending', async ({ page }) => {
+  let identity = 'test-session'
+  let sent = 0
+  await page.route('**/public/**', async route => {
     const path = new URL(route.request().url()).pathname
-    if (path === '/public/consult/sessions') await route.fulfill({ status: 503, json: { error: 'SESSION_CAPACITY_REACHED' } })
-    else await commonPublicRoute(route)
+    if (path === '/public/consult/session') await route.fulfill({ json: { session_id: identity } })
+    else if (path.endsWith('/messages') && route.request().method() === 'GET') {
+      await route.fulfill({ json: [{ redacted_question: 'historical question', redacted_answer: 'historical answer', source_refs: [] }] })
+    } else await commonPublicRoute(route, { onMessage: async messageRoute => { sent++; await messageRoute.fulfill({ status: 500 }) } })
   })
   await page.goto('/consult')
-  await expect(page.getByText('当前咨询人数较多，请稍后再试。')).toBeVisible()
-  await page.locator('#question-input').fill('仍想咨询')
-  await expect(page.getByRole('button', { name: /发送问题/ })).toBeDisabled()
+  await expect(page.getByText('historical answer')).toBeVisible()
+  await page.reload()
+  await expect(page.getByText('historical answer')).toHaveCount(1)
+  await page.locator('#question-input').fill('unsent draft')
+  identity = 'another-session'
+  await page.getByRole('button', { name: /\u53d1\u9001\u95ee\u9898/ }).click()
+  await expect(page.getByText('\u54a8\u8be2\u4f1a\u8bdd\u5df2\u66f4\u65b0\uff0c\u8bf7\u786e\u8ba4\u540e\u518d\u6b21\u63d0\u4ea4\u3002')).toBeVisible()
+  await expect(page.locator('#question-input')).toHaveValue('unsent draft')
+  expect(sent).toBe(0)
+})
+
+test('answer concurrency refusal retains the draft and observes retry timing', async ({ page }) => {
+  await page.route('**/public/**', route => commonPublicRoute(route, {
+    onMessage: async messageRoute => messageRoute.fulfill({ status: 429, headers: { 'Retry-After': '1' }, json: { error: 'concurrent_limit' } }),
+  }))
+  await page.goto('/consult')
+  await page.locator('#question-input').fill('concurrent question')
+  const send = page.locator('#question-form button[type="submit"]')
+  await send.click()
+  await expect(page.locator('#question-input')).toHaveValue('concurrent question')
+  await expect(send).toBeDisabled()
+  await expect(send).toBeEnabled()
+})
+
+test('out of order identity reads cannot send an old draft into the new session', async ({ page }) => {
+  let firstRead: Route | undefined
+  let reads = 0
+  let sent = 0
+  await page.route('**/public/**', async route => {
+    if (new URL(route.request().url()).pathname === '/public/consult/session') {
+      reads++
+      if (reads === 1) { firstRead = route; return }
+      await route.fulfill({ json: { session_id: 'replacement' } })
+    } else await commonPublicRoute(route, {
+      onMessage: async messageRoute => { sent++; await messageRoute.fulfill({ status: 500 }) },
+    })
+  })
+  await page.goto('/consult')
+  await page.locator('#question-input').fill('original session draft')
+  await page.locator('#question-form button[type="submit"]').click()
+  await expect.poll(() => Boolean(firstRead)).toBe(true)
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')))
+  await expect.poll(() => reads).toBe(2)
+  await expect(page.locator('.system-message')).toBeVisible()
+  await firstRead!.fulfill({ json: { session_id: 'test-session' } })
+  await expect(page.locator('#question-input')).toHaveValue('original session draft')
+  await expect(page.locator('#question-form button[type="submit"]')).toBeEnabled()
+  expect(sent).toBe(0)
 })

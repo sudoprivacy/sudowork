@@ -31,13 +31,7 @@
 .park-login__mark {
   width: 54px;
   height: 54px;
-  display: grid;
-  place-items: center;
-  border: 1px solid #b99459;
-  color: #a77937;
-  font:
-    28px Georgia,
-    serif;
+  object-fit: contain;
   margin-bottom: 34px;
 }
 .park-login__eyebrow {

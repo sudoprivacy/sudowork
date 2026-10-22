@@ -110,7 +110,7 @@ const consentFullText = document.getElementById('consent-full-text')!
 
 let sessionId: string | null = null
 let isSending = false
-let isCapacityBlocked = false
+let consultationRetryAt = 0
 let hasConsulted = false
 let sessionClosingAt: number | null = null
 type PhoneCodeState = 'idle' | 'loading' | 'waiting' | 'verifying' | 'sending' | 'cooldown'
@@ -122,7 +122,7 @@ let challengeRetryAt = 0
 const closedSessions = new Set<string>()
 
 function syncSendButton(): void {
-  sendButton.disabled = !questionInput.value.trim() || !sessionId || isSending || isCapacityBlocked
+  sendButton.disabled = !questionInput.value.trim() || !sessionId || isSending || Date.now() < consultationRetryAt
 }
 
 function syncContactForm(): void {
@@ -138,6 +138,12 @@ function syncContactForm(): void {
 }
 
 async function publicRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  if (init?.method === 'POST' && path.startsWith('/public/sessions/')) {
+    if (!(await syncCurrentSession())) throw new PublicApiError(401, 'Session identity changed')
+  }
+  if (init?.method === 'POST' && path.startsWith('/public/sessions/') && path.split('/')[3] !== sessionId) {
+    throw new PublicApiError(401, 'Session identity changed')
+  }
   const response = await fetch(path, { credentials: 'include', ...init })
   if (!response.ok) {
     const body = await response.json().catch(() => ({})) as { error?: string }
@@ -190,7 +196,22 @@ function notifySessionClosed(id: string): void {
 
 async function sendQuestion(value: string): Promise<void> {
   const message = value.trim()
-  if (!message || !sessionId || isSending) return
+  if (!message || !sessionId || isSending || Date.now() < consultationRetryAt) return
+  const targetId = sessionId
+  isSending = true
+  syncSendButton()
+  try {
+    if (!(await syncCurrentSession()) || sessionId !== targetId) {
+      questionInput.value = message
+      return
+    }
+  } catch {
+    startHint.textContent = t.unavailable
+    return
+  } finally {
+    isSending = false
+    syncSendButton()
+  }
   isSending = true
   syncSendButton()
   const userContent = addMessage('user', t.visitor, message)
@@ -198,20 +219,26 @@ async function sendQuestion(value: string): Promise<void> {
   const content = addMessage('assistant', t.assistant, t.sending)
   const paragraph = content.querySelector<HTMLElement>('.message-body')!
   try {
-    const requestId = crypto.randomUUID()
-    const send = () => fetch(`/public/sessions/${sessionId}/messages`, {
+    const requestId =
+      typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, (digit) =>
+            (Number(digit) ^ (crypto.getRandomValues(new Uint8Array(1))[0]! & (15 >> (Number(digit) / 4))))
+              .toString(16),
+          )
+    const send = () => fetch(`/public/sessions/${targetId}/messages`, {
       method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ message, client_request_id: requestId }),
     })
-    let response = await send()
+    const response = await send()
     if (response.status === 401) {
       const expiredId = sessionId
       notifySessionClosed(expiredId)
-      await createSession()
-      response = await send()
+      await syncCurrentSession()
+      throw new PublicApiError(401, 'Session expired')
     }
     if (response.status === 429) {
-      const error = await response.json() as { error?: string }
+      const error = await response.clone().json() as { error?: string }
       if (error.error === 'CAPTCHA_REQUIRED') {
         userContent.parentElement?.remove()
         disposeMarkdown(paragraph)
@@ -222,11 +249,12 @@ async function sendQuestion(value: string): Promise<void> {
         return
       }
     }
-    if (response.status === 503) {
+    if (response.status === 429 || response.status === 503) {
       const error = await response.json().catch(() => ({})) as { error?: string }
-      if (error.error === 'SESSION_CAPACITY_REACHED') {
-        isCapacityBlocked = true
-        renderMarkdown(paragraph, t.sessionCapacity)
+      if (error.error === 'SESSION_CAPACITY_REACHED' || error.error === 'concurrent_limit') {
+        consultationRetryAt = Date.now() + (Number(response.headers.get('Retry-After')) || 30) * 1000
+        questionInput.value = message
+        renderMarkdown(paragraph, error.error === 'SESSION_CAPACITY_REACHED' ? t.sessionCapacity : t.rateLimited)
         return
       }
     }
@@ -250,7 +278,7 @@ async function sendQuestion(value: string): Promise<void> {
           answer += (JSON.parse(payload) as { text: string }).text
           renderMarkdown(paragraph, answer)
         }
-        if (event === 'sources' && payload) renderSources(content, JSON.parse(payload) as SourceRef[], sessionId!)
+        if (event === 'sources' && payload) renderSources(content, JSON.parse(payload) as SourceRef[], targetId)
         if (event === 'error') throw new Error('Assistant response failed')
         if (event === 'done') isDone = true
         separator = pending.indexOf('\n\n')
@@ -261,12 +289,16 @@ async function sendQuestion(value: string): Promise<void> {
     if (!answer) renderMarkdown(paragraph, t.noBasis)
     hasConsulted = true
     syncContactForm()
-    await pollSessionStatus()
+    if (sessionId === targetId) await pollSessionStatus()
   } catch (error) {
     if (error instanceof PublicApiError && error.code === 'SESSION_CAPACITY_REACHED') {
-      isCapacityBlocked = true
+      consultationRetryAt = Date.now() + (error.retryAfter || 30) * 1000
+      questionInput.value = message
       renderMarkdown(paragraph, t.sessionCapacity)
-    } else renderMarkdown(paragraph, t.unavailable)
+    } else {
+      questionInput.value = message
+      renderMarkdown(paragraph, error instanceof PublicApiError && error.status === 401 ? t.sessionChanged : t.unavailable)
+    }
   } finally {
     isSending = false
     syncSendButton()
@@ -420,8 +452,17 @@ async function onSubmitContactChallenge(): Promise<void> {
 async function refreshConsultedState(): Promise<void> {
   if (!sessionId) return
   try {
-    const messages = await publicRequest<unknown[]>(`/public/sessions/${sessionId}/messages`)
+    const messages = await publicRequest<Array<{ redacted_question: string; redacted_answer: string; source_refs: SourceRef[] }>>(`/public/sessions/${sessionId}/messages`)
     hasConsulted = messages.length > 0
+    for (const element of log.querySelectorAll('.chat-message, .system-message')) {
+      for (const body of element.querySelectorAll<HTMLElement>('.markdown-body')) disposeMarkdown(body)
+      element.remove()
+    }
+    for (const message of messages) {
+      addMessage('user', t.visitor, message.redacted_question)
+      const content = addMessage('assistant', t.assistant, message.redacted_answer)
+      renderSources(content, message.source_refs, sessionId)
+    }
   } catch {
     hasConsulted = false
   }
@@ -437,19 +478,46 @@ async function createSession(): Promise<void> {
     })
     sessionId = created.session_id
     syncPhoneCodeControls()
-    isCapacityBlocked = false
+    consultationRetryAt = 0
     sessionClosingAt = null
     syncSendButton()
     await refreshConsultedState()
     await pollSessionStatus()
   } catch (error) {
     if (error instanceof PublicApiError && error.code === 'SESSION_CAPACITY_REACHED') {
-      isCapacityBlocked = true
+      consultationRetryAt = Date.now() + (error.retryAfter || 30) * 1000
       startHint.textContent = t.sessionCapacity
       syncSendButton()
     }
     throw error
   }
+}
+
+/** Resolve identity through the HttpOnly cookie before visitor writes. */
+async function syncCurrentSession(): Promise<boolean> {
+  const previousId = sessionId
+  try {
+    const current = await publicRequest<{ session_id: string }>('/public/consult/session')
+    if (sessionId !== previousId) return false
+    if (current.session_id === previousId) return true
+    sessionId = current.session_id
+    sessionClosingAt = null
+    consultationRetryAt = 0
+    onCancelContactChallenge()
+    phoneCode.value = ''
+    phoneCodeState = 'idle'
+    phoneCodeResendAt = 0
+    await refreshConsultedState()
+    await pollSessionStatus()
+  } catch (error) {
+    if (!(error instanceof PublicApiError && error.status === 401)) throw error
+    if (sessionId !== previousId) return false
+    await createSession()
+  }
+  if (previousId) addSystemMessage(t.sessionChanged)
+  syncContactForm()
+  syncSendButton()
+  return !previousId
 }
 
 function updateSessionReminder(): void {
@@ -591,11 +659,14 @@ contactForm.addEventListener('submit', (event) => {
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) {
     syncPhoneCodeControls()
-    void pollSessionStatus()
+    void syncCurrentSession().then(() => pollSessionStatus()).catch(() => {})
   }
 })
 window.setInterval(() => void pollSessionStatus(), 30_000)
-window.setInterval(updateSessionReminder, 1000)
+window.setInterval(() => {
+  updateSessionReminder()
+  syncSendButton()
+}, 1000)
 window.setInterval(syncPhoneCodeControls, 1000)
 
 syncContactForm()
