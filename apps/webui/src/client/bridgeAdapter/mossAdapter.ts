@@ -1762,13 +1762,26 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
   // browser and give it a reason to read the organization catalog.
   'hosted-tasks.agents': async () => ok(await hostedBrowserPort.agents()),
   'hosted-tasks.sessions': async () => ok(await hostedBrowserPort.sessions()),
-  'hosted-tasks.history': async (req) => ok(await hostedBrowserPort.history((req as { sessionId: string }).sessionId)),
-  'hosted-tasks.create': async (req) => ok(await hostedBrowserPort.create(req as unknown as HostedTaskInput)),
-  'hosted-tasks.events': async (req) => { const input = req as { taskId: string; cursor: number }; return ok(await hostedBrowserPort.events(input.taskId, input.cursor)) },
-  'hosted-tasks.evidence': async (req) => { const input = req as { taskId: string; cursor?: number }; return ok(await hostedBrowserPort.evidence(input.taskId, input.cursor)) },
-  'hosted-tasks.cancel': async (req) => ok(await hostedBrowserPort.cancel((req as { taskId: string }).taskId)),
-  'hosted-tasks.reconcile': async (req) => ok(await hostedBrowserPort.reconcile((req as { taskId: string }).taskId)),
-  'hosted-tasks.close': async (req) => { const input = req as { taskId: string; note: string }; return ok(await hostedBrowserPort.close(input.taskId, input.note)) },
+  'hosted-tasks.history': async (req) =>
+    ok(await hostedBrowserPort.history((req as { sessionId: string }).sessionId)),
+  'hosted-tasks.create': async (req) =>
+    ok(await hostedBrowserPort.create(req as unknown as HostedTaskInput)),
+  'hosted-tasks.events': async (req) => {
+    const input = req as { taskId: string; cursor: number }
+    return ok(await hostedBrowserPort.events(input.taskId, input.cursor))
+  },
+  'hosted-tasks.evidence': async (req) => {
+    const input = req as { taskId: string; cursor?: number }
+    return ok(await hostedBrowserPort.evidence(input.taskId, input.cursor))
+  },
+  'hosted-tasks.cancel': async (req) =>
+    ok(await hostedBrowserPort.cancel((req as { taskId: string }).taskId)),
+  'hosted-tasks.reconcile': async (req) =>
+    ok(await hostedBrowserPort.reconcile((req as { taskId: string }).taskId)),
+  'hosted-tasks.close': async (req) => {
+    const input = req as { taskId: string; note: string }
+    return ok(await hostedBrowserPort.close(input.taskId, input.note))
+  },
   'external-providers.context': async () => withExternalRequestDeadline(readExternalContext),
   'external-providers.access': async () => {
     return ok(await externalProviderPort.access())

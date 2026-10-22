@@ -120,13 +120,20 @@ it('does not restore an older identity after a newer context response', async ()
 it('hosted browser requests keep caller identity and do not retry a timeout', async () => {
   vi.useFakeTimers()
   const fetcher = vi.fn(async (path, init) => {
-    if (path.endsWith('/external-context')) return Response.json({ success: true, data: { isAvailable: true, identity } })
+    if (path.endsWith('/external-context'))
+      return Response.json({ success: true, data: { isAvailable: true, identity } })
     expect(init.headers['X-Sudo-External-Identity']).toBe(identity)
     expect(JSON.parse(init.body).kind).toBe('SubmitTask')
     return new Promise<Response>(() => {})
   })
   vi.stubGlobal('fetch', fetcher)
-  const rejected = expect(adapter.hostedBrowserPort.create({ agent_id: 'a', query: 'synthetic', idempotency_key: 'hosted-key-123' })).rejects.toThrow('EXTERNAL_TASK_TIMEOUT')
+  const rejected = expect(
+    adapter.hostedBrowserPort.create({
+      agent_id: 'a',
+      query: 'synthetic',
+      idempotency_key: 'hosted-key-123',
+    }),
+  ).rejects.toThrow('EXTERNAL_TASK_TIMEOUT')
   await vi.advanceTimersByTimeAsync(EXTERNAL_REQUEST_TIMEOUT_MS)
   await rejected
   expect(fetcher.mock.calls.filter(([path]) => path.endsWith('/tasks'))).toHaveLength(1)
