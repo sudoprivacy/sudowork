@@ -199,5 +199,20 @@
         "execution_cleanup": "실행 또는 정리가 확인되지 않았습니다"
       }
     }
-  }
+  },
+  "external.provenance.title": "전송 시 기록된 기능",
+  "external.provenance.adapter": "어댑터: {{value}}",
+  "external.provenance.revision": "소스 리비전: {{value}}",
+  "external.provenance.recorded": "기록 시간: {{value}}",
+  "external.provenance.source": "소스: {{value}}",
+  "external.provenance.candidate": "후보: {{value}}",
+  "external.provenance.boundary": "이 스냅샷은 전송 승인 시점의 사실을 기록합니다. 원격 실행의 불변성이나 전체 추적을 증명하지 않습니다.",
+  "external.provenance.missing": "이 작업에는 전송 시점의 기능 스냅샷이 없습니다.",
+  "external.provenance.unknown": "결과를 확인할 수 없습니다. 자동으로 다시 보내지 않습니다. 제공자의 실행 기록을 확인하세요.",
+  "external.usage.idempotency": "실행 멱등성",
+  "external.usage.human_approval": "제공자 수동 승인",
+  "external.usage.trace_export": "추적 내보내기",
+  "external.usage.full": "전체",
+  "external.usage.partial": "일부",
+  "external.usage.none": "없음"
 }

@@ -390,7 +390,7 @@ it('usage details keep absent metadata unconfirmed and separate capabilities fro
       }}
     />
   );
-  for (const key of ['scope', 'classification', 'unknown', 'expired', 'notRecorded', 'basis', 'evidence']) expect(await screen.findByText(`agent.external.usage.${key}`)).toBeTruthy();
+  for (const key of ['scope', 'classification', 'unknown', 'expired', 'notRecorded', 'basis', 'evidence']) expect((await screen.findAllByText(`agent.external.usage.${key}`)).length).toBeGreaterThan(0);
   expect(screen.queryByText('agent.external.usage.unavailable')).toBeNull();
 });
 
@@ -447,3 +447,31 @@ for (const [code, key] of [
     expect(mocks.create).not.toHaveBeenCalled();
   });
 }
+
+it('shows historical dispatch provenance and unknown status without claiming a successful remote run', async () => {
+  mocks.evidence.mockResolvedValue({
+    success: true,
+    data: {
+      task_id: 'task-1',
+      session_id: 'session-1',
+      attempt_id: 'attempt-1',
+      status: 'unknown',
+      provenance: {
+        protocol: 'a2a/0.3.0',
+        adapter_version: 'a2a@1',
+        source_revision: null,
+        source_id: 'source-1',
+        candidate_id: 'candidate-1',
+        recorded_at: 1,
+        capabilities: { streaming: 'unsupported', cancel: 'unsupported', resume: 'unsupported', version_pin: 'unsupported', idempotency: 'unsupported', human_approval: 'unsupported', trace_export: 'partial' },
+      },
+    },
+  });
+  const { default: Evidence } = await import('@renderer/pages/external-agents/ExternalTaskEvidence');
+  render(<Evidence taskId='task-1' onClose={() => {}} />);
+  expect(await screen.findByText('agent.external.provenance.title')).toBeTruthy();
+  expect(screen.getByText('agent.external.provenance.unknown')).toBeTruthy();
+  expect(screen.queryByText('agent.external.status.succeeded')).toBeNull();
+  expect(screen.getByText('agent.external.provenance.boundary')).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'agent.external.cancel' })).toBeNull();
+});

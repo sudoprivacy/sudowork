@@ -199,5 +199,20 @@
         "execution_cleanup": "执行或清理未确认"
       }
     }
-  }
+  },
+  "external.provenance.title": "派发时记录的能力",
+  "external.provenance.adapter": "适配器：{{value}}",
+  "external.provenance.revision": "来源修订：{{value}}",
+  "external.provenance.recorded": "记录时间：{{value}}",
+  "external.provenance.source": "来源：{{value}}",
+  "external.provenance.candidate": "候选：{{value}}",
+  "external.provenance.boundary": "此快照记录派发授权时的事实，不代表远端执行不可变或拥有完整链路。",
+  "external.provenance.missing": "此任务未记录派发时的能力快照。",
+  "external.provenance.unknown": "执行结果待核对，不会自动重发。请核对提供方运行记录。",
+  "external.usage.idempotency": "执行幂等",
+  "external.usage.human_approval": "提供方人工介入",
+  "external.usage.trace_export": "链路导出",
+  "external.usage.full": "完整",
+  "external.usage.partial": "部分",
+  "external.usage.none": "无"
 }

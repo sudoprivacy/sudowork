@@ -14,10 +14,10 @@ export default function ExternalAgentUsageDetails({ agent }: IExternalAgentUsage
             {agent.conversation_mode === 'single_turn' && <Typography.Paragraph>{t('agent.external.protocol.singleTurn')}</Typography.Paragraph>}
             <Typography.Paragraph>{t('agent.external.usage.classification')}</Typography.Paragraph>
             <dl className='grid grid-cols-2 gap-2 mb-3'>
-              {(['streaming', 'cancel', 'resume', 'version_pin'] as const).map((key) => (
+              {(['streaming', 'cancel', 'resume', 'version_pin', 'idempotency', 'human_approval', 'trace_export'] as const).map((key) => (
                 <div key={key}>
                   <dt>{t(`agent.external.usage.${key}`)}</dt>
-                  <dd className='m-0'>{t(`agent.external.usage.${agent.capabilities[key]}`)}</dd>
+                  <dd className='m-0'>{t(`agent.external.usage.${agent.capabilities[key] ?? 'unknown'}`)}</dd>
                 </div>
               ))}
               <div>

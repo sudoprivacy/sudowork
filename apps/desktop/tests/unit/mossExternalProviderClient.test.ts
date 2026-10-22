@@ -273,3 +273,37 @@ it('keeps Registry provenance distinct from execution evidence and rejects misma
   request.mockResolvedValue({ success: true, data: { ...evidence, selection: { ...evidence.selection, registry: { ...registry, evidence: 'verified_execution' } } } });
   await expect(port.evidence('task-1')).rejects.toThrow();
 });
+
+it('requests catalog evidence explicitly and rejects contradictory or secret-bearing provenance', async () => {
+  const digest = `sha256:${'a'.repeat(64)}`;
+  const provenance = {
+    recorded_at: 1,
+    stage: 'dispatch_authorized',
+    protocol: 'a2a/0.3.0',
+    adapter_version: 'a2a@1',
+    source_revision: null,
+    revision_basis: 'content_digest',
+    source_id: 'source-1',
+    candidate_id: 'candidate-1',
+    capabilities: { streaming: 'unsupported', cancel: 'unsupported', resume: 'unsupported', version_pin: 'unsupported', idempotency: 'unsupported', human_approval: 'unsupported', trace_export: 'partial' },
+    observability: 'partial',
+    source_digest: digest,
+  };
+  const evidence = { api_version: EXTERNAL_PROVIDER_API, kind: 'ExternalTaskEvidence', task_id: 'task-1', session_id: 'session-1', attempt_id: 'attempt-1', status: 'unknown', provenance, selection: { version: 'v1', source_digest: digest, version_evidence: 'source_snapshot_only' } };
+  const request = vi.fn().mockResolvedValue({ success: true, data: evidence });
+  const port = createMossExternalProviderPort(request);
+  expect((await port.evidence('task-1')).provenance).toEqual(provenance);
+  expect(request).toHaveBeenLastCalledWith({ method: 'GET', path: '/api/v1/tasks/task-1/evidence?profile=catalog-v1' });
+  for (const invalid of [
+    { ...provenance, api_key: 'must-not-enter-renderer' },
+    { ...provenance, source_digest: `sha256:${'b'.repeat(64)}` },
+    { ...provenance, revision_basis: 'provider_declared' },
+    { ...provenance, observability: 'full' },
+    { ...provenance, capabilities: { ...provenance.capabilities, cancel: 'guaranteed' } },
+  ]) {
+    request.mockResolvedValue({ success: true, data: { ...evidence, provenance: invalid } });
+    await expect(port.evidence('task-1')).rejects.toThrow();
+  }
+  request.mockResolvedValue({ success: true, data: { ...evidence, provenance: undefined } });
+  expect((await port.evidence('task-1')).provenance).toBeUndefined();
+});

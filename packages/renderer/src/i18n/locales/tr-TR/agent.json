@@ -199,5 +199,20 @@
         "execution_cleanup": "Yürütme veya temizleme doğrulanmadı"
       }
     }
-  }
+  },
+  "external.provenance.title": "Gönderim sırasında kaydedilen yetenekler",
+  "external.provenance.adapter": "Bağdaştırıcı: {{value}}",
+  "external.provenance.revision": "Kaynak revizyonu: {{value}}",
+  "external.provenance.recorded": "Kayıt zamanı: {{value}}",
+  "external.provenance.source": "Kaynak: {{value}}",
+  "external.provenance.candidate": "Aday: {{value}}",
+  "external.provenance.boundary": "Bu anlık görüntü, gönderim yetkisi verildiğindeki bilgileri kaydeder. Uzak yürütmenin değişmezliğini veya tam izlemeyi kanıtlamaz.",
+  "external.provenance.missing": "Bu görev için gönderim yeteneklerinin anlık görüntüsü kaydedilmedi.",
+  "external.provenance.unknown": "Sonuç bilinmiyor. Otomatik olarak yeniden gönderilmez; sağlayıcının çalışma kaydını kontrol edin.",
+  "external.usage.idempotency": "Yürütme idempotansı",
+  "external.usage.human_approval": "Sağlayıcı insan onayı",
+  "external.usage.trace_export": "İz dışa aktarma",
+  "external.usage.full": "Tam",
+  "external.usage.partial": "Kısmi",
+  "external.usage.none": "Yok"
 }

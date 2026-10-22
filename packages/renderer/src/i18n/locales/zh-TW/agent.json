@@ -199,5 +199,20 @@
         "execution_cleanup": "執行或清理未確認"
       }
     }
-  }
+  },
+  "external.provenance.title": "派發時記錄的能力",
+  "external.provenance.adapter": "適配器：{{value}}",
+  "external.provenance.revision": "來源修訂：{{value}}",
+  "external.provenance.recorded": "記錄時間：{{value}}",
+  "external.provenance.source": "來源：{{value}}",
+  "external.provenance.candidate": "候選：{{value}}",
+  "external.provenance.boundary": "此快照記錄派發授權時的事實，不代表遠端執行不可變或擁有完整鏈路。",
+  "external.provenance.missing": "此任務未記錄派發時的能力快照。",
+  "external.provenance.unknown": "執行結果待核對，不會自動重發。請核對提供方執行記錄。",
+  "external.usage.idempotency": "執行冪等",
+  "external.usage.human_approval": "提供方人工介入",
+  "external.usage.trace_export": "鏈路匯出",
+  "external.usage.full": "完整",
+  "external.usage.partial": "部分",
+  "external.usage.none": "無"
 }

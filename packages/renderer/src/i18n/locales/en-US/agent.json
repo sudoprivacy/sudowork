@@ -199,5 +199,20 @@
         "execution_cleanup": "Execution or cleanup is unconfirmed"
       }
     }
-  }
+  },
+  "external.provenance.title": "Capabilities recorded at dispatch",
+  "external.provenance.adapter": "Adapter: {{value}}",
+  "external.provenance.revision": "Source revision: {{value}}",
+  "external.provenance.recorded": "Recorded at: {{value}}",
+  "external.provenance.source": "Source: {{value}}",
+  "external.provenance.candidate": "Candidate: {{value}}",
+  "external.provenance.boundary": "This snapshot describes dispatch authorization. It does not prove immutable remote execution or a complete trace.",
+  "external.provenance.missing": "No dispatch capability snapshot was recorded for this task.",
+  "external.provenance.unknown": "The outcome is unknown. It will not be resent automatically; check the provider run.",
+  "external.usage.idempotency": "Execution idempotency",
+  "external.usage.human_approval": "Provider human approval",
+  "external.usage.trace_export": "Trace export",
+  "external.usage.full": "Full",
+  "external.usage.partial": "Partial",
+  "external.usage.none": "None"
 }

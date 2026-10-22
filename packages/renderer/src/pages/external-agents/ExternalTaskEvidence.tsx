@@ -50,6 +50,30 @@ export default function ExternalTaskEvidence({ taskId, onClose }: IExternalTaskE
           <Typography.Text>{t('agent.external.versions.task', { id: evidence.task_id })}</Typography.Text>
           <Typography.Text>{t('agent.external.registry.session', { id: evidence.session_id })}</Typography.Text>
           {evidence.attempt_id && <Typography.Text>{t('agent.external.registry.attempt', { id: evidence.attempt_id })}</Typography.Text>}
+          <Typography.Text>{t(`agent.external.status.${evidence.status}`)}</Typography.Text>
+          {evidence.status === 'unknown' && <Alert type='warning' content={t('agent.external.provenance.unknown')} />}
+          {evidence.provenance ? (
+            <div className='flex flex-col gap-2 rounded border border-solid border-color-border-2 p-3'>
+              <Typography.Text bold>{t('agent.external.provenance.title')}</Typography.Text>
+              <Typography.Text>{evidence.provenance.protocol}</Typography.Text>
+              <Typography.Text>{t('agent.external.provenance.adapter', { value: evidence.provenance.adapter_version })}</Typography.Text>
+              <Typography.Text>{t('agent.external.provenance.revision', { value: evidence.provenance.source_revision ?? t('agent.external.usage.notRecorded') })}</Typography.Text>
+              <Typography.Text>{t('agent.external.provenance.recorded', { value: new Date(evidence.provenance.recorded_at).toLocaleString() })}</Typography.Text>
+              {evidence.provenance.source_id && <Typography.Text>{t('agent.external.provenance.source', { value: evidence.provenance.source_id })}</Typography.Text>}
+              {evidence.provenance.candidate_id && <Typography.Text>{t('agent.external.provenance.candidate', { value: evidence.provenance.candidate_id })}</Typography.Text>}
+              <dl className='grid grid-cols-2 gap-2'>
+                {(['streaming', 'cancel', 'resume', 'version_pin', 'idempotency', 'human_approval', 'trace_export'] as const).map((key) => (
+                  <div key={key}>
+                    <dt>{t(`agent.external.usage.${key}`)}</dt>
+                    <dd className='m-0'>{t(`agent.external.usage.${evidence.provenance?.capabilities[key] ?? 'unknown'}`)}</dd>
+                  </div>
+                ))}
+              </dl>
+              <Typography.Text type='secondary'>{t('agent.external.provenance.boundary')}</Typography.Text>
+            </div>
+          ) : (
+            <Typography.Text type='secondary'>{t('agent.external.provenance.missing')}</Typography.Text>
+          )}
           {evidence.selection ? (
             <>
               <Typography.Text bold>{t('agent.external.versions.selected', { version: evidence.selection.version })}</Typography.Text>

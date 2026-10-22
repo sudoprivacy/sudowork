@@ -1,7 +1,18 @@
-// Derived from Moss 9a4717d82704a69d2a7a12ad1591ed4a48db9b30:contracts/external-provider/v1/contract.ts. DO NOT EDIT.
+// Derived from Moss c356ce319087e5926104bb3f8c0aba40d609420e:contracts/external-provider/v1/contract.ts. DO NOT EDIT.
 /** Moss-owned external-provider pilot wire contract. ADR-003/004 remain Proposed. */
 export const EXTERNAL_PROVIDER_API = 'external-provider.sudo.dev/v1alpha5' as const
 export type Capability = 'supported' | 'unsupported' | 'unknown'
+export interface ExternalCapabilities {
+  streaming: Capability; cancel: Capability; resume: Capability; version_pin: Capability
+  idempotency?: Capability; human_approval?: Capability; trace_export?: 'full' | 'partial' | 'none' | 'unknown'
+}
+/** Recorded at dispatch authorization, never reconstructed from current configuration. */
+export interface ExternalTaskProvenance {
+  recorded_at: number; stage: 'dispatch_authorized'; protocol: string; adapter_version: string
+  source_revision: string | null; revision_basis: 'provider_declared' | 'content_digest'
+  source_id: string | null; candidate_id: string | null; capabilities: ExternalCapabilities
+  observability: 'partial'; source_digest: string
+}
 export type ExternalTaskStatus = 'accepted' | 'dispatching' | 'running' | 'succeeded' | 'failed' | 'unknown' | 'rejected'
 export type OutputDecoder = 'text' | 'reply_actions_v1'
 
@@ -36,7 +47,7 @@ export interface ExternalAgent {
   decoder: OutputDecoder
   approved: boolean
   review_expires_at: number
-  capabilities: { streaming: Capability; cancel: Capability; resume: Capability; version_pin: Capability }
+  capabilities: ExternalCapabilities
   usage?: ExternalAgentUsage
 }
 
@@ -68,6 +79,7 @@ export interface ExternalTaskEvidence {
   session_id: string
   attempt_id: string | null
   status: ExternalTaskStatus
+  provenance?: ExternalTaskProvenance
   selection?: {
     version: string
     source_digest: string
@@ -86,6 +98,8 @@ export interface ExternalTaskEvidence {
     }
   }
   execution?: {
+    adapter_version?: string
+    observability?: 'partial'
     provider_run_id?: string
     provider_response_id?: string
     protocol?: string
@@ -197,6 +211,7 @@ export interface ExternalAgentAdmin extends ExternalAgent {
 export interface InspectExternalConnection { endpoint: string; api_key: string; provider_kind?: 'dify' | 'custom_http'; source_definition?: string }
 export interface ExternalConnectionInspection { name: string; parameters_digest: string; checked_at: number; source_identity_evidence: 'unverified' }
 export interface OnboardExternalAgent extends InspectExternalConnection {
+  catalog_governance?: boolean
   request_id: string
   name: string
   app_id: string

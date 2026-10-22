@@ -88,6 +88,33 @@ it('forwards each session token, request key and cursor independently', async ()
     expect.any(Number),
   )
 })
+it('preserves the catalog evidence profile without accepting arbitrary profiles or query objects', async () => {
+  expect(
+    (await request(app('member')).get('/api/v1/tasks/task-1/evidence?profile=catalog-v1')).status,
+  ).toBe(200)
+  expect(upstream).toHaveBeenLastCalledWith(
+    'http://moss.test',
+    {
+      method: 'GET',
+      path: '/api/v1/tasks/task-1/evidence',
+      accessToken: 'member',
+      searchParams: { profile: 'catalog-v1' },
+    },
+    expect.any(Number),
+  )
+  upstream.mockClear()
+  expect(
+    (await request(app('member')).get('/api/v1/tasks/task-1/evidence?profile=arbitrary')).status,
+  ).toBe(400)
+  expect(
+    (
+      await request(app('member')).get(
+        '/api/v1/tasks/task-1/evidence?profile=catalog-v1&profile=catalog-v1',
+      )
+    ).status,
+  ).toBe(400)
+  expect(upstream).not.toHaveBeenCalled()
+})
 it('forwards admin writes through the caller session and never exposes unrestricted upstream paths', async () => {
   const body = { endpoint: 'http://127.0.0.1/v1', api_key: 'synthetic-key' }
   const response = await request(app('admin'))
@@ -184,11 +211,26 @@ it('bounds token refresh and never dispatches a late retry after the proxy deadl
 it('hosted routes require a session and forward cleanup under the same caller', async () => {
   expect((await request(app()).get('/api/v1/hosted-agents')).status).toBe(401)
   await request(app('member')).get('/api/v1/hosted-agents?after=cursor')
-  expect(upstream).toHaveBeenLastCalledWith('http://moss.test', { method: 'GET', path: '/api/v1/hosted-agents', accessToken: 'member', searchParams: { after: 'cursor' } }, expect.any(Number))
+  expect(upstream).toHaveBeenLastCalledWith(
+    'http://moss.test',
+    {
+      method: 'GET',
+      path: '/api/v1/hosted-agents',
+      accessToken: 'member',
+      searchParams: { after: 'cursor' },
+    },
+    expect.any(Number),
+  )
   for (const action of ['cancel', 'reconcile', 'close']) {
     const body = action === 'close' ? { note: 'Cleanup confirmed' } : {}
     await request(app('member')).post(`/api/v1/tasks/task-1/${action}`).send(body)
-    expect(upstream).toHaveBeenLastCalledWith('http://moss.test', { method: 'POST', path: `/api/v1/tasks/task-1/${action}`, accessToken: 'member', body }, expect.any(Number))
+    expect(upstream).toHaveBeenLastCalledWith(
+      'http://moss.test',
+      { method: 'POST', path: `/api/v1/tasks/task-1/${action}`, accessToken: 'member', body },
+      expect.any(Number),
+    )
   }
-  expect((await request(app('member')).post('/api/v1/hosted-agents/register').send({})).status).toBe(404)
+  expect(
+    (await request(app('member')).post('/api/v1/hosted-agents/register').send({})).status,
+  ).toBe(404)
 })

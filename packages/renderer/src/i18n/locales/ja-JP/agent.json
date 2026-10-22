@@ -199,5 +199,20 @@
         "execution_cleanup": "実行またはクリーンアップが未確認です"
       }
     }
-  }
+  },
+  "external.provenance.title": "送信時に記録した機能",
+  "external.provenance.adapter": "アダプター：{{value}}",
+  "external.provenance.revision": "ソースのリビジョン：{{value}}",
+  "external.provenance.recorded": "記録日時：{{value}}",
+  "external.provenance.source": "ソース：{{value}}",
+  "external.provenance.candidate": "候補：{{value}}",
+  "external.provenance.boundary": "このスナップショットは送信許可時の事実です。リモート実行の不変性や完全なトレースを証明するものではありません。",
+  "external.provenance.missing": "このタスクには送信時の機能スナップショットがありません。",
+  "external.provenance.unknown": "結果は不明です。自動再送は行いません。提供元の実行記録を確認してください。",
+  "external.usage.idempotency": "実行の冪等性",
+  "external.usage.human_approval": "提供元の人による承認",
+  "external.usage.trace_export": "トレースのエクスポート",
+  "external.usage.full": "完全",
+  "external.usage.partial": "一部",
+  "external.usage.none": "なし"
 }

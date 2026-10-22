@@ -141,6 +141,17 @@ const standardProtocol = z.enum([
   "a2a/0.3.0",
 ]);
 const capability = z.enum(["supported", "unsupported", "unknown"]);
+const capabilities = z
+  .object({
+    streaming: capability,
+    cancel: capability,
+    resume: capability,
+    version_pin: capability,
+    idempotency: capability.optional(),
+    human_approval: capability.optional(),
+    trace_export: z.enum(["full", "partial", "none", "unknown"]).optional(),
+  })
+  .strict();
 const agentUsage = z.object({
   data_scope: z.literal("synthetic_only"),
   input: z.literal("text_query_only"),
@@ -167,12 +178,7 @@ const agent = z.object({
   approved: z.boolean(),
   review_expires_at: z.number(),
   usage: agentUsage.optional(),
-  capabilities: z.object({
-    streaming: capability,
-    cancel: capability,
-    resume: capability,
-    version_pin: capability,
-  }),
+  capabilities,
 });
 const events = z.object({
   api_version: z.literal(EXTERNAL_PROVIDER_API),
@@ -303,6 +309,29 @@ const evidenceSchema = z
     session_id: id,
     attempt_id: id.nullable(),
     status,
+    provenance: z
+      .object({
+        recorded_at: z.number().int().nonnegative().safe(),
+        stage: z.literal("dispatch_authorized"),
+        protocol: z.enum([
+          "dify/chat-messages",
+          "agent-http.sudo.dev/v1alpha1",
+          "agent-http.sudo.dev/v1alpha2",
+          "openai-chat-completions/v1",
+          "mcp/2025-06-18",
+          "a2a/0.3.0",
+        ]),
+        adapter_version: z.string().min(1).max(200),
+        source_revision: z.string().min(1).max(200).nullable(),
+        revision_basis: z.enum(["provider_declared", "content_digest"]),
+        source_id: id.nullable(),
+        candidate_id: id.nullable(),
+        capabilities,
+        observability: z.literal("partial"),
+        source_digest: releaseDigest,
+      })
+      .strict()
+      .optional(),
     selection: z
       .object({
         version: releaseVersion,
@@ -318,6 +347,8 @@ const evidenceSchema = z
       .optional(),
     execution: z
       .object({
+        adapter_version: z.string().min(1).max(200).optional(),
+        observability: z.literal("partial").optional(),
         provider_run_id: z.string().min(1).max(200).optional(),
         provider_response_id: z.string().min(1).max(200).optional(),
         protocol: standardProtocol.optional(),
@@ -343,6 +374,23 @@ const evidenceSchema = z
   .strict()
   .superRefine((value, context) => {
     const execution = value.execution;
+    const provenance = value.provenance;
+    if (
+      provenance &&
+      (!value.attempt_id ||
+        value.status === "rejected" ||
+        (value.selection &&
+          provenance.source_digest !== value.selection.source_digest) ||
+        (execution?.adapter_version &&
+          provenance.adapter_version !== execution.adapter_version) ||
+        (execution?.protocol && provenance.protocol !== execution.protocol) ||
+        (provenance.revision_basis === "provider_declared") !==
+          Boolean(provenance.source_revision))
+    )
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Dispatch provenance mismatch",
+      });
     if (execution) {
       const isStandard = Boolean(execution.protocol);
       const hasRun = Boolean(execution.provider_run_id),
@@ -538,7 +586,7 @@ export function createMossExternalProviderPort(
     evidence: async (taskId) => {
       const data = await read(
         evidenceSchema,
-        `/api/v1/tasks/${id.parse(taskId)}/evidence`,
+        `/api/v1/tasks/${id.parse(taskId)}/evidence?profile=catalog-v1`,
       );
       if (data.task_id !== taskId)
         throw new Error("EXTERNAL_TASK_IDENTITY_MISMATCH");
