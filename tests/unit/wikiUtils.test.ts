@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { batchBySize, fileToBase64, filterOptionByText, splitRelativePath } from '@/renderer/pages/wiki/utils/files';
 import { visibilityFrom, visibleToFrom } from '@/renderer/pages/wiki/utils/visibility';
+import { isWikiContentFile, wikiLinkTarget } from '@/renderer/pages/wiki/utils/wikiLinks';
 
 describe('wiki visibility mapping', () => {
   it('reads null as everyone', () => {
@@ -52,5 +53,25 @@ describe('wiki file helpers', () => {
     expect(filterOptionByText('ENG', { props: { children: 'Engineering' } })).toBe(true);
     expect(filterOptionByText('x', { props: { children: 'Sales' } })).toBe(false);
     expect(filterOptionByText('x', undefined)).toBe(false);
+  });
+});
+
+describe('wiki viewer links', () => {
+  it('hides moss build instructions from the page list', () => {
+    expect(isWikiContentFile('WIKI.md')).toBe(true);
+    expect(isWikiContentFile('chunk-001-leave.md')).toBe(true);
+    expect(isWikiContentFile('AGENTS.md')).toBe(false);
+    expect(isWikiContentFile('_moss_meta.json')).toBe(false);
+  });
+
+  it('resolves relative page links and ignores external ones', () => {
+    expect(wikiLinkTarget('chunk-001-leave.md', 'WIKI.md')).toBe('chunk-001-leave.md');
+    expect(wikiLinkTarget('./chunk-002.md#section', 'WIKI.md')).toBe('chunk-002.md');
+    expect(wikiLinkTarget('%E4%B8%AD.md', null)).toBe('中.md');
+    expect(wikiLinkTarget('../b.md', 'sub/a.md')).toBe('b.md');
+    expect(wikiLinkTarget('c.md', 'sub/a.md')).toBe('sub/c.md');
+    expect(wikiLinkTarget('https://example.com/a.md', 'WIKI.md')).toBeNull();
+    expect(wikiLinkTarget('#top', 'WIKI.md')).toBeNull();
+    expect(wikiLinkTarget('images/x.png', 'WIKI.md')).toBeNull();
   });
 });

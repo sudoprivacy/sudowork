@@ -97,6 +97,7 @@ export default defineConfig({
         'src/renderer/pages/wiki/api/wikiApi.ts',
         'src/renderer/pages/wiki/utils/files.ts',
         'src/renderer/pages/wiki/utils/visibility.ts',
+        'src/renderer/pages/wiki/utils/wikiLinks.ts',
         'src/renderer/components/wiki/wikiMention.ts',
         'src/renderer/components/wiki/WikiPicker.tsx',
         // Team collaboration

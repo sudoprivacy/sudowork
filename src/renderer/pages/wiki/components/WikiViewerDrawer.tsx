@@ -12,6 +12,7 @@ import MarkdownView from '@/renderer/components/Markdown';
 import type { WikiApi } from '../api/wikiApi';
 import type { WikiSearchMatch } from '../api/types';
 import { wikiErrorMessage } from '../utils/errors';
+import { isWikiContentFile, wikiLinkTarget } from '../utils/wikiLinks';
 
 /** Read-only view of a built wiki: its markdown files plus full-text search. */
 export default function WikiViewerDrawer({ api, wiki, onClose }: IWikiViewerDrawerProps) {
@@ -54,7 +55,7 @@ export default function WikiViewerDrawer({ api, wiki, onClose }: IWikiViewerDraw
       .listWikiFiles(wiki.id)
       .then((list) => {
         if (isCancelled) return;
-        const markdown = list.filter((f) => f.endsWith('.md')).sort((a, b) => (a === 'WIKI.md' ? -1 : b === 'WIKI.md' ? 1 : a.localeCompare(b)));
+        const markdown = list.filter(isWikiContentFile).sort((a, b) => (a === 'WIKI.md' ? -1 : b === 'WIKI.md' ? 1 : a.localeCompare(b)));
         setFiles(markdown);
         if (markdown[0]) void openFile(wiki.id, markdown[0]);
       })
@@ -78,7 +79,7 @@ export default function WikiViewerDrawer({ api, wiki, onClose }: IWikiViewerDraw
     }
     setIsSearching(true);
     try {
-      setMatches(await api.searchWiki(wiki.id, q));
+      setMatches((await api.searchWiki(wiki.id, q)).filter((m) => isWikiContentFile(m.file)));
     } catch (err) {
       Message.error(wikiErrorMessage(t, err));
     } finally {
@@ -124,7 +125,20 @@ export default function WikiViewerDrawer({ api, wiki, onClose }: IWikiViewerDraw
               </Spin>
             )}
           </div>
-          <div className='overflow-auto px-8px'>
+          <div
+            className='overflow-auto px-8px'
+            onClickCapture={(e) => {
+              // Relative links between wiki pages (e.g. WIKI.md → chunk-001-x.md) open here, not in the app window.
+              // MarkdownView renders into a shadow root, so look through the composed path for the anchor.
+              const anchor = e.nativeEvent.composedPath().find((el): el is HTMLAnchorElement => el instanceof HTMLAnchorElement);
+              const href = anchor?.getAttribute('href');
+              const target = href && wikiLinkTarget(href, activeFile);
+              if (!target || !wiki) return;
+              e.preventDefault();
+              e.stopPropagation();
+              void openFile(wiki.id, target);
+            }}
+          >
             <Spin loading={isLoadingContent} className='w-full'>
               {activeFile ? (
                 <>

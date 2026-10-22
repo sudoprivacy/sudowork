@@ -6,7 +6,7 @@
 
 import { Dropdown, Menu, Popconfirm, Progress, Tree, Typography } from '@arco-design/web-react';
 import { Folder, MoreHorizontal } from 'lucide-react';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { DocumentTreeNode } from '../api/types';
 import { formatSize } from '../utils/files';
@@ -36,6 +36,18 @@ export function buildFolderTree(nodes: DocumentTreeNode[], rootId: string): ITre
   return root ? [toItem(root)] : [];
 }
 
+/** Ids of every folder above `nodeId`, nearest first; empty for the root or an unknown id. */
+export function folderAncestorIds(nodes: DocumentTreeNode[], nodeId: string | null): string[] {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const ids: string[] = [];
+  let parentId = nodeId ? byId.get(nodeId)?.parentId : null;
+  while (parentId && !ids.includes(parentId)) {
+    ids.push(parentId);
+    parentId = byId.get(parentId)?.parentId ?? null;
+  }
+  return ids;
+}
+
 /** Ids of `nodeId` and every folder below it (a folder can't move into its own subtree). */
 export function collectSubtreeIds(nodes: DocumentTreeNode[], nodeId: string): Set<string> {
   const ids = new Set<string>([nodeId]);
@@ -54,8 +66,14 @@ export function collectSubtreeIds(nodes: DocumentTreeNode[], nodeId: string): Se
 
 export default function FolderTree({ nodes, rootId, selectedId, usageBytes, quotaBytes, onSelect, onCreateChild, onEdit, onDelete }: IFolderTreeProps) {
   const { t } = useTranslation();
-  const [expandedKeys, setExpandedKeys] = useState<string[] | null>(null);
+  const [expandedKeys, setExpandedKeys] = useState<string[]>([rootId]);
   const treeData = useMemo(() => buildFolderTree(nodes, rootId), [nodes, rootId]);
+
+  // Keep the selected folder visible (e.g. a just-created subfolder) by expanding its ancestors.
+  useEffect(() => {
+    const ancestors = folderAncestorIds(nodes, selectedId);
+    if (ancestors.length) setExpandedKeys((prev) => [...new Set([...prev, ...ancestors])]);
+  }, [nodes, selectedId]);
   const usagePercent = quotaBytes > 0 ? Math.min(100, Math.round((usageBytes / quotaBytes) * 100)) : 0;
 
   const renderActions = (node: DocumentTreeNode) => {
@@ -94,7 +112,7 @@ export default function FolderTree({ nodes, rootId, selectedId, usageBytes, quot
           blockNode
           treeData={treeData}
           selectedKeys={selectedId ? [selectedId] : []}
-          expandedKeys={expandedKeys ?? [rootId]}
+          expandedKeys={expandedKeys}
           onExpand={(keys) => setExpandedKeys(keys)}
           onSelect={(keys) => keys[0] && onSelect(keys[0])}
           renderTitle={(props) => {
