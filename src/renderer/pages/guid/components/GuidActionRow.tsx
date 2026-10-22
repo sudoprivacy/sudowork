@@ -40,6 +40,8 @@ type GuidActionRowProps = {
 
   // Skill selector trigger node (Popover-wrapped button built by parent)
   skillTriggerNode?: React.ReactNode;
+  // Moss wiki picker (enterprise remote chats only)
+  wikiTriggerNode?: React.ReactNode;
 
   // Send button
   loading: boolean;
@@ -62,6 +64,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
   localeKey,
   onClosePresetTag,
   skillTriggerNode,
+  wikiTriggerNode,
   loading,
   isButtonDisabled,
   onSend,
@@ -145,6 +148,8 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
           </Dropdown>
 
           {skillTriggerNode}
+
+          {wikiTriggerNode}
 
           {modelSelectorNode}
 

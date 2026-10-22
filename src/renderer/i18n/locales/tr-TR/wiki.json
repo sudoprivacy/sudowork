@@ -1,0 +1,105 @@
+{
+  "title": "Kurumsal Wiki",
+  "description": "Belgeleri özel alanınıza yükleyin, bunlardan wiki oluşturun ve kimlerin kullanabileceğini seçin. Şirket wikilerine ve sizinle paylaşılan wikilere de göz atabilirsiniz.",
+  "unsupported": "Kurumsal sunucunuz henüz wikileri desteklemiyor. Yöneticinizden yükseltmesini isteyin.",
+  "tabs": { "mine": "Alanım", "usable": "Kullanılabilir wikiler" },
+  "common": { "delete": "Sil", "edit": "Düzenle", "view": "Görüntüle", "refresh": "Yenile", "description": "Açıklama" },
+  "tree": {
+    "root": "Özel alan",
+    "newFolder": "Yeni klasör",
+    "edit": "Klasörü düzenle",
+    "name": "Ad",
+    "nameRequired": "Bir ad girin",
+    "parent": "Üst klasör",
+    "deleteConfirm": "\"{{name}}\" klasörü ve içindeki her şey silinsin mi?",
+    "quota": "{{total}} alanın {{used}} kadarı kullanıldı"
+  },
+  "documents": {
+    "uploadFiles": "Dosya yükle",
+    "uploadFolder": "Klasör yükle",
+    "dropHint": "Yüklemek için dosyaları buraya sürükleyin. Dosya başına en fazla {{size}}.",
+    "empty": "Bu klasörde dosya yok",
+    "fileName": "Dosya adı",
+    "size": "Boyut",
+    "uploadedAt": "Yüklenme",
+    "deleteConfirm": "\"{{name}}\" dosyası silinsin mi?",
+    "uploaded": "{{count}} dosya yüklendi",
+    "tooBig": "Boyut sınırını aşan dosyalar atlandı: {{names}}",
+    "quotaExceeded": "{{size}} yüklemek, alanınızda kalan {{remaining}} sınırını aşıyor"
+  },
+  "myWikis": {
+    "title": "Wikilerim",
+    "create": "Yeni wiki",
+    "empty": "Henüz wiki yok. Oluşturmak için klasör veya dosya seçin.",
+    "name": "Ad",
+    "status": "Durum",
+    "lastBuilt": "Son oluşturma",
+    "enabled": "Etkin",
+    "build": "Oluştur",
+    "rebuild": "Yeniden oluştur",
+    "cancel": "Oluşturmayı iptal et",
+    "cancelled": "Oluşturma iptal edildi",
+    "buildStarted": "Oluşturma başladı",
+    "deleteConfirm": "\"{{name}}\" wikisi silinsin mi? Kaynak dosyalar korunur."
+  },
+  "status": { "pending": "Oluşturulmadı", "running": "Oluşturuluyor", "succeeded": "Oluşturuldu", "failed": "Oluşturma başarısız", "needsRebuild": "Yeniden oluşturulmalı" },
+  "form": {
+    "createTitle": "Yeni wiki",
+    "editTitle": "Wikiyi düzenle",
+    "name": "Ad",
+    "nameRequired": "Bir wiki adı girin",
+    "descriptionHint": "Açıklama, bu wikinin ne zaman kullanılacağına karar vermesi için ajana gösterilir.",
+    "source": "Kaynak",
+    "sourceDir": "Klasörler",
+    "sourceFiles": "Belirli dosyalar",
+    "folders": "Dahil edilen klasörler",
+    "excludeFolders": "Hariç tutulan klasörler",
+    "documents": "Dosyalar",
+    "pickFolders": "En az bir klasör seçin",
+    "pickDocuments": "En az bir dosya seçin",
+    "autoRebuild": "Otomatik yeniden oluştur",
+    "autoRebuildHint": "Klasörlerin içeriği değiştiğinde yeniden oluşturur.",
+    "visibility": "Kimler kullanabilir",
+    "buildNow": "Oluşturduktan hemen sonra derle",
+    "saved": "Kaydedildi"
+  },
+  "visibility": {
+    "self": "Yalnızca ben",
+    "departments": "Departmanlar",
+    "users": "Üyeler",
+    "all": "Herkes",
+    "pickDepartments": "Departman seçin",
+    "pickUsers": "Üye seçin",
+    "hint": "Bu wikiyi sohbetlerde kimlerin kullanabileceğini belirler. Siz her zaman kullanabilirsiniz."
+  },
+  "origin": { "tenant": "Şirket", "shared": "Paylaşılan", "mine": "Benim" },
+  "usable": {
+    "searchPlaceholder": "Wiki ara",
+    "allOrigins": "Tüm kaynaklar",
+    "origin": "Kaynak",
+    "updatedAt": "Güncellenme",
+    "empty": "Kullanılabilir wiki yok"
+  },
+  "viewer": {
+    "searchPlaceholder": "Bu wikide ara",
+    "noFiles": "Bu wikide göz atılacak dosya yok",
+    "noMatches": "Eşleşme yok",
+    "pickFile": "Soldan bir dosya seçin"
+  },
+  "chat": {
+    "chip": "Wiki",
+    "chipWithCount": "Wiki ({{count}})",
+    "searchPlaceholder": "Wiki ara",
+    "mentionHint": "Bu mesaj için bir wiki seçin",
+    "empty": "Kullanılabilir wiki yok",
+    "unavailable": "Wiki kullanılamıyor"
+  },
+  "errors": {
+    "privateRoot": "Özel alanın kökü değiştirilemez veya silinemez",
+    "notCancellable": "Bu oluşturma zaten tamamlandı",
+    "unauthorized": "Oturumunuzun süresi doldu. Lütfen tekrar giriş yapın.",
+    "tooLarge": "Dosya çok büyük veya alan kotası aşıldı",
+    "conflict": "Çakışma: {{message}}",
+    "notFound": "Bulunamadı veya zaten silindi"
+  }
+}

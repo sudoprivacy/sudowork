@@ -92,6 +92,13 @@ export default defineConfig({
         'src/process/bridge/documentBridge.ts',
         'src/process/bridge/pwdLoginBridge.ts',
         'src/process/utils/enabledSkillFilter.ts',
+        // Enterprise wikis (moss knowledge)
+        'src/process/task/remoteWikiInstruction.ts',
+        'src/renderer/pages/wiki/api/wikiApi.ts',
+        'src/renderer/pages/wiki/utils/files.ts',
+        'src/renderer/pages/wiki/utils/visibility.ts',
+        'src/renderer/components/wiki/wikiMention.ts',
+        'src/renderer/components/wiki/WikiPicker.tsx',
         // Team collaboration
         'src/process/bridge/teamBridge.ts',
         'src/process/services/team/TeamService.ts',

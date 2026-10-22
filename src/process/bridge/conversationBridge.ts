@@ -906,11 +906,12 @@ export function initConversationBridge(): void {
     await queueConversationWorkspaceSkillSync(conversation, requestedSkills);
 
     try {
-      const payload: { content: string; agentContent?: string; files: string[]; msg_id: string; skills?: string[] } = {
+      const payload: { content: string; agentContent?: string; files: string[]; msg_id: string; skills?: string[]; wikis?: string[] } = {
         content: other.input,
         files: workspaceFiles,
         msg_id: other.msg_id,
         skills: requestedSkills || [],
+        ...(task.type === 'remote-agent' && other.wikis?.length ? { wikis: other.wikis } : {}),
       };
 
       mainLog('conversationBridge', `sendMessage: about to call task.sendMessage for ${conversation_id}`);

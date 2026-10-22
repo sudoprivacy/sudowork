@@ -1118,9 +1118,13 @@ This identity statement takes priority over the default identity in USER.md.
         }
 
         // Local KB enhancement: prepend best-effort local knowledge matches.
+        // Skipped in enterprise mode, where the local KB is hidden in favor of moss wikis.
         try {
-          const { knowledgeRetrievalService } = await import('@process/services/knowledge/KnowledgeRetrievalService');
-          contentToSend = await knowledgeRetrievalService.augmentWithLocalKnowledge(rawUserQuery, contentToSend);
+          const { isEnterpriseModeAsync } = await import('@/common/enterpriseDebugConfig');
+          if (!(await isEnterpriseModeAsync())) {
+            const { knowledgeRetrievalService } = await import('@process/services/knowledge/KnowledgeRetrievalService');
+            contentToSend = await knowledgeRetrievalService.augmentWithLocalKnowledge(rawUserQuery, contentToSend);
+          }
         } catch (localKbErr) {
           mainWarn('[AcpAgent]', 'Local KB augment failed; sending original message:', localKbErr);
         }

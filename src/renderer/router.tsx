@@ -21,6 +21,7 @@ const GeminiSettings = React.lazy(() => import('./pages/settings/gemini'));
 const SudocodeModelSettings = React.lazy(() => import('./pages/settings/models'));
 const Skills = React.lazy(() => import('./pages/skills'));
 const LocalKnowledgeBase = React.lazy(() => import('./pages/local-knowledge-base'));
+const WikiPage = React.lazy(() => import('./pages/wiki'));
 const CopilotSettings = React.lazy(() => import('./pages/settings/copilot'));
 const RuntimeSettings = React.lazy(() => import('./pages/settings/runtime'));
 const SystemSettings = React.lazy(() => import('./pages/settings/system'));
@@ -72,6 +73,7 @@ const PROTECTED_ROUTE_CONFIGS = [
   { path: '/settings/tools', component: ToolsSettings },
   { path: '/app/skills', component: Skills },
   { path: '/app/local-kb', component: LocalKnowledgeBase },
+  { path: '/app/wiki', component: WikiPage },
   { path: '/settings/skill', component: Skills },
   { path: '/app/security', component: SecurityPage },
   { path: '/app/channels', component: ChannelsPage },
@@ -127,6 +129,14 @@ const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) =
   // Team collaboration is consumer-only (附录 II.1).
   if (mode !== 'c' && location.pathname.startsWith('/app/team')) {
     return <Navigate to='/guid' replace />;
+  }
+
+  // Enterprise wikis replace the local knowledge base in enterprise mode.
+  if (mode !== 'e' && location.pathname.startsWith('/app/wiki')) {
+    return <Navigate to='/guid' replace />;
+  }
+  if (mode === 'e' && location.pathname.startsWith('/app/local-kb')) {
+    return <Navigate to='/app/wiki' replace />;
   }
 
   return React.cloneElement(layout);

@@ -25,6 +25,7 @@ import { hasCronCommands } from './CronCommandDetector';
 import { detectFileIntent, matchesDraftPattern } from './draftsCleanup';
 import BaseAgent from './BaseAgent';
 import { processAtFileReferences } from './acp/AcpAtFileProcessor';
+import { buildWikiInstruction, fetchWikiRefs, normalizeWikiIds, planWikiInstruction, wrapWithWikiInstruction } from './remoteWikiInstruction';
 
 /**
  * Cron instruction inlined into a remote session's first message. The moss
@@ -96,6 +97,8 @@ export interface RemoteAgentData {
   mossSessionPending?: boolean;
   /** Enabled skill names (optional, for non-assistant sessions) */
   enabledSkills?: string[];
+  /** Moss wiki ids picked for the conversation (sent on session create) */
+  enabledWikis?: string[];
 }
 
 /**
@@ -204,6 +207,8 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
           sessionId: undefined,
           // 新增: 传递启用的 skill 列表
           enabledSkills,
+          // The stored selection may be newer than the options captured when this task was built.
+          enabledWikis: normalizeWikiIds(this.readConversationExtra()?.enabledWikis ?? this.options.enabledWikis),
         };
 
         mainLog('RemoteAgent', `MossWsConnection config: cwd=${config.cwd ?? '<server-default>'}, assistant=${config.assistantName || 'default'}, enabledSkills=${config.enabledSkills?.length || 0}`);
@@ -402,6 +407,54 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
     }
   }
 
+  /** The conversation's stored wiki fields (the renderer updates enabledWikis mid-chat). */
+  private readConversationExtra(): { enabledWikis?: string[]; advertisedWikis?: string[] } | undefined {
+    try {
+      const existing = getDatabase().getConversation(this.conversation_id);
+      if (!existing.success || !existing.data) return undefined;
+      return existing.data.extra as { enabledWikis?: string[]; advertisedWikis?: string[] };
+    } catch {
+      return undefined;
+    }
+  }
+
+  private persistAdvertisedWikis(ids: string[]): void {
+    try {
+      const db = getDatabase();
+      const existing = db.getConversation(this.conversation_id);
+      if (!existing.success || !existing.data) return;
+      db.updateConversation(this.conversation_id, { extra: { ...existing.data.extra, advertisedWikis: ids } } as Partial<TChatConversation>);
+    } catch (error) {
+      mainWarn('RemoteAgent', 'Failed to persist advertised wikis:', error);
+    }
+  }
+
+  /**
+   * Prepend [Selected Wikis] when the sticky selection changed since the agent
+   * was last told, and [Wikis for this request] for #-mentioned wikis. Best
+   * effort: on failure the message goes out unchanged.
+   */
+  private async applyWikiInstruction(content: string, mentionedWikis?: string[]): Promise<string> {
+    const extra = this.readConversationExtra();
+    const plan = planWikiInstruction({ enabled: extra?.enabledWikis, advertised: extra?.advertisedWikis, mentioned: mentionedWikis });
+    if (!plan.selected && plan.mentioned.length === 0) return content;
+    try {
+      const { getValidToken } = await import('@/process/bridge/eeclawBridge');
+      const token = (await getValidToken().catch((): string | null => null)) || this.options.authToken;
+      if (!token) throw new Error('no auth token');
+      const refs = await fetchWikiRefs(this.options.serverUrl, token, [...(plan.selected ?? []), ...plan.mentioned]);
+      const byId = new Map(refs.map((r) => [r.id, r]));
+      const pick = (ids: string[]) => ids.flatMap((id) => (byId.has(id) ? [byId.get(id)!] : []));
+      const instruction = buildWikiInstruction({ selected: plan.selected ? pick(plan.selected) : null, mentioned: pick(plan.mentioned) });
+      if (plan.selected) this.persistAdvertisedWikis(plan.selected);
+      mainLog('RemoteAgent', `Wiki instruction: selected=${plan.selected ? plan.selected.length : 'unchanged'}, mentioned=${plan.mentioned.length}`);
+      return wrapWithWikiInstruction(content, instruction);
+    } catch (error) {
+      mainWarn('RemoteAgent', 'Failed to build wiki instruction; sending without it:', error);
+      return content;
+    }
+  }
+
   /**
    * Update conversation record with Moss session info
    * 更新会话记录的 Moss session 信息
@@ -434,6 +487,8 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
         mossSessionId: this.mossSessionId,
         acpWsUrl: this.mossWsUrl,
         mossSessionPending: false,
+        // Moss advertises the session's enabled_wikis itself in the first message.
+        advertisedWikis: normalizeWikiIds((existing.data.extra as { enabledWikis?: string[] } | undefined)?.enabledWikis),
       };
 
       if (isRemotePath) {
@@ -497,7 +552,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
     }
   }
 
-  async sendMessage(data: { content: string; files?: string[]; msg_id?: string }): Promise<{ success: boolean; msg?: string }> {
+  async sendMessage(data: { content: string; files?: string[]; msg_id?: string; wikis?: string[] }): Promise<{ success: boolean; msg?: string }> {
     mainLog('RemoteAgent', `sendMessage called for conversation ${this.conversation_id}`);
     mainLog('RemoteAgent', `content length: ${data.content?.length || 0}, files: ${data.files?.length || 0}`);
     // Activity: cancel any pending idle detach before we start work.
@@ -687,6 +742,9 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
           contentToSend = `${remoteRefs.join(' ')} ${contentToSend}`;
         }
       }
+
+      // Wiki steering goes inside the cron wrapper so the last [User Request] still precedes the user's text.
+      contentToSend = await this.applyWikiInstruction(contentToSend, data.wikis);
 
       // Tell the remote (moss) agent about scheduled tasks, once per session.
       // The moss container can't read the local cron SKILL.md, so the

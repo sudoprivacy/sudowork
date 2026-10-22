@@ -69,7 +69,8 @@
     "security": "Güvenlik",
     "webui": "Uzak Erişim",
     "cron": "Zamanlanmış Görevler",
-    "team": "Takımlar"
+    "team": "Takımlar",
+    "wiki": "Wiki"
   },
   "enabled": "Etkin",
   "uninstall": "Kaldır",

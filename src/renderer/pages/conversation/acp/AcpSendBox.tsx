@@ -38,6 +38,10 @@ import AcpConfigSelector from '@/renderer/components/AcpConfigSelector';
 import { useSlashCommands } from '@/renderer/hooks/useSlashCommands';
 import { filterUserVisibleAtPath, filterUserVisibleFiles } from '@/renderer/utils/messageFiles';
 import { useWorkspaceFiles } from '@/renderer/hooks/useWorkspaceFiles';
+import WikiPicker, { WikiChips } from '@/renderer/components/wiki/WikiPicker';
+import { useConversationWikis } from '@/renderer/components/wiki/useConversationWikis';
+import { useUsableWikis } from '@/renderer/components/wiki/useUsableWikis';
+import { useWikiMentions } from '@/renderer/components/wiki/useWikiMentions';
 import { shouldCancelAcpFinishTimeout } from './acpFinishTimeout';
 
 const useAcpSendBoxDraft = getSendBoxDraftHook('acp', {
@@ -613,6 +617,11 @@ const AcpSendBox: React.FC<{
   const slashCommands = useSlashCommands(conversation_id, { agentStatus: acpStatus });
   const { atPath, uploadFile, setAtPath, setUploadFile, content, setContent, selectedSkills, setSelectedSkills } = useSendBoxDraft(conversation_id);
   const { setSendBoxHandler } = usePreviewContext();
+  // Moss wikis: only remote (moss) single chats can use them.
+  const isWikiEnabled = backend === 'remote-agent' && !teamSendMessage;
+  const usableWikis = useUsableWikis(isWikiEnabled);
+  const { selectedIds: stickyWikis, setSelectedIds: setStickyWikis } = useConversationWikis(conversation_id, isWikiEnabled);
+  const wikiMentions = useWikiMentions(content, setContent, isWikiEnabled);
   // Sync local aiProcessing state to parent via onAiProcessingChange
   // 将本地 aiProcessing 状态同步到父组件
   useEffect(() => {
@@ -712,7 +721,7 @@ const AcpSendBox: React.FC<{
     const sendInitialMessage = async () => {
       try {
         const initialMessage = JSON.parse(storedMessage);
-        const { input, files, skills = [] } = initialMessage;
+        const { input, files, skills = [], wikis } = initialMessage as { input: string; files?: string[]; skills?: string[]; wikis?: string[] };
 
         // ACP: 不使用 buildDisplayMessage，直接传原始 input
         // 文件引用由后端 ACP agent 负责添加（使用复制后的实际路径）
@@ -733,6 +742,7 @@ const AcpSendBox: React.FC<{
           conversation_id,
           files,
           skills: skills,
+          ...(wikis?.length ? { wikis } : {}),
         });
 
         if (result && result.success === true) {
@@ -851,12 +861,14 @@ const AcpSendBox: React.FC<{
         await teamSendMessage({ input: message, files: allFiles, msg_id });
         return;
       }
+      const mentionedWikis = isWikiEnabled ? wikiMentions.consume(message) : [];
       await ipcBridge.acpConversation.sendMessage.invoke({
         input: message,
         msg_id,
         conversation_id,
         files: allFiles,
         skills: activeSkills,
+        ...(mentionedWikis.length ? { wikis: mentionedWikis } : {}),
       });
 
       void checkAndUpdateTitle(conversation_id, message);
@@ -1091,10 +1103,23 @@ const AcpSendBox: React.FC<{
               compactLabelPrefix={t('agentMode.permission')}
             />
             <AcpConfigSelector conversationId={conversation_id} backend={backend} />
+            {isWikiEnabled && (
+              <WikiPicker
+                wikis={usableWikis.wikis}
+                isLoading={usableWikis.isLoading}
+                selectedIds={stickyWikis}
+                mentionQuery={wikiMentions.mentionQuery}
+                onChange={setStickyWikis}
+                onMentionPick={wikiMentions.pick}
+                onMentionDismiss={wikiMentions.dismiss}
+                onOpen={() => void usableWikis.refresh(true)}
+              />
+            )}
           </div>
         }
         prefix={
           <>
+            {isWikiEnabled && <WikiChips wikis={usableWikis.wikis} selectedIds={stickyWikis} onRemove={(id) => setStickyWikis(stickyWikis.filter((x) => x !== id))} />}
             {/* Files on top - hide internal temp workspace paths from user */}
             {(() => {
               const visibleUploadFile = filterUserVisibleFiles(uploadFile);

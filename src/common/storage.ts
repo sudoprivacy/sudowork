@@ -398,6 +398,10 @@ export type TChatConversation =
           presetAssistantId?: string;
           /** 启用的 skills 列表 / Enabled skills list */
           enabledSkills?: string[];
+          /** Moss wiki ids picked for this conversation (sticky; editable mid-chat) */
+          enabledWikis?: string[];
+          /** Wiki ids the agent was last told about (moss on session create, or a [Selected Wikis] block) */
+          advertisedWikis?: string[];
           /** Persisted session mode for resume support / 持久化的会话模式，用于恢复 */
           sessionMode?: string;
           /** Persisted model ID for resume support / 持久化的模型 ID，用于恢复 */

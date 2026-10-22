@@ -154,6 +154,7 @@ export class RemoteConversationProvider implements IConversationProvider {
         presetAssistantId: params.extra?.presetAssistantId,
         dangerouslySkipPermissions: params.extra?.dangerouslySkipPermissions ?? false,
         sessionMode: params.extra?.sessionMode,
+        enabledWikis: params.extra?.enabledWikis?.length ? params.extra.enabledWikis : undefined,
         // Mark as pending Moss session creation
         // 标记为待创建 Moss session
         mossSessionPending: true,

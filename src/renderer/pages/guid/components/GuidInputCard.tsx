@@ -44,6 +44,9 @@ type GuidInputCardProps = {
   onRemoveSkill?: (skillName: string) => void;
   getSkillDisplayName?: (skillName: string) => { displayName: string; emoji: string };
 
+  // Selected moss wikis (enterprise remote chats)
+  wikiChips?: React.ReactNode;
+
   // Files
   files: string[];
   onRemoveFile: (path: string) => void;
@@ -79,6 +82,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
   selectedSkills,
   onRemoveSkill,
   getSkillDisplayName,
+  wikiChips,
   files,
   onRemoveFile,
   dir,
@@ -169,6 +173,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
           </div>
         </div>
       )}
+      {wikiChips}
       <Input.TextArea
         ref={textareaRef}
         autoSize={textareaAutoSize}
