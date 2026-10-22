@@ -108,6 +108,7 @@ export default defineConfig({
       include: [
         '../../packages/moss-client/src/MossHostedTaskClient.ts',
         '../../packages/renderer/src/pages/hosted-agents/**/*.{ts,tsx}',
+        'src/process/services/python/browserRuntimeVersion.ts',
         '../../packages/renderer/src/pages/settings/profile/components/EnterpriseAvatar.tsx',
         '../../packages/renderer/src/pages/settings/enterprise/index.tsx',
         'src/process/services/browserPanel/LocalBrowserWorker.ts',
