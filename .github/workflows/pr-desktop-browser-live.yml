@@ -40,8 +40,16 @@ jobs:
           chrome-version: stable
       - name: Install dependencies
         run: bun install --no-frozen-lockfile
+      - name: Read the pinned public browser version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(bun -e "import { BROWSER_WORKER_VERSION } from './apps/desktop/src/process/services/python/browserRuntimeVersion.ts'; console.log(BROWSER_WORKER_VERSION)")"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          echo "BROWSER_WORKER_VERSION=$version" >> "$GITHUB_ENV"
       - name: Install the official public worker
-        run: python -m pip --isolated install --index-url https://pypi.org/simple "ai-dev-browser[remote]==0.58.2" pytest pytest-asyncio
+        shell: bash
+        run: python -m pip --isolated install --index-url https://pypi.org/simple "ai-dev-browser[remote]==$BROWSER_WORKER_VERSION" pytest pytest-asyncio
       - name: Build the shared contracts and stdio transport
         run: |
           bun run --filter=@sudowork/contracts build
@@ -68,7 +76,7 @@ jobs:
           installer_test=(python apps/desktop/tests/e2e/live_browser_runtime_install.py
             --bundle desktop-browser-install-live.cjs
             --output "$RUNNER_TEMP/browser-runtime-cold-install"
-            --version 0.58.2)
+            --version "$BROWSER_WORKER_VERSION")
           if [[ "$RUNNER_OS" == "Linux" ]]; then
             xvfb-run -a "${installer_test[@]}"
           else
