@@ -4,27 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type {
-  AcpQuestionData,
-  AcpQuestionItem,
-  AcpQuestionItemKind,
-  AcpQuestionItemOption,
-  IMessageAcpQuestion,
-  IMessageAcpToolCall,
-  IMessagePlan,
-  IMessageText,
-  TMessage,
-} from "./chatTypes.js";
-import { uuid } from "./utils.js";
-import type {
-  AcpBackend,
-  AcpSessionUpdate,
-  AgentMessageChunkUpdate,
-  AgentThoughtChunkUpdate,
-  PlanUpdate,
-  ToolCallUpdate,
-  ToolCallUpdateStatus,
-} from "./acpTypes.js";
+import type { AcpQuestionData, AcpQuestionItem, AcpQuestionItemKind, AcpQuestionItemOption, IMessageAcpQuestion, IMessageAcpToolCall, IMessagePlan, IMessageText, TMessage } from './chatTypes.js';
+import { uuid } from './utils.js';
+import type { AcpBackend, AcpSessionUpdate, AgentMessageChunkUpdate, AgentThoughtChunkUpdate, PlanUpdate, ToolCallUpdate, ToolCallUpdateStatus } from './acpTypes.js';
 
 /**
  * Transport-independent ACP projection for desktop and browser clients.
@@ -38,7 +20,7 @@ export class AcpAdapter {
   // Accumulate streamed thought chunks into one reasoning block with a stable msg_id,
   // so downstream merging (composeMessage) can update a single message in place
   private currentThoughtMsgId: string | null = null;
-  private currentThoughtText: string = "";
+  private currentThoughtText: string = '';
 
   constructor(conversationId: string, backend: AcpBackend) {
     this.conversationId = conversationId;
@@ -58,7 +40,7 @@ export class AcpAdapter {
    */
   private resetThoughtTracking() {
     this.currentThoughtMsgId = null;
-    this.currentThoughtText = "";
+    this.currentThoughtText = '';
   }
 
   /**
@@ -80,7 +62,7 @@ export class AcpAdapter {
     const update = sessionUpdate.update;
 
     switch (update.sessionUpdate) {
-      case "agent_message_chunk": {
+      case 'agent_message_chunk': {
         if (update.content) {
           const message = this.convertSessionUpdateChunk(update);
           if (message) {
@@ -91,7 +73,7 @@ export class AcpAdapter {
         break;
       }
 
-      case "agent_thought_chunk": {
+      case 'agent_thought_chunk': {
         if (update.content) {
           const message = this.convertThoughtChunk(update);
           if (message) {
@@ -103,10 +85,8 @@ export class AcpAdapter {
         break;
       }
 
-      case "tool_call": {
-        const toolCallMessage = this.createOrUpdateAcpToolCall(
-          sessionUpdate as ToolCallUpdate,
-        );
+      case 'tool_call': {
+        const toolCallMessage = this.createOrUpdateAcpToolCall(sessionUpdate as ToolCallUpdate);
         if (toolCallMessage) {
           messages.push(toolCallMessage);
         }
@@ -116,10 +96,8 @@ export class AcpAdapter {
         break;
       }
 
-      case "tool_call_update": {
-        const toolCallUpdateMessage = this.updateAcpToolCall(
-          sessionUpdate as ToolCallUpdateStatus,
-        );
+      case 'tool_call_update': {
+        const toolCallUpdateMessage = this.updateAcpToolCall(sessionUpdate as ToolCallUpdateStatus);
         if (toolCallUpdateMessage) {
           messages.push(toolCallUpdateMessage);
         }
@@ -129,7 +107,7 @@ export class AcpAdapter {
         break;
       }
 
-      case "plan": {
+      case 'plan': {
         const planMessage = this.convertPlanUpdate(sessionUpdate as PlanUpdate);
         if (planMessage) {
           messages.push(planMessage);
@@ -142,15 +120,15 @@ export class AcpAdapter {
 
       // Config option updates (e.g., model switch) are handled by AcpConnection
       // directly in handleIncomingRequest; no chat message conversion needed.
-      case "config_option_update":
+      case 'config_option_update':
         break;
 
       // Usage updates are emitted directly by AcpAgent; no chat message conversion needed.
-      case "usage_update":
+      case 'usage_update':
         break;
 
       // Disabled: available_commands messages are too noisy and distracting in the chat UI
-      case "available_commands_update":
+      case 'available_commands_update':
         // Still reset message tracking so next agent_message_chunk gets new msg_id
         this.resetMessageTracking();
         break;
@@ -158,10 +136,7 @@ export class AcpAdapter {
       default: {
         // Handle unexpected session update types
         const unknownUpdate = update as { sessionUpdate?: string };
-        console.warn(
-          "Unknown session update type:",
-          unknownUpdate.sessionUpdate,
-        );
+        console.warn('Unknown session update type:', unknownUpdate.sessionUpdate);
         break;
       }
     }
@@ -172,22 +147,20 @@ export class AcpAdapter {
   /**
    * Convert ACP session update chunk to Sudowork message
    */
-  private convertSessionUpdateChunk(
-    update: AgentMessageChunkUpdate["update"],
-  ): TMessage | null {
+  private convertSessionUpdateChunk(update: AgentMessageChunkUpdate['update']): TMessage | null {
     const msgId = this.getCurrentMessageId(); // Use consistent msg_id for streaming chunks
     const baseMessage = {
       id: uuid(), // Each chunk still gets unique id (for deduplication in composeMessage)
       msg_id: msgId, // But shares msg_id to enable accumulation
       conversation_id: this.conversationId,
       createdAt: Date.now(),
-      position: "left" as const,
+      position: 'left' as const,
     };
 
     if (update.content && update.content.text) {
       return {
         ...baseMessage,
-        type: "text",
+        type: 'text',
         content: {
           content: update.content.text,
         },
@@ -200,13 +173,11 @@ export class AcpAdapter {
   /**
    * Convert ACP thought chunk to Sudowork message
    */
-  private convertThoughtChunk(
-    update: AgentThoughtChunkUpdate["update"],
-  ): TMessage | null {
+  private convertThoughtChunk(update: AgentThoughtChunkUpdate['update']): TMessage | null {
     if (update.content && update.content.text) {
       if (!this.currentThoughtMsgId) {
         this.currentThoughtMsgId = uuid();
-        this.currentThoughtText = "";
+        this.currentThoughtText = '';
       }
       this.currentThoughtText += update.content.text;
       return {
@@ -214,11 +185,11 @@ export class AcpAdapter {
         msg_id: this.currentThoughtMsgId,
         conversation_id: this.conversationId,
         createdAt: Date.now(),
-        position: "center" as const,
-        type: "tips",
+        position: 'center' as const,
+        type: 'tips',
         content: {
           content: this.currentThoughtText,
-          type: "warning",
+          type: 'warning',
         },
       };
     }
@@ -226,93 +197,63 @@ export class AcpAdapter {
     return null;
   }
 
-  private createQuestionMessage(
-    toolCallId: string,
-    questionData: AcpQuestionData,
-  ): IMessageAcpQuestion {
+  private createQuestionMessage(toolCallId: string, questionData: AcpQuestionData): IMessageAcpQuestion {
     return {
       id: uuid(),
-      type: "acp_question",
+      type: 'acp_question',
       msg_id: `${toolCallId}-user-msg`,
       conversation_id: this.conversationId,
       createdAt: Date.now(),
-      position: "left",
+      position: 'left',
       content: questionData,
     };
   }
 
-  private normalizeKind(
-    value: unknown,
-    hasOptions: boolean,
-  ): AcpQuestionItemKind | undefined {
-    if (typeof value !== "string")
-      return hasOptions ? "single_select" : undefined;
+  private normalizeKind(value: unknown, hasOptions: boolean): AcpQuestionItemKind | undefined {
+    if (typeof value !== 'string') return hasOptions ? 'single_select' : undefined;
     const normalized = value.trim();
-    if (
-      normalized === "single_select" ||
-      normalized === "multi_select" ||
-      normalized === "text" ||
-      normalized === "boolean"
-    ) {
+    if (normalized === 'single_select' || normalized === 'multi_select' || normalized === 'text' || normalized === 'boolean') {
       return normalized;
     }
-    return hasOptions ? "single_select" : undefined;
+    return hasOptions ? 'single_select' : undefined;
   }
 
   private normalizeQuestionItems(items: unknown): AcpQuestionItem[] {
     if (!Array.isArray(items)) return [];
     return items
       .map((item, index) => {
-        if (!item || typeof item !== "object") return null;
+        if (!item || typeof item !== 'object') return null;
         const candidate = item as Record<string, unknown>;
-        const prompt =
-          typeof candidate.prompt === "string" ? candidate.prompt.trim() : "";
+        const prompt = typeof candidate.prompt === 'string' ? candidate.prompt.trim() : '';
         if (!prompt) return null;
         const options = Array.isArray(candidate.options)
           ? candidate.options
               .map((option) => {
-                if (!option || typeof option !== "object") return null;
+                if (!option || typeof option !== 'object') return null;
                 const optionRecord = option as Record<string, unknown>;
-                const label =
-                  typeof optionRecord.label === "string"
-                    ? optionRecord.label.trim()
-                    : "";
-                const value =
-                  typeof optionRecord.value === "string"
-                    ? optionRecord.value.trim()
-                    : "";
+                const label = typeof optionRecord.label === 'string' ? optionRecord.label.trim() : '';
+                const value = typeof optionRecord.value === 'string' ? optionRecord.value.trim() : '';
                 const finalLabel = label || value;
                 const finalValue = value || label;
                 if (!finalLabel && !finalValue) return null;
                 const normalized: AcpQuestionItemOption = {
                   label: finalLabel,
                   value: finalValue,
-                  description:
-                    typeof optionRecord.description === "string"
-                      ? optionRecord.description
-                      : undefined,
+                  description: typeof optionRecord.description === 'string' ? optionRecord.description : undefined,
                   recommended: optionRecord.recommended === true,
                 };
                 return normalized;
               })
-              .filter((option): option is AcpQuestionItemOption =>
-                Boolean(option),
-              )
+              .filter((option): option is AcpQuestionItemOption => Boolean(option))
           : [];
 
         const normalized: AcpQuestionItem = {
-          id:
-            typeof candidate.id === "string" && candidate.id.trim()
-              ? candidate.id.trim()
-              : `q${index + 1}`,
+          id: typeof candidate.id === 'string' && candidate.id.trim() ? candidate.id.trim() : `q${index + 1}`,
           prompt,
           kind: this.normalizeKind(candidate.kind, options.length > 0),
           options,
           allowCustomInput: candidate.allowCustomInput === true,
-          customInputHint:
-            typeof candidate.customInputHint === "string"
-              ? candidate.customInputHint
-              : undefined,
+          customInputHint: typeof candidate.customInputHint === 'string' ? candidate.customInputHint : undefined,
           optional: candidate.required === false || candidate.optional === true,
         };
         return normalized;
@@ -327,19 +268,18 @@ export class AcpAdapter {
       question?: unknown;
       questions?: unknown;
     },
-    toolCallId: string,
+    toolCallId: string
   ): AcpQuestionData | null {
     const items = this.normalizeQuestionItems(raw.questions);
     if (items.length === 0) {
-      const legacyQuestion =
-        typeof raw.question === "string" ? raw.question.trim() : "";
+      const legacyQuestion = typeof raw.question === 'string' ? raw.question.trim() : '';
       if (!legacyQuestion) return null;
       return {
         question: legacyQuestion,
         options: [],
         items: [
           {
-            id: "q1",
+            id: 'q1',
             prompt: legacyQuestion,
             allowCustomInput: true,
             optional: false,
@@ -351,19 +291,12 @@ export class AcpAdapter {
       };
     }
 
-    const title = typeof raw.title === "string" ? raw.title.trim() : "";
-    const description =
-      typeof raw.description === "string" ? raw.description.trim() : "";
-    const fallbackQuestion =
-      typeof raw.question === "string" ? raw.question.trim() : "";
+    const title = typeof raw.title === 'string' ? raw.title.trim() : '';
+    const description = typeof raw.description === 'string' ? raw.description.trim() : '';
+    const fallbackQuestion = typeof raw.question === 'string' ? raw.question.trim() : '';
 
     return {
-      question:
-        title ||
-        description ||
-        fallbackQuestion ||
-        items[0]?.prompt ||
-        "Question",
+      question: title || description || fallbackQuestion || items[0]?.prompt || 'Question',
       intro: description || title || undefined,
       options: [],
       items,
@@ -373,17 +306,14 @@ export class AcpAdapter {
     };
   }
 
-  private buildAnswerItems(
-    answer: string,
-    items?: AcpQuestionItem[],
-  ): AcpQuestionData["answerItems"] {
+  private buildAnswerItems(answer: string, items?: AcpQuestionItem[]): AcpQuestionData['answerItems'] {
     if (!answer || !items || items.length === 0) return undefined;
 
-    const normalized = answer.replace(/\r\n/g, "\n").trim();
+    const normalized = answer.replace(/\r\n/g, '\n').trim();
     if (!normalized) return undefined;
 
     const lines = normalized
-      .split("\n")
+      .split('\n')
       .map((line) => line.trim())
       .filter(Boolean);
 
@@ -394,16 +324,16 @@ export class AcpAdapter {
         const index = Number(match[1]);
         const item = items[index - 1];
         if (!item) return null;
-        const submissionValue = (match[2] || "").trim();
+        const submissionValue = (match[2] || '').trim();
         return {
           id: item.id,
           index,
           submissionValue,
-          displayValue: submissionValue === "[skipped]" ? "" : submissionValue,
-          skipped: submissionValue === "[skipped]",
+          displayValue: submissionValue === '[skipped]' ? '' : submissionValue,
+          skipped: submissionValue === '[skipped]',
         };
       })
-      .filter(Boolean) as NonNullable<AcpQuestionData["answerItems"]>;
+      .filter(Boolean) as NonNullable<AcpQuestionData['answerItems']>;
 
     if (structured.length > 0) {
       return structured;
@@ -415,8 +345,8 @@ export class AcpAdapter {
           id: items[0].id,
           index: 1,
           submissionValue: normalized,
-          displayValue: normalized === "[skipped]" ? "" : normalized,
-          skipped: normalized === "[skipped]",
+          displayValue: normalized === '[skipped]' ? '' : normalized,
+          skipped: normalized === '[skipped]',
         },
       ];
     }
@@ -424,28 +354,23 @@ export class AcpAdapter {
     return undefined;
   }
 
-  private buildAnswerItemsFromStructuredAnswers(
-    answers: Array<{ id?: string; value?: string; label?: string }>,
-    items?: AcpQuestionItem[],
-  ): AcpQuestionData["answerItems"] {
+  private buildAnswerItemsFromStructuredAnswers(answers: Array<{ id?: string; value?: string; label?: string }>, items?: AcpQuestionItem[]): AcpQuestionData['answerItems'] {
     if (!items || items.length === 0 || answers.length === 0) return undefined;
 
-    const itemById = new Map(
-      items.map((item, index) => [item.id, { item, index }]),
-    );
+    const itemById = new Map(items.map((item, index) => [item.id, { item, index }]));
     const normalized = answers
       .map((answer, fallbackIndex) => {
-        const answerId = typeof answer.id === "string" ? answer.id : "";
+        const answerId = typeof answer.id === 'string' ? answer.id : '';
         const resolved = answerId ? itemById.get(answerId) : undefined;
         const index = resolved ? resolved.index + 1 : fallbackIndex + 1;
         const itemId = resolved ? resolved.item.id : `q${index}`;
-        const submissionValue = String(answer.value || "").trim();
-        const displayValue = String(answer.label || answer.value || "").trim();
+        const submissionValue = String(answer.value || '').trim();
+        const displayValue = String(answer.label || answer.value || '').trim();
         const skipped = !submissionValue;
         return {
           id: itemId,
           index,
-          submissionValue: submissionValue || "[skipped]",
+          submissionValue: submissionValue || '[skipped]',
           displayValue,
           skipped,
         };
@@ -455,22 +380,16 @@ export class AcpAdapter {
     return normalized.length > 0 ? normalized : undefined;
   }
 
-  buildQuestionMessageFromToolCall(
-    update: ToolCallUpdate | ToolCallUpdateStatus,
-  ): IMessageAcpQuestion | null {
+  buildQuestionMessageFromToolCall(update: ToolCallUpdate | ToolCallUpdateStatus): IMessageAcpQuestion | null {
     const toolCallId = update.update.toolCallId;
     const existingMessage = this.activeToolCalls.get(toolCallId);
-    const toolName =
-      existingMessage?.content.update.title ||
-      ("title" in update.update ? update.update.title : undefined);
+    const toolName = existingMessage?.content.update.title || ('title' in update.update ? update.update.title : undefined);
 
-    if (toolName !== "AskUserQuestion") {
+    if (toolName !== 'AskUserQuestion') {
       return null;
     }
 
-    const rawInput = (
-      "rawInput" in update.update ? update.update.rawInput : undefined
-    ) as Record<string, unknown> | undefined;
+    const rawInput = ('rawInput' in update.update ? update.update.rawInput : undefined) as Record<string, unknown> | undefined;
     const fromRawInput = this.buildQuestionData(
       {
         title: rawInput?.title,
@@ -478,17 +397,15 @@ export class AcpAdapter {
         question: rawInput?.question,
         questions: rawInput?.questions,
       },
-      toolCallId,
+      toolCallId
     );
 
     if (fromRawInput) {
       return this.createQuestionMessage(toolCallId, fromRawInput);
     }
 
-    const content =
-      "content" in update.update ? update.update.content : undefined;
-    const resultText =
-      content?.[0]?.type === "content" ? content[0]?.content?.text : undefined;
+    const content = 'content' in update.update ? update.update.content : undefined;
+    const resultText = content?.[0]?.type === 'content' ? content[0]?.content?.text : undefined;
     if (!resultText) return null;
 
     try {
@@ -499,17 +416,13 @@ export class AcpAdapter {
         questions?: unknown;
       };
       const questionData = this.buildQuestionData(parsed, toolCallId);
-      return questionData
-        ? this.createQuestionMessage(toolCallId, questionData)
-        : null;
+      return questionData ? this.createQuestionMessage(toolCallId, questionData) : null;
     } catch {
       return null;
     }
   }
 
-  private createOrUpdateAcpToolCall(
-    update: ToolCallUpdate,
-  ): IMessageAcpToolCall | null {
+  private createOrUpdateAcpToolCall(update: ToolCallUpdate): IMessageAcpToolCall | null {
     const toolCallId = update.update.toolCallId;
 
     const existing = this.activeToolCalls.get(toolCallId);
@@ -540,12 +453,12 @@ export class AcpAdapter {
       msg_id: toolCallId, // 关键：使用 toolCallId 作为 msg_id
       conversation_id: this.conversationId,
       createdAt: Date.now(),
-      position: "left" as const,
+      position: 'left' as const,
     };
 
     const acpToolCallMessage: IMessageAcpToolCall = {
       ...baseMessage,
-      type: "acp_tool_call",
+      type: 'acp_tool_call',
       content: update, // 直接使用 ToolCallUpdate 作为 content
     };
 
@@ -558,9 +471,7 @@ export class AcpAdapter {
    * Returns the updated message with the same msg_id so composeMessage can merge it
    * Also generates text messages for SendUserMessage/AskUserQuestion tool results
    */
-  private updateAcpToolCall(
-    update: ToolCallUpdateStatus,
-  ): IMessageAcpToolCall | null {
+  private updateAcpToolCall(update: ToolCallUpdateStatus): IMessageAcpToolCall | null {
     const toolCallData = update.update;
     const toolCallId = toolCallData.toolCallId;
 
@@ -581,8 +492,7 @@ export class AcpAdapter {
         status: toolCallData.status,
         content: toolCallData.content || existingMessage.content.update.content,
         // Merge rawInput if present in the update (complete input after streaming)
-        rawInput:
-          toolCallData.rawInput || existingMessage.content.update.rawInput,
+        rawInput: toolCallData.rawInput || existingMessage.content.update.rawInput,
       },
     };
 
@@ -598,10 +508,7 @@ export class AcpAdapter {
     this.activeToolCalls.set(toolCallId, updatedMessage);
 
     // Clean up completed/failed tool calls after a delay to prevent memory leaks
-    if (
-      toolCallData.status === "completed" ||
-      toolCallData.status === "failed"
-    ) {
+    if (toolCallData.status === 'completed' || toolCallData.status === 'failed') {
       setTimeout(() => {
         this.activeToolCalls.delete(toolCallId);
       }, 60000); // Clean up after 1 minute
@@ -616,20 +523,18 @@ export class AcpAdapter {
    * and generate a text message or interactive question for the UI if so.
    * Called by AcpAgent after processing tool_call_update.
    */
-  generateUserMessageFromToolCall(
-    update: ToolCallUpdateStatus,
-  ): TMessage | null {
+  generateUserMessageFromToolCall(update: ToolCallUpdateStatus): TMessage | null {
     const toolCallId = update.update.toolCallId;
     const existingMessage = this.activeToolCalls.get(toolCallId);
     if (!existingMessage) return null;
 
     const toolName = existingMessage.content.update.title;
-    if (toolName !== "SendUserMessage" && toolName !== "AskUserQuestion") {
+    if (toolName !== 'SendUserMessage' && toolName !== 'AskUserQuestion') {
       return null;
     }
 
     // Only generate message when tool completes
-    if (update.update.status !== "completed") return null;
+    if (update.update.status !== 'completed') return null;
 
     // Parse the tool result to extract the message
     const content = update.update.content;
@@ -650,14 +555,14 @@ export class AcpAdapter {
       };
 
       // For SendUserMessage, display as plain text message
-      if (toolName === "SendUserMessage" && result.message) {
+      if (toolName === 'SendUserMessage' && result.message) {
         return {
           id: uuid(),
-          type: "text",
+          type: 'text',
           msg_id: `${toolCallId}-user-msg`,
           conversation_id: this.conversationId,
           createdAt: Date.now(),
-          position: "left",
+          position: 'left',
           content: {
             content: result.message,
           },
@@ -665,42 +570,22 @@ export class AcpAdapter {
       }
 
       // For AskUserQuestion, prefer interactive question cards
-      if (
-        toolName === "AskUserQuestion" &&
-        (result.questions || result.question)
-      ) {
+      if (toolName === 'AskUserQuestion' && (result.questions || result.question)) {
         const questionMessage = this.buildQuestionMessageFromToolCall(update);
         if (questionMessage) {
-          const answerItems =
-            Array.isArray(result.answers) && result.answers.length > 0
-              ? this.buildAnswerItemsFromStructuredAnswers(
-                  result.answers,
-                  questionMessage.content.items,
-                )
-              : this.buildAnswerItems(
-                  result.answer || "",
-                  questionMessage.content.items,
-                );
+          const answerItems = Array.isArray(result.answers) && result.answers.length > 0 ? this.buildAnswerItemsFromStructuredAnswers(result.answers, questionMessage.content.items) : this.buildAnswerItems(result.answer || '', questionMessage.content.items);
 
           if (answerItems && answerItems.length > 0) {
             questionMessage.content.answered = true;
             questionMessage.content.answerItems = answerItems;
-            questionMessage.content.selectedAnswer = answerItems
-              .map(
-                (answer) =>
-                  `${answer.index}. ${answer.skipped ? "[skipped]" : answer.displayValue}`,
-              )
-              .join("\n");
+            questionMessage.content.selectedAnswer = answerItems.map((answer) => `${answer.index}. ${answer.skipped ? '[skipped]' : answer.displayValue}`).join('\n');
             return questionMessage;
           }
 
           if (result.answer) {
             questionMessage.content.answered = true;
             questionMessage.content.selectedAnswer = result.answer;
-            questionMessage.content.answerItems = this.buildAnswerItems(
-              result.answer,
-              questionMessage.content.items,
-            );
+            questionMessage.content.answerItems = this.buildAnswerItems(result.answer, questionMessage.content.items);
             return questionMessage;
           }
 
@@ -719,11 +604,11 @@ export class AcpAdapter {
 
         return {
           id: uuid(),
-          type: "text",
+          type: 'text',
           msg_id: `${toolCallId}-user-msg`,
           conversation_id: this.conversationId,
           createdAt: Date.now(),
-          position: "left",
+          position: 'left',
           content: {
             content: displayText,
           },
@@ -746,14 +631,14 @@ export class AcpAdapter {
       msg_id: uuid(), // 生成独立的 msg_id，避免与其他消息合并
       conversation_id: this.conversationId,
       createdAt: Date.now(),
-      position: "left" as const,
+      position: 'left' as const,
     };
 
     const planData = update.update;
     if (planData.entries && planData.entries.length > 0) {
       return {
         ...baseMessage,
-        type: "plan",
+        type: 'plan',
         content: {
           sessionId: update.sessionId,
           entries: planData.entries,
