@@ -42,6 +42,10 @@ async def main(args):
     is_profile_acceptance = getattr(args, "verify_profile_persistence", False)
     is_mobile_acceptance = getattr(args, "verify_mobile_view", False)
     is_clipboard_acceptance = getattr(args, "verify_selection_clipboard", False)
+    is_touch_selection_acceptance = getattr(args, "verify_touch_selection", False)
+    assert not is_touch_selection_acceptance or is_mobile_acceptance, (
+        "Touch selection requires --verify-mobile-view"
+    )
     assert not (is_mobile_acceptance and is_clipboard_acceptance), (
         "Run desktop clipboard and mobile view preflights separately"
     )
@@ -107,8 +111,8 @@ if(response.ok){clearInterval(ticker);document.body.style.background='rgb(0,128,
                     "<title>Persisted remote login</title>"
                     '<p id="result">Signed in</p><p id="identity">' + expected + "</p>"
                 ).encode()
-            if is_clipboard_acceptance and not is_signed_in:
-                body += fixture_html(selected_phrase).encode()
+            if (is_clipboard_acceptance or is_touch_selection_acceptance) and not is_signed_in:
+                body += fixture_html(selected_phrase, left=820 if is_mobile_acceptance else 40).encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
@@ -165,7 +169,7 @@ if(response.ok){clearInterval(ticker);document.body.style.background='rgb(0,128,
                 is_mobile=is_mobile_acceptance,
                 has_touch=is_mobile_acceptance,
             )
-            if is_clipboard_acceptance:
+            if is_clipboard_acceptance or is_touch_selection_acceptance:
                 # This grants permission only to the owned test viewer context.
                 # The application still uses the real native clipboard API.
                 await context.grant_permissions(
@@ -497,6 +501,9 @@ if(response.ok){clearInterval(ticker);document.body.style.background='rgb(0,128,
                                     ],
                                 },
                             )
+                            # Model a continuous human swipe. Near-zero-duration
+                            # CDP moves make Blink suppress the following tap.
+                            await asyncio.sleep(0.03)
                         await touch.send(
                             "Input.dispatchTouchEvent",
                             {"type": "touchEnd", "touchPoints": []},
@@ -531,6 +538,26 @@ if(response.ok){clearInterval(ticker);document.body.style.background='rgb(0,128,
                     await page.screenshot(
                         path=str(args.output / "selection-clipboard-ime.png")
                     )
+                if is_touch_selection_acceptance:
+                    await page.evaluate("""() => {
+                        window.browserTouchDiagnostics = [];
+                        for (const type of ['touchstart','touchend','pointerdown','pointerup','pointercancel','mousedown','mouseup','click']) {
+                            document.addEventListener(type, event => window.browserTouchDiagnostics.push({type, trusted:event.isTrusted, target:event.target.tagName, label:event.target.getAttribute('aria-label'), text:event.target.textContent?.slice(0,80), prevented:event.defaultPrevented}), true);
+                        }
+                    }""")
+                    await expect(panel.get_by_role("button", name=labels["copySelection"], exact=True)).to_be_enabled()
+                    gesture = panel.get_by_role("button", name=labels["touchGesture"], exact=True)
+                    await expect(gesture).to_have_attribute("aria-pressed", "false")
+                    await gesture.tap()
+                    await expect(gesture).to_have_attribute("aria-pressed", "true")
+                    await expect(panel.get_by_role("button", name=labels["copySelection"], exact=True)).to_be_enabled()
+                    await viewport.scroll_into_view_if_needed()
+                    await verify_clipboard(
+                        page, panel, labels, selected_phrase, selection_layouts,
+                        clipboard_inputs, clipboard_receipts, nonce, evidence,
+                        gesture="touch", selection_only=True,
+                    )
+                    await page.screenshot(path=str(args.output / "touch-phrase-selection.png"))
                 box = await image.bounding_box()
                 assert box and dimensions["w"]
 
@@ -741,6 +768,14 @@ if(response.ok){clearInterval(ticker);document.body.style.background='rgb(0,128,
                 evidence["workflowFailure"] = (
                     type(error).__name__ + ": " + str(error).split("\nCall log:", 1)[0]
                 )
+                try:
+                    await page.screenshot(path=str(args.output / "failure.png"))
+                    evidence["touchDiagnostics"] = await page.evaluate("window.browserTouchDiagnostics")
+                    evidence["failureControls"] = await page.get_by_test_id("browser-session-panel").evaluate(
+                        "panel => Array.from(panel.querySelectorAll('button,[role=combobox],select')).map(el => ({tag:el.tagName,role:el.getAttribute('role'),label:el.getAttribute('aria-label'),text:el.textContent,disabled:el.disabled,ariaDisabled:el.getAttribute('aria-disabled'),expanded:el.getAttribute('aria-expanded'),className:el.className}))"
+                    )
+                except Exception as diagnostic_error:
+                    evidence["failureCaptureError"] = type(diagnostic_error).__name__
                 raise
             finally:
                 if tasks:
@@ -917,4 +952,5 @@ if __name__ == "__main__":
     parser.add_argument("--verify-profile-persistence", action="store_true")
     parser.add_argument("--verify-mobile-view", action="store_true")
     parser.add_argument("--verify-selection-clipboard", action="store_true")
+    parser.add_argument("--verify-touch-selection", action="store_true")
     asyncio.run(main(parser.parse_args()))
