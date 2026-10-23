@@ -298,7 +298,7 @@ jobs:
             unpacked_dir: "mac-arm64"
             timeout: 30
           - platform: "macos-x64"
-            os: "macos-15"
+            os: "macos-15-intel"
             arch: "x64"
             target: "--mac"
             build_args: "--mac --x64"
@@ -349,6 +349,15 @@ jobs:
 
       - name: Setup just
         uses: extractions/setup-just@v2
+        with:
+          just-version: "1.59.0"
+
+      - name: Verify native macOS build architecture
+        if: runner.os == 'macOS'
+        env:
+          EXPECTED_BUILD_ARCH: ${{ matrix.arch }}
+        run: |
+          node -e "if (process.arch !== process.env.EXPECTED_BUILD_ARCH) throw new Error('Expected ' + process.env.EXPECTED_BUILD_ARCH + ' runner; received ' + process.arch)"
 
       - name: Install dependencies
         run: bun install --no-frozen-lockfile
