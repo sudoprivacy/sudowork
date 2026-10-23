@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Empty, Form, Input, Modal, Select, Space, Table, Tag, Typography } from '@arco-design/web-react';
 import { useTranslation } from 'react-i18next';
 import { ReactFlow, Background, Controls, MiniMap, Handle, Position, applyNodeChanges, MarkerType } from '@xyflow/react';
-import type { Connection, Node, NodeChange, ReactFlowInstance } from '@xyflow/react';
+import type { Connection, Edge, Node, NodeChange, ReactFlowInstance } from '@xyflow/react';
 import { Plus, Redo2, Search, Trash2, Undo2, X } from 'lucide-react';
 import { modelIri, STUDIO_HISTORY_LIMIT } from '@sudowork/ontology-common';
 import type { IOntologyConsistencyIssue, IOntologyStudioModel, IOntologyObjectDraft, IOntologyAttributeDraft, IOntologyRelationDraft, IOntologySemanticDocument } from '@sudowork/ontology-common';
@@ -98,7 +98,7 @@ export default function StudioModelEditor({ workspaceId, model, document, onChan
   const [search, setSearch] = useState('');
   const [nodes, setNodes] = useState<Node<IOntologyNodeData>[]>([]);
   const positionsRef = useRef<Record<string, { x: number; y: number }>>({});
-  const flowRef = useRef<ReactFlowInstance<Node<IOntologyNodeData>> | null>(null);
+  const flowRef = useRef<ReactFlowInstance<Node<IOntologyNodeData>, Edge> | null>(null);
   const [objectEditor, setObjectEditor] = useState<IOntologyObjectDraft | 'new'>();
   const [attributeEditor, setAttributeEditor] = useState<IOntologyAttributeDraft | 'new'>();
   const [relationEditor, setRelationEditor] = useState<IOntologyRelationDraft>();
@@ -144,7 +144,7 @@ export default function StudioModelEditor({ workspaceId, model, document, onChan
       }))
     );
   }, [automaticLayout, model.objects, selectedId, search]);
-  const edges = useMemo(
+  const edges = useMemo<Edge[]>(
     () =>
       model.relations.map((relation) => ({
         id: relation.id,
