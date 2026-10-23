@@ -1,12 +1,55 @@
 import { useState } from 'react';
-import { Button, Empty, Form, Input, Message, Modal, Select, Space, Table, Tag, Tooltip, Typography } from '@arco-design/web-react';
+import { Alert, Button, Empty, Form, Input, Message, Modal, Select, Space, Table, Tag, Tooltip, Typography } from '@arco-design/web-react';
 import { useTranslation } from 'react-i18next';
-import type { IOntologyWorkbenchSnapshot, IOntologyLogicFunction, IOntologyRuntimeExecution, IOntologyEnvironmentAsset, IOntologyConnectorConfig } from '@sudowork/ontology-common';
+import type { IOntologyWorkbenchSnapshot, IOntologyLogicFunction, IOntologyRuntimeExecution, IOntologyEnvironmentAsset, IOntologyConnectorConfig, IOntologyFunctionParameter, OntologyJsonValue } from '@sudowork/ontology-common';
 import { ontologyFieldSignature } from '@sudowork/ontology-common';
 import StudioAssetPreview from './StudioAssetPreview';
 import StudioDatabaseConnection from './StudioDatabaseConnection';
 import styles from './studio.module.css';
 import type { IOntologyStudioApi } from './api';
+
+const IMPLEMENTATION_EXAMPLES: Record<IOntologyLogicFunction['runtime'], string> = {
+  sql: 'SELECT 1 AS value',
+  typescript: "const name = typeof input.name === 'string' ? input.name : '';\nreturn { message: `Hello ${name}` };",
+  python: 'name = input.get("name", "")\nresult = {"message": f"Hello {name}"}',
+};
+
+function runtimeArgumentTemplate(parameters: IOntologyFunctionParameter[]): Record<string, OntologyJsonValue> {
+  return Object.fromEntries(
+    parameters.map((parameter): [string, OntologyJsonValue] => {
+      const type = parameter.type.trim().toLowerCase();
+      if (type === 'number' || type === 'integer') return [parameter.name, 0];
+      if (type === 'boolean') return [parameter.name, false];
+      if (type === 'array' || type.endsWith('[]')) return [parameter.name, []];
+      if (type === 'object' || type.includes('record')) return [parameter.name, {}];
+      return [parameter.name, ''];
+    })
+  );
+}
+
+function isJsonRecord(value: unknown): value is Record<string, OntologyJsonValue> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isRuntimeArgumentValue(typeValue: string, value: OntologyJsonValue): boolean {
+  const type = typeValue.trim().toLowerCase();
+  return (
+    type === 'unknown' ||
+    type === 'any' ||
+    (type === 'string' && typeof value === 'string') ||
+    (type === 'number' && typeof value === 'number') ||
+    (type === 'integer' && typeof value === 'number' && Number.isInteger(value)) ||
+    (type === 'boolean' && typeof value === 'boolean') ||
+    ((type === 'array' || type.endsWith('[]')) && Array.isArray(value)) ||
+    ((type === 'object' || type.includes('record')) && isJsonRecord(value))
+  );
+}
+
+function isFunctionParameter(value: unknown): value is IOntologyFunctionParameter {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const parameter = value as Partial<IOntologyFunctionParameter>;
+  return typeof parameter.name === 'string' && !!parameter.name.trim() && typeof parameter.type === 'string' && !!parameter.type.trim() && typeof parameter.required === 'boolean' && (parameter.description === undefined || typeof parameter.description === 'string');
+}
 
 export function StudioDataPage({ snapshot, api, onRefresh, onError }: IStudioDataPageProps) {
   const { t } = useTranslation();
@@ -72,7 +115,8 @@ export function StudioDataPage({ snapshot, api, onRefresh, onError }: IStudioDat
     }
   };
   const onSaveMapping = async () => {
-    const values = await mappingForm.validate();
+    const values = await mappingForm.validate().catch((): undefined => undefined);
+    if (!values) return;
     try {
       await api.upsertMapping({ ...values, workspaceId: snapshot.workspaceId, strategy: 'manual', status: 'approved' });
       await onRefresh();
@@ -221,7 +265,7 @@ export function StudioDataPage({ snapshot, api, onRefresh, onError }: IStudioDat
       {isConnectorOpen && <StudioDatabaseConnection workspaceId={snapshot.workspaceId} api={api} onRefresh={onRefresh} onError={onError} onClose={() => setIsConnectorOpen(false)} />}
       <Modal visible={isMappingOpen} title={text('addMapping')} onCancel={() => setIsMappingOpen(false)} onOk={onSaveMapping} unmountOnExit>
         <Form form={mappingForm} layout='vertical'>
-          <Form.Item field='objectId' label={text('object')} rules={[{ required: true }]}>
+          <Form.Item field='objectId' label={text('object')} rules={[{ required: true, message: t('ontology.studio.requiredField', { field: text('object') }) }]}>
             <Select
               options={snapshot.objects.map((object) => ({ label: object.name, value: object.id }))}
               onChange={(value) => {
@@ -230,10 +274,10 @@ export function StudioDataPage({ snapshot, api, onRefresh, onError }: IStudioDat
               }}
             />
           </Form.Item>
-          <Form.Item field='attributeId' label={text('attribute')} rules={[{ required: true }]}>
+          <Form.Item field='attributeId' label={text('attribute')} rules={[{ required: true, message: t('ontology.studio.requiredField', { field: text('attribute') }) }]}>
             <Select options={(snapshot.objects.find((item) => item.id === objectId)?.attributes || []).map((attr) => ({ label: attr.name, value: attr.id }))} />
           </Form.Item>
-          <Form.Item field='assetId' label={text('source')} rules={[{ required: true }]}>
+          <Form.Item field='assetId' label={text('source')} rules={[{ required: true, message: t('ontology.studio.requiredField', { field: text('source') }) }]}>
             <Select
               options={snapshot.assets.map((asset) => ({ label: asset.name, value: asset.id }))}
               onChange={(value) => {
@@ -242,7 +286,7 @@ export function StudioDataPage({ snapshot, api, onRefresh, onError }: IStudioDat
               }}
             />
           </Form.Item>
-          <Form.Item field='fieldName' label={text('field')} rules={[{ required: true }]}>
+          <Form.Item field='fieldName' label={text('field')} rules={[{ required: true, message: t('ontology.studio.requiredField', { field: text('field') }) }]}>
             <Select options={(snapshot.assets.find((item) => item.id === assetId)?.fields || []).map((field) => field.name)} />
           </Form.Item>
         </Form>
@@ -256,22 +300,29 @@ export function StudioCapabilitiesPage({ snapshot, api, onRefresh, onError }: IS
   const { t } = useTranslation();
   const text = (key: string) => t(`ontology.studio.${key}`);
   const [editing, setEditing] = useState<IOntologyLogicFunction | 'new'>();
+  const [editingRuntime, setEditingRuntime] = useState<IOntologyLogicFunction['runtime']>('sql');
   const [running, setRunning] = useState<IOntologyLogicFunction>();
   const [argumentsText, setArgumentsText] = useState('{}');
+  const [argumentError, setArgumentError] = useState('');
   const [result, setResult] = useState<IOntologyRuntimeExecution>();
   const [isBusy, setIsBusy] = useState(false);
   const [form] = Form.useForm();
+  const isBuiltInCapability = editing !== undefined && editing !== 'new' && typeof editing.configuration.builtIn === 'string';
   const onOpen = (item?: IOntologyLogicFunction) => {
+    const runtime = item?.runtime || 'sql';
     form.resetFields();
-    form.setFieldsValue(item ? { ...item, connectorId: item.configuration.connectorId, parameterText: JSON.stringify(item.parameters, null, 2) } : { body: 'SELECT 1 AS value', parameterText: '[]', objectIds: [], runtime: 'sql' });
+    form.setFieldsValue(item ? { ...item, connectorId: item.configuration.connectorId, parameterText: JSON.stringify(item.parameters, null, 2) } : { body: IMPLEMENTATION_EXAMPLES[runtime], parameterText: '[]', objectIds: [], runtime });
+    setEditingRuntime(runtime);
     setEditing(item || 'new');
   };
   const onSave = async () => {
-    const values = await form.validate();
+    const values = await form.validate().catch((): undefined => undefined);
+    if (!values) return;
     try {
       const parameters = JSON.parse(values.parameterText || '[]');
-      if (!Array.isArray(parameters)) throw new Error(text('invalidJson'));
+      if (!Array.isArray(parameters) || !parameters.every(isFunctionParameter) || new Set(parameters.map((parameter) => parameter.name)).size !== parameters.length) throw new Error(text('invalidParameterDefinition'));
       const prior = editing !== 'new' ? editing : undefined;
+      const isBuiltIn = prior && typeof prior.configuration.builtIn === 'string';
       await api.upsertLogicFunction({
         ...prior,
         ...values,
@@ -281,10 +332,13 @@ export function StudioCapabilitiesPage({ snapshot, api, onRefresh, onError }: IS
         description: prior ? prior.description : values.displayDescription || '',
         displayName: values.displayName,
         displayDescription: values.displayDescription || '',
-        parameters,
+        body: isBuiltIn ? prior.body : values.body,
+        runtime: isBuiltIn ? prior.runtime : values.runtime,
+        objectIds: isBuiltIn ? prior.objectIds : values.objectIds,
+        parameters: isBuiltIn ? prior.parameters : parameters,
         signature: prior ? prior.signature : values.displayName,
         returnType: 'Rows',
-        configuration: { ...prior?.configuration, connectorId: values.connectorId },
+        configuration: isBuiltIn ? prior.configuration : { ...prior?.configuration, connectorId: values.connectorId },
         status: 'active',
         workspaceId: snapshot.workspaceId,
       });
@@ -296,9 +350,38 @@ export function StudioCapabilitiesPage({ snapshot, api, onRefresh, onError }: IS
   };
   const onRun = async () => {
     if (!running) return;
+    let args: Record<string, OntologyJsonValue>;
+    try {
+      const parsed = JSON.parse(argumentsText);
+      if (!isJsonRecord(parsed)) {
+        setArgumentError(text('argumentsMustBeObject'));
+        return;
+      }
+      args = parsed;
+    } catch {
+      setArgumentError(text('invalidArgumentsJson'));
+      return;
+    }
+    const missing = running.parameters.find((parameter) => parameter.required && (args[parameter.name] === undefined || args[parameter.name] === null));
+    if (missing) {
+      setArgumentError(t('ontology.studio.argumentRequired', { name: missing.name }));
+      return;
+    }
+    const invalid = running.parameters.find((parameter) => args[parameter.name] !== undefined && args[parameter.name] !== null && !isRuntimeArgumentValue(parameter.type, args[parameter.name]));
+    if (invalid) {
+      setArgumentError(
+        t('ontology.studio.argumentTypeMismatch', {
+          name: invalid.name,
+          type: invalid.type,
+        })
+      );
+      return;
+    }
+    setArgumentError('');
+    setResult(undefined);
     setIsBusy(true);
     try {
-      const output = await api.executeLogicFunction({ id: running.id, arguments: JSON.parse(argumentsText), workspaceId: snapshot.workspaceId });
+      const output = await api.executeLogicFunction({ id: running.id, arguments: args, workspaceId: snapshot.workspaceId });
       setResult(output.execution);
       await onRefresh();
     } catch (error) {
@@ -322,11 +405,13 @@ export function StudioCapabilitiesPage({ snapshot, api, onRefresh, onError }: IS
         rowKey='id'
         data={snapshot.logicFunctions}
         noDataElement={<Empty description={text('emptyCapabilities')} />}
+        scroll={{ x: 760 }}
         columns={[
-          { title: text('name'), dataIndex: 'displayName' },
-          { title: text('runtime'), dataIndex: 'runtime' },
+          { title: text('name'), dataIndex: 'displayName', width: 280 },
+          { title: text('runtime'), dataIndex: 'runtime', width: 160 },
           {
             title: text('operations'),
+            width: 320,
             render: (_value, item) => (
               <Space>
                 <Button type='text' onClick={() => onOpen(item)}>
@@ -336,7 +421,8 @@ export function StudioCapabilitiesPage({ snapshot, api, onRefresh, onError }: IS
                   type='text'
                   onClick={() => {
                     setRunning(item);
-                    setArgumentsText(JSON.stringify(Object.fromEntries(item.parameters.map((parameter) => [parameter.name, ''])), null, 2));
+                    setArgumentsText(JSON.stringify(runtimeArgumentTemplate(item.parameters), null, 2));
+                    setArgumentError('');
                     setResult(undefined);
                   }}
                 >
@@ -362,45 +448,171 @@ export function StudioCapabilitiesPage({ snapshot, api, onRefresh, onError }: IS
           <Table
             rowKey='id'
             data={snapshot.actions}
+            scroll={{ x: 800 }}
             columns={[
-              { title: text('name'), dataIndex: 'displayName' },
-              { title: text('executor'), dataIndex: 'executor' },
-              { title: text('description'), dataIndex: 'displayDescription' },
+              { title: text('name'), dataIndex: 'displayName', width: 260 },
+              { title: text('executor'), dataIndex: 'executor', width: 140 },
+              { title: text('description'), dataIndex: 'displayDescription', width: 400 },
             ]}
           />
         </>
       )}
       <Modal visible={editing !== undefined} title={text('editCapability')} onCancel={() => setEditing(undefined)} onOk={onSave} style={{ width: 'min(780px, 90vw)' }} unmountOnExit>
         <Form form={form} layout='vertical'>
-          <Form.Item field='displayName' label={text('name')} rules={[{ required: true }]}>
+          <Form.Item field='displayName' label={text('name')} rules={[{ required: true, message: t('ontology.studio.requiredField', { field: text('name') }) }]}>
             <Input />
           </Form.Item>
           <Form.Item field='code' label={text('code')}>
-            <Input />
+            <Input disabled={isBuiltInCapability} />
           </Form.Item>
           <Form.Item field='displayDescription' label={text('description')}>
             <Input.TextArea />
           </Form.Item>
           <Form.Item field='objectIds' label={text('objects')}>
-            <Select mode='multiple' options={snapshot.objects.map((item) => ({ label: item.name, value: item.id }))} />
+            <Select disabled={isBuiltInCapability} mode='multiple' options={snapshot.objects.map((item) => ({ label: item.name, value: item.id }))} />
           </Form.Item>
           <Form.Item field='runtime' label={text('runtime')}>
-            <Select options={['sql', 'typescript', 'python']} />
+            <Select
+              disabled={isBuiltInCapability}
+              options={['sql', 'typescript', 'python']}
+              onChange={(value) => {
+                const runtime = value as IOntologyLogicFunction['runtime'];
+                const body = String(form.getFieldValue('body') || '');
+                if (!body.trim() || body === IMPLEMENTATION_EXAMPLES[editingRuntime]) form.setFieldValue('body', IMPLEMENTATION_EXAMPLES[runtime]);
+                setEditingRuntime(runtime);
+              }}
+            />
           </Form.Item>
-          <Form.Item field='connectorId' label={text('connection')}>
-            <Select allowClear options={snapshot.connectors.map((item) => ({ label: item.name, value: item.id }))} />
+          <Form.Item
+            field='connectorId'
+            label={text('connection')}
+            rules={editingRuntime === 'sql' && !isBuiltInCapability ? [{ required: true, message: t('ontology.studio.requiredField', { field: text('connection') }) }] : []}
+            extra={editingRuntime === 'sql' && !isBuiltInCapability ? text('sqlConnectionHint') : undefined}
+          >
+            <Select disabled={isBuiltInCapability} allowClear options={snapshot.connectors.map((item) => ({ label: item.name, value: item.id }))} />
           </Form.Item>
-          <Form.Item field='parameterText' label={text('parameters')}>
-            <Input.TextArea autoSize={{ minRows: 2, maxRows: 6 }} />
+          <Form.Item
+            field='parameterText'
+            label={text('parameters')}
+            extra={
+              <div className={styles['ontology-field-guide']}>
+                <Typography.Text type='secondary'>{text(isBuiltInCapability ? 'builtInParametersHint' : 'parametersHint')}</Typography.Text>
+                {!isBuiltInCapability && (
+                  <Button
+                    type='text'
+                    size='mini'
+                    onClick={() =>
+                      form.setFieldValue(
+                        'parameterText',
+                        JSON.stringify(
+                          [
+                            {
+                              name: 'name',
+                              type: 'string',
+                              required: true,
+                              description: text('parameterExampleDescription'),
+                            },
+                          ],
+                          null,
+                          2
+                        )
+                      )
+                    }
+                  >
+                    {text('fillParameterExample')}
+                  </Button>
+                )}
+              </div>
+            }
+          >
+            <Input.TextArea disabled={isBuiltInCapability} autoSize={{ minRows: 2, maxRows: 6 }} />
           </Form.Item>
-          <Form.Item field='body' label={text('implementation')} rules={[{ required: true }]}>
-            <Input.TextArea autoSize={{ minRows: 6, maxRows: 14 }} />
+          <Form.Item
+            field='body'
+            label={text('implementation')}
+            rules={isBuiltInCapability ? [] : [{ required: true, message: t('ontology.studio.requiredField', { field: text('implementation') }) }]}
+            extra={
+              <div className={styles['ontology-field-guide']}>
+                <Typography.Text type='secondary'>{isBuiltInCapability ? text('builtInImplementationHint') : t(`ontology.studio.implementationHint.${editingRuntime}`, { placeholder: '{{name}}' })}</Typography.Text>
+                {!isBuiltInCapability && (
+                  <>
+                    <Button type='text' size='mini' onClick={() => form.setFieldValue('body', IMPLEMENTATION_EXAMPLES[editingRuntime])}>
+                      {text('fillImplementationExample')}
+                    </Button>
+                    <pre className={styles['ontology-inline-example']}>{IMPLEMENTATION_EXAMPLES[editingRuntime]}</pre>
+                  </>
+                )}
+              </div>
+            }
+          >
+            <Input.TextArea disabled={isBuiltInCapability} autoSize={{ minRows: 6, maxRows: 14 }} />
           </Form.Item>
         </Form>
       </Modal>
-      <Modal visible={!!running} title={text('run')} onCancel={() => setRunning(undefined)} onOk={onRun} confirmLoading={isBusy} okText={text('run')}>
-        <Input.TextArea aria-label={text('arguments')} value={argumentsText} onChange={setArgumentsText} autoSize={{ minRows: 3, maxRows: 9 }} />
-        {result && <pre className={styles['ontology-code']}>{JSON.stringify(result.output, null, 2)}</pre>}
+      <Modal visible={!!running} title={text('run')} onCancel={() => setRunning(undefined)} onOk={onRun} confirmLoading={isBusy} okText={text('run')} style={{ width: 'min(720px, 92vw)' }}>
+        <Alert type='info' content={text('argumentsHint')} className={styles['ontology-run-alert']} />
+        {!!running?.parameters.length && (
+          <Table
+            rowKey='name'
+            size='small'
+            pagination={false}
+            data={running.parameters}
+            className={styles['ontology-parameter-table']}
+            columns={[
+              { title: text('parameterName'), dataIndex: 'name', width: 140 },
+              { title: text('parameterType'), dataIndex: 'type', width: 110 },
+              {
+                title: text('parameterRequirement'),
+                width: 90,
+                render: (_value, parameter) => <Tag color={parameter.required ? 'orange' : 'gray'}>{text(parameter.required ? 'required' : 'optional')}</Tag>,
+              },
+              {
+                title: text('parameterDescription'),
+                render: (_value, parameter) =>
+                  parameter.description ||
+                  (parameter.objectId
+                    ? t('ontology.studio.parameterObjectHint', {
+                        object: snapshot.objects.find((object) => object.id === parameter.objectId)?.name || text('object'),
+                      })
+                    : text('parameterNoDescription')),
+              },
+            ]}
+          />
+        )}
+        <div className={styles['ontology-run-heading']}>
+          <Typography.Text>{text('arguments')}</Typography.Text>
+          <Button
+            type='text'
+            size='mini'
+            onClick={() => {
+              if (!running) return;
+              setArgumentsText(JSON.stringify(runtimeArgumentTemplate(running.parameters), null, 2));
+              setArgumentError('');
+              setResult(undefined);
+            }}
+          >
+            {text('restoreArgumentExample')}
+          </Button>
+        </div>
+        <Input.TextArea
+          aria-label={text('arguments')}
+          value={argumentsText}
+          onChange={(value) => {
+            setArgumentsText(value);
+            setArgumentError('');
+            setResult(undefined);
+          }}
+          autoSize={{ minRows: 3, maxRows: 9 }}
+        />
+        {argumentError && <Alert type='error' content={argumentError} className={styles['ontology-run-alert']} />}
+        {result && (
+          <>
+            <Typography.Title heading={6} className={styles['ontology-run-result-title']}>
+              {text('runResult')}
+            </Typography.Title>
+            <pre className={styles['ontology-code']}>{JSON.stringify(result.output, null, 2)}</pre>
+          </>
+        )}
       </Modal>
     </section>
   );

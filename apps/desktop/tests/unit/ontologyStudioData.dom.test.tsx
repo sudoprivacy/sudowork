@@ -113,6 +113,11 @@ describe('ontology data workspace', () => {
     expect(within(dialog).queryByLabelText('服务地址')).not.toBeInTheDocument();
     expect(within(dialog).queryByLabelText('端口')).not.toBeInTheDocument();
     expect(within(dialog).queryByLabelText('用户名')).not.toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: /确定|OK/ }));
+    expect(await within(dialog).findByText('请填写名称')).toBeInTheDocument();
+    expect(await within(dialog).findByText('请填写SQLite 文件路径')).toBeInTheDocument();
+    expect(within(dialog).queryByText('name 是必填项')).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/path 是必填项/)).not.toBeInTheDocument();
     fireEvent.change(within(dialog).getByRole('textbox', { name: '名称' }), { target: { value: 'Local orders' } });
     fireEvent.click(within(dialog).getByRole('button', { name: '选择文件' }));
     await waitFor(() => expect(within(dialog).getByRole('textbox', { name: 'SQLite 文件路径' })).toHaveValue('/tmp/orders.sqlite'));
