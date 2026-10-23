@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Empty, Form, Input, Modal, Select, Space, Table, Tag, Typography } from '@arco-design/web-react';
 import { useTranslation } from 'react-i18next';
 import { ReactFlow, Background, Controls, MiniMap, Handle, Position, applyNodeChanges, MarkerType } from '@xyflow/react';
-import type { Connection, Node, NodeChange } from '@xyflow/react';
+import type { Connection, Node, NodeChange, ReactFlowInstance } from '@xyflow/react';
 import { Plus, Redo2, Search, Trash2, Undo2, X } from 'lucide-react';
 import { modelIri, STUDIO_HISTORY_LIMIT } from '@sudowork/ontology-common';
 import type { IOntologyConsistencyIssue, IOntologyStudioModel, IOntologyObjectDraft, IOntologyAttributeDraft, IOntologyRelationDraft, IOntologySemanticDocument } from '@sudowork/ontology-common';
@@ -16,6 +16,64 @@ interface IOntologyNodeData extends Record<string, unknown> {
   onSelect: () => void;
 }
 const nodeTypes = { ontology: OntologyNode };
+const LAYOUT_COLUMN_GAP = 340;
+const LAYOUT_ROW_GAP = 150;
+
+export function ontologyGraphLayout(objects: IOntologyObjectDraft[], relations: IOntologyRelationDraft[]): Record<string, { x: number; y: number }> {
+  const objectIds = new Set(objects.map((object) => object.id));
+  const incoming = new Map(objects.map((object) => [object.id, [] as string[]]));
+  const outgoing = new Map(objects.map((object) => [object.id, [] as string[]]));
+  const indegree = new Map(objects.map((object) => [object.id, 0]));
+  for (const relation of relations) {
+    if (relation.fromObjectId === relation.toObjectId || !objectIds.has(relation.fromObjectId) || !objectIds.has(relation.toObjectId)) continue;
+    outgoing.get(relation.fromObjectId)?.push(relation.toObjectId);
+    incoming.get(relation.toObjectId)?.push(relation.fromObjectId);
+    indegree.set(relation.toObjectId, (indegree.get(relation.toObjectId) || 0) + 1);
+  }
+  const depth = new Map<string, number>();
+  const queue = objects.filter((object) => indegree.get(object.id) === 0).map((object) => object.id);
+  queue.forEach((id) => depth.set(id, 0));
+  for (let index = 0; index < queue.length; index += 1) {
+    const source = queue[index];
+    for (const target of outgoing.get(source) || []) {
+      depth.set(target, Math.max(depth.get(target) || 0, (depth.get(source) || 0) + 1));
+      indegree.set(target, (indegree.get(target) || 0) - 1);
+      if (indegree.get(target) === 0) queue.push(target);
+    }
+  }
+  const finalDepth = Math.max(0, ...depth.values());
+  objects.forEach((object) => {
+    if (!depth.has(object.id)) depth.set(object.id, finalDepth + 1);
+  });
+  const layers = new Map<number, IOntologyObjectDraft[]>();
+  objects.forEach((object) => {
+    const level = depth.get(object.id) || 0;
+    layers.set(level, [...(layers.get(level) || []), object]);
+  });
+  const objectIndex = new Map(objects.map((object, index) => [object.id, index]));
+  for (const [level, layer] of layers) {
+    if (level === 0) continue;
+    layer.sort((left, right) => {
+      const parentIndex = (id: string) => {
+        const parents = incoming.get(id) || [];
+        return parents.length ? parents.reduce((total, parent) => total + (objectIndex.get(parent) || 0), 0) / parents.length : objectIndex.get(id) || 0;
+      };
+      return parentIndex(left.id) - parentIndex(right.id);
+    });
+  }
+  const maxRows = Math.max(1, ...[...layers.values()].map((layer) => layer.length));
+  return Object.fromEntries(
+    [...layers.entries()].flatMap(([level, layer]) =>
+      layer.map((object, index) => [
+        object.id,
+        {
+          x: level * LAYOUT_COLUMN_GAP,
+          y: (index + (maxRows - layer.length) / 2) * LAYOUT_ROW_GAP,
+        },
+      ])
+    )
+  );
+}
 
 function OntologyNode({ data }: IOntologyNodeProps) {
   const { t } = useTranslation();
@@ -40,6 +98,7 @@ export default function StudioModelEditor({ workspaceId, model, document, onChan
   const [search, setSearch] = useState('');
   const [nodes, setNodes] = useState<Node<IOntologyNodeData>[]>([]);
   const positionsRef = useRef<Record<string, { x: number; y: number }>>({});
+  const flowRef = useRef<ReactFlowInstance<Node<IOntologyNodeData>> | null>(null);
   const [objectEditor, setObjectEditor] = useState<IOntologyObjectDraft | 'new'>();
   const [attributeEditor, setAttributeEditor] = useState<IOntologyAttributeDraft | 'new'>();
   const [relationEditor, setRelationEditor] = useState<IOntologyRelationDraft>();
@@ -52,6 +111,7 @@ export default function StudioModelEditor({ workspaceId, model, document, onChan
   const lastFocusIssue = useRef<IOntologyConsistencyIssue | undefined>(undefined);
   const selected = model.objects.find((object) => object.id === selectedId);
   const label = useCallback((key: string) => t(`ontology.studio.${key}`), [t]);
+  const automaticLayout = useMemo(() => ontologyGraphLayout(model.objects, model.relations), [model.objects, model.relations]);
 
   useEffect(() => {
     try {
@@ -72,7 +132,7 @@ export default function StudioModelEditor({ workspaceId, model, document, onChan
       model.objects.map((object, index) => ({
         id: object.id,
         type: 'ontology',
-        position: previous.find((node) => node.id === object.id)?.position || positionsRef.current[object.id] || { x: (index % 3) * 270, y: Math.floor(index / 3) * 170 },
+        position: previous.find((node) => node.id === object.id)?.position || positionsRef.current[object.id] || automaticLayout[object.id] || { x: 0, y: index * LAYOUT_ROW_GAP },
         selected: object.id === selectedId,
         data: {
           name: object.name,
@@ -83,7 +143,7 @@ export default function StudioModelEditor({ workspaceId, model, document, onChan
         style: search && !`${object.name} ${object.code} ${object.iri}`.toLowerCase().includes(search.toLowerCase()) ? { opacity: 0.3 } : undefined,
       }))
     );
-  }, [model.objects, selectedId, search]);
+  }, [automaticLayout, model.objects, selectedId, search]);
   const edges = useMemo(
     () =>
       model.relations.map((relation) => ({
@@ -91,8 +151,11 @@ export default function StudioModelEditor({ workspaceId, model, document, onChan
         source: relation.fromObjectId,
         target: relation.toObjectId,
         label: relation.semanticType === 'inheritance' ? t('ontology.studio.inheritance') : relation.name,
-        type: relation.fromObjectId === relation.toObjectId ? 'smoothstep' : 'default',
+        type: 'smoothstep',
         markerEnd: { type: MarkerType.ArrowClosed },
+        labelBgPadding: [6, 4] as [number, number],
+        labelBgBorderRadius: 4,
+        labelStyle: { fontSize: 12 },
         style: relation.semanticType === 'inheritance' ? { strokeDasharray: '5 4' } : undefined,
       })),
     [model.relations, t]
@@ -117,7 +180,8 @@ export default function StudioModelEditor({ workspaceId, model, document, onChan
     setObjectEditor(object || 'new');
   };
   const onSaveObject = async () => {
-    const values = await objectForm.validate();
+    const values = await objectForm.validate().catch((): undefined => undefined);
+    if (!values) return;
     const prior = objectEditor !== 'new' ? objectEditor : undefined;
     const id = prior?.id || crypto.randomUUID();
     const next: IOntologyObjectDraft = {
@@ -146,7 +210,8 @@ export default function StudioModelEditor({ workspaceId, model, document, onChan
   };
   const onSaveAttribute = async () => {
     if (!selected) return;
-    const values = await attributeForm.validate();
+    const values = await attributeForm.validate().catch((): undefined => undefined);
+    if (!values) return;
     const prior = attributeEditor !== 'new' ? attributeEditor : undefined;
     const id = prior?.id || crypto.randomUUID();
     const attribute: IOntologyAttributeDraft = { ...prior, ...values, id, iri: prior?.iri || modelIri(workspaceId, id), code: values.code?.trim() || prior?.code || `field_${id.slice(0, 8)}`, required: values.required === true, isIdentifier: values.isIdentifier === 'yes' };
@@ -179,7 +244,8 @@ export default function StudioModelEditor({ workspaceId, model, document, onChan
   };
   const onSaveRelation = async () => {
     if (!relationEditor) return;
-    const values = await relationForm.validate();
+    const values = await relationForm.validate().catch((): undefined => undefined);
+    if (!values) return;
     const relation = { ...relationEditor, ...values, updatedAt: Date.now() };
     const isExisting = model.relations.some((item) => item.id === relation.id);
     onEdit({ ...model, relations: isExisting ? model.relations.map((item) => (item.id === relation.id ? relation : item)) : [...model.relations, relation] });
@@ -202,9 +268,15 @@ export default function StudioModelEditor({ workspaceId, model, document, onChan
     localStorage.setItem(`ontology-studio:layout:${workspaceId}`, JSON.stringify(positionsRef.current));
   };
   const onLayout = () => {
-    setNodes((current) => current.map((node, i) => ({ ...node, position: { x: (i % 3) * 270, y: Math.floor(i / 3) * 170 } })));
-    positionsRef.current = {};
-    localStorage.removeItem(`ontology-studio:layout:${workspaceId}`);
+    setNodes((current) =>
+      current.map((node) => ({
+        ...node,
+        position: automaticLayout[node.id] || node.position,
+      }))
+    );
+    positionsRef.current = automaticLayout;
+    localStorage.setItem(`ontology-studio:layout:${workspaceId}`, JSON.stringify(automaticLayout));
+    requestAnimationFrame(() => void flowRef.current?.fitView({ padding: 0.18, duration: 250 }));
   };
   const isObjectModalOpen = objectEditor !== undefined;
   const isAttributeModalOpen = attributeEditor !== undefined;
@@ -277,6 +349,9 @@ export default function StudioModelEditor({ workspaceId, model, document, onChan
                 if (relation) onOpenRelation(relation);
               }}
               onConnect={onConnect}
+              onInit={(instance) => {
+                flowRef.current = instance;
+              }}
               fitView
               minZoom={0.15}
               maxZoom={2}
@@ -300,35 +375,39 @@ export default function StudioModelEditor({ workspaceId, model, document, onChan
               <Table
                 rowKey='id'
                 data={model.objects.filter((item) => `${item.name} ${item.iri}`.toLowerCase().includes(search.toLowerCase()))}
+                scroll={{ x: 760 }}
                 columns={[
                   {
                     title: label('name'),
                     dataIndex: 'name',
+                    width: 200,
                     render: (_value, record) => (
                       <Button type='text' onClick={() => setSelectedId(record.id)}>
                         {record.name}
                       </Button>
                     ),
                   },
-                  { title: 'IRI', dataIndex: 'iri' },
-                  { title: label('attributes'), render: (_value, record) => record.attributes.length },
+                  { title: 'IRI', dataIndex: 'iri', width: 460 },
+                  { title: label('attributes'), width: 100, render: (_value, record) => record.attributes.length },
                 ]}
               />
               <Typography.Title heading={6}>{label('relations')}</Typography.Title>
               <Table
                 rowKey='id'
                 data={model.relations}
+                scroll={{ x: 720 }}
                 columns={[
                   {
                     title: label('name'),
+                    width: 360,
                     render: (_value, record) => (
                       <Button type='text' onClick={() => onOpenRelation(record)}>
                         {record.name}
                       </Button>
                     ),
                   },
-                  { title: label('from'), render: (_value, record) => model.objects.find((item) => item.id === record.fromObjectId)?.name },
-                  { title: label('to'), render: (_value, record) => model.objects.find((item) => item.id === record.toObjectId)?.name },
+                  { title: label('from'), width: 180, render: (_value, record) => model.objects.find((item) => item.id === record.fromObjectId)?.name },
+                  { title: label('to'), width: 180, render: (_value, record) => model.objects.find((item) => item.id === record.toObjectId)?.name },
                 ]}
               />
               <Typography.Text type='secondary'>{label('preservedAxioms')}</Typography.Text>
@@ -379,7 +458,7 @@ export default function StudioModelEditor({ workspaceId, model, document, onChan
       </div>
       <Modal title={label(objectEditor === 'new' ? 'addObject' : 'editObject')} visible={isObjectModalOpen} onCancel={() => setObjectEditor(undefined)} onOk={onSaveObject} unmountOnExit>
         <Form form={objectForm} layout='vertical'>
-          <Form.Item field='name' label={label('name')} rules={[{ required: true }]}>
+          <Form.Item field='name' label={label('name')} rules={[{ required: true, message: t('ontology.studio.requiredField', { field: label('name') }) }]}>
             <Input />
           </Form.Item>
           <Form.Item field='description' label={label('description')}>
@@ -389,13 +468,13 @@ export default function StudioModelEditor({ workspaceId, model, document, onChan
       </Modal>
       <Modal title={label('editAttribute')} visible={isAttributeModalOpen} onCancel={() => setAttributeEditor(undefined)} onOk={onSaveAttribute} unmountOnExit>
         <Form form={attributeForm} layout='vertical'>
-          <Form.Item field='name' label={label('name')} rules={[{ required: true }]}>
+          <Form.Item field='name' label={label('name')} rules={[{ required: true, message: t('ontology.studio.requiredField', { field: label('name') }) }]}>
             <Input />
           </Form.Item>
           <Form.Item field='code' label={label('code')}>
             <Input />
           </Form.Item>
-          <Form.Item field='dataType' label={label('dataType')} rules={[{ required: true }]}>
+          <Form.Item field='dataType' label={label('dataType')} rules={[{ required: true, message: t('ontology.studio.requiredField', { field: label('dataType') }) }]}>
             <Select allowCreate options={['string', 'integer', 'decimal', 'double', 'boolean', 'date', 'dateTime']} />
           </Form.Item>
           <Form.Item field='isIdentifier' label={label('identifier')}>
@@ -436,13 +515,13 @@ export default function StudioModelEditor({ workspaceId, model, document, onChan
         }
       >
         <Form form={relationForm} layout='vertical'>
-          <Form.Item field='name' label={label('name')} rules={[{ required: true }]}>
+          <Form.Item field='name' label={label('name')} rules={[{ required: true, message: t('ontology.studio.requiredField', { field: label('name') }) }]}>
             <Input />
           </Form.Item>
-          <Form.Item field='fromObjectId' label={label('from')} rules={[{ required: true }]}>
+          <Form.Item field='fromObjectId' label={label('from')} rules={[{ required: true, message: t('ontology.studio.requiredField', { field: label('from') }) }]}>
             <Select options={model.objects.map((item) => ({ label: item.name, value: item.id }))} />
           </Form.Item>
-          <Form.Item field='toObjectId' label={label('to')} rules={[{ required: true }]}>
+          <Form.Item field='toObjectId' label={label('to')} rules={[{ required: true, message: t('ontology.studio.requiredField', { field: label('to') }) }]}>
             <Select options={model.objects.map((item) => ({ label: item.name, value: item.id }))} />
           </Form.Item>
           <Form.Item field='semanticType' label={label('relationKind')}>

@@ -7,6 +7,7 @@ import type { IOntologyStudioApi } from './api';
 export default function StudioDatabaseConnection({ workspaceId, api, onRefresh, onClose, onError }: IStudioDatabaseConnectionProps) {
   const { t } = useTranslation();
   const text = (key: string) => t(`ontology.studio.${key}`);
+  const requiredMessage = (field: string) => t('ontology.studio.requiredField', { field });
   const [sourceType, setSourceType] = useState<'postgresql' | 'mysql' | 'sqlite'>('postgresql');
   const [isConnecting, setIsConnecting] = useState(false);
   const [form] = Form.useForm();
@@ -20,7 +21,8 @@ export default function StudioDatabaseConnection({ workspaceId, api, onRefresh, 
     }
   };
   const onConnect = async () => {
-    const values = await form.validate();
+    const values = await form.validate().catch((): undefined => undefined);
+    if (!values) return;
     setIsConnecting(true);
     try {
       const connector: IOntologyConnectorInput = {
@@ -53,7 +55,7 @@ export default function StudioDatabaseConnection({ workspaceId, api, onRefresh, 
   return (
     <Modal visible title={text('addConnection')} onCancel={onClose} onOk={onConnect} confirmLoading={isConnecting} style={{ width: 'min(560px, 92vw)' }}>
       <Form form={form} layout='vertical' initialValues={{ sourceType: 'postgresql', port: 5432, schema: 'public' }}>
-        <Form.Item field='name' label={text('name')} rules={[{ required: true, match: /\S/ }]}>
+        <Form.Item field='name' label={text('name')} rules={[{ required: true, match: /\S/, message: requiredMessage(text('name')) }]}>
           <Input aria-label={text('name')} />
         </Form.Item>
         <Form.Item field='sourceType' label={text('kind')}>
@@ -71,7 +73,7 @@ export default function StudioDatabaseConnection({ workspaceId, api, onRefresh, 
           />
         </Form.Item>
         {isSqlite ? (
-          <Form.Item field='path' label={text('sqlitePath')} rules={[{ required: true, match: /\S/ }]} extra={text('sqliteHint')}>
+          <Form.Item field='path' label={text('sqlitePath')} rules={[{ required: true, match: /\S/, message: requiredMessage(text('sqlitePath')) }]} extra={text('sqliteHint')}>
             <Input
               aria-label={text('sqlitePath')}
               suffix={
@@ -83,13 +85,13 @@ export default function StudioDatabaseConnection({ workspaceId, api, onRefresh, 
           </Form.Item>
         ) : (
           <>
-            <Form.Item field='host' label={text('host')} rules={[{ required: true, match: /\S/ }]}>
+            <Form.Item field='host' label={text('host')} rules={[{ required: true, match: /\S/, message: requiredMessage(text('host')) }]}>
               <Input aria-label={text('host')} />
             </Form.Item>
-            <Form.Item field='port' label={text('port')} rules={[{ required: true }]}>
+            <Form.Item field='port' label={text('port')} rules={[{ required: true, message: requiredMessage(text('port')) }]}>
               <InputNumber aria-label={text('port')} min={1} max={65535} precision={0} />
             </Form.Item>
-            <Form.Item field='database' label={text('database')} rules={[{ required: true, match: /\S/ }]}>
+            <Form.Item field='database' label={text('database')} rules={[{ required: true, match: /\S/, message: requiredMessage(text('database')) }]}>
               <Input aria-label={text('database')} />
             </Form.Item>
             {sourceType === 'postgresql' && (
@@ -97,7 +99,7 @@ export default function StudioDatabaseConnection({ workspaceId, api, onRefresh, 
                 <Input aria-label={text('databaseSchema')} />
               </Form.Item>
             )}
-            <Form.Item field='username' label={text('username')} rules={[{ required: true, match: /\S/ }]}>
+            <Form.Item field='username' label={text('username')} rules={[{ required: true, match: /\S/, message: requiredMessage(text('username')) }]}>
               <Input aria-label={text('username')} />
             </Form.Item>
             <Form.Item field='password' label={text('password')}>

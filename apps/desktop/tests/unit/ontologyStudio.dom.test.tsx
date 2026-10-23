@@ -6,8 +6,9 @@ import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { OntologyStudio } from '@sudowork/ontology-ui';
 import type { IOntologyStudioApi } from '@sudowork/ontology-ui';
-import { createDefaultOntologyWorkbenchSnapshot } from '@sudowork/ontology-common';
-import type { IOntologyWorkbenchSnapshot } from '@sudowork/ontology-common';
+import { ontologyGraphLayout } from '@sudowork/ontology-ui/studio/StudioModelEditor';
+import { createDefaultOntologyWorkbenchSnapshot, summarizeOntologyWorkbenchSnapshot } from '@sudowork/ontology-common';
+import type { IOntologyObjectDraft, IOntologyRelationDraft, IOntologyWorkbenchSnapshot } from '@sudowork/ontology-common';
 import locale from '../../../../packages/renderer/src/i18n/locales/zh-CN/ontology.json';
 
 const i18n = createInstance();
@@ -48,6 +49,56 @@ afterEach(() => {
 });
 
 describe('ontology studio workspace', () => {
+  it('lays out related objects by graph depth instead of a fixed grid', () => {
+    const object = (id: string): IOntologyObjectDraft => ({ id, iri: id, code: id, name: id, description: '', tier: 1, status: 'active', sourceAssetIds: [], attributes: [], reviewDecision: 'approved', updatedAt: 1 });
+    const relation = (id: string, fromObjectId: string, toObjectId: string): IOntologyRelationDraft => ({
+      id,
+      iri: id,
+      code: id,
+      name: id,
+      fromObjectId,
+      toObjectId,
+      cardinality: 'one_to_many',
+      relationType: 'object_property',
+      semanticType: 'association',
+      isAcyclic: true,
+      reviewDecision: 'approved',
+      updatedAt: 1,
+    });
+    const layout = ontologyGraphLayout(
+      [object('customer'), object('employee'), object('order'), object('line'), object('product')],
+      [relation('customer-order', 'customer', 'order'), relation('employee-order', 'employee', 'order'), relation('order-line', 'order', 'line'), relation('line-product', 'line', 'product')]
+    );
+
+    expect(layout.customer.x).toBe(0);
+    expect(layout.employee.x).toBe(0);
+    expect(layout.order.x).toBeGreaterThan(layout.customer.x);
+    expect(layout.line.x).toBeGreaterThan(layout.order.x);
+    expect(layout.product.x).toBeGreaterThan(layout.line.x);
+    expect(layout.customer.y).not.toBe(layout.employee.y);
+  });
+
+  it('distinguishes an empty library from a search with no matches', async () => {
+    const { api, snapshot } = fixture();
+    vi.mocked(api.listWorkbenches).mockResolvedValue({ activeWorkspaceId: snapshot.workspaceId, items: [summarizeOntologyWorkbenchSnapshot(snapshot)] });
+    mount(api);
+    await screen.findByText('订单模型');
+    fireEvent.change(screen.getByPlaceholderText('搜索本体名称或说明'), { target: { value: '不存在的本体' } });
+    expect(await screen.findByText('没有找到匹配的本体')).toBeInTheDocument();
+    expect(screen.queryByText('还没有本体，可以新建或导入 RDF/OWL 文件')).not.toBeInTheDocument();
+  });
+
+  it('uses localized required validation for a new ontology', async () => {
+    const { api } = fixture();
+    mount(api);
+    await screen.findByText('还没有本体，可以新建或导入 RDF/OWL 文件');
+    fireEvent.click(screen.getByRole('button', { name: '新建本体' }));
+    const modal = await screen.findByRole('dialog', { name: '新建本体' });
+    fireEvent.click(within(modal).getByRole('button', { name: /确定|OK/ }));
+    expect(await within(modal).findByText('请填写名称')).toBeInTheDocument();
+    expect(within(modal).queryByText('name 是必填项')).not.toBeInTheDocument();
+  });
+
   it('creates a workspace from its name and opens it without another naming dialog', async () => {
     const { api } = fixture();
     const { onNavigate } = mount(api);

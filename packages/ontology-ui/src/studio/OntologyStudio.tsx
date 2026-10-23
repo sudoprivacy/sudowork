@@ -52,6 +52,10 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
   }, [chatWidth]);
   const snapshotRef = useRef(snapshot);
   const isDirty = baseline !== '' && JSON.stringify(draft) !== baseline;
+  const filteredLibrary = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return query ? library.filter((item) => `${item.name} ${item.description}`.toLowerCase().includes(query)) : library;
+  }, [library, search]);
   const isDirtyRef = useRef(isDirty);
   const isEditingRef = useRef(false);
   snapshotRef.current = snapshot;
@@ -181,7 +185,8 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
     });
   const onCreate = async () => {
     if (isCreatingRef.current) return;
-    const values = await createForm.validate();
+    const values = await createForm.validate().catch((): undefined => undefined);
+    if (!values) return;
     if (isCreatingRef.current) return;
     isCreatingRef.current = true;
     setIsCreating(true);
@@ -355,21 +360,24 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
           <Input.Search placeholder={text('searchOntology')} value={search} onChange={setSearch} style={{ maxWidth: 360, marginBottom: 24 }} />
           <Table
             rowKey='workspaceId'
-            data={library.filter((item) => `${item.name} ${item.description}`.toLowerCase().includes(search.toLowerCase()))}
-            noDataElement={<Empty description={text('emptyLibrary')} />}
+            data={filteredLibrary}
+            noDataElement={<Empty description={text(search.trim() ? 'noSearchResults' : 'emptyLibrary')} />}
+            scroll={{ x: 900 }}
             columns={[
               {
                 title: text('name'),
+                width: 220,
                 render: (_value, item) => (
                   <Button type='text' onClick={() => onNavigate(item.workspaceId, 'model')}>
                     {item.name}
                   </Button>
                 ),
               },
-              { title: text('description'), dataIndex: 'description' },
-              { title: text('objects'), dataIndex: 'objectCount' },
+              { title: text('description'), dataIndex: 'description', width: 500 },
+              { title: text('objects'), dataIndex: 'objectCount', width: 80 },
               {
                 title: text('operations'),
+                width: 100,
                 render: (_value, item) => (
                   <Button
                     type='text'
@@ -543,7 +551,7 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
         unmountOnExit
       >
         <Form form={createForm} layout='vertical'>
-          <Form.Item field='name' label={text('name')} rules={[{ required: true }]}>
+          <Form.Item field='name' label={text('name')} rules={[{ required: true, message: t('ontology.studio.requiredField', { field: text('name') }) }]}>
             <Input />
           </Form.Item>
           <Form.Item field='description' label={text('description')}>
