@@ -27,7 +27,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: "22"
       - name: Verify the exact published sudostack artifact and semantic source lock
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -526,28 +526,7 @@ jobs:
       - name: Install smoke test (macOS arm64)
         if: matrix.platform == 'macos-arm64'
         shell: bash
-        run: |
-          set -euo pipefail
-          echo "=========================================="
-          echo "SMOKE INSTALL: macos-arm64"
-          echo "=========================================="
-
-          DMG_FILE=$(ls out/*.dmg | head -n 1)
-          MOUNT_POINT="/tmp/sudowork-smoke-mount"
-          APP_DIR="/tmp/sudowork-smoke-app"
-
-          rm -rf "$MOUNT_POINT" "$APP_DIR"
-          mkdir -p "$MOUNT_POINT" "$APP_DIR"
-
-          hdiutil attach "$DMG_FILE" -nobrowse -mountpoint "$MOUNT_POINT"
-          cp -R "$MOUNT_POINT"/*.app "$APP_DIR"/
-          hdiutil detach "$MOUNT_POINT"
-
-          APP_PATH=$(ls -d "$APP_DIR"/*.app | head -n 1)
-          APP_BIN="$APP_PATH/Contents/MacOS/Sudowork"
-
-          test -x "$APP_BIN"
-          "$APP_BIN" --version || true
+        run: python3 ../../scripts/smoke_install_macos.py --directory out
 
       - name: Skip executable smoke for macOS x64 cross build
         if: matrix.platform == 'macos-x64'
@@ -598,3 +577,6 @@ jobs:
 
       - name: Test candidate promotion against local Git remotes
         run: python3 scripts/test-candidate-promotion.py
+
+      - name: Test macOS distribution lifecycle
+        run: python3 -m unittest discover -s ../../scripts -p 'test_*macos*.py'

@@ -9,9 +9,7 @@ import re
 import subprocess
 import tempfile
 
-
-def run(*args):
-    return subprocess.run(args, check=True, capture_output=True).stdout
+from macos_distribution import mounted_dmg, one_app, run
 
 
 def digest(path):
@@ -50,13 +48,6 @@ def verify_app(app, team, identifier, architecture):
             'build': info.get('CFBundleVersion')}
 
 
-def one_app(directory):
-    apps = [path for path in directory.glob('*.app') if path.is_dir() and not path.is_symlink()]
-    if len(apps) != 1:
-        raise ValueError('Expected exactly one application in distribution')
-    return apps[0]
-
-
 def verify(directory, team, identifier, architecture, revision):
     receipt = directory / 'macos-candidate.json'
     receipt.unlink(missing_ok=True)
@@ -70,12 +61,8 @@ def verify(directory, team, identifier, architecture, revision):
         raise ValueError('Expected exactly one DMG and one macOS update ZIP')
     with tempfile.TemporaryDirectory(prefix='sudowork-signature-') as temporary:
         mount = Path(temporary) / 'mounted'
-        mount.mkdir()
-        run('hdiutil', 'attach', '-readonly', '-nobrowse', '-noautoopen', '-mountpoint', str(mount), str(dmgs[0]))
-        try:
+        with mounted_dmg(dmgs[0], mount, runner=run):
             dmg_app = verify_app(one_app(mount), team, identifier, architecture)
-        finally:
-            run('hdiutil', 'detach', str(mount))
         unpacked = Path(temporary) / 'zip'
         run('ditto', '-x', '-k', str(zips[0]), str(unpacked))
         zip_app = verify_app(one_app(unpacked), team, identifier, architecture)
