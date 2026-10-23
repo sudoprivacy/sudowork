@@ -1,3 +1,5 @@
+import HostedConversationPage from '@renderer/pages/hosted-agents/HostedConversationPage';
+import { isHostedConversationId } from '@renderer/pages/hosted-agents/navigation';
 import ExternalConversationPage from '@renderer/pages/external-agents/ExternalConversationPage';
 import { isExternalConversationId } from '@renderer/pages/external-agents/navigation';
 import { isOntologyConversation, ontologyConversationPath } from '@sudowork/common/conversationPurpose';
@@ -221,5 +223,5 @@ const ChatConversationIndex: React.FC = () => {
 
 export default function ConversationPage() {
   const { id } = useParams();
-  return isExternalConversationId(id) ? <ExternalConversationPage /> : <ChatConversationIndex />;
+  return isHostedConversationId(id) ? <HostedConversationPage /> : isExternalConversationId(id) ? <ExternalConversationPage /> : <ChatConversationIndex />;
 }

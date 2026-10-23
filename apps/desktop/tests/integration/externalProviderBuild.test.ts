@@ -4,7 +4,7 @@ import { build } from 'vite';
 import { expect, it } from 'vitest';
 
 it.each(['main', 'renderer'] as const)(
-  'bundles the external provider client in %s without generated package dist',
+  'bundles external and hosted task clients in %s without generated package dist',
   async (target) => {
     const loaded = await loadConfigFromFile({ command: 'build', mode: 'production' }, path.resolve('electron.vite.config.ts'));
     expect(loaded?.config[target]?.resolve).toBeDefined();
@@ -20,7 +20,7 @@ it.each(['main', 'renderer'] as const)(
             if (normalized === 'external-provider-build-probe' || normalized.endsWith('/external-provider-build-probe')) return '\0external-provider-build-probe';
           },
           load(id) {
-            if (id === '\0external-provider-build-probe') return 'export { applyExternalEventsPage, createMossExternalProviderPort } from "@sudowork/moss-client/external-providers"';
+            if (id === '\0external-provider-build-probe') return 'export { applyExternalEventsPage, createMossExternalProviderPort } from "@sudowork/moss-client/external-providers"; export { applyHostedEventsPage, createMossHostedTaskPort } from "@sudowork/moss-client/hosted-tasks"';
             if (/\/(?:contracts|moss-client)\/dist\//.test(id.replace(/\\/g, '/'))) {
               throw new Error('Production external providers must bundle the contract from source');
             }
@@ -40,6 +40,7 @@ it.each(['main', 'renderer'] as const)(
       return output.output.flatMap((chunk) => (chunk.type === 'chunk' ? Object.keys(chunk.modules) : []));
     });
     for (const file of ['external-provider.gen.ts', 'task.gen.ts', 'agent-federation.gen.ts']) expect(modules.map((id) => id.replace(/\\/g, '/'))).toContain(path.resolve('../../packages/contracts/src', file).replace(/\\/g, '/'));
+    expect(modules.some((id) => id.endsWith('/MossHostedTaskClient.ts'))).toBe(true);
     // A cold config load and two real Vite bundles share the machine with the full suite.
   },
   60_000

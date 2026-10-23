@@ -33,6 +33,7 @@ const aliases = [
   { find: /^@mcp\//, replacement: path.resolve(__dirname, './src/common') + '/' },
   // Resolve shared workspace packages to source so tests never depend on a
   // prior `dist` build (uniform local/CI; exercises the actual source).
+  { find: '@sudowork/moss-client/hosted-tasks', replacement: path.resolve(__dirname, '../../packages/moss-client/src/MossHostedTaskClient.ts') },
   { find: '@sudowork/moss-client/external-providers', replacement: path.resolve(__dirname, '../../packages/moss-client/src/MossExternalProviderClient.ts') },
   { find: '@sudowork/contracts/external-provider', replacement: path.resolve(__dirname, '../../packages/contracts/src/external-provider.gen.ts') },
   { find: '@sudowork/contracts/agent-federation', replacement: path.resolve(__dirname, '../../packages/contracts/src/agent-federation.gen.ts') },
@@ -105,6 +106,8 @@ export default defineConfig({
       // 新增功能时，将对应的源文件路径添加到此数组
       // 例如: 'src/process/services/newService.ts'
       include: [
+        '../../packages/moss-client/src/MossHostedTaskClient.ts',
+        '../../packages/renderer/src/pages/hosted-agents/**/*.{ts,tsx}',
         '../../packages/renderer/src/pages/settings/profile/components/EnterpriseAvatar.tsx',
         '../../packages/renderer/src/pages/settings/enterprise/index.tsx',
         'src/process/services/browserPanel/LocalBrowserWorker.ts',

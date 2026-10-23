@@ -1,8 +1,10 @@
+import type { ExternalAgent } from '@sudowork/contracts/external-provider';
 import React from 'react';
 import { EXTERNAL_PROVIDER_API } from '@sudowork/contracts/external-provider';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import ExternalAgentUsageDetails from '@renderer/pages/external-agents/ExternalAgentUsageDetails';
 
 const mocks = vi.hoisted(() => ({ context: vi.fn(), access: vi.fn(), versions: vi.fn(), evidence: vi.fn(), agents: vi.fn(), sessions: vi.fn(), history: vi.fn(), create: vi.fn(), events: vi.fn(), emit: vi.fn(), close: vi.fn(), user: { id: 'user-a', enterprise_code: 'org-a' } }));
 vi.mock('@sudowork/host-bridge/ipcBridge', () => ({ externalProviders: Object.fromEntries(['context', 'access', 'versions', 'evidence', 'agents', 'sessions', 'history', 'create', 'events'].map((key) => [key, { invoke: mocks[key as 'access'] }])) }));
@@ -95,6 +97,24 @@ it('starts from the organization directory and uses the conversation route witho
   fireEvent.click(screen.getByRole('button', { name: 'agent.external.published.start' }));
   await screen.findByRole('log');
   expect(screen.getByTestId('location')).toHaveTextContent('/conversation/external%3Anew?agent=agent-1');
+});
+
+it('shows the reviewed protocol and single-turn boundary in the shared conversation', async () => {
+  mocks.agents.mockResolvedValue({ success: true, data: [{ ...agent, provider: 'custom_http', protocol: 'mcp/2025-06-18', conversation_mode: 'single_turn' }] });
+  page();
+  await screen.findByText('mcp/2025-06-18');
+  await screen.findByText('agent.external.protocol.singleTurn');
+  expect(mocks.create).not.toHaveBeenCalled();
+});
+
+it('shows unavailable remote task identity for MCP without rendering an invented run', async () => {
+  mocks.evidence.mockResolvedValue({ success: true, data: { task_id: 'task-1', execution: { protocol: 'mcp/2025-06-18', trace_id: 'a'.repeat(32), version_evidence: 'source_snapshot_only', resume: 'unsupported' } } });
+  page('/conversation/external:session-1');
+  await screen.findByText('42');
+  fireEvent.click(screen.getByRole('button', { name: 'agent.external.versions.evidence' }));
+  await screen.findByText('agent.external.protocol.noRun');
+  expect(screen.queryByText('agent.external.versions.run')).toBeNull();
+  expect(mocks.create).not.toHaveBeenCalled();
 });
 
 it('keeps administrator usage in the client and exposes no onboarding or management', async () => {
@@ -334,4 +354,124 @@ it('retains the translated provider name when revoked agents disappear from the 
   page('/conversation/external:session-1');
   await screen.findByText('agent.external.provider.custom_http');
   expect(screen.queryByText('custom_http')).toBeNull();
+});
+
+it('usage details keep absent metadata unconfirmed and separate capabilities from review and execution evidence', async () => {
+  const baseline: ExternalAgent = {
+    ...agent,
+    execution_mode: 'external_hosted',
+    profile: 'synthetic_pilot',
+    source_identity_evidence: 'unverified',
+    source_digest: 'digest',
+    decoder: 'text',
+    approved: true,
+    review_expires_at: 1,
+    capabilities: { streaming: 'supported', cancel: 'unsupported', resume: 'unknown', version_pin: 'unsupported' },
+  };
+  const view = render(<ExternalAgentUsageDetails agent={baseline} />);
+  fireEvent.click(screen.getByText('agent.external.usage.title'));
+  expect(await screen.findByText('agent.external.usage.unavailable')).toBeTruthy();
+  view.rerender(
+    <ExternalAgentUsageDetails
+      agent={{
+        ...baseline,
+        usage: {
+          data_scope: 'synthetic_only',
+          input: 'text_query_only',
+          attachments: 'unsupported',
+          resource_refs: 'unsupported',
+          tools: 'unsupported',
+          content_classification: 'caller_declared_only',
+          capability_basis: 'adapter_contract',
+          evaluated_at: 100,
+          reviewed_at: null,
+          review_state: 'expired',
+        },
+      }}
+    />
+  );
+  for (const key of ['scope', 'classification', 'unknown', 'expired', 'notRecorded', 'basis', 'evidence']) expect((await screen.findAllByText(`agent.external.usage.${key}`)).length).toBeGreaterThan(0);
+  expect(screen.queryByText('agent.external.usage.unavailable')).toBeNull();
+});
+
+it('the published directory exposes usage details without a per-agent fetch', async () => {
+  render(
+    <MemoryRouter>
+      <PublishedExternalAgents />
+    </MemoryRouter>
+  );
+  fireEvent.click(await screen.findByText('agent.external.usage.title'));
+  expect(await screen.findByText('agent.external.usage.unavailable')).toBeTruthy();
+  expect(mocks.versions).not.toHaveBeenCalled();
+  expect(mocks.evidence).not.toHaveBeenCalled();
+  expect(mocks.agents).toHaveBeenCalledTimes(1);
+});
+
+it('shows Registry registration separately from remote execution in the shared conversation evidence', async () => {
+  const registry = { authority: 'nexus_registry', principal: { trust_domain: 'agents.example', agent_name: 'external-agent-1' }, registration_digest: 'registration', signing_key_id: 'key', evidence: 'signed_registration_only' };
+  mocks.evidence.mockResolvedValue({ success: true, data: { task_id: 'task-1', session_id: 'session-1', attempt_id: 'attempt-1', selection: { version: 'v1', source_digest: 'source', release_digest: 'release', registry } } });
+  page('/conversation/external:session-1');
+  await screen.findByText('42');
+  fireEvent.click(await screen.findByRole('button', { name: 'agent.external.versions.evidence' }));
+  expect(await screen.findByText('agent.external.registry.verified')).toBeTruthy();
+  expect(screen.getByText('agent.external.registry.boundary')).toBeTruthy();
+  expect(screen.getByText('agent.external.registry.attempt')).toBeTruthy();
+  expect(screen.getByText('agent.external.versions.awaitingEvidence')).toBeTruthy();
+  expect(screen.queryByText('agent.external.versions.executed')).toBeNull();
+});
+
+it.each(['MODEL_CONTENT_DENIED', 'MODEL_CLASSIFIER_UNAVAILABLE', 'MODEL_REDACTION_UNSAFE'])('shows %s after accepted admission without resending', async (code) => {
+  mocks.history.mockResolvedValue({ success: true, data: [{ ...task, status: 'failed', answer: '', error_code: code, policy_decision: { status: 'accepted' } }] });
+  page('/conversation/external:session-1');
+  expect(await screen.findByText(`agent.external.modelRejection.${code}`)).toBeTruthy();
+  expect(mocks.create).not.toHaveBeenCalled();
+});
+
+it('keeps unknown execution distinct from a confirmed pre-write rejection', async () => {
+  mocks.history.mockResolvedValue({ success: true, data: [{ ...task, status: 'unknown', answer: '', error_code: 'EXECUTION_UNCONFIRMED', policy_decision: { status: 'accepted' } }] });
+  page('/conversation/external:session-1');
+  expect(await screen.findByText('agent.external.taskError')).toBeTruthy();
+  expect(screen.queryByText('agent.external.modelRejection.MODEL_CONTENT_DENIED')).toBeNull();
+  expect(mocks.create).not.toHaveBeenCalled();
+});
+
+for (const [code, key] of [
+  ['EXTERNAL_EXECUTION_CLEANUP_PENDING', 'agent.external.taskCleanupPending'],
+  ['PROVIDER_CREDENTIAL_DISCLOSURE', 'agent.external.credentialDisclosure'],
+]) {
+  it(`explains ${code} without claiming success or resending an unknown task`, async () => {
+    mocks.sessions.mockResolvedValue({ success: true, data: [session] });
+    mocks.history.mockResolvedValue({ success: true, data: [{ ...task, status: 'unknown', error_code: code }] });
+    page('/conversation/external:session-1');
+    await screen.findByText(key);
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+}
+
+it('shows historical dispatch provenance and unknown status without claiming a successful remote run', async () => {
+  mocks.evidence.mockResolvedValue({
+    success: true,
+    data: {
+      task_id: 'task-1',
+      session_id: 'session-1',
+      attempt_id: 'attempt-1',
+      status: 'unknown',
+      provenance: {
+        protocol: 'a2a/0.3.0',
+        adapter_version: 'a2a@1',
+        source_revision: null,
+        source_id: 'source-1',
+        candidate_id: 'candidate-1',
+        recorded_at: 1,
+        capabilities: { streaming: 'unsupported', cancel: 'unsupported', resume: 'unsupported', version_pin: 'unsupported', idempotency: 'unsupported', human_approval: 'unsupported', trace_export: 'partial' },
+      },
+    },
+  });
+  const { default: Evidence } = await import('@renderer/pages/external-agents/ExternalTaskEvidence');
+  render(<Evidence taskId='task-1' onClose={() => {}} />);
+  expect(await screen.findByText('agent.external.provenance.title')).toBeTruthy();
+  expect(screen.getByText('agent.external.provenance.unknown')).toBeTruthy();
+  expect(screen.queryByText('agent.external.status.succeeded')).toBeNull();
+  expect(screen.getByText('agent.external.provenance.boundary')).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'agent.external.cancel' })).toBeNull();
 });

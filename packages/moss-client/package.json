@@ -18,6 +18,11 @@
       "bun": "./src/MossExternalProviderClient.ts",
       "types": "./dist/MossExternalProviderClient.d.ts",
       "default": "./dist/MossExternalProviderClient.js"
+    },
+    "./hosted-tasks": {
+      "bun": "./src/MossHostedTaskClient.ts",
+      "types": "./dist/MossHostedTaskClient.d.ts",
+      "default": "./dist/MossHostedTaskClient.js"
     }
   },
   "files": [

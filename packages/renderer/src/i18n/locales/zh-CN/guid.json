@@ -78,7 +78,7 @@
     "statusAvailable": "可用"
   },
   "sessionComposition": {
-    "agent": "我的 Agent",
+    "agent": "我的智能体",
     "template": "任务模板",
     "noTemplate": "不使用模板",
     "engine": "执行引擎：{{engine}}"

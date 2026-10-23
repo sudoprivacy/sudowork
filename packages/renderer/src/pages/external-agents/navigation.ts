@@ -7,15 +7,14 @@ export const newExternalConversationPath = (agentId: string) => `${externalConve
 export const isExternalConversationId = (id: string | undefined) => Boolean(id?.startsWith(EXTERNAL_CONVERSATION_PREFIX));
 
 /** A read-only UI projection, never persisted as a native runtime conversation. */
-export interface ExternalConversationView {
-  type: 'external-provider';
+export type ExternalConversationView = ({ type: 'external-provider' } | { type: 'hosted-artifact' }) & {
   id: string;
   sessionId: string;
   name: string;
   createTime: number;
   modifyTime: number;
   isRunning: boolean;
-}
+};
 
 export function externalSessionView(session: ExternalSession): ExternalConversationView {
   return { type: 'external-provider', id: externalConversationId(session.id), sessionId: session.id, name: session.title, createTime: session.created_at, modifyTime: session.updated_at, isRunning: Boolean(session.active_task_id) };
