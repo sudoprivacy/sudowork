@@ -1,0 +1,125 @@
+name: 'Ruigu Build'
+
+# Builds installers for the long-lived `ruigu` branch (enterprise deployment
+# that diverges from main) and attaches them to a DRAFT GitHub release.
+#
+# Trigger: push a tag named `ruigu-*` pointing at a commit on `ruigu`
+#   (use scripts/release-ruigu.sh). Tags are used instead of workflow_dispatch
+#   because GitHub only dispatches workflows that exist on the default branch.
+#
+# Deliberately isolated from the official release path (build-and-release.yml):
+#   - `ruigu-*` tags don't match its `v[0-9]*.[0-9]*.[0-9]*` trigger
+#   - nothing is uploaded to COS, no release is marked latest, no branch is created
+#   - updater metadata (latest*.yml, *.blockmap) is NOT attached, so the in-app
+#     updater can never offer these builds to other users
+#
+# Durable copy: the official release job prunes old releases (drafts included),
+# so the installers are also kept as one workflow artifact for 90 days.
+
+permissions:
+  contents: write
+  actions: read
+
+on:
+  push:
+    tags:
+      - 'ruigu-*'
+
+env:
+  BUN_INSTALL_REGISTRY: 'https://registry.npmjs.org/'
+
+jobs:
+  check-ref:
+    name: Check tag is on ruigu
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Verify the tagged commit is contained in origin/ruigu
+        shell: bash
+        run: |
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/ruigu; then
+            echo "::error::Tag ${GITHUB_REF_NAME} points at $GITHUB_SHA, which is not on the ruigu branch."
+            exit 1
+          fi
+          echo "Tag ${GITHUB_REF_NAME} -> $GITHUB_SHA (on ruigu)"
+
+  build-pipeline:
+    name: Build Pipeline
+    needs: check-ref
+    uses: ./.github/workflows/_build-reusable.yml
+    with:
+      # Same platforms as official tag releases.
+      matrix: >-
+        {"include":[
+        {"platform":"macos-arm64","os":"macos-14","command":"node scripts/build-with-builder.js arm64 --mac --arm64","artifact-name":"macos-build-arm64","arch":"arm64"},
+        {"platform":"macos-x64","os":"macos-15-intel","command":"node scripts/build-with-builder.js x64 --mac --x64","artifact-name":"macos-build-x64","arch":"x64"},
+        {"platform":"windows-x64","os":"windows-2022","command":"node scripts/build-with-builder.js x64 --win --x64","artifact-name":"windows-build-x64","arch":"x64"}
+        ]}
+      ref: ${{ github.ref }}
+      skip_code_quality: false
+    secrets: inherit
+
+  release:
+    name: Draft Release
+    needs: build-pipeline
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v7
+        with:
+          path: build-artifacts
+
+      - name: Collect installers (no updater metadata) and add ruigu to file names
+        id: collect
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          SHORT_SHA="${GITHUB_SHA::8}"
+          mkdir -p release-assets
+          found=0
+          while IFS= read -r -d '' f; do
+            name="$(basename "$f")"
+            # Sudowork-0.2.17-mac-arm64.dmg -> Sudowork-0.2.17-ruigu-<sha>-mac-arm64.dmg
+            new="$(echo "$name" | sed -E "s/^(Sudowork-[0-9]+\.[0-9]+\.[0-9]+)/\1-ruigu-${SHORT_SHA}/")"
+            cp "$f" "release-assets/$new"
+            found=$((found + 1))
+          done < <(find build-artifacts -type f \( -name '*.dmg' -o -name '*.zip' -o -name '*.exe' -o -name '*.msi' \) -print0)
+          if [ "$found" -eq 0 ]; then
+            echo "::error::No installers found in build artifacts."
+            exit 1
+          fi
+          ls -la release-assets
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Keep installers for 90 days
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.collect.outputs.tag }}-installers
+          path: release-assets/*
+          retention-days: 90
+
+      - name: Create draft release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.collect.outputs.tag }}"
+          NOTES="Ruigu build from \`${GITHUB_SHA}\` (branch \`ruigu\`).
+
+          Draft only: not offered by the in-app updater, no COS upload.
+          Installers are also kept for 90 days as the workflow artifact \`${TAG}-installers\`:
+          ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          gh release create "$TAG" release-assets/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --draft \
+            --title "Ruigu ${TAG#ruigu-}" \
+            --notes "$NOTES"
+          echo "### Draft release ${TAG}" >> "$GITHUB_STEP_SUMMARY"
+          echo "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases (drafts are visible to repo members)" >> "$GITHUB_STEP_SUMMARY"
