@@ -86,7 +86,7 @@ jobs:
         run: bun run test
 
       - name: Test macOS candidate verification
-        run: python3 -m unittest discover -s scripts -p test_verify_macos_candidate.py
+        run: python3 -m unittest discover -s scripts -p 'test_*macos*.py'
 
   build:
     name: Build ${{ matrix.platform }}
