@@ -42,6 +42,8 @@ export interface MossWsConnectionConfig {
   sessionId?: string;
   /** Enabled skill names (optional, for non-assistant sessions) */
   enabledSkills?: string[];
+  /** Moss wiki ids to advertise to the agent (sent on session create only) */
+  enabledWikis?: string[];
 }
 
 export interface MossWsCallbacks {
@@ -221,6 +223,9 @@ export class MossWsConnection {
       // 新增: 发送启用的 skill 列表（仅当显式指定时）
       enabled_skills: this.config.enabledSkills,
     };
+    if (this.config.enabledWikis?.length) {
+      body.enabled_wikis = this.config.enabledWikis;
+    }
     if (this.config.cwd) {
       body.cwd = this.config.cwd;
     }

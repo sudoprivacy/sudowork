@@ -1,0 +1,105 @@
+{
+  "title": "Enterprise Wiki",
+  "description": "Upload documents to your private space, build wikis from them and choose who can use them. You can also browse company wikis and wikis shared with you.",
+  "unsupported": "Your enterprise server doesn't support wikis yet. Ask your administrator to upgrade it.",
+  "tabs": { "mine": "My space", "usable": "Available wikis" },
+  "common": { "delete": "Delete", "edit": "Edit", "view": "View", "refresh": "Refresh", "description": "Description" },
+  "tree": {
+    "root": "Private space",
+    "newFolder": "New folder",
+    "edit": "Edit folder",
+    "name": "Name",
+    "nameRequired": "Enter a name",
+    "parent": "Parent folder",
+    "deleteConfirm": "Delete folder \"{{name}}\" and everything in it?",
+    "quota": "{{used}} of {{total}} used"
+  },
+  "documents": {
+    "uploadFiles": "Upload files",
+    "uploadFolder": "Upload folder",
+    "dropHint": "Drag files here to upload. Each file can be up to {{size}}.",
+    "empty": "No files in this folder",
+    "fileName": "File name",
+    "size": "Size",
+    "uploadedAt": "Uploaded",
+    "deleteConfirm": "Delete file \"{{name}}\"?",
+    "uploaded": "Uploaded {{count}} file(s)",
+    "tooBig": "Skipped files over the size limit: {{names}}",
+    "quotaExceeded": "Uploading {{size}} exceeds the {{remaining}} left in your space"
+  },
+  "myWikis": {
+    "title": "My wikis",
+    "create": "New wiki",
+    "empty": "No wikis yet. Pick folders or files to build one.",
+    "name": "Name",
+    "status": "Status",
+    "lastBuilt": "Last built",
+    "enabled": "Enabled",
+    "build": "Build",
+    "rebuild": "Rebuild",
+    "cancel": "Cancel build",
+    "cancelled": "Build cancelled",
+    "buildStarted": "Build started",
+    "deleteConfirm": "Delete wiki \"{{name}}\"? Source files are kept."
+  },
+  "status": { "pending": "Not built", "running": "Building", "succeeded": "Built", "failed": "Build failed", "needsRebuild": "Needs rebuild" },
+  "form": {
+    "createTitle": "New wiki",
+    "editTitle": "Edit wiki",
+    "name": "Name",
+    "nameRequired": "Enter a wiki name",
+    "descriptionHint": "The description is shown to the agent to help it decide when to use this wiki.",
+    "source": "Source",
+    "sourceDir": "Folders",
+    "sourceFiles": "Specific files",
+    "folders": "Included folders",
+    "excludeFolders": "Excluded folders",
+    "documents": "Files",
+    "pickFolders": "Select at least one folder",
+    "pickDocuments": "Select at least one file",
+    "autoRebuild": "Rebuild automatically",
+    "autoRebuildHint": "Rebuild when the folders' contents change.",
+    "visibility": "Who can use it",
+    "buildNow": "Build right after creating",
+    "saved": "Saved"
+  },
+  "visibility": {
+    "self": "Only me",
+    "departments": "Departments",
+    "users": "Members",
+    "all": "Everyone",
+    "pickDepartments": "Select departments",
+    "pickUsers": "Select members",
+    "hint": "Controls who can use this wiki in chats. You can always use it."
+  },
+  "origin": { "tenant": "Company", "shared": "Shared", "mine": "Mine" },
+  "usable": {
+    "searchPlaceholder": "Search wikis",
+    "allOrigins": "All sources",
+    "origin": "Source",
+    "updatedAt": "Updated",
+    "empty": "No wikis available"
+  },
+  "viewer": {
+    "searchPlaceholder": "Search this wiki",
+    "noFiles": "This wiki has no files to browse",
+    "noMatches": "No matches",
+    "pickFile": "Pick a file on the left"
+  },
+  "chat": {
+    "chip": "Wiki",
+    "chipWithCount": "Wiki ({{count}})",
+    "searchPlaceholder": "Search wikis",
+    "mentionHint": "Pick a wiki for this message",
+    "empty": "No wikis available",
+    "unavailable": "Wiki unavailable"
+  },
+  "errors": {
+    "privateRoot": "The private space root can't be changed or deleted",
+    "notCancellable": "This build has already finished",
+    "unauthorized": "Your session expired. Please sign in again.",
+    "tooLarge": "File too large or over your space quota",
+    "conflict": "Conflict: {{message}}",
+    "notFound": "Not found or already deleted"
+  }
+}

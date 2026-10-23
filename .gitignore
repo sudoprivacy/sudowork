@@ -177,7 +177,7 @@ ${env.ELECTRON_CACHE}/
 .agent
 .codebuddy/
 .scode/
-wiki/
+/wiki/
 
 # Keep CLAUDE.md for project documentation
 # CLAUDE.md

@@ -1,0 +1,105 @@
+{
+  "title": "企業知識庫",
+  "description": "上傳文件到你的私有空間，建置知識庫（Wiki）並設定可用範圍；也可瀏覽企業和他人分享給你的知識庫。",
+  "unsupported": "目前的企業伺服器版本不支援知識庫，請聯絡管理員升級。",
+  "tabs": { "mine": "我的空間", "usable": "可用知識庫" },
+  "common": { "delete": "刪除", "edit": "編輯", "view": "檢視", "refresh": "重新整理", "description": "描述" },
+  "tree": {
+    "root": "私有空間",
+    "newFolder": "新增資料夾",
+    "edit": "編輯資料夾",
+    "name": "名稱",
+    "nameRequired": "請輸入名稱",
+    "parent": "上層資料夾",
+    "deleteConfirm": "刪除資料夾「{{name}}」及其中所有檔案？",
+    "quota": "已用 {{used}} / {{total}}"
+  },
+  "documents": {
+    "uploadFiles": "上傳檔案",
+    "uploadFolder": "上傳資料夾",
+    "dropHint": "可拖曳檔案到此處上傳，單一檔案不超過 {{size}}。",
+    "empty": "此資料夾沒有檔案",
+    "fileName": "檔案名稱",
+    "size": "大小",
+    "uploadedAt": "上傳時間",
+    "deleteConfirm": "刪除檔案「{{name}}」？",
+    "uploaded": "已上傳 {{count}} 個檔案",
+    "tooBig": "以下檔案超過大小上限，已略過：{{names}}",
+    "quotaExceeded": "上傳 {{size}} 超出剩餘空間 {{remaining}}"
+  },
+  "myWikis": {
+    "title": "我的知識庫",
+    "create": "新增知識庫",
+    "empty": "尚無知識庫，選擇資料夾或檔案來建置一個吧",
+    "name": "名稱",
+    "status": "狀態",
+    "lastBuilt": "最近建置",
+    "enabled": "啟用",
+    "build": "建置",
+    "rebuild": "重新建置",
+    "cancel": "取消建置",
+    "cancelled": "已取消建置",
+    "buildStarted": "已開始建置",
+    "deleteConfirm": "刪除知識庫「{{name}}」？來源檔案不會被刪除。"
+  },
+  "status": { "pending": "待建置", "running": "建置中", "succeeded": "已建置", "failed": "建置失敗", "needsRebuild": "需重新建置" },
+  "form": {
+    "createTitle": "新增知識庫",
+    "editTitle": "編輯知識庫",
+    "name": "名稱",
+    "nameRequired": "請輸入知識庫名稱",
+    "descriptionHint": "描述會提供給智慧體，幫助它判斷何時使用此知識庫。",
+    "source": "來源",
+    "sourceDir": "資料夾",
+    "sourceFiles": "指定檔案",
+    "folders": "包含的資料夾",
+    "excludeFolders": "排除的資料夾",
+    "documents": "檔案",
+    "pickFolders": "請至少選擇一個資料夾",
+    "pickDocuments": "請至少選擇一個檔案",
+    "autoRebuild": "自動重新建置",
+    "autoRebuildHint": "資料夾內容變更後自動重新建置。",
+    "visibility": "可用範圍",
+    "buildNow": "建立後立即建置",
+    "saved": "已儲存"
+  },
+  "visibility": {
+    "self": "僅自己",
+    "departments": "指定部門",
+    "users": "指定成員",
+    "all": "全員",
+    "pickDepartments": "選擇部門",
+    "pickUsers": "選擇成員",
+    "hint": "控制誰可以在對話中使用此知識庫，你本人始終可用。"
+  },
+  "origin": { "tenant": "企業", "shared": "分享", "mine": "我的" },
+  "usable": {
+    "searchPlaceholder": "搜尋知識庫",
+    "allOrigins": "全部來源",
+    "origin": "來源",
+    "updatedAt": "更新時間",
+    "empty": "沒有可用的知識庫"
+  },
+  "viewer": {
+    "searchPlaceholder": "在知識庫中搜尋",
+    "noFiles": "知識庫中沒有可瀏覽的檔案",
+    "noMatches": "沒有符合的結果",
+    "pickFile": "選擇左側檔案檢視"
+  },
+  "chat": {
+    "chip": "知識庫",
+    "chipWithCount": "知識庫 ({{count}})",
+    "searchPlaceholder": "搜尋知識庫",
+    "mentionHint": "選擇此則訊息要參考的知識庫",
+    "empty": "沒有可用的知識庫",
+    "unavailable": "知識庫無法使用"
+  },
+  "errors": {
+    "privateRoot": "私有空間根目錄無法修改或刪除",
+    "notCancellable": "此建置已結束，無法取消",
+    "unauthorized": "登入已失效，請重新登入",
+    "tooLarge": "檔案過大或超出空間配額",
+    "conflict": "操作衝突：{{message}}",
+    "notFound": "內容不存在或已被刪除"
+  }
+}

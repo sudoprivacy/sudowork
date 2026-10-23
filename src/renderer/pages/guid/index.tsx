@@ -27,6 +27,9 @@ import { resolveLocaleKey } from '@/common/utils';
 import { DEFAULT_PRESET_AGENT_TYPE, normalizePresetAgentType } from '@/types/acpTypes';
 import ActionChip from '@/renderer/components/ui/ActionChip';
 import PageWrapper from '@/renderer/components/base/PageWrapper';
+import WikiPicker, { WikiChips } from '@/renderer/components/wiki/WikiPicker';
+import { useUsableWikis } from '@/renderer/components/wiki/useUsableWikis';
+import { useWikiMentions } from '@/renderer/components/wiki/useWikiMentions';
 import AssistantEditDrawer from './components/AssistantEditDrawer';
 import AssistantSelectionArea from './components/AssistantSelectionArea';
 import AssistantAgentDropdown from './components/AssistantAgentDropdown';
@@ -105,6 +108,12 @@ const GuidPage: React.FC = () => {
     },
   });
 
+  // Moss wikis: enterprise remote chats only.
+  const isWikiEnabled = isEnterprise && agentSelection.sessionMode === 'remote';
+  const [selectedWikis, setSelectedWikis] = useState<string[]>([]);
+  const usableWikis = useUsableWikis(isWikiEnabled);
+  const wikiMentions = useWikiMentions(guidInput.input, guidInput.setInput, isWikiEnabled, cursorPosition);
+
   const mention = useGuidMention({
     availableAgents: agentSelection.mentionAvailableAgents,
     customAgentAvatarMap: agentSelection.customAgentAvatarMap,
@@ -124,6 +133,8 @@ const GuidPage: React.FC = () => {
     setDir: guidInput.setDir,
     setLoading: guidInput.setLoading,
     selectedSkills,
+    selectedWikis: isWikiEnabled ? selectedWikis : undefined,
+    consumeMentionedWikis: isWikiEnabled ? wikiMentions.consume : undefined,
 
     // Agent state
     selectedAgent: agentSelection.selectedAgent,
@@ -591,6 +602,20 @@ const GuidPage: React.FC = () => {
         guidInput.setInput('');
       }}
       skillTriggerNode={skillTriggerNode}
+      wikiTriggerNode={
+        isWikiEnabled ? (
+          <WikiPicker
+            wikis={usableWikis.wikis}
+            isLoading={usableWikis.isLoading}
+            selectedIds={selectedWikis}
+            mentionQuery={wikiMentions.mentionQuery}
+            onChange={setSelectedWikis}
+            onMentionPick={wikiMentions.pick}
+            onMentionDismiss={wikiMentions.dismiss}
+            onOpen={() => void usableWikis.refresh(true)}
+          />
+        ) : undefined
+      }
       loading={guidInput.loading}
       isButtonDisabled={send.isButtonDisabled}
       onSend={() => {
@@ -715,6 +740,7 @@ const GuidPage: React.FC = () => {
             const { displayName, emoji } = getInstalledSkillDisplay(skill || { name: skillName, version: '' });
             return { displayName, emoji: emoji || '⚡' };
           }}
+          wikiChips={isWikiEnabled ? <WikiChips wikis={usableWikis.wikis} selectedIds={selectedWikis} onRemove={(id) => setSelectedWikis(selectedWikis.filter((x) => x !== id))} /> : undefined}
           files={guidInput.files}
           onRemoveFile={guidInput.handleRemoveFile}
           dir={guidInput.dir}

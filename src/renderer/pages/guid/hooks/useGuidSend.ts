@@ -29,6 +29,10 @@ export type GuidSendDeps = {
   setDir: React.Dispatch<React.SetStateAction<string>>;
   setLoading: React.Dispatch<React.SetStateAction<boolean>>;
   selectedSkills?: string[];
+  /** Moss wiki ids for a remote chat (sticky for the conversation) */
+  selectedWikis?: string[];
+  /** Resolve the #-mentioned wiki ids for the first message (clears the mentions) */
+  consumeMentionedWikis?: (text: string) => string[];
 
   // Agent state
   selectedAgent: AcpBackend | 'custom';
@@ -92,6 +96,8 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     setDir,
     setLoading,
     selectedSkills,
+    selectedWikis,
+    consumeMentionedWikis,
     selectedAgent,
     selectedAgentKey,
     modelBackendKey,
@@ -192,6 +198,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
             agentName: agentInfo?.name || 'Moss Server',
             presetAssistantId: agentInfo?.customAgentId || agentInfo?.name || 'Moss Server',
             enabledSkills: isEnterprise && isPreset ? enabledSkills : undefined,
+            enabledWikis: selectedWikis?.length ? selectedWikis : undefined,
             sessionMode: selectedMode,
             dangerouslySkipPermissions: selectedMode === 'yolo',
             currentModelId: selectedAcpModel || undefined,
@@ -222,10 +229,12 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
 
         // Store initial message for AcpSendBox to read
         // 存储初始消息供 AcpSendBox 使用
+        const mentionedWikis = consumeMentionedWikis?.(input) ?? [];
         const initialMessageData = {
           input,
           files: files.length > 0 ? files : undefined,
           skills: selectedSkills || [],
+          wikis: mentionedWikis.length > 0 ? mentionedWikis : undefined,
         };
         sessionStorage.setItem(`remote_initial_message_${conversation.id}`, JSON.stringify(initialMessageData));
 
@@ -364,6 +373,8 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     isGuest,
     hasModel,
     ready,
+    selectedWikis,
+    consumeMentionedWikis,
   ]);
 
   const sendMessageHandler = useCallback(() => {

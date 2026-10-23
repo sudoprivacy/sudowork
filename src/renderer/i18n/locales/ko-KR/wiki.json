@@ -1,0 +1,105 @@
+{
+  "title": "기업 지식베이스",
+  "description": "개인 공간에 문서를 업로드하고 위키를 구축해 사용 범위를 설정하세요. 회사 위키와 공유받은 위키도 볼 수 있습니다.",
+  "unsupported": "현재 기업 서버는 위키를 지원하지 않습니다. 관리자에게 업그레이드를 요청하세요.",
+  "tabs": { "mine": "내 공간", "usable": "사용 가능한 위키" },
+  "common": { "delete": "삭제", "edit": "편집", "view": "보기", "refresh": "새로고침", "description": "설명" },
+  "tree": {
+    "root": "개인 공간",
+    "newFolder": "새 폴더",
+    "edit": "폴더 편집",
+    "name": "이름",
+    "nameRequired": "이름을 입력하세요",
+    "parent": "상위 폴더",
+    "deleteConfirm": "폴더 \"{{name}}\"와 그 안의 모든 항목을 삭제할까요?",
+    "quota": "{{total}} 중 {{used}} 사용"
+  },
+  "documents": {
+    "uploadFiles": "파일 업로드",
+    "uploadFolder": "폴더 업로드",
+    "dropHint": "여기로 파일을 끌어 업로드하세요. 파일당 최대 {{size}}.",
+    "empty": "이 폴더에 파일이 없습니다",
+    "fileName": "파일 이름",
+    "size": "크기",
+    "uploadedAt": "업로드 시간",
+    "deleteConfirm": "파일 \"{{name}}\"을(를) 삭제할까요?",
+    "uploaded": "파일 {{count}}개를 업로드했습니다",
+    "tooBig": "크기 제한을 초과해 건너뛴 파일: {{names}}",
+    "quotaExceeded": "{{size}} 업로드가 남은 공간 {{remaining}}을(를) 초과합니다"
+  },
+  "myWikis": {
+    "title": "내 위키",
+    "create": "새 위키",
+    "empty": "아직 위키가 없습니다. 폴더나 파일을 선택해 만들어 보세요.",
+    "name": "이름",
+    "status": "상태",
+    "lastBuilt": "최근 구축",
+    "enabled": "사용",
+    "build": "구축",
+    "rebuild": "다시 구축",
+    "cancel": "구축 취소",
+    "cancelled": "구축을 취소했습니다",
+    "buildStarted": "구축을 시작했습니다",
+    "deleteConfirm": "위키 \"{{name}}\"을(를) 삭제할까요? 원본 파일은 유지됩니다."
+  },
+  "status": { "pending": "구축 전", "running": "구축 중", "succeeded": "구축됨", "failed": "구축 실패", "needsRebuild": "다시 구축 필요" },
+  "form": {
+    "createTitle": "새 위키",
+    "editTitle": "위키 편집",
+    "name": "이름",
+    "nameRequired": "위키 이름을 입력하세요",
+    "descriptionHint": "설명은 에이전트가 이 위키를 언제 사용할지 판단하는 데 쓰입니다.",
+    "source": "소스",
+    "sourceDir": "폴더",
+    "sourceFiles": "특정 파일",
+    "folders": "포함할 폴더",
+    "excludeFolders": "제외할 폴더",
+    "documents": "파일",
+    "pickFolders": "폴더를 하나 이상 선택하세요",
+    "pickDocuments": "파일을 하나 이상 선택하세요",
+    "autoRebuild": "자동으로 다시 구축",
+    "autoRebuildHint": "폴더 내용이 바뀌면 자동으로 다시 구축합니다.",
+    "visibility": "사용 범위",
+    "buildNow": "만든 후 바로 구축",
+    "saved": "저장했습니다"
+  },
+  "visibility": {
+    "self": "나만",
+    "departments": "부서 지정",
+    "users": "구성원 지정",
+    "all": "전체",
+    "pickDepartments": "부서 선택",
+    "pickUsers": "구성원 선택",
+    "hint": "채팅에서 이 위키를 사용할 수 있는 사람을 정합니다. 본인은 항상 사용할 수 있습니다."
+  },
+  "origin": { "tenant": "회사", "shared": "공유", "mine": "내 위키" },
+  "usable": {
+    "searchPlaceholder": "위키 검색",
+    "allOrigins": "모든 소스",
+    "origin": "소스",
+    "updatedAt": "업데이트",
+    "empty": "사용 가능한 위키가 없습니다"
+  },
+  "viewer": {
+    "searchPlaceholder": "이 위키에서 검색",
+    "noFiles": "볼 수 있는 파일이 없습니다",
+    "noMatches": "일치하는 결과가 없습니다",
+    "pickFile": "왼쪽에서 파일을 선택하세요"
+  },
+  "chat": {
+    "chip": "위키",
+    "chipWithCount": "위키 ({{count}})",
+    "searchPlaceholder": "위키 검색",
+    "mentionHint": "이 메시지에서 참고할 위키 선택",
+    "empty": "사용 가능한 위키가 없습니다",
+    "unavailable": "사용할 수 없는 위키"
+  },
+  "errors": {
+    "privateRoot": "개인 공간의 루트는 변경하거나 삭제할 수 없습니다",
+    "notCancellable": "이 구축은 이미 끝났습니다",
+    "unauthorized": "로그인이 만료되었습니다. 다시 로그인하세요.",
+    "tooLarge": "파일이 너무 크거나 공간 할당량을 초과했습니다",
+    "conflict": "충돌: {{message}}",
+    "notFound": "존재하지 않거나 이미 삭제되었습니다"
+  }
+}

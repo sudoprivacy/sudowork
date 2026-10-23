@@ -1,0 +1,105 @@
+{
+  "title": "企业知识库",
+  "description": "上传文档到你的私有空间，构建知识库（Wiki）并设置可用范围；也可浏览企业和他人共享给你的知识库。",
+  "unsupported": "当前企业服务器版本不支持知识库，请联系管理员升级。",
+  "tabs": { "mine": "我的空间", "usable": "可用知识库" },
+  "common": { "delete": "删除", "edit": "编辑", "view": "查看", "refresh": "刷新", "description": "描述" },
+  "tree": {
+    "root": "私有空间",
+    "newFolder": "新建文件夹",
+    "edit": "编辑文件夹",
+    "name": "名称",
+    "nameRequired": "请输入名称",
+    "parent": "上级文件夹",
+    "deleteConfirm": "删除文件夹「{{name}}」及其下所有文件？",
+    "quota": "已用 {{used}} / {{total}}"
+  },
+  "documents": {
+    "uploadFiles": "上传文件",
+    "uploadFolder": "上传文件夹",
+    "dropHint": "可拖拽文件到此处上传，单个文件不超过 {{size}}。",
+    "empty": "该文件夹暂无文件",
+    "fileName": "文件名",
+    "size": "大小",
+    "uploadedAt": "上传时间",
+    "deleteConfirm": "删除文件「{{name}}」？",
+    "uploaded": "已上传 {{count}} 个文件",
+    "tooBig": "以下文件超过大小上限，已跳过：{{names}}",
+    "quotaExceeded": "上传 {{size}} 超出剩余空间 {{remaining}}"
+  },
+  "myWikis": {
+    "title": "我的知识库",
+    "create": "新建知识库",
+    "empty": "还没有知识库，选择文件夹或文件来构建一个吧",
+    "name": "名称",
+    "status": "状态",
+    "lastBuilt": "最近构建",
+    "enabled": "启用",
+    "build": "构建",
+    "rebuild": "重新构建",
+    "cancel": "取消构建",
+    "cancelled": "已取消构建",
+    "buildStarted": "已开始构建",
+    "deleteConfirm": "删除知识库「{{name}}」？源文件不会被删除。"
+  },
+  "status": { "pending": "待构建", "running": "构建中", "succeeded": "已构建", "failed": "构建失败", "needsRebuild": "需重新构建" },
+  "form": {
+    "createTitle": "新建知识库",
+    "editTitle": "编辑知识库",
+    "name": "名称",
+    "nameRequired": "请输入知识库名称",
+    "descriptionHint": "描述会提供给智能体，帮助它判断何时使用此知识库。",
+    "source": "来源",
+    "sourceDir": "文件夹",
+    "sourceFiles": "指定文件",
+    "folders": "包含的文件夹",
+    "excludeFolders": "排除的文件夹",
+    "documents": "文件",
+    "pickFolders": "请至少选择一个文件夹",
+    "pickDocuments": "请至少选择一个文件",
+    "autoRebuild": "自动重新构建",
+    "autoRebuildHint": "文件夹内容变化后自动重新构建。",
+    "visibility": "可用范围",
+    "buildNow": "创建后立即构建",
+    "saved": "已保存"
+  },
+  "visibility": {
+    "self": "仅自己",
+    "departments": "指定部门",
+    "users": "指定成员",
+    "all": "全员",
+    "pickDepartments": "选择部门",
+    "pickUsers": "选择成员",
+    "hint": "控制谁可以在会话中使用此知识库，你本人始终可用。"
+  },
+  "origin": { "tenant": "企业", "shared": "共享", "mine": "我的" },
+  "usable": {
+    "searchPlaceholder": "搜索知识库",
+    "allOrigins": "全部来源",
+    "origin": "来源",
+    "updatedAt": "更新时间",
+    "empty": "暂无可用的知识库"
+  },
+  "viewer": {
+    "searchPlaceholder": "在知识库中搜索",
+    "noFiles": "知识库中没有可浏览的文件",
+    "noMatches": "没有匹配结果",
+    "pickFile": "选择左侧文件查看"
+  },
+  "chat": {
+    "chip": "知识库",
+    "chipWithCount": "知识库 ({{count}})",
+    "searchPlaceholder": "搜索知识库",
+    "mentionHint": "选择本条消息要参考的知识库",
+    "empty": "没有可用的知识库",
+    "unavailable": "知识库不可用"
+  },
+  "errors": {
+    "privateRoot": "私有空间根目录不能修改或删除",
+    "notCancellable": "该构建已结束，无法取消",
+    "unauthorized": "登录已失效，请重新登录",
+    "tooLarge": "文件过大或超出空间配额",
+    "conflict": "操作冲突：{{message}}",
+    "notFound": "内容不存在或已被删除"
+  }
+}

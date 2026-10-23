@@ -70,7 +70,8 @@
     "security": "보안",
     "webui": "원격 접속",
     "cron": "예약 작업",
-    "team": "팀"
+    "team": "팀",
+    "wiki": "지식베이스"
   },
   "ariaLabel": {
     "close": "닫기",

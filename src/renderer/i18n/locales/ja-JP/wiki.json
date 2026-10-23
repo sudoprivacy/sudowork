@@ -1,0 +1,105 @@
+{
+  "title": "企業ナレッジベース",
+  "description": "プライベートスペースにドキュメントをアップロードし、Wiki を構築して利用範囲を設定できます。企業の Wiki や共有された Wiki も閲覧できます。",
+  "unsupported": "現在の企業サーバーは Wiki に対応していません。管理者にアップグレードを依頼してください。",
+  "tabs": { "mine": "マイスペース", "usable": "利用可能な Wiki" },
+  "common": { "delete": "削除", "edit": "編集", "view": "表示", "refresh": "更新", "description": "説明" },
+  "tree": {
+    "root": "プライベートスペース",
+    "newFolder": "新しいフォルダー",
+    "edit": "フォルダーを編集",
+    "name": "名前",
+    "nameRequired": "名前を入力してください",
+    "parent": "親フォルダー",
+    "deleteConfirm": "フォルダー「{{name}}」とその中のすべてを削除しますか？",
+    "quota": "{{total}} 中 {{used}} 使用"
+  },
+  "documents": {
+    "uploadFiles": "ファイルをアップロード",
+    "uploadFolder": "フォルダーをアップロード",
+    "dropHint": "ここにファイルをドラッグしてアップロードできます。1 ファイル {{size}} まで。",
+    "empty": "このフォルダーにはファイルがありません",
+    "fileName": "ファイル名",
+    "size": "サイズ",
+    "uploadedAt": "アップロード日時",
+    "deleteConfirm": "ファイル「{{name}}」を削除しますか？",
+    "uploaded": "{{count}} 件のファイルをアップロードしました",
+    "tooBig": "サイズ上限を超えたためスキップしました：{{names}}",
+    "quotaExceeded": "{{size}} のアップロードは残り容量 {{remaining}} を超えています"
+  },
+  "myWikis": {
+    "title": "マイ Wiki",
+    "create": "新しい Wiki",
+    "empty": "Wiki がありません。フォルダーやファイルを選んで構築しましょう。",
+    "name": "名前",
+    "status": "状態",
+    "lastBuilt": "最終構築",
+    "enabled": "有効",
+    "build": "構築",
+    "rebuild": "再構築",
+    "cancel": "構築をキャンセル",
+    "cancelled": "構築をキャンセルしました",
+    "buildStarted": "構築を開始しました",
+    "deleteConfirm": "Wiki「{{name}}」を削除しますか？元のファイルは残ります。"
+  },
+  "status": { "pending": "未構築", "running": "構築中", "succeeded": "構築済み", "failed": "構築失敗", "needsRebuild": "再構築が必要" },
+  "form": {
+    "createTitle": "新しい Wiki",
+    "editTitle": "Wiki を編集",
+    "name": "名前",
+    "nameRequired": "Wiki の名前を入力してください",
+    "descriptionHint": "説明はエージェントに渡され、この Wiki を使うタイミングの判断に使われます。",
+    "source": "ソース",
+    "sourceDir": "フォルダー",
+    "sourceFiles": "指定したファイル",
+    "folders": "含めるフォルダー",
+    "excludeFolders": "除外するフォルダー",
+    "documents": "ファイル",
+    "pickFolders": "フォルダーを 1 つ以上選択してください",
+    "pickDocuments": "ファイルを 1 つ以上選択してください",
+    "autoRebuild": "自動で再構築",
+    "autoRebuildHint": "フォルダーの内容が変わったら自動で再構築します。",
+    "visibility": "利用範囲",
+    "buildNow": "作成後すぐに構築",
+    "saved": "保存しました"
+  },
+  "visibility": {
+    "self": "自分のみ",
+    "departments": "部門を指定",
+    "users": "メンバーを指定",
+    "all": "全員",
+    "pickDepartments": "部門を選択",
+    "pickUsers": "メンバーを選択",
+    "hint": "チャットでこの Wiki を使えるユーザーを設定します。あなた自身は常に利用できます。"
+  },
+  "origin": { "tenant": "企業", "shared": "共有", "mine": "自分" },
+  "usable": {
+    "searchPlaceholder": "Wiki を検索",
+    "allOrigins": "すべてのソース",
+    "origin": "ソース",
+    "updatedAt": "更新日時",
+    "empty": "利用可能な Wiki がありません"
+  },
+  "viewer": {
+    "searchPlaceholder": "この Wiki を検索",
+    "noFiles": "閲覧できるファイルがありません",
+    "noMatches": "一致する結果がありません",
+    "pickFile": "左のファイルを選択してください"
+  },
+  "chat": {
+    "chip": "Wiki",
+    "chipWithCount": "Wiki ({{count}})",
+    "searchPlaceholder": "Wiki を検索",
+    "mentionHint": "このメッセージで参照する Wiki を選択",
+    "empty": "利用可能な Wiki がありません",
+    "unavailable": "利用できない Wiki"
+  },
+  "errors": {
+    "privateRoot": "プライベートスペースのルートは変更・削除できません",
+    "notCancellable": "この構築はすでに終了しています",
+    "unauthorized": "ログインの有効期限が切れました。再度ログインしてください。",
+    "tooLarge": "ファイルが大きすぎるか、容量を超えています",
+    "conflict": "競合が発生しました：{{message}}",
+    "notFound": "存在しないか、すでに削除されています"
+  }
+}

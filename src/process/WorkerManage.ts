@@ -127,6 +127,7 @@ const buildConversation = (conversation: TChatConversation, options?: BuildConve
         // When assistant is specified, Moss Server will use assistant's config
         // 启用的技能：用于非助手会话；当指定助手时，Moss Server 会使用助手配置
         enabledSkills: conversation.extra?.enabledSkills,
+        enabledWikis: conversation.extra?.enabledWikis,
       });
 
       if (!options?.skipCache) {

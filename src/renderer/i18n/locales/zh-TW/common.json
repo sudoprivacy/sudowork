@@ -69,7 +69,8 @@
     "security": "安全防護",
     "webui": "遠端連線",
     "cron": "排程任務",
-    "team": "團隊"
+    "team": "團隊",
+    "wiki": "企業知識庫"
   },
   "enabled": "已啟用",
   "uninstall": "解除安裝",

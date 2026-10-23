@@ -1542,6 +1542,8 @@ export interface ISendMessageParams {
   loading_id?: string;
   /** Skill names to activate for this message (used by agents with skill execution ability) */
   skills?: string[];
+  /** Moss wiki ids #-mentioned for this message only (remote-agent) */
+  wikis?: string[];
 }
 
 // Unified confirm message params for all agents
@@ -1577,6 +1579,8 @@ export interface ICreateConversationParams {
     presetRules?: string; // system rules injected at initialization
     /** Enabled skills list for filtering SkillManager skills */
     enabledSkills?: string[];
+    /** Moss wiki ids for a remote-agent conversation */
+    enabledWikis?: string[];
     /**
      * Preset context/rules to inject into the first message.
      * Used by smart assistants to provide custom prompts/rules.
