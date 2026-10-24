@@ -1,4 +1,4 @@
-import { Button, Empty, Input, Message, Modal, Select, Spin } from '@arco-design/web-react';
+import { Button, Collapse, Empty, Input, Message, Modal, Select, Spin } from '@arco-design/web-react';
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
@@ -114,7 +114,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
           isStateNeeded = false;
         }
         const current = sessionRef.current!;
-        const viewMode = selectedSurface === 'page' || !current.capabilities.windowView ? 'page' : 'window';
+        const viewMode = isViewer && selectedSurface !== 'page' && current.capabilities.windowView ? 'window' : 'page';
         surfaceModeRef.current = viewMode;
         if (isControlsOnly) {
           // This window observes the lease without attaching a pixel viewer.
@@ -167,7 +167,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
       // Detach only the view. The server retains the browser and human lease.
       void invoke({ kind: 'detach', viewerId }).catch(() => {});
     };
-  }, [conversationId, initialTransport, invoke, isActive, isControlsOnly, selectedSurface, t, update]);
+  }, [conversationId, initialTransport, invoke, isActive, isControlsOnly, isViewer, selectedSurface, t, update]);
 
   const isConversationControlSupported = session?.capabilities.conversationControl === true;
   const isSessionKnown = session !== null;
@@ -625,7 +625,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
           {t('conversation.browserSession.openViewer')}
         </Button>
       ) : null}
-      {!isControlsOnly && session?.capabilities.windowView ? (
+      {isViewer && !isControlsOnly && session?.capabilities.windowView ? (
         <Select
           aria-label={t('conversation.browserSession.viewMode')}
           value={selectedSurface || 'window'}
@@ -652,53 +652,58 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     <div className='h-full min-h-0 box-border flex flex-col gap-2 overflow-auto p-2' data-testid='browser-session-panel'>
       {controls}
       <p className='text-xs text-t-secondary'>{t(`conversation.browserSession.${isConversationControlSupported ? 'conversationControl' : 'conversationUpdateRequired'}`)}</p>
-      {session?.capabilities.existingExtension && session.state === 'stopped' ? (
-        <Button size='mini' disabled={!isConversationControlSupported || isTransferring || !!error} onClick={() => void onInspectExisting()}>
-          {t('conversation.browserSession.personalConnect')}
-        </Button>
-      ) : null}
-      {session?.personalExtension ? (
-        <Button size='mini' disabled={isTransferring || !!error || (!isController && session.state !== 'stopped')} onClick={onDisconnectExisting}>
-          {t('conversation.browserSession.personalDisconnect')}
-        </Button>
-      ) : null}
-      {!session?.personalExtension && (session?.state === 'stopped' || (isController && session?.capabilities.lifecycle)) ? (
-        <div className='flex flex-wrap items-center gap-2'>
-          <Select
-            aria-label={t('conversation.browserSession.launchMode')}
-            value={isHeadless ? 'headless' : 'headful'}
-            disabled={isTransferring}
-            onChange={(value) => setIsHeadless(value === 'headless')}
-            style={{ width: 140 }}
-            options={[
-              { value: 'headless', label: t('conversation.browserSession.headless') },
-              { value: 'headful', label: t('conversation.browserSession.headful') },
-            ]}
-          />
-          <Select
-            aria-label={t('conversation.browserSession.transport')}
-            value={transport}
-            disabled={isTransferring}
-            onChange={setTransport}
-            style={{ width: 220 }}
-            options={[...(!session.capabilities.existingExtension ? [{ value: 'extension', label: t('conversation.browserSession.extension') }] : []), { value: 'cdp', label: t('conversation.browserSession.cdp') }]}
-          />
-          {session.state === 'stopped' ? (
-            <Button size='mini' disabled={!isConversationControlSupported || isTransferring || !!error} onClick={() => void onStart()}>
-              {t('conversation.browserSession.start')}
+      <Collapse bordered={false}>
+        <Collapse.Item header={t('conversation.browserSession.browserSource')} name='browser-source'>
+          <p className='text-xs text-t-secondary'>{t(`conversation.browserSession.${session?.personalExtension ? 'personalSourceDescription' : session?.capabilities.existingExtension ? 'localSourceDescription' : 'cloudSourceDescription'}`)}</p>
+          {session?.capabilities.existingExtension && session.state === 'stopped' ? (
+            <Button size='mini' disabled={!isConversationControlSupported || isTransferring || !!error} onClick={() => void onInspectExisting()}>
+              {t('conversation.browserSession.personalConnect')}
             </Button>
-          ) : (
-            <>
-              <Button size='mini' disabled={!isController} onClick={() => onLifecycle('restart')}>
-                {t('conversation.browserSession.restart')}
-              </Button>
-              <Button size='mini' disabled={!isController} onClick={() => onLifecycle('stop')}>
-                {t('conversation.browserSession.stop')}
-              </Button>
-            </>
-          )}
-        </div>
-      ) : null}
+          ) : null}
+          {session?.personalExtension ? (
+            <Button size='mini' disabled={isTransferring || !!error || (!isController && session.state !== 'stopped')} onClick={onDisconnectExisting}>
+              {t('conversation.browserSession.personalDisconnect')}
+            </Button>
+          ) : null}
+          {!session?.personalExtension && (session?.state === 'stopped' || (isController && session?.capabilities.lifecycle)) ? (
+            <div className='flex flex-wrap items-center gap-2'>
+              <Select
+                aria-label={t('conversation.browserSession.launchMode')}
+                value={isHeadless ? 'headless' : 'headful'}
+                disabled={isTransferring}
+                onChange={(value) => setIsHeadless(value === 'headless')}
+                style={{ width: 140 }}
+                options={[
+                  { value: 'headless', label: t('conversation.browserSession.headless') },
+                  { value: 'headful', label: t('conversation.browserSession.headful') },
+                ]}
+              />
+              <Select
+                aria-label={t('conversation.browserSession.transport')}
+                value={transport}
+                disabled={isTransferring}
+                onChange={setTransport}
+                style={{ width: 220 }}
+                options={[...(!session.capabilities.existingExtension ? [{ value: 'extension', label: t('conversation.browserSession.extension') }] : []), { value: 'cdp', label: t('conversation.browserSession.cdp') }]}
+              />
+              {session.state === 'stopped' ? (
+                <Button size='mini' disabled={!isConversationControlSupported || isTransferring || !!error} onClick={() => void onStart()}>
+                  {t('conversation.browserSession.start')}
+                </Button>
+              ) : (
+                <>
+                  <Button size='mini' disabled={!isController} onClick={() => onLifecycle('restart')}>
+                    {t('conversation.browserSession.restart')}
+                  </Button>
+                  <Button size='mini' disabled={!isController} onClick={() => onLifecycle('stop')}>
+                    {t('conversation.browserSession.stop')}
+                  </Button>
+                </>
+              )}
+            </div>
+          ) : null}
+        </Collapse.Item>
+      </Collapse>
       {isStoppedController ? <div role='status'>{t('conversation.browserSession.stoppedHuman')}</div> : null}
       {session?.capabilities.fileTransfer && session.fileChooser ? (
         <div className='flex items-center gap-2' data-testid='browser-file-chooser'>
