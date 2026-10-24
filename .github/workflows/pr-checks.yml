@@ -249,8 +249,6 @@ jobs:
             shard: 3/3
     runs-on: ${{ matrix.os }}
     timeout-minutes: ${{ matrix.timeout }}
-    env:
-      npm_config_cache: ${{ runner.temp }}/npm-cache
     defaults:
       run:
         working-directory: apps/desktop
@@ -279,9 +277,13 @@ jobs:
 
       - name: Verify Windows libvips before dependency installation
         if: runner.os == 'Windows'
+        env:
+          npm_config_cache: ${{ runner.temp }}/npm-cache
         run: node ../../.github/scripts/cache-sharp-libvips.mjs
 
       - name: Install dependencies
+        env:
+          npm_config_cache: ${{ runner.temp }}/npm-cache
         run: bun install --frozen-lockfile
 
       - name: Ensure Electron is installed for native SQLite tests
