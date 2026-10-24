@@ -111,11 +111,18 @@ export function initMossBridge(): void {
   });
   ipcBridge.browserSession.invoke.provider(async ({ conversationId, action }) => {
     try {
-      if (isLocalBrowserConversation(conversationId)) return { success: true, data: await getLocalBrowserSessions().invoke(conversationId, action) };
+      if (isLocalBrowserConversation(conversationId)) {
+        const data = await getLocalBrowserSessions().invoke(conversationId, action);
+        // Desktop currently carries pixels over its existing IPC frame adapter.
+        if (data.session.capabilities.windowStream) data.session.capabilities.windowStream = false;
+        return { success: true, data };
+      }
       const api = await ensureMossApiInitialized();
       if (!api) return { success: false, msg: 'Cloud browser connection is not configured' };
       const sessionId = await remoteSessionId(conversationId);
-      return { success: true, data: await api.invokeBrowserSession(sessionId, action) };
+      const data = await api.invokeBrowserSession(sessionId, action);
+      if (data.session.capabilities.windowStream) data.session.capabilities.windowStream = false;
+      return { success: true, data };
     } catch (error) {
       return { success: false, msg: error instanceof Error ? error.message : 'Browser connection failed' };
     }

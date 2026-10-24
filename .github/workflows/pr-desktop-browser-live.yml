@@ -13,6 +13,73 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  streamed-window:
+    name: Shared React window stream (Linux)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - name: Checkout the pinned public browser core
+        run: git submodule update --init vendor/ai-dev-browser
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      - name: Install the locked application dependencies
+        run: bun install --frozen-lockfile
+      - name: Build the actual shared React and noVNC surface
+        env:
+          GOMAXPROCS: "1"
+        run: node apps/desktop/node_modules/vite/bin/vite.js build --config apps/desktop/tests/e2e/browser_stream_surface/vite.config.ts
+      - name: Build the isolated managed Chrome fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$RUNNER_TEMP/browser-stream-fixture.pem"
+          revision="$(git -C vendor/ai-dev-browser rev-parse HEAD)"
+          docker build -f vendor/ai-dev-browser/deploy/managed-chrome/Dockerfile \
+            --secret "id=extension_key,src=$RUNNER_TEMP/browser-stream-fixture.pem" \
+            --build-arg "SOURCE_REVISION=$revision" \
+            -t sudowork-browser-stream:ci vendor/ai-dev-browser
+      - name: Verify real pixels, checked input, zoom, gestures and reconnect
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --init --name "sudowork-browser-stream-$GITHUB_RUN_ID" \
+            --label "sudo.acceptance.owner=sudowork-browser-stream-$GITHUB_RUN_ID" \
+            --network none --memory=1536m --shm-size=256m --pids-limit=384 --cpus=1 \
+            --cap-drop ALL --security-opt no-new-privileges \
+            --mount "type=bind,source=$PWD,target=/consumer,readonly" \
+            sudowork-browser-stream:ci /opt/browser/venv/bin/python \
+            /consumer/apps/desktop/tests/e2e/live_window_stream_surface.py \
+            --assets /consumer/apps/desktop/tests/e2e/browser_stream_surface/dist \
+            --evidence /tmp/browser-stream-evidence
+      - name: Collect actual Chrome evidence
+        if: always()
+        shell: bash
+        run: |
+          if docker inspect "sudowork-browser-stream-$GITHUB_RUN_ID" >/dev/null 2>&1; then
+            docker cp "sudowork-browser-stream-$GITHUB_RUN_ID:/tmp/browser-stream-evidence" "$RUNNER_TEMP/browser-stream-evidence"
+          fi
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: shared-react-window-stream
+          path: ${{ runner.temp }}/browser-stream-evidence/**
+          if-no-files-found: warn
+      - name: Remove the owned fixture and signing key
+        if: always()
+        shell: bash
+        run: |
+          if docker inspect "sudowork-browser-stream-$GITHUB_RUN_ID" >/dev/null 2>&1; then
+            owner="$(docker inspect --format '{{ index .Config.Labels "sudo.acceptance.owner" }}' "sudowork-browser-stream-$GITHUB_RUN_ID")"
+            test "$owner" = "sudowork-browser-stream-$GITHUB_RUN_ID"
+            docker rm -f "sudowork-browser-stream-$GITHUB_RUN_ID"
+          fi
+          rm -f "$RUNNER_TEMP/browser-stream-fixture.pem"
+
   native-browser:
     name: Real Chrome (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
