@@ -1,8 +1,92 @@
 # Shared browser sessions for Desktop and WebUI
 
-Status, 22 October: the shared panel, session core, conversation interrupt flow and bounded selection/clipboard UI are delivered. SudoWork #1281 and #1282 are merged. The deployed WebUI and Moss 0.1.77 passed real model/browser acceptance with public SDK 0.58.2; the production acceptance owners use the verified 0.58.2 worker. General owner rollout remains open.
+Status, 24 October: the shared panel, session core, conversation interrupt flow and bounded selection/clipboard UI are delivered. SudoWork #1281 and #1282 are merged. The last verified deployed WebUI and Moss 0.1.77 passed real model/browser acceptance with public SDK 0.58.2; general owner rollout remains open.
 
-The Desktop packaging correction in #1283 passed a normally built packaged candidate with a cold runtime, real model, personal Chrome and clipboard/composition journey; final CI and official artifact delivery remain open. The touch gesture primitive and consuming UI have local live evidence but are not released. Complete Sudograph comment/binding acceptance, actual graph responsiveness on the public route and physical phone browser acceptance remain open. The local extension relay is optional and unimplemented. This document is the source for [the shared design page](https://s.shareone.vip/md/sudowork-browser-sessions).
+The Desktop packaging correction in #1283 is merged. The unchanged official Windows nightly at `d0d70b9` passed its cold-runtime, real-model, personal-Chrome and clipboard/composition journey; all three platform builds passed. Stable promotion remains open. The touch gesture primitive and consuming UI have local live evidence but are not released. Complete Sudograph comment/binding acceptance, actual graph responsiveness on the public route and physical phone browser acceptance remain open. The local extension relay is optional and unimplemented. This document is the source for [the shared design page](https://s.shareone.vip/md/sudowork-browser-sessions).
+
+## Accepted UX and review-context integration, 24 October
+
+The updated shared component passed two isolated, normally built Desktop journeys
+with real GPT 6 Luna, scode 0.2.36 and the normally installed public browser SDK
+0.58.3. Each journey selected an existing extension profile, opened a native
+question, interrupted through the existing conversation mechanism, opened the
+independent viewer, copied an exact selected phrase, pasted multiline Unicode,
+checked Chromium IME composition, submitted once, and continued the same model
+conversation with exact human-edited readback. Disconnect and application shutdown
+preserved personal Chrome. The stricter second journey also waited for the
+viewer's actual styled layout before mapping coordinates. Its helper is
+`apps/desktop/tests/e2e/live_shared_browser.py`; temporary homes, credentials and
+services were cleaned while receipts and screenshots were retained. This is
+Desktop evidence, not a new WebUI production, OS IME or physical-phone result.
+
+The interactive preview is approved for implementation. Product activity is
+labelled "SudoWork is operating". Browser sources use plain names: cloud browser,
+new browser and use my Chrome. The embedded panel defaults to the page; the
+independent viewer exposes page and full-window surfaces when available. Opening
+separately does not promise a particular local tab/window presentation.
+
+Conversation Stop and normal conversation continuation remain the user controls.
+There are no business-level "return to AI" or "give to human" buttons. A model
+can ask for assistance through its native question or conversation mechanism.
+Input leases, target/control epochs and the main/child execution barrier remain
+host-enforced. A notification, idle timeout, viewer reload or reconnect cannot
+release a human lease. Review events received during that lease stay queued.
+
+### Reuse existing event delivery
+
+ShareOne already provides durable notification consumers, leases, renewal,
+ACK/release and redelivery. Use its existing command receiver to durably enqueue
+references in the bound host inbox; do not use the skill's separate scode-process
+launcher for an active conversation. Deliver human owner and visitor comments,
+excluding agent reply loops. Fetch current parent/reply threads with the existing
+ShareOne skill before acting. Stable event/binding IDs guard repeat delivery and
+tool side effects.
+
+Scode's session mailbox transports ACP RPC, including tool-result notifications.
+Its A2A business inbox supplies durable cursors and a turn scheduler. Reuse those
+contracts; a review notification is an external event, not a fabricated result
+of a nonexistent tool call. Route to the explicit originating/subscribed session.
+Ordinary peer routing can fall back to another session of the same agent, which
+is unsuitable for a project review. Do not choose the newest conversation, start
+another process, or use the user-send path that implicitly continues browser
+control. Host routing and the live ShareOne receiver are still implementation
+and acceptance work; this section does not claim that they are deployed.
+
+### Canonical model and context
+
+Reuse [Sudograph's context design](https://github.com/sudoprivacy/sudograph/blob/main/docs/agent-context.md)
+and [the existing ontology-host audit](https://github.com/sudoprivacy/sudograph/blob/main/docs/sudowork-ontology-adapter-audit.md).
+An operator-owned project binding chooses the model authority and scoped tools.
+For a Sudograph-managed project, every mutation route must use the canonical
+model submission/compile boundary. Legacy RDF upserts, imports and saves must
+reject that authority; prompts are not the enforcement mechanism. No writable
+RDF mirror or editable generated HTML is created. A submission must carry its
+base revision and stable operation ID, validate the source/identity contracts,
+and return compiler diagnostics or a revision-bound receipt. The existing managed
+publisher still needs the host adapter and submission concurrency/idempotency
+contract; those are required delivery gates.
+
+Preload the deterministic, authorised source structure and SQL, canonical IDs,
+current business definitions, review state and useful rationale, plus the view
+catalogue/current view and versioned project binding. Full threads, large evidence
+documents and record/query results are read through pointers and scoped tools.
+Credentials, drawing code, compressed record pages, abandoned drafts and transient
+debug state are excluded. The initial packet must report its revision, content
+digest and coverage; do not silently truncate larger models.
+
+Append the initial packet through scode's existing prompt builder at creation or
+explicit reconstruction. During a running conversation, append changed model
+context at the conversation/tool-result tail at a safe turn boundary. Do not
+rewrite an earlier system block on every turn, add timestamps before a stable
+prefix, or inject the same snapshot repeatedly. Compaction/restoration must retain
+the binding and rebuild the correct checked snapshot. Verify both prefix byte
+stability and actual provider cache-usage evidence; byte equality alone is not
+proof of a provider cache hit.
+
+Acceptance must show the same project, selected view and model revision to the
+user and agent, and route a real comment back to its original task after restart,
+duplicate delivery and concurrent human browser input. The local preview's graph
+and notifications remain labelled simulations until that live journey passes.
 
 ## 1. Decisions
 

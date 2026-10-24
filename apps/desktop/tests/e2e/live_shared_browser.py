@@ -301,7 +301,8 @@ document.querySelector('#clipboard-submit').onclick=event=>fetch('/clipboard-sub
                     return any('SESSION_BOOTSTRAP_' + nonce in reply for reply in replies) and await app.turn_finished()
                 await wait_for(bootstrapped, 180, 'The real agent did not finish its initial turn')
                 await app.click_text('浏览器', 'Browser')
-                await app.click_text('连接我的 Chrome', 'Connect my Chrome')
+                await app.click_text('浏览器来源', 'Browser source')
+                await app.click_text('使用我的 Chrome', 'Use my Chrome')
                 if args.first_use_runtime:
                     runtime = args.first_use_runtime.resolve()
                     runtime_root = runtime.parent.parent
@@ -332,11 +333,12 @@ document.querySelector('#clipboard-submit').onclick=event=>fetch('/clipboard-sub
                     return await app.read("Boolean(document.querySelector('.arco-modal-footer button'))")
                 await wait_for(profile_confirmation, 20, 'The host did not request explicit profile selection')
                 await app.screenshot(args.output/'personal-profile-selection.png')
-                await app.click_text('连接我的 Chrome', 'Connect my Chrome')
+                await app.click_text('使用我的 Chrome', 'Use my Chrome')
                 async def connected_personal():
                     text = await app.text()
                     return '已连接你的 Chrome profile' in text or 'Your connected Chrome profile' in text
                 await wait_for(connected_personal, 30, 'The real agent barrier and selected personal Chrome were not acknowledged')
+                await app.click_text('浏览器来源', 'Browser source')
                 task = prompt.replace('I need to see its Chrome window, so use headful mode.', 'Use the existing Chrome profile the user just connected. Call browser_observe first. Do not use browser_launch or change its profile or launch mode.')
                 await app.fill('textarea', task)
                 await app.key('Enter', 'Enter', 13)
@@ -369,20 +371,23 @@ document.querySelector('#clipboard-submit').onclick=event=>fetch('/clipboard-sub
             control_ui = controls or app
             async def browser_ready():
                 text = await control_ui.text()
-                return 'AI 正在控制浏览器' in text or 'AI is controlling' in text
+                return 'SudoWork 正在操作' in text or 'SudoWork is operating' in text
             await wait_for(browser_ready, 20, 'The panel did not connect to the AI browser')
-            await control_ui.click_text('在新标签页查看', 'Open viewer tab')
+            await control_ui.click_text('独立查看', 'Open separately')
             async def new_viewer():
                 return next((t for t in await targets() if '#/browser-viewer/' in t.get('url', '')), None)
             viewer = UI(session, await wait_for(new_viewer, 20, 'The separate viewer did not open'))
             async def viewer_ready():
-                return await viewer.read("Boolean(window.electronAPI && document.querySelector('[data-testid=browser-session-panel] img')?.naturalWidth)")
+                # An image may arrive before the new window's stylesheets.
+                # Wait for its actual layout before mapping trusted coordinates.
+                return await viewer.read("Boolean(window.electronAPI && document.readyState === 'complete' && document.querySelector('[data-testid=browser-session-panel] img')?.naturalWidth && getComputedStyle(document.querySelector('[data-testid=browser-session-panel]')).display === 'flex')")
             await wait_for(viewer_ready, 40, 'The viewer preload, bridge or real browser frame is unavailable')
+            evidence['viewerPresentation'] = await viewer.read("""({font:getComputedStyle(document.body).fontFamily,panelDisplay:getComputedStyle(document.querySelector('[data-testid=browser-session-panel]')).display,styleSheets:[...document.styleSheets].map(s=>({href:s.href,rules:(()=>{try{return s.cssRules.length}catch{return null}})()}))})""")
             assert not await viewer.read("[...document.querySelectorAll('button')].some(e=>['Take control','Return to AI','接管浏览器','交回 AI'].includes(e.textContent.trim()))"), 'Browser handoff buttons must not be required'
             await viewer.page_click(100, 130)
             async def held():
                 text = await control_ui.text()
-                return '你已接管' in text or 'Human control' in text
+                return '你可以操作' in text or 'You can operate' in text
             await wait_for(held, 30, 'Agent tools did not acknowledge takeover')
             print('Agent tools acknowledged human takeover', flush=True)
             if args.pending_native_question:
@@ -499,8 +504,9 @@ document.querySelector('#clipboard-submit').onclick=event=>fetch('/clipboard-sub
                 await viewer.page_click(100, 130)
                 async def personal_held():
                     text = await viewer.text()
-                    return '你已接管' in text or 'Human control' in text
+                    return '你可以操作' in text or 'You can operate' in text
                 await wait_for(personal_held, 30, 'The agent did not acknowledge takeover before disconnection')
+                await viewer.click_text('浏览器来源', 'Browser source')
                 await viewer.click_text('断开我的 Chrome', 'Disconnect my Chrome')
                 await viewer.click_text('断开我的 Chrome', 'Disconnect my Chrome')
                 async def disconnected_personal():

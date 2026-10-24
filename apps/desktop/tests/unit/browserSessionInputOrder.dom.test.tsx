@@ -71,6 +71,14 @@ vi.mock('@arco-design/web-react', () => ({
     </select>
   ),
   Empty: () => null,
+  Collapse: Object.assign(({ children }: { children: React.ReactNode }) => <div>{children}</div>, {
+    Item: ({ header, children }: { header: React.ReactNode; children: React.ReactNode }) => (
+      <details>
+        <summary>{header}</summary>
+        {children}
+      </details>
+    ),
+  }),
   Spin: () => null,
   Modal: { confirm: host.confirm, info: host.info },
   Message: { error: host.error },
@@ -84,6 +92,32 @@ afterEach(() => {
   host.error.mockReset();
   host.confirm.mockReset();
   host.info.mockReset();
+});
+
+it('keeps the same browser when opening the full window separately and switching back to its page', async () => {
+  const base = activeSession();
+  const session = { ...base, isHeadless: false, capabilities: { ...base.capabilities, windowView: true } };
+  const actions: BrowserSessionAction[] = [];
+  host.invoke.mockImplementation(async ({ action }: { action: BrowserSessionAction }) => {
+    actions.push(action);
+    return { success: true, data: { session, ...(action.kind === 'frame' ? { frame: { data: 'eA==', width: 100, height: 100, surface: action.surface, controlEpoch: 4, targetEpoch: 2 } } : {}) } };
+  });
+  const panel = render(<BrowserSessionPanel conversationId='owned-conversation' />);
+  const page = await screen.findByAltText('page');
+  await waitFor(() => expect(page.getAttribute('src')).toMatch(/^data:/));
+  expect(actions.filter((action) => action.kind === 'frame').every((action) => action.surface === 'page')).toBe(true);
+  expect(screen.queryByRole('combobox', { name: 'viewMode' })).toBeNull();
+  panel.unmount();
+
+  render(<BrowserSessionPanel conversationId='owned-conversation' isViewer />);
+  const windowImage = await screen.findByAltText('page');
+  await waitFor(() => expect(windowImage.getAttribute('src')).toMatch(/^data:/));
+  expect(actions.filter((action) => action.kind === 'attach').at(-1)).toMatchObject({ surface: 'window' });
+  fireEvent.change(screen.getByRole('combobox', { name: 'viewMode' }), { target: { value: 'page' } });
+  await waitFor(() => expect(actions.filter((action) => action.kind === 'attach').at(-1)).toMatchObject({ surface: 'page' }));
+  await waitFor(() => expect(windowImage.getAttribute('src')).toMatch(/^data:/));
+  expect(actions.some((action) => ['start', 'restart', 'take', 'return', 'navigate', 'connect-existing-extension'].includes(action.kind))).toBe(false);
+  expect(host.error).not.toHaveBeenCalled();
 });
 
 it('discards an unfinished touch gesture when switching modes and waits for a fresh frame', async () => {
@@ -330,6 +364,7 @@ it('asks for explicit personal profile selection before connecting and reports u
     data: action.kind === 'connect-existing-extension' ? { session: { ...activeSession(), isHeadless: null, personalExtension: { ...selected, isHeadless: null } } } : { session: stopped, ...(action.kind === 'inspect-existing-extension' ? { existingExtension: selected } : {}) },
   }));
   render(<BrowserSessionPanel conversationId='owned-conversation' />);
+  fireEvent.click(await screen.findByText('browserSource'));
   fireEvent.click(await screen.findByRole('button', { name: 'personalConnect' }));
   await waitFor(() => expect(host.confirm).toHaveBeenCalledOnce());
   expect(host.invoke.mock.calls.some(([request]) => request.action.kind === 'connect-existing-extension')).toBe(false);
