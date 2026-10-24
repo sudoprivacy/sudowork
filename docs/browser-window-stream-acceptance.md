@@ -47,10 +47,16 @@ Separate real binary WebSocket tests check bound credentials, revoked permission
 binary-only forwarding and HTTP refusal without retries. The shared-browser CI
 workflow builds and runs both Chrome component journeys in the managed image.
 
+Both Node proxy hops also test an unsolicited first RFB banner sent in the same
+TCP write as the HTTP upgrade. Each upstream is paused synchronously on open and
+resumed after both relay directions are installed. This preserves upgrade-head
+frames while keeping the existing queue bounds and authorization checks.
+
 ## Delivery gates
 
-The stream remains optional and capability-gated. The public SDK release and
-consumer runtime pins must be aligned before rollout. Public authenticated
+The stream remains optional and capability-gated. SDK PR #39 is merged and tagged
+as v0.58.6; this candidate pins that version and its matching source commit.
+Public package and release-artifact verification must pass before rollout. Public authenticated
 WebUI/Moss streaming, a real Sudograph review and measured interaction latency,
 fresh model continuity, and physical phone acceptance remain release gates.
 Passing SDK or component tests does not satisfy these gates.

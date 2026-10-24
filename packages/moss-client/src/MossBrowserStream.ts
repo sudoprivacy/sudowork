@@ -35,7 +35,11 @@ export function openMossBrowserStream(
       perMessageDeflate: false,
       maxPayload: 16 * 1024 * 1024,
     })
-    socket.once('open', () => resolve(socket))
+    socket.once('open', () => {
+      // Keep upgrade-head frames until the caller has installed both relay directions.
+      socket.pause()
+      resolve(socket)
+    })
     socket.on('error', () =>
       reject(new MossNetworkError(path, new Error('Browser stream unavailable'))),
     )
@@ -128,4 +132,5 @@ export function relayMossBrowserStream(
     source.once('close', () => close(1000, 'Browser stream disconnected'))
     source.once('error', () => close(1011, 'Browser stream disconnected'))
   }
+  upstream.resume()
 }
