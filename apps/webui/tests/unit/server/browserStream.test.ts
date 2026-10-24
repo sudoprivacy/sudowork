@@ -2,6 +2,8 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { createServer, type Server } from 'node:http'
 import { once } from 'node:events'
+import { createHash } from 'node:crypto'
+import type { Duplex } from 'node:stream'
 import WebSocket, { WebSocketServer } from 'ws'
 import { openMossBrowserStream, relayMossBrowserStream } from '@sudowork/moss-client'
 import { attachConversationWebSocket } from '../../../src/server/app'
@@ -13,9 +15,11 @@ import type { ConversationCoordinator } from '../../../src/server/features/conve
 const servers: Server[] = []
 const webSockets: WebSocketServer[] = []
 const clients: WebSocket[] = []
+const rawSockets: Duplex[] = []
 
 afterEach(async () => {
   for (const client of clients.splice(0)) client.terminate()
+  for (const socket of rawSockets.splice(0)) socket.destroy()
   for (const server of webSockets.splice(0)) {
     for (const client of server.clients) client.terminate()
     server.close()
@@ -41,6 +45,60 @@ const operation = {
 }
 
 describe('real browser binary transport', () => {
+  it('preserves the unsolicited first RFB frame coalesced with the upstream upgrade', async () => {
+    const banner = Buffer.from('RFB 003.008\n')
+    const remote = createServer()
+    remote.on('upgrade', (request, socket) => {
+      rawSockets.push(socket)
+      const accept = createHash('sha1')
+        .update(request.headers['sec-websocket-key'] + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11')
+        .digest('base64')
+      // A real server can include its first binary frame in the HTTP upgrade head.
+      socket.write(
+        Buffer.concat([
+          Buffer.from(
+            'HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n' +
+              'Sec-WebSocket-Protocol: binary\r\nSec-WebSocket-Accept: ' +
+              accept +
+              '\r\n\r\n',
+          ),
+          Buffer.from([0x82, banner.length]),
+          banner,
+        ]),
+      )
+    })
+    const baseUrl = await listen(remote)
+    const gateway = createServer()
+    const gatewayWs = new WebSocketServer({ noServer: true })
+    webSockets.push(gatewayWs)
+    gateway.on('upgrade', (request, socket, head) => {
+      void openMossBrowserStream({ baseUrl, accessToken: 'fixture-only' }, 'task-17', operation)
+        .then((upstream) => {
+          clients.push(upstream)
+          gatewayWs.handleUpgrade(request, socket, head, (downstream) => {
+            relayMossBrowserStream(downstream, upstream, async () => true)
+          })
+        })
+        .catch(() => socket.destroy())
+    })
+    const gatewayUrl = await listen(gateway)
+    const client = new WebSocket(gatewayUrl.replace('http', 'ws'), ['binary'])
+    clients.push(client)
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      const [message, isBinary] = await Promise.race([
+        once(client, 'message'),
+        new Promise<never>((_resolve, reject) => {
+          timer = setTimeout(() => reject(new Error('First RFB banner lost')), 2000)
+        }),
+      ])
+      expect(isBinary).toBe(true)
+      expect(message).toEqual(banner)
+    } finally {
+      clearTimeout(timer)
+    }
+  })
+
   it('protects the real WebUI upgrade with origin, cookie, exact owner and live logout checks', async () => {
     const hmacKey = Buffer.alloc(32, 7)
     const cookie = 'isolated-stream-cookie'

@@ -462,7 +462,7 @@ async def run_case(assets, evidence, transport):
                     lambda value: (
                         bool(value.get("boot"))
                         and value["boot"] != boot
-                        and value["status"] == "ready"
+                        and value.get("status") == "ready"
                     ),
                 )
                 state = await worker.state(controller)
