@@ -28,7 +28,16 @@ export async function invokeBrowserSession(
     },
     input.kind === 'start' || input.kind === 'restart' ? 90_000 : 30_000,
   )
-  return BrowserSessionReplySchema.parse(reply)
+  const parsed = BrowserSessionReplySchema.parse(reply)
+  if (input.kind === 'window-stream' && parsed.stream) {
+    const query = new URLSearchParams({
+      viewerId: input.viewerId,
+      controlEpoch: String(parsed.session.controlEpoch),
+      targetEpoch: String(parsed.session.targetEpoch),
+    })
+    parsed.stream.socketPath = `/ws/browser/${encodeURIComponent(sessionId)}?${query}`
+  }
+  return parsed
 }
 
 export async function receiveBrowserFile(

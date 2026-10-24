@@ -119,6 +119,8 @@ export default defineConfig({
         'src/process/services/browserPanel/localToolControl.ts',
         '../../packages/contracts/src/browserSession.ts',
         '../../packages/renderer/src/components/browser/BrowserSessionPanel.tsx',
+        '../../packages/renderer/src/components/browser/WindowStreamSurface.tsx',
+        '../../packages/moss-client/src/MossBrowserStream.ts',
         '../../packages/common/src/loginReturnPath.ts',
         '../../packages/host-bridge/src/agentWorkspace.ts',
         '../../packages/renderer/src/pages/conversation/utils/agentIdentity.ts',

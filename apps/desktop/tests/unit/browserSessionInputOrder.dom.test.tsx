@@ -5,7 +5,16 @@ import { afterEach, expect, it, vi } from 'vitest';
 import type { BrowserSessionAction, BrowserSessionState } from '@sudowork/contracts/browser-session';
 import BrowserSessionPanel from '@renderer/components/browser/BrowserSessionPanel';
 
-const host = vi.hoisted(() => ({ invoke: vi.fn(), stop: vi.fn(), error: vi.fn(), confirm: vi.fn(), info: vi.fn() }));
+const host = vi.hoisted(() => ({ invoke: vi.fn(), stop: vi.fn(), error: vi.fn(), confirm: vi.fn(), info: vi.fn(), stream: vi.fn() }));
+
+// Pixel decoding is exercised by the real React/Chrome workflow. This seam
+// observes which target the host integration actually hands to that decoder.
+vi.mock('@renderer/components/browser/WindowStreamSurface', () => ({
+  default: ({ stream }: { stream: { targetEpoch: number } }) => {
+    host.stream(stream);
+    return <div data-testid='streamed-window'>{stream.targetEpoch}</div>;
+  },
+}));
 
 function activeSession(): BrowserSessionState {
   return {
@@ -92,6 +101,31 @@ afterEach(() => {
   host.error.mockReset();
   host.confirm.mockReset();
   host.info.mockReset();
+  host.stream.mockReset();
+});
+
+it('discards a late stream response after navigation and opens the current target', async () => {
+  const base = activeSession();
+  let session = { ...base, isHeadless: false, capabilities: { ...base.capabilities, windowView: true, windowStream: true } };
+  let deliverOldStream: (() => void) | undefined;
+  const stream = { protocol: 'rfb', isViewOnly: true, password: 'fixture-only', socketPath: '/ws/browser/owned-conversation' };
+  host.invoke.mockImplementation(async ({ action }: { action: BrowserSessionAction }) => {
+    if (action.kind === 'window-stream' && action.targetEpoch === 2) {
+      const oldSession = session;
+      return new Promise((resolve) => {
+        deliverOldStream = () => resolve({ success: true, data: { session: oldSession, stream } });
+      });
+    }
+    if (action.kind === 'back') session = { ...session, targetEpoch: 3, tabs: [{ ...session.tabs[0], url: 'https://example.test/previous' }] };
+    return { success: true, data: { session, ...(action.kind === 'window-stream' ? { stream } : {}), ...(action.kind === 'frame' ? { frame: { data: 'eA==', width: 100, height: 100, controlEpoch: session.controlEpoch, targetEpoch: session.targetEpoch } } : {}) } };
+  });
+  render(<BrowserSessionPanel conversationId='owned-conversation' isViewer />);
+  await waitFor(() => expect(deliverOldStream).toBeTypeOf('function'));
+  fireEvent.click(screen.getByRole('button', { name: 'back' }));
+  await waitFor(() => expect(screen.getByRole('textbox', { name: 'address' })).toHaveProperty('value', 'https://example.test/previous'));
+  await act(async () => deliverOldStream?.());
+  expect(host.stream.mock.calls.some(([value]) => value.targetEpoch === 2)).toBe(false);
+  await waitFor(() => expect(screen.getByTestId('streamed-window').textContent).toBe('3'), { timeout: 2000 });
 });
 
 it('keeps the same browser when opening the full window separately and switching back to its page', async () => {
