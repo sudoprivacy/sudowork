@@ -40,6 +40,7 @@ export const BrowserSessionStateSchema = z.object({
     existingExtension: z.boolean().optional(),
     pageView: z.boolean(),
     windowView: z.boolean(),
+    windowStream: z.boolean().optional(),
     persistentProfile: z.boolean(),
   }),
   activeTargetId: z.string().nullable(),
@@ -187,6 +188,11 @@ export const BrowserSessionActionSchema = z.discriminatedUnion("kind", [
     surface: SurfaceSchema.optional(),
     ...operation,
   }),
+  z.object({
+    kind: z.literal("window-stream"),
+    viewerId: z.string().uuid(),
+    ...operation,
+  }),
   z.object({ kind: z.literal("take"), ...operation }),
   z.object({
     kind: z.literal("return"),
@@ -226,6 +232,14 @@ export const BrowserSessionActionSchema = z.discriminatedUnion("kind", [
 
 export const BrowserSessionReplySchema = z.object({
   session: BrowserSessionStateSchema,
+  stream: z
+    .object({
+      protocol: z.literal("rfb"),
+      isViewOnly: z.literal(true),
+      password: z.string().min(1).max(128),
+      socketPath: z.string().startsWith("/ws/browser/").max(2048).optional(),
+    })
+    .optional(),
   existingExtension: ExistingExtensionSchema.nullable().optional(),
   setupInstructions: z.string().max(16000).optional(),
   selection: z

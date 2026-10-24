@@ -108,6 +108,31 @@ describe('authorized browser session proxy', () => {
     expect(f.mossFetch).toHaveBeenCalledTimes(1)
   })
 
+  it('binds streaming credentials to a same-origin viewer path without exposing upstream URLs or account tokens', async () => {
+    const f = fixture()
+    const prior = await f.deps.mossFetch()
+    f.deps.mossFetch.mockResolvedValueOnce({
+      ...prior,
+      stream: {
+        protocol: 'rfb',
+        isViewOnly: true,
+        password: 'fixture8',
+        socketPath: '/ws/browser/another-task',
+      },
+    } as typeof prior)
+    const result = await invokeBrowserSession(f.deps, principal, 'conversation', ctx, {
+      kind: 'window-stream',
+      viewerId: '00000000-0000-4000-8000-000000000000',
+      controlEpoch: 1,
+      targetEpoch: 0,
+    })
+    expect(result.stream?.socketPath).toBe(
+      '/ws/browser/conversation?viewerId=00000000-0000-4000-8000-000000000000&controlEpoch=1&targetEpoch=0',
+    )
+    expect(result.stream?.socketPath).not.toContain(ctx.accessToken)
+    expect(result.stream?.socketPath).not.toContain(ctx.baseUrl)
+  })
+
   it('rejects transfers after session ownership changes before dispatching bytes', async () => {
     const f = fixture()
     f.changeOwner()

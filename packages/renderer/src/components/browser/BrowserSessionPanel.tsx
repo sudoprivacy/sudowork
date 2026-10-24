@@ -5,6 +5,7 @@ import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { BrowserFileSchema, BrowserInputSchema, BrowserSessionReplySchema, isCurrentBrowserFrame, type BrowserFile, type BrowserInput, type BrowserSessionAction, type BrowserSessionReply, type BrowserSessionState } from '@sudowork/contracts/browser-session';
 import { PageSurface } from '@ai-dev-browser/remote-page';
 import { copyTextFromPromise } from '../../utils/clipboard';
+import WindowStreamSurface, { type IWindowStreamContext } from './WindowStreamSurface';
 
 /** Shared remote browser UI. The host authenticates and enforces every action. */
 export default function BrowserSessionPanel({ conversationId, isActive = true, isViewer = false, isControlsOnly = false, initialTransport = 'extension' }: IBrowserSessionPanelProps) {
@@ -26,6 +27,8 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [isTouchDragging, setIsTouchDragging] = useState(false);
+  const [windowStream, setWindowStream] = useState<IWindowStreamContext | null>(null);
+  const windowStreamRef = useRef<IWindowStreamContext | null>(null);
   const isTouchInputAvailable = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
   const viewportRef = useRef<HTMLDivElement>(null);
   const panRef = useRef<{ id: number; x: number; y: number; left: number; top: number } | null>(null);
@@ -60,6 +63,8 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     const isSameProfile = previous?.profileId === next.profileId;
     if (previous && isSameProfile && (next.controlEpoch < previous.controlEpoch || (next.controlEpoch === previous.controlEpoch && next.targetEpoch < previous.targetEpoch))) return;
     if (previous && (!isSameBrowser || next.controlEpoch !== previous.controlEpoch || next.targetEpoch !== previous.targetEpoch)) {
+      windowStreamRef.current = null;
+      setWindowStream(null);
       surfaceRef.current?.clear();
       isFrameReadyRef.current = false;
       isInteractiveRef.current = false;
@@ -86,8 +91,11 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     let attachedBrowserId: string | undefined;
     let attachedSurface: 'page' | 'window' | undefined;
     let isStateNeeded = true;
+    let unsupportedStreamBrowserId: string | undefined;
     const viewerId = crypto.randomUUID();
     sessionRef.current = null;
+    windowStreamRef.current = null;
+    setWindowStream(null);
     setTransport(initialTransport);
     setSession(null);
     setError(null);
@@ -107,7 +115,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
         // state and attaching again before every frame adds two cloud round
         // trips without improving ownership checks on the host.
         const previous = sessionRef.current;
-        if (isStateNeeded || !previous || isControlsOnly || document.visibilityState !== 'visible' || previous.state === 'stopped') {
+        if (isStateNeeded || !previous || windowStreamRef.current || isControlsOnly || document.visibilityState !== 'visible' || previous.state === 'stopped') {
           const stateReply = await invoke({ kind: 'state' });
           if (isClosed) return;
           update(stateReply.session);
@@ -127,17 +135,37 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
             attachedSurface = viewMode;
           }
           const state = sessionRef.current!;
-          const reply = await invoke({ kind: 'frame', viewerId, surface: viewMode, controlEpoch: state.controlEpoch, targetEpoch: state.targetEpoch });
-          if (isClosed || generationRef.current !== generation) return;
-          update(reply.session);
-          if (reply.frame && (reply.frame.surface || 'page') === viewMode && sessionRef.current && isCurrentBrowserFrame(sessionRef.current, reply.frame)) {
-            surfaceRef.current?.frame(reply.frame);
+          const isStreamingSupported = viewMode === 'window' && state.capabilities.windowStream === true && unsupportedStreamBrowserId !== state.browserSessionId;
+          if (isStreamingSupported && !windowStreamRef.current) {
+            const reply = await invoke({ kind: 'window-stream', viewerId, controlEpoch: state.controlEpoch, targetEpoch: state.targetEpoch });
+            if (isClosed || generationRef.current !== generation) return;
+            update(reply.session);
+            const latest = sessionRef.current;
+            const isCurrentStream = latest?.browserSessionId === reply.session.browserSessionId && latest.profileId === reply.session.profileId && latest.controlEpoch === reply.session.controlEpoch && latest.targetEpoch === reply.session.targetEpoch;
+            if (reply.stream?.socketPath && isCurrentStream) {
+              const stream = { password: reply.stream.password, socketPath: reply.stream.socketPath, browserSessionId: reply.session.browserSessionId, controlEpoch: reply.session.controlEpoch, targetEpoch: reply.session.targetEpoch };
+              windowStreamRef.current = stream;
+              setWindowStream(stream);
+            } else if (!reply.stream?.socketPath) {
+              // A host without a socket adapter retains the existing frame API.
+              unsupportedStreamBrowserId = state.browserSessionId;
+            }
+          }
+          if (!windowStreamRef.current) {
+            const reply = await invoke({ kind: 'frame', viewerId, surface: viewMode, controlEpoch: state.controlEpoch, targetEpoch: state.targetEpoch });
+            if (isClosed || generationRef.current !== generation) return;
+            update(reply.session);
+            if (reply.frame && (reply.frame.surface || 'page') === viewMode && sessionRef.current && isCurrentBrowserFrame(sessionRef.current, reply.frame)) {
+              surfaceRef.current?.frame(reply.frame);
+            }
           }
         } else {
           if (attachedBrowserId) await invoke({ kind: 'detach', viewerId });
           attachedBrowserId = undefined;
           attachedSurface = undefined;
           isStateNeeded = true;
+          windowStreamRef.current = null;
+          setWindowStream(null);
         }
       } catch (failure) {
         // A restarted browser, expired attachment or changed target requires
@@ -145,6 +173,8 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
         isStateNeeded = true;
         attachedBrowserId = undefined;
         attachedSurface = undefined;
+        windowStreamRef.current = null;
+        setWindowStream(null);
         if (!isClosed) {
           setError(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
           surfaceRef.current?.clear();
@@ -154,7 +184,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
         }
       }
       if (!isClosed) {
-        const interval = isControlsOnly || document.visibilityState !== 'visible' ? 2000 : sessionRef.current?.state === 'stopped' ? 1000 : 250;
+        const interval = isControlsOnly || document.visibilityState !== 'visible' ? 2000 : sessionRef.current?.state === 'stopped' || windowStreamRef.current ? 1000 : 250;
         timer = setTimeout(() => void poll(), Math.max(0, interval - (performance.now() - startedAt)));
       }
     }
@@ -164,6 +194,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
       generationRef.current += 1;
       if (timer) clearTimeout(timer);
       surfaceRef.current?.clear();
+      windowStreamRef.current = null;
       // Detach only the view. The server retains the browser and human lease.
       void invoke({ kind: 'detach', viewerId }).catch(() => {});
     };
@@ -175,6 +206,36 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
   const isController = isConversationControlSupported && session?.state === 'human' && session.isController && !isTransferring && !isFileTransferring && !error;
   const isStoppedController = isConversationControlSupported && session?.state === 'stopped' && session.isController && session.isHumanControlHeld && !isTransferring && !error;
   isInteractiveRef.current = !!isController && isFrameReady && !isPanning;
+
+  const onStreamInput = (value: unknown) => {
+    const input = BrowserInputSchema.safeParse(value);
+    if (!input.success || !isInteractiveRef.current) return;
+    const generation = generationRef.current;
+    void queueInput(input.data)
+      .then((reply) => {
+        if (generationRef.current === generation) updateRef.current(reply.session);
+      })
+      .catch((failure: unknown) => {
+        if (generationRef.current === generation) Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
+      });
+  };
+
+  const onStreamReady = (size: { width: number; height: number }) => {
+    const state = sessionRef.current;
+    const stream = windowStreamRef.current;
+    if (!state || !stream || stream.browserSessionId !== state.browserSessionId || stream.controlEpoch !== state.controlEpoch || stream.targetEpoch !== state.targetEpoch) return;
+    setImageSize(size);
+    isFrameReadyRef.current = true;
+    setIsFrameReady(true);
+  };
+
+  const onStreamDisconnect = () => {
+    windowStreamRef.current = null;
+    setWindowStream(null);
+    isFrameReadyRef.current = false;
+    isInteractiveRef.current = false;
+    setIsFrameReady(false);
+  };
 
   useEffect(() => {
     setImageZoom(null);
@@ -338,7 +399,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
       setIsFrameReady(false);
       surfaceRef.current = null;
     };
-  }, [queueInput, t, isControlsOnly, isSessionKnown, isDragSupported, isTouchDragging]);
+  }, [queueInput, t, isControlsOnly, isSessionKnown, isDragSupported, isTouchDragging, windowStream]);
 
   const onTouchGestureChange = (value: string) => {
     // A second finger can change this control during an unfinished gesture.
@@ -794,7 +855,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
           onClick={() => {
             panRef.current = null;
             setIsPanning(false);
-            imageRef.current?.focus({ preventScroll: true });
+            (imageRef.current ?? viewportRef.current?.querySelector('canvas'))?.focus({ preventScroll: true });
           }}
         >
           {t('conversation.browserSession.interactPage')}
@@ -837,36 +898,50 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
         onPointerMove={onPanMove}
         onPointerUp={onPanEnd}
         onPointerCancel={onPanEnd}
+        onKeyDownCapture={(event) => {
+          if (!(event.ctrlKey || event.metaKey) || event.altKey || event.nativeEvent.isComposing || !isInteractiveRef.current) return;
+          if (event.key.toLowerCase() === 'c' && session?.capabilities.selectionRead) {
+            event.preventDefault();
+            event.stopPropagation();
+            void onCopySelection();
+          } else if (event.key.toLowerCase() === 'v' && session?.capabilities.clipboardText) {
+            event.preventDefault();
+            event.stopPropagation();
+            void onPasteClipboard();
+          }
+        }}
       >
         <div className={imageZoom === null ? 'h-full w-full flex items-start justify-center' : 'min-h-full min-w-full w-max flex items-start justify-center'}>
-          <img
-            ref={imageRef}
-            alt={t('conversation.browserSession.page')}
-            draggable={false}
-            tabIndex={isController && !isPanning ? 0 : -1}
-            onLoad={onImageLoad}
-            onKeyDownCapture={(event) => {
-              if (!(event.ctrlKey || event.metaKey) || event.altKey || event.nativeEvent.isComposing || !isInteractiveRef.current) return;
-              if (event.key.toLowerCase() === 'c' && session?.capabilities.selectionRead) {
-                event.preventDefault();
-                event.stopPropagation();
-                void onCopySelection();
-              } else if (event.key.toLowerCase() === 'v' && session?.capabilities.clipboardText) {
-                event.preventDefault();
-                event.stopPropagation();
-                void onPasteClipboard();
-              }
-            }}
-            className={imageZoom === null ? 'max-w-full max-h-full object-contain outline-none' : 'max-w-none max-h-none shrink-0 outline-none'}
-            style={{
-              width: imageZoom !== null && imageSize.width ? imageSize.width * imageZoom : undefined,
-              height: imageZoom !== null && imageSize.height ? imageSize.height * imageZoom : undefined,
-              pointerEvents: isController && !isPanning ? 'auto' : 'none',
-              touchAction: 'none',
-              WebkitTouchCallout: isTouchDragging ? 'none' : undefined,
-              visibility: isFrameReady ? 'visible' : 'hidden',
-            }}
-          />
+          {windowStream ? (
+            <WindowStreamSurface
+              stream={windowStream}
+              isInteractive={!!isController && !isPanning}
+              isDragSupported={isDragSupported}
+              isTouchDragging={isTouchDragging}
+              zoom={imageZoom}
+              label={t('conversation.browserSession.page')}
+              onInput={onStreamInput}
+              onReady={onStreamReady}
+              onDisconnect={onStreamDisconnect}
+            />
+          ) : (
+            <img
+              ref={imageRef}
+              alt={t('conversation.browserSession.page')}
+              draggable={false}
+              tabIndex={isController && !isPanning ? 0 : -1}
+              onLoad={onImageLoad}
+              className={imageZoom === null ? 'max-w-full max-h-full object-contain outline-none' : 'max-w-none max-h-none shrink-0 outline-none'}
+              style={{
+                width: imageZoom !== null && imageSize.width ? imageSize.width * imageZoom : undefined,
+                height: imageZoom !== null && imageSize.height ? imageSize.height * imageZoom : undefined,
+                pointerEvents: isController && !isPanning ? 'auto' : 'none',
+                touchAction: 'none',
+                WebkitTouchCallout: isTouchDragging ? 'none' : undefined,
+                visibility: isFrameReady ? 'visible' : 'hidden',
+              }}
+            />
+          )}
         </div>
         {!isFrameReady ? <div className='absolute inset-0 flex items-center justify-center'>{error ? <Empty description={error} /> : session?.state === 'stopped' ? <Empty description={t('conversation.browserSession.waiting')} /> : <Spin />}</div> : null}
       </div>
