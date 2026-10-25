@@ -28,6 +28,17 @@ describe('required PR check reporting', () => {
     expect(names).toEqual(expect.arrayContaining(['Build Test (macos-arm64)', 'Build Test (macos-x64)', 'Build Test (windows-arm64)', 'Build Test (windows-x64)']));
   });
 
+  it.each([
+    { name: 'pr-checks.yml', requiredJobs: ['build-test', 'release-script-test'] },
+    { name: 'pr-integration-smoke.yml', requiredJobs: ['browser-port-isolation'] },
+  ])('$name reports its required checks for each merge queue entry', ({ name, requiredJobs }) => {
+    const workflow = readWorkflow(name);
+    expect(Object.keys(workflow.on)).toContain('merge_group');
+    // merge_group runs have no pull_request payload; without the ref fallback every queue entry shares one group and cancels the others.
+    expect(workflow.concurrency.group).toContain('|| github.ref }}');
+    for (const job of requiredJobs) expect(workflow.jobs[job].if).toBeUndefined();
+  });
+
   it('retargeting a PR still checks main in a workflow independent of build checks', () => {
     const guard = readWorkflow('pr-base-branch.yml');
     expect(guard.on.pull_request.types).toContain('edited');

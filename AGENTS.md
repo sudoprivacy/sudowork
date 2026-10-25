@@ -136,6 +136,7 @@ Common Prettier rules to follow (avoids needing a fix pass):
 - When updating a PR branch with the latest `dev`, use `git rebase origin/dev`.
 - Do not merge `dev` into PR branches; merge commits are rejected by PR checks.
 - After rebasing an already-pushed PR branch, update it with `git push --force-with-lease`.
+- Once the `dev` merge queue is enabled, land a PR with `gh pr merge <n> --rebase`, which adds it to the queue. The queue tests each PR on top of the latest `dev`, so do not update a branch just to catch up; rebase only to resolve conflicts.
 
 ### Commit Messages
 
