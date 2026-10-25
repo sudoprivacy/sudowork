@@ -100,6 +100,7 @@ import { ontologyRuntimeToolAliases } from './ontologyToolNames';
 import { parseOntologyTemplateFile } from './ontologyTemplateParser';
 import { extractOntologyDocuments, readOntologyDocuments, validateOntologyDocumentFiles } from './ontologyDocumentExtractor';
 import { describeOntologyFields } from './ontologyFieldMeaning';
+import { SudographReviewHost } from './SudographReviewHost';
 import { OntologyAgentRegistry } from './OntologyAgentRegistry';
 import { inspectOntologySqlite, withOntologySqlite, sqliteRows, executeOntologySqlite, lookupOntologySqlite, queryOntologySqliteRelation } from './ontologySqlite';
 
@@ -109,6 +110,7 @@ export class OntologyService {
   private readonly agentRegistry: OntologyAgentRegistry;
   private readonly generatingWorkspaces = new Set<string>();
   private readonly describingAssets = new Map<string, Promise<IOntologyWorkbenchSnapshot>>();
+  private reviewHost: SudographReviewHost | undefined;
 
   constructor(
     database = new OntologyDatabase(),
@@ -234,6 +236,29 @@ export class OntologyService {
     if (project?.authority !== 'sudograph') throw new Error('This project is not owned by Sudograph.');
     const { getSudographModelClient } = await import('./SudographModelClient');
     return getSudographModelClient().invoke<T>(project.modelRef, `desktop:${hostname()}:${userInfo().username}`, request);
+  }
+
+  /** Trusted browser host only. This handoff includes a secret and is not an IPC result. */
+  async createStudioReviewSession(binding: { workspaceId: string; conversationId: string }) {
+    this.reviewHost ??= new SudographReviewHost({
+      authorize: ({ workspaceId, conversationId }) => {
+        const project = this.database.getProject(workspaceId);
+        const session = this.database.getAiSessionByConversationId(conversationId);
+        if (project?.authority !== 'sudograph' || session?.workspace_id !== workspaceId) throw new Error('Review conversation does not own this registered model.');
+      },
+      read: async (workspaceId, request) => {
+        const project = this.database.getProject(workspaceId);
+        if (project?.authority !== 'sudograph') throw new Error('Registered review is unavailable.');
+        const { getSudographModelClient } = await import('./SudographModelClient');
+        return getSudographModelClient().review(project.modelRef, `desktop:${hostname()}:${userInfo().username}`, workspaceId, request);
+      },
+    });
+    return this.reviewHost.createSession(binding);
+  }
+
+  async closeReviewSessions(): Promise<void> {
+    await this.reviewHost?.close();
+    this.reviewHost = undefined;
   }
 
   async saveStudioModel(raw: IOntologyStudioSaveInput) {
@@ -846,6 +871,7 @@ export class OntologyService {
   }
 
   close() {
+    void this.closeReviewSessions().catch((error) => mainError('OntologyService', 'Review host close failed', error));
     this.database.close();
   }
 

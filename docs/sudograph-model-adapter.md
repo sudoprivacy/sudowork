@@ -100,6 +100,33 @@ late responses. This creates no second chat implementation or workflow prompt.
 The source overview is not the independent graph review page and does not
 establish safe active-session context refresh.
 
+## Private authenticated review route
+
+`OntologyService.createStudioReviewSession` is a trusted browser-host entry, not
+an IPC provider or builder tool. It resolves the persisted project and Studio
+conversation, then prepares a short-lived native review session. Its return value
+contains an HttpOnly cookie handoff and must remain inside the trusted host. No
+cookie value is placed in a URL, generated graph, prompt or renderer IPC reply.
+Credential properties are non-enumerable and frozen: ordinary JSON serialization,
+structured clone and bridge redaction only retain the public URL. The trusted
+browser adapter must explicitly read the private handoff.
+
+`SudographReviewHost` binds a loopback listener to the current OS profile and
+rechecks project/conversation ownership for every request and after each compiler
+read. Cookie paths are scoped to their random review reference; knowing the URL
+does not grant access. Sessions expire after 30 minutes and can be revoked or
+closed. Host/Origin checks, exact resource matching, bounded JSON and `no-store`
+responses apply. The registry selects the model; there is no second editable
+catalogue, anonymous fallback or export grant. The Python private read worker
+reuses Sudograph's checked renderer and version-bound record reader.
+
+The HTTP/worker boundary is implemented and tested in real Chromium through
+Sudograph's `tools.accept_review --sudowork <checkout>`. That fixture installs its
+own cookie. The production browser host still needs to install the handoff under
+its existing controller/epoch barrier and open the same browser/viewer. The launch
+entry is deliberately not exposed until that interface is connected. This is
+local OS-profile scope, not cloud tenant or row/field authorization.
+
 ## Acceptance boundary
 
 Unit tests exercise populated legacy-session migration, multiple canonical
