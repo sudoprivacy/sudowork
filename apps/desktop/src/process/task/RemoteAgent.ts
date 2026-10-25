@@ -412,9 +412,8 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
         this.conversation_id,
         {
           extra: extraUpdate,
-          status: 'finished',
-          // Opening or resuming history is not new user activity. Preserve the
-          // server-derived timestamp so navigation cannot reorder the sidebar.
+          // Refresh identity and transport while preserving the cached turn state
+          // and activity timestamp; live processing belongs to the stream.
           modifyTime: existing.data.modifyTime,
         } as Partial<TChatConversation>,
         { preserveModifyTime: true }
