@@ -240,11 +240,17 @@ async def main(args):
                     origin + "/api/conversations/options", empty_catalog
                 )
             await page.goto(origin + "/#/login", wait_until="domcontentloaded")
-            await page.get_by_text(login["passwordTab"], exact=True).click()
-            await page.get_by_placeholder(
-                login["pwdAccountPlaceholder"], exact=True
-            ).fill(config["username"])
-            await page.locator('input[type="password"]').fill(config["password"])
+            if config.get("apiKey"):
+                await page.get_by_text(login["apiKeyTab"], exact=True).click()
+                await page.get_by_placeholder(
+                    login["apiKeyPlaceholder"], exact=True
+                ).fill(config["apiKey"])
+            else:
+                await page.get_by_text(login["passwordTab"], exact=True).click()
+                await page.get_by_placeholder(
+                    login["pwdAccountPlaceholder"], exact=True
+                ).fill(config["username"])
+                await page.locator('input[type="password"]').fill(config["password"])
             await page.get_by_role(
                 "button", name=login["pwdLoginTab"], exact=True
             ).click()
@@ -547,11 +553,10 @@ async def main(args):
             if page is not None
             else []
         )
-        safe = (
-            str(error)
-            .replace(config["password"], "[redacted]")
-            .replace(config["username"], "[owned test account]")
-        )
+        safe = str(error)
+        for field in ("password", "apiKey", "username"):
+            if config.get(field):
+                safe = safe.replace(config[field], "[redacted]")
         evidence.update({"passed": False, "failure": safe})
         print(
             json.dumps(
