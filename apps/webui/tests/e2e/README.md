@@ -19,7 +19,7 @@ missing assets retain `no-store`. Navigation deadlines remain unchanged.
 Failed-request paths and pending request types are recorded without credentials
 or request bodies. This does not claim to validate a rejected provider key.
 
-`live_mobile_onboarding.py` starts at the real password login screen with an
+`live_mobile_onboarding.py` starts at the real password or API-key login screen with an
 isolated acceptance account. At 320, 375 and 390 CSS pixels, it opens the phone
 navigation, starts a new task on the same route, checks the composer width and
 the readable 44px model control, and chooses an actual available model by touch.
@@ -38,8 +38,9 @@ and history; this UI test records that limit and verifies a real completed turn.
 It then uses the phone conversation's visible 44px Send control for a second
 fresh turn and checks that both replies survive another reload in the same session.
 
-Use a private configuration with `origin`, `username` and `password`, a real
-model account, and a new evidence directory:
+Use a private configuration with `origin` and either `username`/`password` or
+`apiKey`, a real model account, and a new evidence directory. API-key acceptance
+uses the ordinary login UI and supports temporary scoped acceptance keys.
 
 ```sh
 python apps/webui/tests/e2e/live_mobile_onboarding.py \
