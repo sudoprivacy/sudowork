@@ -59,6 +59,33 @@ describe('OntologyService canonical source registration', () => {
 });
 
 describe('OntologyService native source intake', () => {
+  it('binds private review sessions to the persisted project and conversation and rechecks ownership', async () => {
+    const module = await import('@process/services/ontology/SudographModelClient');
+    const client = { review: vi.fn().mockResolvedValue('native compiled graph') };
+    vi.spyOn(module, 'getSudographModelClient').mockReturnValue(client as unknown as ReturnType<typeof module.getSudographModelClient>);
+    let session: { workspace_id: string } | undefined = { workspace_id: 'source' };
+    const database = {
+      getProject: vi.fn((id: string) => (id === 'source' ? { authority: 'sudograph', modelRef: 'private-model' } : null)),
+      getAiSessionByConversationId: vi.fn((id: string) => (id === 'chat-1' ? session : undefined)),
+      getSnapshot: vi.fn(() => {
+        throw new Error('Canonical review must not read RDF');
+      }),
+    };
+    const service = new OntologyService(database as unknown as OntologyDatabase, {} as OntologyEngine);
+    try {
+      await expect(service.createStudioReviewSession({ workspaceId: 'source', conversationId: 'other' })).rejects.toThrow('does not own');
+      const launch = await service.createStudioReviewSession({ workspaceId: 'source', conversationId: 'chat-1' });
+      const headers = { Cookie: `${launch.cookie.name}=${launch.cookie.value}` };
+      expect((await fetch(launch.url, { headers })).status).toBe(200);
+      expect(client.review).toHaveBeenCalledWith('private-model', expect.stringMatching(/^desktop:/), 'source', { operation: 'html', endpoint: `${new URL(launch.url).pathname}v1` });
+      session = undefined;
+      expect((await fetch(launch.url, { headers })).status).toBe(403);
+      expect(client.review).toHaveBeenCalledTimes(1);
+      expect(database.getSnapshot).not.toHaveBeenCalled();
+    } finally {
+      await service.closeReviewSessions();
+    }
+  });
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllEnvs();

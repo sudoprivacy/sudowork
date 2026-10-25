@@ -51,6 +51,12 @@ export class SudographModelClient {
     return this.runWorker<T>(modelRef, actor, 'compiler.workspace', request, 30_000);
   }
 
+  /** Authorized host routes only; resource and model are resolved from its registry. */
+  async review<T>(modelRef: string, actor: string, resource: string, request: Record<string, unknown>): Promise<T> {
+    if (!/^[a-zA-Z0-9_-]{1,128}$/.test(resource)) throw new Error('Invalid registered review resource.');
+    return this.runWorker<T>(modelRef, actor, 'compiler.review_host', request, 30_000, ['--resource', resource]);
+  }
+
   /** Host connection intake only. The builder MCP never accepts sources or paths. */
   async registerSource(modelRef: string, actor: string, input: ISudographSourceRegistration): Promise<ISudographSourceReceipt> {
     const result = await this.runWorker<ISudographSourceReceipt>(modelRef, actor, 'compiler.registration', { source: input.source, namespace: input.namespace, operation_id: input.operationId, language: input.language, snapshot_records: false }, 120_000);
@@ -82,11 +88,11 @@ export class SudographModelClient {
     return result;
   }
 
-  private async runWorker<T>(modelRef: string, actor: string, module: 'compiler.workspace' | 'compiler.registration', request: Record<string, unknown>, timeout: number): Promise<T> {
+  private async runWorker<T>(modelRef: string, actor: string, module: 'compiler.workspace' | 'compiler.registration' | 'compiler.review_host', request: Record<string, unknown>, timeout: number, hostArgs: string[] = []): Promise<T> {
     if (!/^[a-zA-Z0-9_-]{1,128}$/.test(modelRef) || !actor.trim()) throw new Error('Invalid registered Sudograph model binding.');
     const store = path.join(this.runtime.modelDirectory, `${modelRef}.db`);
     return new Promise<T>((resolve, reject) => {
-      const child = spawn(this.runtime.python, ['-m', module, '--store', store, '--actor', actor], {
+      const child = spawn(this.runtime.python, ['-m', module, '--store', store, '--actor', actor, ...hostArgs], {
         cwd: this.runtime.compilerRoot,
         windowsHide: true,
         env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' },

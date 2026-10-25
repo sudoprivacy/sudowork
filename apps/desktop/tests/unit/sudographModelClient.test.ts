@@ -33,6 +33,16 @@ afterEach(() => {
 });
 
 describe('Sudograph host compiler transport', () => {
+  it('routes private review reads through a host-selected resource without an export grant', async () => {
+    const process = child();
+    const pending = new SudographModelClient(runtime).review('registered', 'host-alice', 'support', { operation: 'html', endpoint: '/review/binding/v1' });
+    expect(mocks.spawn).toHaveBeenCalledWith('/operator/python', ['-m', 'compiler.review_host', '--store', path.join('/operator/models', 'registered.db'), '--actor', 'host-alice', '--resource', 'support'], expect.objectContaining({ windowsHide: true }));
+    expect(JSON.parse(process.stdin.read().toString())).toEqual({ operation: 'html', endpoint: '/review/binding/v1' });
+    process.stdout.write('{"ok":true,"result":"compiled HTML"}');
+    process.emit('close', 0);
+    await expect(pending).resolves.toBe('compiled HTML');
+    await expect(new SudographModelClient(runtime).review('registered', 'host-alice', '../other', {})).rejects.toThrow('resource');
+  });
   it('binds the worker to registered paths and the host actor', async () => {
     const process = child();
     const pending = new SudographModelClient(runtime).invoke('registered', 'alice', { operation: 'contract' });
