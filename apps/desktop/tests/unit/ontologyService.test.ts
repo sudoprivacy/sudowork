@@ -17,6 +17,47 @@ vi.mock('@process/services/ontology/OntologyStudioDatabase', () => ({
 vi.mock('@/agent/acp/AcpConnection', () => ({ AcpConnection: class {} }));
 vi.mock('@process/services/scode/ScodeInstallService', () => ({ getScodePath: () => null }));
 
+describe('OntologyService canonical source registration', () => {
+  const input = { workspaceId: 'canonical', title: 'Canonical model', modelRef: 'model-1', source: 'sqlite:///private-source.db', namespace: 'support', operationId: 'connect-1', language: 'en' as const };
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it('binds a project only after the checked source worker succeeds and allows durable retries', async () => {
+    const client = { registerSource: vi.fn().mockResolvedValue({ contract: { revision: 'r1' }, registration: { initial_revision: 'r1' } }) };
+    const module = await import('@process/services/ontology/SudographModelClient');
+    vi.spyOn(module, 'getSudographModelClient').mockReturnValue(client as unknown as ReturnType<typeof module.getSudographModelClient>);
+    const project = { id: input.workspaceId, title: input.title, modelRef: input.modelRef, authority: 'sudograph' };
+    let current: typeof project | null = null;
+    const database = {
+      getProject: vi.fn(() => current),
+      registerSudographProject: vi.fn(() => {
+        current = project;
+      }),
+      saveSnapshot: vi.fn(),
+    };
+    const service = new OntologyService(database as unknown as OntologyDatabase, {} as OntologyEngine);
+    await expect(service.registerSudographSourceProject(input)).resolves.toMatchObject({ project, registration: { initial_revision: 'r1' } });
+    expect(client.registerSource).toHaveBeenCalledWith(input.modelRef, expect.stringMatching(/^desktop:/), { source: input.source, namespace: input.namespace, operationId: input.operationId, language: input.language });
+    expect(database.saveSnapshot).not.toHaveBeenCalled();
+    await service.registerSudographSourceProject(input);
+    expect(client.registerSource).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps project registration absent after failure and refuses model authority changes before scanning', async () => {
+    const module = await import('@process/services/ontology/SudographModelClient');
+    const client = { registerSource: vi.fn().mockRejectedValue(new Error('source scan incomplete')) };
+    vi.spyOn(module, 'getSudographModelClient').mockReturnValue(client as unknown as ReturnType<typeof module.getSudographModelClient>);
+    const database = { getProject: vi.fn().mockReturnValue(null), registerSudographProject: vi.fn() };
+    const service = new OntologyService(database as unknown as OntologyDatabase, {} as OntologyEngine);
+    await expect(service.registerSudographSourceProject(input)).rejects.toThrow('incomplete');
+    expect(database.registerSudographProject).not.toHaveBeenCalled();
+    client.registerSource.mockClear();
+    database.getProject.mockReturnValue({ authority: 'rdf', modelRef: null });
+    await expect(service.registerSudographSourceProject(input)).rejects.toThrow('authority conflict');
+    expect(client.registerSource).not.toHaveBeenCalled();
+  });
+});
+
 describe('OntologyService workspace selection', () => {
   it('does not change the active workspace when reading another workbench', async () => {
     const snapshot = createDefaultOntologyWorkbenchSnapshot(Date.now(), {

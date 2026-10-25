@@ -149,6 +149,17 @@ export class OntologyService {
     return project.authority;
   }
 
+  /** Trusted connection intake. Registration is never inferred from an RDF snapshot or prompt. */
+  async registerSudographSourceProject(input: { workspaceId: string; title: string; modelRef: string; source: string; namespace: string; operationId: string; language: 'en' | 'zh' }) {
+    if (!input.workspaceId.trim() || !input.title.trim()) throw new Error('Invalid Sudograph project registration.');
+    const existing = this.database.getProject(input.workspaceId);
+    if (existing && (existing.authority !== 'sudograph' || existing.modelRef !== input.modelRef)) throw new Error('Ontology model authority conflict.');
+    const { getSudographModelClient } = await import('./SudographModelClient');
+    const result = await getSudographModelClient().registerSource(input.modelRef, `desktop:${hostname()}:${userInfo().username}`, { source: input.source, namespace: input.namespace, operationId: input.operationId, language: input.language });
+    this.database.registerSudographProject({ id: input.workspaceId, title: input.title, modelRef: input.modelRef });
+    return { project: this.database.getProject(input.workspaceId), ...result };
+  }
+
   /** Bound host entry: the persisted registration, not the caller, selects a model. */
   async invokeSudograph<T>(workspaceId: string, request: Record<string, unknown>): Promise<T> {
     const project = this.database.getProject(workspaceId);

@@ -29,12 +29,23 @@ SUDOGRAPH_COMPILER_ROOT=<deployed Sudograph checkout/package root>
 SUDOGRAPH_MODEL_DIRECTORY=<host-owned canonical stores>
 ```
 
-The host registers a project with `registerSudographProject({id,title,modelRef})`
-after registering `<modelRef>.db` through Sudograph's operator tooling. There is
-no agent tool for choosing these paths, changing authority or registering a
-different source. Missing configuration fails explicitly, without RDF fallback.
-Connector-form registration and runtime packaging are subsequent integration
-work; users are not expected to run operator commands during normal modelling.
+The trusted host calls `OntologyService.registerSudographSourceProject` with its
+workspace identity, title, opaque model reference, authorized SQLite source,
+namespace, operation ID and locale. `SudographModelClient.registerSource` invokes
+the private registrar, forces live delivery with zero embedded rows and checks
+the compiler's complete-scan receipt before binding project authority. A failed
+scan creates no project and no empty RDF snapshot. Retrying the same registration
+recovers its durable receipt, including after a lost response between model
+creation and host project binding. A different registration cannot rebind the
+model. The existing lower-level `registerSudographProject` remains available for
+deployment tooling that already owns a registered canonical store.
+
+There is no agent tool for choosing source paths, changing authority or
+registering a different source. Missing configuration fails explicitly, without
+RDF fallback. This is a host service API; connector-form/IPC wiring and pinned
+runtime packaging are subsequent work. Users are not expected to run operator
+commands during normal modelling. Complete registration currently supports
+SQLite only, independent of legacy connector probe support for other providers.
 
 `SudographModelClient` launches a private JSON-lines worker with deployment-owned
 paths. The model writer checks source pins, namespace, identity reservations,
