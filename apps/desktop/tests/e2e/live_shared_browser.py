@@ -73,7 +73,7 @@ class UI:
         # isProcessing/isLoading are both false; no obsolete status text needed.
         return await self.read("[...document.querySelectorAll('button[aria-label]')].some(e => ['Send','发送'].includes(e.getAttribute('aria-label')) && e.getBoundingClientRect().height > 0)")
 
-    async def assistant_messages(self):
+    async def assistant_message_records(self):
         # Select actual assistant text bubbles, excluding the echoed prompt,
         # conversation title, thinking and tool results. Markdown is in shadow
         # roots, so innerText on the outer message would miss the real reply.
@@ -88,8 +88,11 @@ class UI:
             root.querySelectorAll('*').forEach(e => { if (e.shadowRoot) collect(e.shadowRoot); });
           }
           collect(message);
-          return texts.join(' ').trim();
+          return {id: message.getAttribute('data-message-id'), text: texts.join(' ').trim()};
         })""")
+
+    async def assistant_messages(self):
+        return [message['text'] for message in await self.assistant_message_records()]
 
     async def click(self, x, y):
         if not await self.read('document.hasFocus()'):
@@ -129,6 +132,10 @@ class UI:
         await asyncio.sleep(.15)
 
     async def screenshot(self, path):
+        # A background Electron surface can retain a blank compositor frame
+        # even after its shadow DOM has rendered. Capture the foreground UI.
+        await self.command('Page.bringToFront')
+        await self.command('Runtime.evaluate', {'expression': 'new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))', 'awaitPromise': True})
         shot = await self.command('Page.captureScreenshot', {'format': 'png'})
         path.write_bytes(base64.b64decode(shot['data']))
 
@@ -178,6 +185,7 @@ async def main():
     parser.add_argument('--offline-entry', action='store_true', help='Choose the ordinary local Desktop entry on a fresh login screen')
     parser.add_argument('--model-config', type=Path, help='Private model configuration to save through the ordinary Desktop settings editor after offline entry')
     parser.add_argument('--pending-native-question', action='store_true', help='Take control while the real model is waiting on its native question card, then verify the cancelled card no longer captures chat input')
+    parser.add_argument('--status-repetitions', type=int, choices=range(1, 21), default=3, help='Require distinct completed responses to consecutive local browser status commands after the real model turn')
     parser.add_argument('--verify-selection-clipboard', action='store_true', help='Use real viewer drag selection, local clipboard, multiline paste and Chromium IME composition; restore an unchanged owned clipboard value afterwards')
     parser.add_argument('--first-use-runtime', type=Path, help='Owned app runtime interpreter to observe during a genuine first-use install; does not preinstall or modify it')
     args = parser.parse_args()
@@ -485,12 +493,22 @@ document.querySelector('#clipboard-submit').onclick=event=>fetch('/clipboard-sub
             await wait_for(model_readback, 180, 'The model did not visibly report the human-edited page')
             assert receipts == [{'value': human, 'trusted': True}], 'An input or submit was replayed'
             await app.screenshot(args.output/'ai-readback.png')
-            await app.fill('textarea', '/browser status')
-            await app.key('Enter', 'Enter', 13)
-            async def slash_status():
-                await app.wheel(1000)
-                return 'Browser session' in await app.text()
-            await wait_for(slash_status,20,'Browser status did not use the shared session')
+            async def status_response_ids():
+                # Status Markdown is inside open shadow roots, just like the
+                # model's answer. Keep its real message identity as well.
+                return {message['id'] for message in await app.assistant_message_records() if 'Browser session' in message['text']}
+            status_commands = []
+            evidence['consecutiveStatusCommands'] = status_commands
+            for _ in range(args.status_repetitions):
+                previous_ids = await status_response_ids()
+                started = time.monotonic()
+                await app.fill('textarea', '/browser status')
+                await app.key('Enter', 'Enter', 13)
+                async def slash_status():
+                    await app.wheel(1000)
+                    return bool(await status_response_ids() - previous_ids) and await app.turn_finished()
+                await wait_for(slash_status,20,'Browser status did not produce a new completed response from the shared session')
+                status_commands.append({'responseMs': round((time.monotonic()-started)*1000, 2), 'distinctCompletedResponse': True})
             await app.fill('textarea', "/browser eval JSON.stringify({value:document.querySelector('#handoff').value,status:document.querySelector('#status').textContent})")
             await app.key('Enter','Enter',13)
             async def slash_eval():
@@ -543,7 +561,13 @@ document.querySelector('#clipboard-submit').onclick=event=>fetch('/clipboard-sub
                     evidence['viewerGeometry'] = 'viewer unavailable'
             (args.output/'evidence.json').write_text(json.dumps(evidence, ensure_ascii=False, indent=2), encoding='utf-8')
             if not evidence['passed']:
-                await app.screenshot(args.output/'failure.png')
+                try:
+                    await app.screenshot(args.output/'failure.png')
+                except Exception as screenshot_error:
+                    # Keep the original journey failure when a stalled
+                    # renderer cannot produce a diagnostic screenshot.
+                    evidence['failureScreenshotError'] = type(screenshot_error).__name__ + ': ' + str(screenshot_error)
+                    (args.output/'evidence.json').write_text(json.dumps(evidence, ensure_ascii=False, indent=2), encoding='utf-8')
             # Keep the isolated app and its owned browser available for review.
             # The operator closes the app through its normal shutdown lifecycle.
             fixture.shutdown()

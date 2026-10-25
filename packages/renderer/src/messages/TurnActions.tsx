@@ -6,13 +6,14 @@
 
 import { Alert, Message, Tooltip } from '@arco-design/web-react';
 import { Copy, FileWord, ShareOne } from '@icon-park/react';
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TurnTokenUsage } from '@sudowork/common/chatLib';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { copyText } from '@renderer/utils/clipboard';
 import { emitter } from '@renderer/utils/emitter';
 import { showShareLoading, updateShareSuccess, updateShareError } from '@renderer/utils/shareNotify';
+import { useShareoneCliInstalled } from './ShareoneCliStatusContext';
 
 const formatTokenCount = (value?: number | null) => {
   if (typeof value !== 'number' || !Number.isFinite(value)) return null;
@@ -34,15 +35,7 @@ const TurnActions: React.FC<TurnActionsProps> = ({ turnTexts, turnTextsRaw, conv
   const [showCopyAlert, setShowCopyAlert] = useState(false);
   const [converting, setConverting] = useState(false);
   const [sharing, setSharing] = useState(false);
-  const [shareoneInstalled, setShareoneInstalled] = useState(false);
-
-  useEffect(() => {
-    void ipcBridge.shareoneCli.checkInstalled.invoke().then((res) => {
-      if (res?.success && res.data?.installed) {
-        setShareoneInstalled(true);
-      }
-    });
-  }, []);
+  const shareoneInstalled = useShareoneCliInstalled();
 
   const handleCopy = () => {
     const textToCopy = turnTexts.join('\n\n');

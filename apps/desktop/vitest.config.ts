@@ -120,6 +120,7 @@ export default defineConfig({
         '../../packages/contracts/src/browserSession.ts',
         '../../packages/renderer/src/components/browser/BrowserSessionPanel.tsx',
         '../../packages/renderer/src/components/browser/WindowStreamSurface.tsx',
+        '../../packages/renderer/src/messages/ShareoneCliStatusContext.tsx',
         '../../packages/moss-client/src/MossBrowserStream.ts',
         '../../packages/common/src/loginReturnPath.ts',
         '../../packages/host-bridge/src/agentWorkspace.ts',
