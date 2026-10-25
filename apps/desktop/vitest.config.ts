@@ -264,6 +264,7 @@ export default defineConfig({
         '../../packages/renderer/src/pages/ontology/StudioConversationPanel.tsx',
         '../../packages/renderer/src/pages/ontology/studioConversation.ts',
         'src/process/services/ontology/OntologyStudioDatabase.ts',
+        'src/process/services/ontology/SudographModelClient.ts',
         'src/process/services/ontology/studioValidation.ts',
         'src/process/services/ontology/ontologySnapshot.ts',
         '../../packages/ontology-common/src/qualityRuleExpression.ts',

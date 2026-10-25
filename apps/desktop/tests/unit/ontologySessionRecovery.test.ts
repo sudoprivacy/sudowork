@@ -14,8 +14,11 @@ vi.mock('@process/database', () => ({ getDatabase: () => ({ getUserConversations
 vi.mock('@process/services/mossExecutionContext', () => ({ isConversationInCurrentAccount: () => true }));
 vi.mock('@process/services/ontology/OntologyStudioDatabase', () => ({
   OntologyStudioDatabase: class {
-    getSnapshot(id: string) {
-      return id === 'orders' ? { workspaceId: id } : null;
+    getProject(id: string) {
+      return ['orders', 'canonical'].includes(id) ? { id, authority: id === 'canonical' ? 'sudograph' : 'rdf' } : null;
+    }
+    getSnapshot() {
+      throw new Error('Session recovery must not require an RDF payload.');
     }
     getAiSessionByConversationId(id: string) {
       return fixture.sessions.find((row) => row.conversation_id === id);
@@ -35,6 +38,12 @@ beforeEach(() => {
   initOntologyAiBuilderBridge();
 });
 describe('ontology session recovery', () => {
+  it('recovers canonical model sessions through project ownership without an RDF snapshot', async () => {
+    fixture.conversations.push({ id: 'canonical-chat', name: 'Build canonical', createTime: 1, modifyTime: 2, extra: { purpose: 'ontology', ontologyId: 'canonical' } });
+    const result = await fixture.handlers.get('listSessions')!({ workspaceId: 'canonical' });
+    expect(result.success).toBe(true);
+    expect(result.data.items[0].conversationId).toBe('canonical-chat');
+  });
   it('recovers a conversation created before an interrupted registry insert without duplicating it', async () => {
     fixture.conversations.push({ id: 'chat', name: 'Build orders', createTime: 1, modifyTime: 2, extra: { purpose: 'ontology', ontologyId: 'orders' } });
     const first = await fixture.handlers.get('listSessions')!({ workspaceId: 'orders' });

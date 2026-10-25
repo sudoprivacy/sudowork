@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const installMcpServers = vi.fn();
 const removeMcpServer = vi.fn();
 const ensureBridge = vi.hoisted(() => vi.fn(async (_scope?: unknown) => ({ port: 45678, token: 'test-token' })));
+vi.mock('@process/services/ontology/OntologyService', () => ({ ontologyService: { getModelAuthority: () => 'sudograph' } }));
 
 vi.mock('node:fs', () => ({ existsSync: () => true }));
 vi.mock('electron', () => ({
@@ -34,6 +35,13 @@ vi.mock('@process/services/mcpServices/agents/ScodeMcpAgent', () => ({
 }));
 
 describe('OntologyMcpRegistration', () => {
+  it('selects canonical tools from the persisted project authority', async () => {
+    const { ensureOntologyBuilderMcpServer } = await import('@process/services/ontology/OntologyMcpRegistration');
+    const config = await ensureOntologyBuilderMcpServer('registered');
+    expect(ensureBridge).toHaveBeenCalledWith({ workspaceId: 'registered', role: 'builder' });
+    expect(config.env).toContainEqual({ name: 'ONTOLOGY_MODEL_AUTHORITY', value: 'sudograph' });
+    expect(installMcpServers).not.toHaveBeenCalled();
+  });
   beforeEach(() => {
     installMcpServers.mockReset().mockResolvedValue({ success: true });
     removeMcpServer.mockReset().mockResolvedValue({ success: true });
