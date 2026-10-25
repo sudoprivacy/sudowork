@@ -1667,6 +1667,36 @@ describe('mossAdapter: newly created conversation list reads', () => {
     })
   })
 
+  it('opens a Feishu Moss Session in the shared managed workbench without template lookup', async () => {
+    const managementContext = {
+      ownerId: 'alice',
+      ownerName: 'Alice',
+      agentName: 'moss-native-alice',
+      displayName: 'Moss',
+    }
+    const fetch = stubFetch({
+      '/api/conversations': {
+        conversations: [
+          {
+            id: 'moss-im',
+            assistantName: 'moss-agent:operator:org-alice',
+            source: 'lark',
+            managementContext,
+          },
+        ],
+      },
+      '/model': { modelId: null },
+    })
+    expect(await ipc.conversation.get.invoke({ id: 'moss-im' })).toMatchObject({
+      id: 'moss-im',
+      extra: { agentName: 'Moss', agentManagement: managementContext },
+    })
+    expect(fetch.mock.calls.some(([url]) => String(url).includes('/api/agent-templates'))).toBe(
+      false,
+    )
+    expect(fetch.mock.calls.some(([url]) => String(url).includes('/api/agents/mine'))).toBe(false)
+  })
+
   it('opens a newly triggered cron conversation without reusing the previous list', async () => {
     stubFetch({ '/api/conversations': { conversations: [] } })
     expect(await ipc.database.getUserConversations.invoke({})).toEqual([])

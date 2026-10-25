@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { isPersonalAgentRef } from '@sudowork/common/personalAgents'
+import { getMossSessionAgentContext } from '@sudowork/common/mossSessionContext'
 import { isSessionAccessible } from './sessionAccess.js'
 import type { Pool } from 'pg'
 import type { AppConfig } from '../../config.js'
@@ -185,18 +186,7 @@ export async function listConversations(
         ? { templateRef: s.clientMetadata.session_template_ref }
         : {}),
       source: s.source ?? null,
-      managementContext:
-        s.source === 'agent-manager' &&
-        typeof s.clientMetadata?.agent_manager_agent_name === 'string' &&
-        typeof s.clientMetadata?.agent_manager_display_name === 'string' &&
-        typeof s.clientMetadata?.agent_manager_owner_name === 'string'
-          ? {
-              ownerId: s.userId,
-              ownerName: s.clientMetadata.agent_manager_owner_name,
-              agentName: s.clientMetadata.agent_manager_agent_name,
-              displayName: s.clientMetadata.agent_manager_display_name,
-            }
-          : null,
+      managementContext: getMossSessionAgentContext(s),
       createdAt:
         typeof (s as { createdAt?: unknown }).createdAt === 'number'
           ? (s as { createdAt?: number }).createdAt!

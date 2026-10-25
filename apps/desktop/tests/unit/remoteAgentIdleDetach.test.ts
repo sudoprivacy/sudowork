@@ -295,6 +295,31 @@ describe('RemoteAgent idle detach', () => {
     expect(JSON.stringify(responseStreamEmit.mock.calls)).not.toContain('private');
   });
 
+  it('keeps the Moss workbench identity when resuming the existing Feishu Session', async () => {
+    const RemoteAgent = await loadRemoteAgent();
+    const agent = makeAgent(RemoteAgent);
+    resumeSessionSpy.mockResolvedValueOnce({
+      wsUrl: 'ws://moss.example/session',
+      session: {
+        userId: 'owner',
+        source: 'lark',
+        assistantName: 'moss-agent:operator:org-owner',
+        clientMetadata: { agent_manager_actor_id: 'owner', agent_manager_agent_name: 'moss-native', agent_manager_display_name: 'Moss', agent_manager_owner_name: 'Owner' },
+      },
+    });
+    await agent.sendMessage({ content: 'Continue my Moss Session', msg_id: 'moss-resume' });
+    expect(resumeSessionSpy).toHaveBeenCalledExactlyOnceWith('moss-session-1');
+    expect(updateConversationSpy).toHaveBeenCalledWith(
+      'conv-1',
+      expect.objectContaining({
+        extra: expect.objectContaining({
+          agentManagement: { ownerId: 'owner', ownerName: 'Owner', agentName: 'moss-native', displayName: 'Moss' },
+        }),
+      }),
+      { preserveModifyTime: true }
+    );
+  });
+
   it('persists a newly committed Session when initial attach fails and resumes it on the next explicit send', async () => {
     const RemoteAgent = await loadRemoteAgent();
     const agent = makePendingAgent(RemoteAgent);

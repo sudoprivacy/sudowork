@@ -1,5 +1,6 @@
 import { isGeneratedFilesOnlyMessage } from '@sudowork/common/generatedFiles';
 import { isOntologyConversation } from '@sudowork/common/conversationPurpose';
+import { getMossSessionAgentContext } from '@sudowork/common/mossSessionContext';
 /**
  * @license
  * Copyright 2025 Sudowork (sudowork.ai)
@@ -394,6 +395,7 @@ export class RemoteConversationProvider implements IConversationProvider {
         authToken: undefined,
         runtimeType: this.config.runtimeType,
         agentName: session.assistantName || session.assistant_name,
+        agentManagement: getMossSessionAgentContext(session) ?? undefined,
         templateRef: typeof session.clientMetadata?.session_template_ref === 'string' ? session.clientMetadata.session_template_ref : undefined,
         ...getConversationExecutionExtra('remote'),
         sessionMode: 'remote',
@@ -730,6 +732,7 @@ export class RemoteConversationProvider implements IConversationProvider {
         acpWsUrl: wsUrl,
         mossSessionPending: false,
         agentName: sessionData.assistantName || sessionData.assistant_name,
+        agentManagement: getMossSessionAgentContext(sessionData) ?? undefined,
         templateRef: typeof sessionData.clientMetadata?.session_template_ref === 'string' ? sessionData.clientMetadata.session_template_ref : undefined,
       };
 

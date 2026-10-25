@@ -106,6 +106,7 @@ export default defineConfig({
       // 新增功能时，将对应的源文件路径添加到此数组
       // 例如: 'src/process/services/newService.ts'
       include: [
+        '../../packages/common/src/mossSessionContext.ts',
         '../../packages/moss-client/src/MossHostedTaskClient.ts',
         '../../packages/renderer/src/pages/hosted-agents/**/*.{ts,tsx}',
         'src/process/services/python/browserRuntimeVersion.ts',
