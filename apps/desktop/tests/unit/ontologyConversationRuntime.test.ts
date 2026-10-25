@@ -1,13 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { prepareOntologyConversationRuntime } from '@process/services/ontology/ontologyConversationRuntime';
 
-const mocks = vi.hoisted(() => ({ getWorkbench: vi.fn(), getRuntime: vi.fn(), builder: vi.fn(), runtime: vi.fn(), repair: vi.fn() }));
-vi.mock('@process/services/ontology/OntologyService', () => ({ ontologyService: { getWorkbench: mocks.getWorkbench, getRegisteredAgentRuntime: mocks.getRuntime } }));
+const mocks = vi.hoisted(() => ({ authority: vi.fn(), invoke: vi.fn(), getWorkbench: vi.fn(), getRuntime: vi.fn(), builder: vi.fn(), runtime: vi.fn(), repair: vi.fn() }));
+vi.mock('@process/services/ontology/OntologyService', () => ({ ontologyService: { getModelAuthority: mocks.authority, invokeSudograph: mocks.invoke, getWorkbench: mocks.getWorkbench, getRegisteredAgentRuntime: mocks.getRuntime } }));
 vi.mock('@process/services/ontology/OntologyMcpRegistration', () => ({ ensureOntologyBuilderMcpServer: mocks.builder, createOntologyRuntimeMcpConfig: mocks.runtime }));
 vi.mock('@process/services/ontology/ontologyToolHistory', () => ({ repairOntologyToolHistory: mocks.repair }));
 
 beforeEach(() => {
   vi.resetAllMocks();
+  mocks.authority.mockReturnValue('rdf');
   mocks.getWorkbench.mockResolvedValue({ workspaceId: 'northwind' });
   mocks.builder.mockResolvedValue({ name: 'ontology-builder', command: '/node', args: ['builder.js'], env: [{ name: 'ONTOLOGY_WRITE_TOKEN', value: 'fresh-builder-token' }] });
   mocks.getRuntime.mockResolvedValue({ presetContext: 'Northwind v1: Products, Inventory, low_stock.', mcpRegistration: { workspaceId: 'northwind', versionId: 'v1', blueprintId: 'agent', exportFile: '/published.json' }, toolNameAliases: { ontology_list_logic: 'ontology_list_logic' } });
@@ -15,6 +16,25 @@ beforeEach(() => {
 });
 
 describe('ontology conversation runtime', () => {
+  it('loads the canonical context on both create and restore without the RDF builder workflow', async () => {
+    mocks.authority.mockReturnValue('sudograph');
+    mocks.invoke.mockResolvedValueOnce({ text: 'Exact model revision A' }).mockResolvedValueOnce({ text: 'Exact model revision B' });
+    for (const revision of ['A', 'B']) {
+      const result = await prepareOntologyConversationRuntime({
+        purpose: 'ontology',
+        ontologyId: 'registered',
+        extraMcpConfigs: [
+          { name: 'ontology-old', command: 'stale' },
+          { name: 'browser', command: 'browser' },
+        ],
+      });
+      expect(result?.presetContext).toBe(`Exact model revision ${revision}`);
+      expect(result?.extraMcpConfigs[0].name).toBe('browser');
+    }
+    expect(mocks.invoke).toHaveBeenCalledWith('registered', { operation: 'read', product: 'context' });
+    expect(mocks.getWorkbench).not.toHaveBeenCalled();
+    expect(mocks.repair).not.toHaveBeenCalled();
+  });
   it('leaves ordinary and personal-agent conversations untouched', async () => {
     for (const presetAssistantId of [undefined, 'builtin-agent', 'moss-agent:user:owner']) {
       expect(await prepareOntologyConversationRuntime({ presetAssistantId })).toBeUndefined();

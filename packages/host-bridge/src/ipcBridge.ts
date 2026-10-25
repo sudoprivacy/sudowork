@@ -1,7 +1,21 @@
 import type { HostedAgent, HostedTaskEvidence, HostedTask, HostedSession, HostedEventsPage } from '@sudowork/contracts/task';
 import type { AgentReleaseOptions } from '@sudowork/contracts/agent-federation';
 import type { ExternalTaskEvidence } from '@sudowork/contracts/external-provider';
-import type { ExternalProviderAccess, ExternalPilotPolicy, ExternalAgentAdmin, ExternalProviderMember, ExternalConnectionInspection, InspectExternalConnection, OnboardExternalAgent, UpdateExternalAgent , CreateExternalTask, ExternalAgent, ExternalEventsPage, ExternalSession, ExternalTask } from '@sudowork/contracts/external-provider';
+import type {
+  ExternalProviderAccess,
+  ExternalPilotPolicy,
+  ExternalAgentAdmin,
+  ExternalProviderMember,
+  ExternalConnectionInspection,
+  InspectExternalConnection,
+  OnboardExternalAgent,
+  UpdateExternalAgent,
+  CreateExternalTask,
+  ExternalAgent,
+  ExternalEventsPage,
+  ExternalSession,
+  ExternalTask,
+} from '@sudowork/contracts/external-provider';
 import type { IMossCatalogPage, IMossCatalogItem, IMossCatalogInstallation, MossCatalogKind, MossCatalogSource } from '@sudowork/common/mossCatalog';
 /**
  * @license
@@ -1055,6 +1069,7 @@ export const localKnowledgeBase = {
 };
 
 export const ontology = {
+  modelChanged: bridge.buildEmitter<{ workspaceId: string; revision: string; contextDigest: string }>('ontology.model-changed'),
   saveStudioModel: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, import('@sudowork/ontology-common').IOntologyStudioSaveInput>('ontology.studio.save-model'),
   previewStandardFile: bridge.buildProvider<IBridgeResponse<import('@sudowork/ontology-common').IOntologyStandardPreview>, { filePath: string }>('ontology.studio.preview-file'),
   importStandardFile: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, import('@sudowork/ontology-common').IOntologyStandardImportInput>('ontology.studio.import-file'),
@@ -3636,24 +3651,11 @@ export const externalProviders = {
   testAgent: bridge.buildProvider<IBridgeResponse<ExternalConnectionInspection>, { agentId: string }>('external-providers.testAgent'),
   review: bridge.buildProvider<IBridgeResponse<ExternalAgentAdmin>, { agentId: string; approved: boolean; revision: number; review_days?: number }>('external-providers.review'),
 
-  agents: bridge.buildProvider<IBridgeResponse<ExternalAgent[]>, void>(
-    "external-providers.agents",
-  ),
-  sessions: bridge.buildProvider<IBridgeResponse<ExternalSession[]>, void>(
-    "external-providers.sessions",
-  ),
-  history: bridge.buildProvider<
-    IBridgeResponse<ExternalTask[]>,
-    { sessionId: string }
-  >("external-providers.history"),
-  create: bridge.buildProvider<
-    IBridgeResponse<ExternalTask>,
-    CreateExternalTask
-  >("external-providers.create"),
-  events: bridge.buildProvider<
-    IBridgeResponse<ExternalEventsPage>,
-    { taskId: string; cursor: number }
-  >("external-providers.events"),
+  agents: bridge.buildProvider<IBridgeResponse<ExternalAgent[]>, void>('external-providers.agents'),
+  sessions: bridge.buildProvider<IBridgeResponse<ExternalSession[]>, void>('external-providers.sessions'),
+  history: bridge.buildProvider<IBridgeResponse<ExternalTask[]>, { sessionId: string }>('external-providers.history'),
+  create: bridge.buildProvider<IBridgeResponse<ExternalTask>, CreateExternalTask>('external-providers.create'),
+  events: bridge.buildProvider<IBridgeResponse<ExternalEventsPage>, { taskId: string; cursor: number }>('external-providers.events'),
 };
 
 export const hostedTasks = {

@@ -2,6 +2,7 @@ import { pathToFileURL } from 'node:url';
 import fs from 'fs/promises';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { hostname, userInfo } from 'node:os';
 import { isDeepStrictEqual } from 'node:util';
 import path from 'node:path';
 import { createContext, Script } from 'node:vm';
@@ -140,6 +141,20 @@ export class OntologyService {
 
   onAgentRegistrationChanged(onChanged: (snapshot: IOntologyWorkbenchSnapshot) => void): void {
     this.agentRegistry.onChanged = onChanged;
+  }
+
+  getModelAuthority(workspaceId: string) {
+    const project = this.database.getProject(workspaceId);
+    if (!project) throw new Error('ontology.studio.errors.notFound');
+    return project.authority;
+  }
+
+  /** Bound host entry: the persisted registration, not the caller, selects a model. */
+  async invokeSudograph<T>(workspaceId: string, request: Record<string, unknown>): Promise<T> {
+    const project = this.database.getProject(workspaceId);
+    if (project?.authority !== 'sudograph') throw new Error('This project is not owned by Sudograph.');
+    const { getSudographModelClient } = await import('./SudographModelClient');
+    return getSudographModelClient().invoke<T>(project.modelRef, `desktop:${hostname()}:${userInfo().username}`, request);
   }
 
   async saveStudioModel(raw: IOntologyStudioSaveInput) {

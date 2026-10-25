@@ -17,6 +17,28 @@ import { CallToolRequestSchema, ListToolsRequestSchema, type Tool } from '@model
 const baseUrl = process.env.ONTOLOGY_WRITE_BASE_URL;
 const token = process.env.ONTOLOGY_WRITE_TOKEN;
 const envWorkspaceId = process.env.ONTOLOGY_WORKSPACE_ID;
+const isSudograph = process.env.ONTOLOGY_MODEL_AUTHORITY === 'sudograph';
+
+const sudographTools: Tool[] = [
+  { name: 'sudograph_model_contract', description: 'Read the bound canonical YAML, current revision and checked write contract.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
+  {
+    name: 'sudograph_model_apply',
+    description: 'Compile and atomically commit a model edit, graph and context. Compatible concurrent edits merge; conflicts and compiler errors include recovery details. Does not modify source data.',
+    inputSchema: { type: 'object', properties: { base_revision: { type: 'string' }, operation_id: { type: 'string' }, model: { type: 'string' } }, required: ['base_revision', 'operation_id', 'model'], additionalProperties: false },
+  },
+  { name: 'sudograph_context', description: 'Read the deterministic agent context and exact version-bound read pointers for this model.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
+  {
+    name: 'sudograph_context_read',
+    description: 'Read an exact source, field, definition, evidence item, catalogue or subgraph at a context revision.',
+    inputSchema: {
+      type: 'object',
+      properties: { revision: { type: 'string' }, context_digest: { type: 'string' }, id: { type: 'string' }, records: { type: 'boolean' }, offset: { type: 'integer', minimum: 0 }, limit: { type: 'integer', minimum: 1, maximum: 100 }, selection: { type: 'object' } },
+      required: ['revision', 'context_digest', 'id'],
+      additionalProperties: false,
+    },
+  },
+];
+const sudographRoutes: Record<string, string> = { sudograph_model_contract: 'sudograph_contract', sudograph_model_apply: 'sudograph_apply', sudograph_context: 'sudograph_context', sudograph_context_read: 'sudograph_context_read' };
 
 if (!baseUrl || !token) {
   console.error('[ontology-builder-mcp] ONTOLOGY_WRITE_BASE_URL and ONTOLOGY_WRITE_TOKEN are required');
@@ -394,21 +416,20 @@ async function callBridge(route: string, workspaceId: string | undefined, input:
     parsed = { ok: false, message: text };
   }
   if (!response.ok || parsed?.ok === false) {
-    const message = parsed?.message ?? `HTTP ${response.status}`;
-    throw new Error(message);
+    throw new Error(JSON.stringify(parsed));
   }
   return parsed?.data ?? parsed;
 }
 
 const server = new Server({ name: 'sudowork-ontology-builder', version: '1.0.0' }, { capabilities: { tools: {} } });
 
-server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: envWorkspaceId ? tools.filter((tool) => !['ontology_execute_action', 'ontology_approve_all', 'ontology_publish_current_draft', 'ontology_register_agent_blueprint'].includes(tool.name)) : tools }));
+server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: isSudograph ? sudographTools : envWorkspaceId ? tools.filter((tool) => !['ontology_execute_action', 'ontology_approve_all', 'ontology_publish_current_draft', 'ontology_register_agent_blueprint'].includes(tool.name)) : tools }));
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   try {
     const args = (request.params.arguments ?? {}) as Record<string, unknown>;
     const { workspace_id: workspaceId, ...rest } = args;
-    const route = nameToRoute[request.params.name];
+    const route = (isSudograph ? sudographRoutes : nameToRoute)[request.params.name];
     if (!route) throw new Error(`Unknown tool: ${request.params.name}`);
     const data = await callBridge(route, typeof workspaceId === 'string' ? workspaceId : undefined, rest);
     return textResult(data);

@@ -1,0 +1,74 @@
+# Sudograph model adapter: first host slice
+
+This implementation connects the existing native conversation/MCP machinery to
+Sudograph's transactional model authoring protocol. It is not a deployment of
+the complete integration plan.
+
+## Ownership and storage
+
+`studio_projects` registers each project's model authority: existing projects
+remain `rdf`; a host-registered `sudograph` project contains an opaque `modelRef`.
+The two authorities cannot overwrite or implicitly replace each other.
+`studio_sessions` references this project registry instead of requiring an RDF
+payload. Its migration preserves existing sessions and conversation IDs. The
+existing conversation registry and reaper continue to own chat lifecycle.
+
+`OntologyStudioDatabase` refuses legacy snapshot reads, saves, resets and deletes
+for Sudograph projects. This also protects callers reached through Studio,
+imports, legacy MCP tools and restore paths. No empty RDF workspace is created.
+Deleting a canonical model needs its own lifecycle adapter; it is not silently
+implemented as a legacy snapshot reset.
+
+## Compiler transport and tools
+
+The host deployment configures:
+
+```text
+SUDOGRAPH_PYTHON=<pinned Python executable with Sudograph dependencies>
+SUDOGRAPH_COMPILER_ROOT=<deployed Sudograph checkout/package root>
+SUDOGRAPH_MODEL_DIRECTORY=<host-owned canonical stores>
+```
+
+The host registers a project with `registerSudographProject({id,title,modelRef})`
+after registering `<modelRef>.db` through Sudograph's operator tooling. There is
+no agent tool for choosing these paths, changing authority or registering a
+different source. Missing configuration fails explicitly, without RDF fallback.
+Connector-form registration and runtime packaging are subsequent integration
+work; users are not expected to run operator commands during normal modelling.
+
+`SudographModelClient` launches a private JSON-lines worker with deployment-owned
+paths. The model writer checks source pins, namespace, identity reservations,
+definition versions, base revisions and operation IDs. Graph, context and model
+advance together only after compilation succeeds. Ordinary model edits do not
+use the optional GitLab human-review publisher and do not change source data.
+
+The existing scoped builder bridge exposes four canonical tools:
+
+- `sudograph_model_contract`
+- `sudograph_model_apply`
+- `sudograph_context`
+- `sudograph_context_read`
+
+Tool discovery uses the persisted project authority. Requests require a scoped
+builder token and matching project registration on the server. A global legacy
+token cannot call the canonical routes. Compiler conflict codes and recovery
+details survive both HTTP and MCP stdio. Successful edits emit
+`ontology.model-changed` with the model revision and context digest.
+
+Conversation creation and restoration load the current compiled context instead
+of the RDF builder workflow prompt for canonical projects. The renderer no longer
+duplicates that host-owned prompt selection.
+
+## Acceptance boundary
+
+Unit tests exercise populated legacy-session migration, multiple canonical
+sessions without RDF payloads, authority conflicts, guarded legacy writes,
+scoped tool routing, error propagation and the real MCP stdio protocol. The
+Sudograph `tools.accept_workspace_adapter` command additionally tests this real
+TypeScript client against the real Python compiler on unrelated SQLite data.
+
+The native adapter currently runs as the local desktop profile. It does not
+establish cloud tenant authorization. Connector UI, standalone page refresh,
+active-session context refresh, ShareOne event delivery, revocation and the
+Moss/WebUI provider remain outstanding. These must be accepted before claiming
+the complete multi-user integration or enabling the adapter as a default UI.

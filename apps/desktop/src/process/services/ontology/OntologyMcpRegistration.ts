@@ -94,6 +94,7 @@ export interface IOntologyBuilderMcpConfig {
  * through settings.json alone is not enough.
  */
 export async function ensureOntologyBuilderMcpServer(workspaceId?: string): Promise<IOntologyBuilderMcpConfig> {
+  const authority = workspaceId ? (await import('./OntologyService')).ontologyService.getModelAuthority(workspaceId) : undefined;
   const scriptPath = getOntologyBuilderMcpScriptPath();
   if (!existsSync(scriptPath)) throw new Error('Ontology builder MCP bundle is unavailable. Run `bun run ontology-builder-mcp:build` and retry.');
   const nodePath = getNodeBinaryPath();
@@ -108,6 +109,7 @@ export async function ensureOntologyBuilderMcpServer(workspaceId?: string): Prom
         { name: 'ONTOLOGY_WRITE_BASE_URL', value: `http://127.0.0.1:${bridge.port}` },
         { name: 'ONTOLOGY_WRITE_TOKEN', value: bridge.token },
         { name: 'ONTOLOGY_WORKSPACE_ID', value: workspaceId },
+        { name: 'ONTOLOGY_MODEL_AUTHORITY', value: authority! },
       ],
     };
   const now = Date.now();

@@ -19,6 +19,7 @@ import { ipcBridge } from '@/common';
 import { mainError, mainLog } from '@process/utils/mainLogger';
 import { ontologyService } from '@process/services/ontology/OntologyService';
 import { redactOntologySecrets } from './ontologySnapshot';
+import { SudographCompilerError } from './SudographModelClient';
 
 interface IHandlerContext {
   workspaceId: string;
@@ -167,7 +168,8 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       return;
     }
     const handler = handlers[toolName];
-    if (!handler) {
+    const isSudographTool = ['sudograph_contract', 'sudograph_apply', 'sudograph_context', 'sudograph_context_read'].includes(toolName);
+    if (!handler && !isSudographTool) {
       writeJson(res, 404, { ok: false, message: `Unknown tool: ${toolName}` });
       return;
     }
@@ -179,6 +181,22 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     }
     const workspaceId = scoped?.workspaceId || (typeof body.workspaceId === 'string' && body.workspaceId ? body.workspaceId : await resolveActiveWorkspaceId());
     const input = (body.input && typeof body.input === 'object' ? body.input : {}) as Record<string, unknown>;
+    if (isSudographTool) {
+      if (scoped?.role !== 'builder' || ontologyService.getModelAuthority(workspaceId) !== 'sudograph') {
+        writeJson(res, 403, { ok: false, message: 'Sudograph tools require a session bound to its registered model.' });
+        return;
+      }
+      let request: Record<string, unknown>;
+      if (toolName === 'sudograph_apply' || toolName === 'sudograph_context_read') request = { operation: toolName === 'sudograph_apply' ? 'apply' : 'context_read', request: input };
+      else {
+        if (Object.keys(input).length) throw new Error('This operation accepts no arguments.');
+        request = toolName === 'sudograph_contract' ? { operation: 'contract' } : { operation: 'read', product: 'context' };
+      }
+      const data = await ontologyService.invokeSudograph<Record<string, unknown>>(workspaceId, request);
+      if (toolName === 'sudograph_apply') ipcBridge.ontology.modelChanged.emit({ workspaceId, revision: String(data.revision), contextDigest: String(data.context_digest) });
+      writeJson(res, 200, { ok: true, data });
+      return;
+    }
     if (scoped?.role === 'runtime') {
       if ((input.workspaceId && input.workspaceId !== scoped.workspaceId) || (input.versionId && input.versionId !== scoped.versionId)) {
         writeJson(res, 403, { ok: false, message: 'Published ontology version scope mismatch.' });
@@ -195,7 +213,7 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       }
     }
     if (scoped) await ontologyService.getWorkbench({ workspaceId });
-    const data = await handler({ workspaceId, input: { ...input, workspaceId } });
+    const data = await handler!({ workspaceId, input: { ...input, workspaceId } });
     const changed = data && typeof data === 'object' && 'snapshot' in data ? data.snapshot : data;
     if (toolName !== 'get_snapshot' && changed && typeof changed === 'object' && 'workspaceId' in changed && 'objects' in changed) ipcBridge.ontology.workbenchChanged.emit(redactOntologySecrets(changed as import('@sudowork/ontology-common').IOntologyWorkbenchSnapshot));
     if (scoped?.role === 'runtime') {
@@ -206,7 +224,7 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     writeJson(res, 200, { ok: true, data: summarizeResult(data, input) });
   } catch (err) {
     mainError('OntologyWriteBridge', 'request failed', err);
-    writeJson(res, 500, { ok: false, message: err instanceof Error ? err.message : String(err) });
+    writeJson(res, err instanceof SudographCompilerError ? 409 : 500, { ok: false, message: err instanceof Error ? err.message : String(err), ...(err instanceof SudographCompilerError ? { code: err.code, recovery: err.recovery } : {}) });
   }
 }
 

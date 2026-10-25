@@ -2,11 +2,20 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createDefaultOntologyWorkbenchSnapshot } from '@sudowork/ontology-common';
 import { closeOntologyWriteBridge, ensureOntologyWriteBridge } from '@process/services/ontology/OntologyWriteBridge';
 
-const mocks = vi.hoisted(() => ({ emit: vi.fn(), write: vi.fn(), execute: vi.fn(async (input: Record<string, unknown>) => ({ snapshot: { draft: { title: 'Unpublished changes' }, objects: [], relations: [] }, execution: { output: input } })) }));
-vi.mock('@/common', () => ({ ipcBridge: { ontology: { workbenchChanged: { emit: mocks.emit } } } }));
+const mocks = vi.hoisted(() => ({
+  authority: vi.fn(() => 'rdf'),
+  invoke: vi.fn(),
+  changed: vi.fn(),
+  emit: vi.fn(),
+  write: vi.fn(),
+  execute: vi.fn(async (input: Record<string, unknown>) => ({ snapshot: { draft: { title: 'Unpublished changes' }, objects: [], relations: [] }, execution: { output: input } })),
+}));
+vi.mock('@/common', () => ({ ipcBridge: { ontology: { modelChanged: { emit: mocks.changed }, workbenchChanged: { emit: mocks.emit } } } }));
 vi.mock('@process/utils/mainLogger', () => ({ mainLog: vi.fn(), mainError: vi.fn() }));
 vi.mock('@process/services/ontology/OntologyService', () => ({
   ontologyService: {
+    getModelAuthority: mocks.authority,
+    invokeSudograph: mocks.invoke,
     listWorkbenches: async () => ({ activeWorkspaceId: 'other-workspace' }),
     getWorkbench: async ({ workspaceId }: { workspaceId: string }) => createDefaultOntologyWorkbenchSnapshot(1, { workspaceId }),
     executeLogicFunction: mocks.execute,
@@ -19,9 +28,25 @@ vi.mock('@process/services/ontology/OntologyService', () => ({
 afterEach(async () => {
   await closeOntologyWriteBridge();
   vi.clearAllMocks();
+  mocks.authority.mockReturnValue('rdf');
 });
 
 describe('published ontology runtime bridge scope', () => {
+  it('requires a scoped registered model and emits the compiled revision after a successful edit', async () => {
+    const scoped = await ensureOntologyWriteBridge({ workspaceId: 'canonical', role: 'builder' });
+    const global = await ensureOntologyWriteBridge();
+    const call = (token: string, workspaceId = 'canonical') =>
+      fetch(`http://127.0.0.1:${scoped.port}/tool/sudograph_apply`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: JSON.stringify({ workspaceId, input: { base_revision: 'r0', operation_id: 'edit-1', model: 'checked yaml' } }) });
+    expect((await call(scoped.token)).status).toBe(403);
+    mocks.authority.mockReturnValue('sudograph');
+    expect((await call(global.token)).status).toBe(403);
+    expect((await call(scoped.token, 'other')).status).toBe(403);
+    expect(mocks.invoke).not.toHaveBeenCalled();
+    mocks.invoke.mockResolvedValue({ revision: 'r1', context_digest: 'd1' });
+    expect((await call(scoped.token)).status).toBe(200);
+    expect(mocks.invoke).toHaveBeenCalledWith('canonical', { operation: 'apply', request: { base_revision: 'r0', operation_id: 'edit-1', model: 'checked yaml' } });
+    expect(mocks.changed).toHaveBeenCalledWith({ workspaceId: 'canonical', revision: 'r1', contextDigest: 'd1' });
+  });
   it('pins queries to the registered ontology version', async () => {
     const bridge = await ensureOntologyWriteBridge({ workspaceId: 'northwind', versionId: 'v1', role: 'runtime' });
     const response = await fetch(`http://127.0.0.1:${bridge.port}/tool/execute_logic_function`, { method: 'POST', headers: { Authorization: `Bearer ${bridge.token}` }, body: JSON.stringify({ input: { code: 'low_stock', arguments: {} } }) });

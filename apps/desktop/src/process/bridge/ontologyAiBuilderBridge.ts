@@ -56,7 +56,7 @@ export function initOntologyAiBuilderBridge(): void {
       for (const conversation of conversations) {
         const ontologyId = conversation.extra.ontologyId;
         if (conversation.extra.purpose !== 'ontology' || !ontologyId || (workspaceId && ontologyId !== workspaceId) || !isConversationInCurrentAccount(conversation)) continue;
-        if (!getDb().getSnapshot(ontologyId) || getDb().getAiSessionByConversationId(conversation.id)) continue;
+        if (!getDb().getProject(ontologyId) || getDb().getAiSessionByConversationId(conversation.id)) continue;
         getDb().createAiSession({ id: `oai_${randomUUID()}`, workspace_id: ontologyId, conversation_id: conversation.id, title: conversation.name, created_at: conversation.createTime, updated_at: conversation.modifyTime });
       }
       const rows = getDb().listAiSessions(workspaceId);
@@ -71,7 +71,7 @@ export function initOntologyAiBuilderBridge(): void {
     try {
       if (!input?.conversationId?.trim()) return { success: false, msg: 'conversationId is required' };
       const workspaceId = input.workspaceId?.trim() || (await resolveActiveWorkspaceId());
-      if (!getDb().getSnapshot(workspaceId)) throw new Error('ontology.studio.errors.notFound');
+      if (!getDb().getProject(workspaceId)) throw new Error('ontology.studio.errors.notFound');
       const { getDatabase } = await import('@process/database');
       const conversation = getDatabase().getConversation(input.conversationId).data;
       if (conversation?.extra.purpose !== 'ontology' || conversation.extra.ontologyId !== workspaceId) throw new Error('Ontology conversation scope mismatch.');

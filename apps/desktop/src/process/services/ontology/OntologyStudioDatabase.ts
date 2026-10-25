@@ -27,6 +27,8 @@ interface IStudioOperation {
   payload: string;
 }
 
+export type OntologyProject = { id: string; title: string; authority: 'rdf'; modelRef: null } | { id: string; title: string; authority: 'sudograph'; modelRef: string };
+
 /** Independent storage for the redesigned workbench; legacy ontology data is never migrated. */
 export class OntologyStudioDatabase implements IOntologyRepository {
   private readonly db: BetterSqlite3.Database;
@@ -46,9 +48,52 @@ export class OntologyStudioDatabase implements IOntologyRepository {
       CREATE TABLE IF NOT EXISTS studio_sessions (id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL REFERENCES studio_workspaces(id) ON DELETE CASCADE, conversation_id TEXT NOT NULL UNIQUE, title TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
       CREATE INDEX IF NOT EXISTS studio_sessions_workspace ON studio_sessions(workspace_id, updated_at);
     `);
+    // Conversations belong to projects, not to an RDF serialization. Migrate
+    // the foreign key atomically, retaining all existing session ownership.
+    this.db.transaction(() => {
+      this.db.exec(`CREATE TABLE IF NOT EXISTS studio_projects (
+        id TEXT PRIMARY KEY, title TEXT NOT NULL, authority TEXT NOT NULL CHECK(authority IN ('rdf', 'sudograph')),
+        model_ref TEXT UNIQUE, CHECK((authority = 'rdf' AND model_ref IS NULL) OR (authority = 'sudograph' AND model_ref IS NOT NULL))
+      )`);
+      const workspaces = this.db.prepare('SELECT id FROM studio_workspaces').all() as Array<{ id: string }>;
+      for (const { id } of workspaces) this.db.prepare("INSERT OR IGNORE INTO studio_projects VALUES (?, ?, 'rdf', NULL)").run(id, id);
+      const foreignKeys = this.db.prepare('PRAGMA foreign_key_list(studio_sessions)').all() as Array<{ table: string }>;
+      if (foreignKeys.some((key) => key.table === 'studio_workspaces')) {
+        this.db.exec(`
+          CREATE TABLE studio_sessions_migrated (id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL REFERENCES studio_projects(id) ON DELETE CASCADE, conversation_id TEXT NOT NULL UNIQUE, title TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+          INSERT INTO studio_sessions_migrated SELECT * FROM studio_sessions;
+          DROP TABLE studio_sessions;
+          ALTER TABLE studio_sessions_migrated RENAME TO studio_sessions;
+          CREATE INDEX studio_sessions_workspace ON studio_sessions(workspace_id, updated_at);
+        `);
+      }
+    })();
+  }
+
+  getProject(workspaceId: string): OntologyProject | null {
+    const row = this.db.prepare('SELECT id, title, authority, model_ref AS modelRef FROM studio_projects WHERE id = ?').get(workspaceId);
+    return (row as OntologyProject | undefined) || null;
+  }
+
+  /** Host registration only. A project cannot switch model authorities implicitly. */
+  registerSudographProject(input: { id: string; title: string; modelRef: string }): void {
+    if (!input.id.trim() || !input.title.trim() || !/^[a-zA-Z0-9_-]{1,128}$/.test(input.modelRef)) throw new Error('Invalid Sudograph project registration.');
+    this.db.transaction(() => {
+      const existing = this.getProject(input.id);
+      if (existing) {
+        if (existing.authority !== 'sudograph' || existing.modelRef !== input.modelRef) throw new Error('Ontology model authority conflict.');
+        return;
+      }
+      this.db.prepare("INSERT INTO studio_projects VALUES (?, ?, 'sudograph', ?)").run(input.id, input.title, input.modelRef);
+    })();
+  }
+
+  private assertLegacyAuthority(workspaceId: string): void {
+    if (this.getProject(workspaceId)?.authority === 'sudograph') throw new Error('Sudograph owns this model. Use its checked model interface; RDF writes and restores are refused.');
   }
 
   getSnapshot(workspaceId: string): IOntologyWorkbenchSnapshot | null {
+    this.assertLegacyAuthority(workspaceId);
     const row = this.db.prepare('SELECT payload, revision FROM studio_workspaces WHERE id = ?').get(workspaceId) as IStoredWorkspace | undefined;
     if (!row) return null;
     const payload = row.payload.startsWith('encrypted:') ? safeStorage.decryptString(Buffer.from(row.payload.slice(10), 'base64')) : row.payload;
@@ -68,6 +113,7 @@ export class OntologyStudioDatabase implements IOntologyRepository {
 
   saveSnapshot(snapshot: IOntologyWorkbenchSnapshot, expectedSnapshot?: IOntologyWorkbenchSnapshot, operation?: IStudioOperation): void {
     this.db.transaction(() => {
+      this.assertLegacyAuthority(snapshot.workspaceId);
       const before = this.getSnapshot(snapshot.workspaceId);
       if (!before && snapshot.revision !== undefined) throw new Error('ontology.studio.errors.notFound');
       if (operation && this.hasOperation(snapshot.workspaceId, operation)) {
@@ -100,13 +146,18 @@ export class OntologyStudioDatabase implements IOntologyRepository {
       this.db
         .prepare('INSERT INTO studio_workspaces (id, revision, payload, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET revision = excluded.revision, payload = excluded.payload, updated_at = excluded.updated_at')
         .run(snapshot.workspaceId, snapshot.revision, payload, snapshot.updatedAt);
+      this.db.prepare("INSERT INTO studio_projects VALUES (?, ?, 'rdf', NULL) ON CONFLICT(id) DO UPDATE SET title = excluded.title").run(snapshot.workspaceId, snapshot.draft.title);
       if (operation) this.db.prepare('INSERT INTO studio_operations (workspace_id, id, payload) VALUES (?, ?, ?)').run(snapshot.workspaceId, operation.id, operation.payload);
     })();
     this.writeMcpExport(snapshot);
   }
 
   deleteSnapshot(workspaceId: string): void {
-    this.db.prepare('DELETE FROM studio_workspaces WHERE id = ?').run(workspaceId);
+    this.assertLegacyAuthority(workspaceId);
+    this.db.transaction(() => {
+      this.db.prepare('DELETE FROM studio_workspaces WHERE id = ?').run(workspaceId);
+      this.db.prepare('DELETE FROM studio_projects WHERE id = ?').run(workspaceId);
+    })();
     rmSync(this.getMcpExportPath(workspaceId), { force: true });
   }
 
