@@ -1,7 +1,7 @@
 import type { HostedAgent, HostedTaskEvidence, HostedTask, HostedSession, HostedEventsPage } from '@sudowork/contracts/task';
 import type { AgentReleaseOptions } from '@sudowork/contracts/agent-federation';
-import type { ExternalTaskEvidence } from '@sudowork/contracts/external-provider';
 import type {
+  ExternalTaskEvidence,
   ExternalProviderAccess,
   ExternalPilotPolicy,
   ExternalAgentAdmin,
@@ -869,7 +869,15 @@ export const mcporterService = {
 // Database operations
 export const database = {
   getConversationMessages: bridge.buildProvider<import('@sudowork/common/chatTypes').TMessage[], { conversation_id: string; page?: number; pageSize?: number }>('database.get-conversation-messages'),
-  getUserConversations: bridge.buildProvider<import('@sudowork/common/storageTypes').TChatConversation[], { page?: number; pageSize?: number; sessionMode?: 'remote' | 'local'; includeAllExecutionTargets?: boolean }>('database.get-user-conversations'),
+  getUserConversations: bridge.buildProvider<
+    import('@sudowork/common/storageTypes').TChatConversation[],
+    {
+      page?: number;
+      pageSize?: number;
+      sessionMode?: 'remote' | 'local';
+      includeAllExecutionTargets?: boolean;
+    }
+  >('database.get-user-conversations'),
   /** 渠道对话创建/更新/删除时，主进程通知渲染进程刷新对话列表 */
   conversationChanged: bridge.buildEmitter<{
     conversationId: string;
@@ -1069,7 +1077,16 @@ export const localKnowledgeBase = {
 };
 
 export const ontology = {
-  modelChanged: bridge.buildEmitter<{ workspaceId: string; revision: string; contextDigest: string }>('ontology.model-changed'),
+  projectsChanged: bridge.buildEmitter<{ workspaceId: string }>('ontology.projects.changed'),
+  listProjects: bridge.buildProvider<IBridgeResponse<import('@sudowork/ontology-common').IOntologyStudioProjectList>, void>('ontology.projects.list'),
+  getProject: bridge.buildProvider<IBridgeResponse<import('@sudowork/ontology-common').IOntologyStudioProject>, { workspaceId: string }>('ontology.projects.get'),
+  connectSource: bridge.buildProvider<IBridgeResponse<import('@sudowork/ontology-common').IOntologyStudioProject>, import('@sudowork/ontology-common').IOntologyConnectSourceInput>('ontology.projects.connect-source'),
+  resumeSource: bridge.buildProvider<IBridgeResponse<import('@sudowork/ontology-common').IOntologyStudioProject | null>, { operationId: string }>('ontology.projects.resume-source'),
+  modelChanged: bridge.buildEmitter<{
+    workspaceId: string;
+    revision: string;
+    contextDigest: string;
+  }>('ontology.model-changed'),
   saveStudioModel: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, import('@sudowork/ontology-common').IOntologyStudioSaveInput>('ontology.studio.save-model'),
   previewStandardFile: bridge.buildProvider<IBridgeResponse<import('@sudowork/ontology-common').IOntologyStandardPreview>, { filePath: string }>('ontology.studio.preview-file'),
   importStandardFile: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, import('@sudowork/ontology-common').IOntologyStandardImportInput>('ontology.studio.import-file'),
@@ -1554,7 +1571,16 @@ export const logs = {
 // cache and (later) attach CDP-based agent tooling.
 export const browserSession = {
   invoke: bridge.buildProvider<IBridgeResponse<BrowserSessionReply>, { conversationId: string; action: BrowserSessionAction }>('browser-session:invoke'),
-  uploadFile: bridge.buildProvider<IBridgeResponse<BrowserFile>, { conversationId: string; name: string; controlEpoch: number; targetEpoch: number; data: Uint8Array }>('browser-session:upload-file'),
+  uploadFile: bridge.buildProvider<
+    IBridgeResponse<BrowserFile>,
+    {
+      conversationId: string;
+      name: string;
+      controlEpoch: number;
+      targetEpoch: number;
+      data: Uint8Array;
+    }
+  >('browser-session:upload-file'),
   downloadFile: bridge.buildProvider<IBridgeResponse<Uint8Array>, { conversationId: string; fileId: string }>('browser-session:download-file'),
 };
 
@@ -3649,7 +3675,15 @@ export const externalProviders = {
   rotate: bridge.buildProvider<IBridgeResponse<ExternalAgentAdmin>, { agentId: string; revision: number; api_key: string }>('external-providers.rotate'),
   archive: bridge.buildProvider<IBridgeResponse<ExternalAgentAdmin>, { agentId: string; revision: number }>('external-providers.archive'),
   testAgent: bridge.buildProvider<IBridgeResponse<ExternalConnectionInspection>, { agentId: string }>('external-providers.testAgent'),
-  review: bridge.buildProvider<IBridgeResponse<ExternalAgentAdmin>, { agentId: string; approved: boolean; revision: number; review_days?: number }>('external-providers.review'),
+  review: bridge.buildProvider<
+    IBridgeResponse<ExternalAgentAdmin>,
+    {
+      agentId: string;
+      approved: boolean;
+      revision: number;
+      review_days?: number;
+    }
+  >('external-providers.review'),
 
   agents: bridge.buildProvider<IBridgeResponse<ExternalAgent[]>, void>('external-providers.agents'),
   sessions: bridge.buildProvider<IBridgeResponse<ExternalSession[]>, void>('external-providers.sessions'),
@@ -3663,7 +3697,16 @@ export const hostedTasks = {
   agents: bridge.buildProvider<IBridgeResponse<HostedAgent[]>, void>('hosted-tasks.agents'),
   sessions: bridge.buildProvider<IBridgeResponse<HostedSession[]>, void>('hosted-tasks.sessions'),
   history: bridge.buildProvider<IBridgeResponse<HostedTask[]>, { sessionId: string }>('hosted-tasks.history'),
-  create: bridge.buildProvider<IBridgeResponse<HostedTask>, { agent_id: string; requested_version?: string; session_id?: string; query: string; idempotency_key: string }>('hosted-tasks.create'),
+  create: bridge.buildProvider<
+    IBridgeResponse<HostedTask>,
+    {
+      agent_id: string;
+      requested_version?: string;
+      session_id?: string;
+      query: string;
+      idempotency_key: string;
+    }
+  >('hosted-tasks.create'),
   events: bridge.buildProvider<IBridgeResponse<HostedEventsPage>, { taskId: string; cursor: number }>('hosted-tasks.events'),
   cancel: bridge.buildProvider<IBridgeResponse<HostedTask>, { taskId: string }>('hosted-tasks.cancel'),
   reconcile: bridge.buildProvider<IBridgeResponse<HostedTask>, { taskId: string }>('hosted-tasks.reconcile'),

@@ -1,4 +1,5 @@
 export * from './studio.js';
+export * from './projects.js';
 import type { IOntologySemanticDocument } from './studio.js';
 export * from './qualityRuleExpression.js';
 

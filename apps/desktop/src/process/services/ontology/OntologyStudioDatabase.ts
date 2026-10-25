@@ -75,6 +75,10 @@ export class OntologyStudioDatabase implements IOntologyRepository {
     return (row as OntologyProject | undefined) || null;
   }
 
+  listProjects(): OntologyProject[] {
+    return this.db.prepare('SELECT id, title, authority, model_ref AS modelRef FROM studio_projects ORDER BY title, id').all() as OntologyProject[];
+  }
+
   /** Host registration only. A project cannot switch model authorities implicitly. */
   registerSudographProject(input: { id: string; title: string; modelRef: string }): void {
     if (!input.id.trim() || !input.title.trim() || !/^[a-zA-Z0-9_-]{1,128}$/.test(input.modelRef)) throw new Error('Invalid Sudograph project registration.');

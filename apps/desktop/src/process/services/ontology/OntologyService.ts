@@ -1,7 +1,7 @@
 import { pathToFileURL } from 'node:url';
 import fs from 'fs/promises';
 import { spawn } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { hostname, userInfo } from 'node:os';
 import { isDeepStrictEqual } from 'node:util';
 import path from 'node:path';
@@ -9,6 +9,9 @@ import { createContext, Script } from 'node:vm';
 import { z } from 'zod';
 import type {
   IOntologyStudioSaveInput,
+  IOntologyStudioProject,
+  IOntologyStudioProjectList,
+  IOntologyConnectSourceInput,
   IOntologyStandardImportInput,
   IOntologyStandardExportInput,
   IOntologyActionDefinitionInput,
@@ -147,6 +150,71 @@ export class OntologyService {
     const project = this.database.getProject(workspaceId);
     if (!project) throw new Error('ontology.studio.errors.notFound');
     return project.authority;
+  }
+
+  async listStudioProjects(): Promise<IOntologyStudioProjectList> {
+    const items = this.database.listProjects().map((project): IOntologyStudioProject => {
+      const snapshot = project.authority === 'rdf' ? this.database.getSnapshot(project.id) : null;
+      return { workspaceId: project.id, name: snapshot?.draft.title || project.title, authority: project.authority, ...(snapshot ? { description: snapshot.draft.description, objectCount: snapshot.objects.length } : {}) };
+    });
+    return { items, sourceRegistration: { available: !!(process.env.SUDOGRAPH_PYTHON && process.env.SUDOGRAPH_COMPILER_ROOT && process.env.SUDOGRAPH_MODEL_DIRECTORY), providers: ['sqlite'], execution: 'desktop' } };
+  }
+
+  async getStudioProject(input: { workspaceId: string }): Promise<IOntologyStudioProject> {
+    const workspaceId = z.string().trim().min(1).max(200).parse(input.workspaceId);
+    const project = this.database.getProject(workspaceId);
+    if (!project) throw new Error('ontology.studio.errors.notFound');
+    if (project.authority === 'rdf') return { workspaceId, name: project.title, authority: 'rdf' };
+    // The private overview never transports frozen record bytes just to get counts.
+    const overview = await this.invokeSudograph<{
+      revision: string;
+      source_registration: null | { connection: { observed_at: string }; scan: { status: string; structure_complete: boolean; objects: number; tables: number; database_views: number; fields: number }; records: { delivery: 'live' | 'snapshot'; rows_embedded: number } };
+    }>(workspaceId, { operation: 'overview' });
+    if (!overview.revision || !('source_registration' in overview)) throw new Error('Invalid registered Sudograph source overview.');
+    const receipt = overview.source_registration;
+    if (!receipt) return { workspaceId, name: project.title, authority: 'sudograph' };
+    return {
+      workspaceId,
+      name: project.title,
+      authority: 'sudograph',
+      objectCount: receipt.scan.objects,
+      source: {
+        revision: overview.revision,
+        observedAt: receipt.connection.observed_at,
+        structureComplete: receipt.scan.status === 'complete' && receipt.scan.structure_complete,
+        objects: receipt.scan.objects,
+        tables: receipt.scan.tables,
+        databaseViews: receipt.scan.database_views,
+        fields: receipt.scan.fields,
+        delivery: receipt.records.delivery,
+        rowsEmbedded: receipt.records.rows_embedded,
+      },
+    };
+  }
+
+  /** Native form intake. Model paths, namespaces and authority are host-derived. */
+  async connectStudioSource(raw: IOntologyConnectSourceInput): Promise<IOntologyStudioProject> {
+    const input = z
+      .object({
+        operationId: z.string().uuid(),
+        language: z.enum(['en', 'zh']),
+        connector: z.object({ name: z.string().trim().min(1).max(200), sourceType: z.literal('sqlite'), path: z.string().trim().min(1), kind: z.literal('database'), writable: z.literal(false), metadata: z.object({}).strict() }).strict(),
+      })
+      .strict()
+      .parse(raw);
+    if (!path.isAbsolute(input.connector.path)) throw new Error('Select a SQLite file on this desktop.');
+    const source = await fs.realpath(input.connector.path);
+    if (!(await fs.stat(source)).isFile()) throw new Error('Select a SQLite database file.');
+    const identity = `source_${createHash('sha256').update(input.operationId).digest('hex').slice(0, 32)}`;
+    await this.registerSudographSourceProject({ workspaceId: identity, title: input.connector.name, modelRef: identity, source: `sqlite:///${source.split(path.sep).join('/')}`, namespace: identity, operationId: input.operationId, language: input.language });
+    return this.getStudioProject({ workspaceId: identity });
+  }
+
+  async resumeStudioSource(input: { operationId: string }): Promise<IOntologyStudioProject | null> {
+    const operationId = z.string().uuid().parse(input.operationId);
+    const workspaceId = `source_${createHash('sha256').update(operationId).digest('hex').slice(0, 32)}`;
+    if (!this.database.getProject(workspaceId)) return null;
+    return this.getStudioProject({ workspaceId });
   }
 
   /** Trusted connection intake. Registration is never inferred from an RDF snapshot or prompt. */

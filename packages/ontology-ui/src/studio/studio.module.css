@@ -20,6 +20,21 @@
   padding: 32px;
   overflow: auto;
 }
+.ontology-source-project {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  padding: 16px;
+  overflow: hidden;
+}
+.ontology-source-project > :global(.arco-card) {
+  flex-shrink: 0;
+}
+.ontology-source-project > .ontology-chat-pane {
+  flex: 1;
+  border: 1px solid var(--color-border-2);
+}
 .ontology-library .ontology-page-heading {
   flex-wrap: wrap;
 }
