@@ -14,6 +14,25 @@ export interface ISudographContext {
   text: string;
 }
 
+export interface ISudographSourceRegistration {
+  source: string;
+  namespace: string;
+  operationId: string;
+  language: 'en' | 'zh';
+}
+
+export interface ISudographSourceReceipt {
+  contract: { revision: string; namespace: string; baseline: { manifest: string; sha256: string }; model: string };
+  registration: {
+    format: 'sudograph-source-registration/v1';
+    operation_id: string;
+    initial_revision: string;
+    connection: { status: 'connected'; provider: 'sqlite'; source: string; observed_at: string };
+    scan: { status: 'complete'; structure_complete: true; inventory_exhausted: true; objects: number; fields: number };
+    records: { delivery: 'live'; export_complete: false; rows_embedded: 0 };
+  };
+}
+
 export class SudographCompilerError extends Error {
   constructor(
     public readonly code: string,
@@ -29,10 +48,45 @@ export class SudographModelClient {
   constructor(private readonly runtime: ISudographRuntime) {}
 
   async invoke<T>(modelRef: string, actor: string, request: Record<string, unknown>): Promise<T> {
+    return this.runWorker<T>(modelRef, actor, 'compiler.workspace', request, 30_000);
+  }
+
+  /** Host connection intake only. The builder MCP never accepts sources or paths. */
+  async registerSource(modelRef: string, actor: string, input: ISudographSourceRegistration): Promise<ISudographSourceReceipt> {
+    const result = await this.runWorker<ISudographSourceReceipt>(modelRef, actor, 'compiler.registration', { source: input.source, namespace: input.namespace, operation_id: input.operationId, language: input.language, snapshot_records: false }, 120_000);
+    const receipt = result?.registration;
+    if (
+      receipt?.format !== 'sudograph-source-registration/v1' ||
+      receipt.operation_id !== input.operationId ||
+      !receipt.initial_revision ||
+      receipt.connection?.status !== 'connected' ||
+      receipt.connection.provider !== 'sqlite' ||
+      !receipt.connection.source ||
+      receipt.scan?.status !== 'complete' ||
+      receipt.scan.structure_complete !== true ||
+      receipt.scan.inventory_exhausted !== true ||
+      !Number.isSafeInteger(receipt.scan.objects) ||
+      receipt.scan.objects < 0 ||
+      !Number.isSafeInteger(receipt.scan.fields) ||
+      receipt.scan.fields < 0 ||
+      receipt.records?.delivery !== 'live' ||
+      receipt.records.export_complete !== false ||
+      receipt.records.rows_embedded !== 0 ||
+      result.contract?.namespace !== input.namespace ||
+      !result.contract.revision ||
+      typeof result.contract.model !== 'string' ||
+      !result.contract.baseline?.sha256
+    ) {
+      throw new SudographCompilerError('REGISTRATION_RECEIPT_INVALID', 'The compiler did not return a complete live-source registration receipt.', 'Keep the existing project and inspect the pinned compiler runtime before retrying.');
+    }
+    return result;
+  }
+
+  private async runWorker<T>(modelRef: string, actor: string, module: 'compiler.workspace' | 'compiler.registration', request: Record<string, unknown>, timeout: number): Promise<T> {
     if (!/^[a-zA-Z0-9_-]{1,128}$/.test(modelRef) || !actor.trim()) throw new Error('Invalid registered Sudograph model binding.');
     const store = path.join(this.runtime.modelDirectory, `${modelRef}.db`);
     return new Promise<T>((resolve, reject) => {
-      const child = spawn(this.runtime.python, ['-m', 'compiler.workspace', '--store', store, '--actor', actor], {
+      const child = spawn(this.runtime.python, ['-m', module, '--store', store, '--actor', actor], {
         cwd: this.runtime.compilerRoot,
         windowsHide: true,
         env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' },
@@ -51,7 +105,7 @@ export class SudographModelClient {
       const timer = setTimeout(() => {
         child.kill();
         fail(new Error('Sudograph compiler response timed out. Retry with the same operation ID to recover its receipt.'));
-      }, 30_000);
+      }, timeout);
       child.on('error', fail);
       child.stdin.on('error', fail);
       child.stdout.on('data', (chunk: Buffer) => {
