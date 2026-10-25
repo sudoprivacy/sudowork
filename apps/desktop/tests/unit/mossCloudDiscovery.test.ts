@@ -88,6 +88,37 @@ beforeEach(() => {
 });
 
 describe('desktop cloud session discovery', () => {
+  it('imports and refreshes Feishu Moss identity through the shared workbench context', async () => {
+    const session = cloudSession('moss-im', {
+      source: 'lark',
+      assistantName: 'moss-agent:operator:org-owner',
+      clientMetadata: { agent_manager_actor_id: 'owner', agent_manager_agent_name: 'moss-native', agent_manager_display_name: 'Moss', agent_manager_owner_name: 'Owner' },
+    });
+    state.listSessions.mockResolvedValue([session]);
+    const client = provider();
+    expect(await client.listConversations()).toMatchObject([
+      {
+        extra: {
+          agentManagement: {
+            ownerId: 'owner',
+            ownerName: 'Owner',
+            agentName: 'moss-native',
+            displayName: 'Moss',
+          },
+        },
+      },
+    ]);
+    const activityTime = state.conversations[0].modifyTime;
+    const updated = { ...session, clientMetadata: { ...session.clientMetadata, agent_manager_owner_name: 'Updated owner' } };
+    await client.updateMossSessionInfo('moss-im', 'moss-im', 'wss://moss.test/ws/moss-im', updated);
+    expect(state.conversations[0].extra.agentManagement?.ownerName).toBe('Updated owner');
+    expect(state.conversations[0].modifyTime).toBe(activityTime);
+    // An ordinary Session must not retain a previous cached management identity.
+    state.listSessions.mockResolvedValue([cloudSession('moss-im')]);
+    await client.listConversations();
+    expect(state.conversations[0].extra.agentManagement).toBeUndefined();
+  });
+
   it('restores ordinary and managed sessions from a fresh device alongside cron history', async () => {
     state.listSessions.mockResolvedValue([
       cloudSession('ordinary', { title: 'My work', cwd: 'C:\\remote\\workspace' }),

@@ -61,6 +61,7 @@ export default defineConfig({
     maxWorkers: process.platform === 'win32' ? 2 : undefined,
     coverage: {
       include: [
+        '../../packages/common/src/mossSessionContext.ts',
         '../../packages/moss-client/src/MossHostedTaskClient.ts',
         '../../packages/renderer/src/pages/hosted-agents/**/*.{ts,tsx}','src/**/*.{ts,tsx}'],
     },

@@ -13,6 +13,7 @@ import { mossControlRequestToConfirmation } from '@sudowork/common/mossResponse'
 import type { TChatConversation } from '@sudowork/common/storage';
 import { isRemoteContainerPath } from '@sudowork/common/utils/workspaceSkillSync';
 import { isMossRuntimeUpdateRequired } from '@sudowork/moss-client';
+import { getMossSessionAgentContext } from '@sudowork/common/mossSessionContext';
 import { MossWsConnection, type MossWsConnectionConfig, type MossWsCallbacks } from '@/agent/remote/MossWsConnection';
 import { ipcBridge } from '@/common';
 import type { AcpQuestionResponseAnswer } from '@/types/acpTypes';
@@ -260,6 +261,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
             resumeWsUrl = resumed.wsUrl;
             this.options.wsUrl = resumed.wsUrl;
           }
+          await this.updateConversationWithResumeInfo(resumeSessionId, resumeWsUrl, resumed.session);
         } catch (lookupError) {
           if (isMossRuntimeUpdateRequired(lookupError)) throw lookupError;
           mainLog('RemoteAgent', `resumeSession lookup failed (${lookupError instanceof Error ? lookupError.message : String(lookupError)}), falling back to stored wsUrl`);
@@ -376,6 +378,9 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
         work_dir?: string;
         assistantName?: string;
         assistant_name?: string;
+        userId?: string;
+        source?: string;
+        clientMetadata?: Record<string, unknown>;
       };
 
       // Extract Moss workDir (remote container path)
@@ -391,6 +396,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
         acpWsUrl: wsUrl,
         mossSessionPending: false,
         agentName: session.assistantName || session.assistant_name || existing.data.extra?.agentName,
+        agentManagement: getMossSessionAgentContext(session) ?? undefined,
       };
 
       if (isRemotePath) {
