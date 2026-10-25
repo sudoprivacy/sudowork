@@ -46,7 +46,7 @@ vi.mock('@/process/utils/mainLogger', () => ({
 
 vi.mock('@/process/database/export', () => ({
   getDatabase: () => ({
-    getConversation: () => ({ success: true, data: { id: 'conv-1', modifyTime: 123, extra: {} } }),
+    getConversation: () => ({ success: true, data: { id: 'conv-1', modifyTime: 123, status: 'running', extra: {} } }),
     updateConversation: updateConversationSpy,
     createConversation: vi.fn(),
     deleteConversation: vi.fn(() => ({ success: true })),
@@ -295,7 +295,7 @@ describe('RemoteAgent idle detach', () => {
     expect(JSON.stringify(responseStreamEmit.mock.calls)).not.toContain('private');
   });
 
-  it('keeps the Moss workbench identity when resuming the existing Feishu Session', async () => {
+  it('keeps the Moss workbench identity and cached activity when resuming the existing Feishu Session', async () => {
     const RemoteAgent = await loadRemoteAgent();
     const agent = makeAgent(RemoteAgent);
     resumeSessionSpy.mockResolvedValueOnce({
@@ -318,6 +318,8 @@ describe('RemoteAgent idle detach', () => {
       }),
       { preserveModifyTime: true }
     );
+    const metadataWrite = updateConversationSpy.mock.calls.find(([, update]) => update?.extra);
+    expect(metadataWrite?.[1]).not.toHaveProperty('status');
   });
 
   it('persists a newly committed Session when initial attach fails and resumes it on the next explicit send', async () => {
