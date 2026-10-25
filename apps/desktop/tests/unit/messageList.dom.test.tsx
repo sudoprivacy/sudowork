@@ -7,7 +7,10 @@ vi.mock('@renderer/messages/hooks', () => ({ useMessageList: () => state.message
 vi.mock('@renderer/context/ConversationContext', () => ({ useConversationContextSafe: () => ({ conversationId: 'test' }) }));
 vi.mock('@renderer/hooks/useShowToolCalls', () => ({ useShowToolCalls: () => true }));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
-vi.mock('@sudowork/host-bridge/ipcBridge', () => ({ systemSettings: { getShowTokenUsageBadges: { invoke: async () => false }, showTokenUsageBadgesChanged: { on: () => () => {} } } }));
+vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
+  systemSettings: { getShowTokenUsageBadges: { invoke: async () => false }, showTokenUsageBadgesChanged: { on: () => () => {} } },
+  shareoneCli: { checkInstalled: { invoke: async () => ({ success: true, data: { installed: false } }) }, installResult: { on: () => () => {} } },
+}));
 vi.mock('@renderer/messages/MessagetText', () => ({
   default: ({ message, footer }: { message: Extract<TMessage, { type: 'text' }>; footer?: React.ReactNode }) => (
     <div>

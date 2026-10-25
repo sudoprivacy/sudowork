@@ -40,6 +40,7 @@ import MessageToolGroup from './MessageToolGroup';
 import MessageToolGroupSummary from './MessageToolGroupSummary';
 import MessageText from './MessagetText';
 import TurnActions from './TurnActions';
+import { ShareoneCliStatusProvider } from './ShareoneCliStatusContext';
 import type { WriteFileResult } from './types';
 import { BOTTOM_BUFFER_PX, useAutoScroll } from './useAutoScroll';
 import MessageTimeSeparator from './MessageTimeSeparator';
@@ -546,36 +547,39 @@ const MessageList: React.FC<IMessageListProps> = ({ className, aiProcessing = fa
         </div>
       ) : null}
       {/* Use PreviewGroup to wrap all messages for cross-message image preview */}
-      <Image.PreviewGroup actionsLayout={['zoomIn', 'zoomOut', 'originalSize', 'rotateLeft', 'rotateRight']}>
-        <ImagePreviewContext.Provider value={{ inPreviewGroup: true }}>
-          <Virtuoso
-            ref={virtuosoRef}
-            scrollerRef={handleScrollerRef}
-            className='flex-1 h-full pb-10px box-border'
-            data={visibleItems}
-            initialTopMostItemIndex={Math.max(0, visibleItems.length - 1)}
-            // atBottom must encompass the dynamic spacer so "at bottom" still
-            // means "the last message is in view" while the user prompt is
-            // pinned at the top with an empty canvas below it.
-            atBottomThreshold={bottomSpacerHeight + BOTTOM_BUFFER_PX}
-            increaseViewportBy={200}
-            itemContent={renderItem}
-            followOutput={handleFollowOutput}
-            onScroll={handleScroll}
-            atBottomStateChange={handleAtBottomStateChange}
-            components={{
-              Header: () => <div className='h-10px' />,
-              // Footer = static BOTTOM_BUFFER_PX (breathing room between the
-              // last message and the SendBox below) + dynamic bottomSpacerHeight
-              // that pins the user prompt to the top of the viewport while the
-              // AI streams into the empty canvas below. bottomSpacerHeight is 0
-              // in idle state, so the chat log looks like a regular list when
-              // no turn is active.
-              Footer: () => <div style={{ height: BOTTOM_BUFFER_PX + bottomSpacerHeight }} />,
-            }}
-          />
-        </ImagePreviewContext.Provider>
-      </Image.PreviewGroup>
+      <ShareoneCliStatusProvider>
+        <Image.PreviewGroup actionsLayout={['zoomIn', 'zoomOut', 'originalSize', 'rotateLeft', 'rotateRight']}>
+          <ImagePreviewContext.Provider value={{ inPreviewGroup: true }}>
+            <Virtuoso
+              ref={virtuosoRef}
+              scrollerRef={handleScrollerRef}
+              className='flex-1 h-full pb-10px box-border'
+              data={visibleItems}
+              computeItemKey={(_index, item) => item.id}
+              initialTopMostItemIndex={Math.max(0, visibleItems.length - 1)}
+              // atBottom must encompass the dynamic spacer so "at bottom" still
+              // means "the last message is in view" while the user prompt is
+              // pinned at the top with an empty canvas below it.
+              atBottomThreshold={bottomSpacerHeight + BOTTOM_BUFFER_PX}
+              increaseViewportBy={200}
+              itemContent={renderItem}
+              followOutput={handleFollowOutput}
+              onScroll={handleScroll}
+              atBottomStateChange={handleAtBottomStateChange}
+              components={{
+                Header: () => <div className='h-10px' />,
+                // Footer = static BOTTOM_BUFFER_PX (breathing room between the
+                // last message and the SendBox below) + dynamic bottomSpacerHeight
+                // that pins the user prompt to the top of the viewport while the
+                // AI streams into the empty canvas below. bottomSpacerHeight is 0
+                // in idle state, so the chat log looks like a regular list when
+                // no turn is active.
+                Footer: () => <div style={{ height: BOTTOM_BUFFER_PX + bottomSpacerHeight }} />,
+              }}
+            />
+          </ImagePreviewContext.Provider>
+        </Image.PreviewGroup>
+      </ShareoneCliStatusProvider>
 
       {showScrollButton && (
         <>

@@ -215,6 +215,13 @@ content written by the fixture is restored only if it still belongs to the
 fixture; a newer user clipboard value is preserved. The Chromium composition
 check does not establish physical operating-system IME or iPhone acceptance.
 
+After the model readback, the journey requires three consecutive `/browser
+status` commands to produce distinct completed responses. This catches stalled
+local commands without accepting an earlier status message. Use
+`--status-repetitions 20` for the longer stability check; each command keeps the
+same 20-second response deadline. Failure receipts retain the original error
+even if the renderer cannot provide a screenshot.
+
 ### First-use browser runtime installation
 
 `live_browser_runtime_install.py` launches actual Electron with a fresh isolated
