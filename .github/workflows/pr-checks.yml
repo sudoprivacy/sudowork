@@ -4,9 +4,10 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
     branches: [main, dev]
+  merge_group:
 
 concurrency:
-  group: pr-checks-${{ github.event.pull_request.number }}
+  group: pr-checks-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
