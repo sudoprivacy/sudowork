@@ -20,6 +20,18 @@ export default function OntologyPage() {
   const { ontologyId, view } = useParams<{ ontologyId: string; view: string }>();
   const api = useMemo<IOntologyStudioApi>(
     () => ({
+      projects: ipcBridge.ontology.listProjects
+        ? {
+            list: async () => unwrap(await ipcBridge.ontology.listProjects.invoke(), t('ontology.errors.loadFailed')),
+            get: async (input) => unwrap(await ipcBridge.ontology.getProject.invoke(input), t('ontology.errors.loadFailed')),
+            connectSource: async (input) => unwrap(await ipcBridge.ontology.connectSource.invoke(input), t('ontology.errors.importFailed')),
+            resumeSource: async (input) => unwrap(await ipcBridge.ontology.resumeSource.invoke(input), t('ontology.errors.loadFailed')),
+            onChanged: (onChanged) => {
+              const subscriptions = [ipcBridge.ontology.modelChanged.on(onChanged), ipcBridge.ontology.projectsChanged.on(onChanged)];
+              return () => subscriptions.forEach((off) => off());
+            },
+          }
+        : undefined,
       requestAiRepair: requestStudioAiRepair,
       saveStudioModel: async (input) => unwrap(await ipcBridge.ontology.saveStudioModel.invoke(input), t('ontology.errors.saveFailed')),
       previewStandardFile: async (input) => unwrap(await ipcBridge.ontology.previewStandardFile.invoke(input), t('ontology.errors.importFailed')),

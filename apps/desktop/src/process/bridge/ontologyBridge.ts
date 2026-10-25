@@ -3,6 +3,7 @@ import { redactOntologySecrets } from '@process/services/ontology/ontologySnapsh
 import { ipcBridge } from '@/common';
 import { ontologyService } from '@process/services/ontology/OntologyService';
 import { mainError } from '@process/utils/mainLogger';
+import { SudographCompilerError } from '@process/services/ontology/SudographModelClient';
 
 function ok<T>(data: T) {
   return { success: true, data: redactOntologySecrets(data) };
@@ -19,6 +20,37 @@ function emitWorkbenchChanged(snapshot: IOntologyWorkbenchSnapshot): void {
 
 export function initOntologyBridge(): void {
   ontologyService.onAgentRegistrationChanged(emitWorkbenchChanged);
+  ipcBridge.ontology.listProjects.provider(async () => {
+    try {
+      return ok(await ontologyService.listStudioProjects());
+    } catch (err) {
+      return fail(err);
+    }
+  });
+  ipcBridge.ontology.getProject.provider(async (input) => {
+    try {
+      return ok(await ontologyService.getStudioProject(input));
+    } catch (err) {
+      return fail(err);
+    }
+  });
+  ipcBridge.ontology.resumeSource.provider(async (input) => {
+    try {
+      return ok(await ontologyService.resumeStudioSource(input));
+    } catch (err) {
+      return fail(err);
+    }
+  });
+  ipcBridge.ontology.connectSource.provider(async (input) => {
+    try {
+      const project = await ontologyService.connectStudioSource(input);
+      ipcBridge.ontology.projectsChanged.emit({ workspaceId: project.workspaceId });
+      return ok(project);
+    } catch (err) {
+      if (err instanceof SudographCompilerError) return { success: false, msg: `[${err.code}] ${err.message}\n${typeof err.recovery === 'string' ? err.recovery : JSON.stringify(err.recovery)}` };
+      return fail(err);
+    }
+  });
   ipcBridge.ontology.saveStudioModel.provider(async (input) => {
     try {
       const snapshot = await ontologyService.saveStudioModel(input);

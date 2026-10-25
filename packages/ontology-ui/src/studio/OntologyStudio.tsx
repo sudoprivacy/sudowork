@@ -3,23 +3,46 @@ import type { CSSProperties, ReactNode } from 'react';
 import { Button, Card, Dropdown, Empty, Form, Input, Menu, Message, Modal, Select, Space, Spin, Table, Tag, Tooltip, Typography } from '@arco-design/web-react';
 import { useTranslation } from 'react-i18next';
 import { ArrowLeft, Database, MessageSquare, Plus, Save, Upload, Workflow } from 'lucide-react';
-import type { IOntologyConsistencyCheckResult, IOntologyConsistencyIssue, IOntologyWorkbenchSnapshot, IOntologyWorkbenchSummary, IOntologyStudioModel, IOntologyStandardPreview, OntologyStudioPage } from '@sudowork/ontology-common';
+import type { IOntologyConsistencyCheckResult, IOntologyConsistencyIssue, IOntologyWorkbenchSnapshot, IOntologyStudioProject, IOntologyStudioModel, IOntologyStandardPreview, OntologyStudioPage } from '@sudowork/ontology-common';
 import { STUDIO_MAX_FILE_BYTES } from '@sudowork/ontology-common';
 import StudioModelEditor from './StudioModelEditor';
+import StudioDatabaseConnection from './StudioDatabaseConnection';
+import StudioSourceProject from './StudioSourceProject';
 import { StudioCapabilitiesPage, StudioChecksPage, StudioDataPage, StudioReleasePage } from './StudioPages';
 import type { IOntologyStudioApi } from './api';
 import styles from './studio.module.css';
 
 const pages: OntologyStudioPage[] = ['model', 'data', 'capabilities', 'checks', 'release'];
-const toModel = (snapshot: IOntologyWorkbenchSnapshot): IOntologyStudioModel => ({ objects: snapshot.objects, relations: snapshot.relations });
+const toModel = (snapshot: IOntologyWorkbenchSnapshot): IOntologyStudioModel => ({
+  objects: snapshot.objects,
+  relations: snapshot.relations,
+});
+const sourceRegistrationKey = 'ontology-studio:source-registration';
 
 export default function OntologyStudio({ api, workspaceId, page = 'model', onNavigate, renderChat, onStartAgentConversation }: IOntologyStudioProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const text = useCallback((key: string) => t(`ontology.studio.${key}`), [t]);
-  const importHint = t('ontology.studio.importFileHint', { maxSize: STUDIO_MAX_FILE_BYTES / (1024 * 1024) });
-  const [library, setLibrary] = useState<IOntologyWorkbenchSummary[]>([]);
+  const importHint = t('ontology.studio.importFileHint', {
+    maxSize: STUDIO_MAX_FILE_BYTES / (1024 * 1024),
+  });
+  const [library, setLibrary] = useState<IOntologyStudioProject[]>([]);
+  const [sourceProject, setSourceProject] = useState<IOntologyStudioProject>();
+  const [isSourceRegistrationAvailable, setIsSourceRegistrationAvailable] = useState(false);
+  const [isSourceConnectOpen, setIsSourceConnectOpen] = useState(false);
+  const sourceOperationId = useRef('');
+  const sourceLanguage = useRef<'en' | 'zh'>('en');
+  const [isSourceOpening, setIsSourceOpening] = useState(false);
+  const isSourceOpeningRef = useRef(false);
+  const projectReadSequence = useRef(0);
+  const activeWorkspace = useRef(workspaceId);
+  activeWorkspace.current = workspaceId;
+  const [loadFailure, setLoadFailure] = useState('');
+  const [retryVersion, setRetryVersion] = useState(0);
   const [snapshot, setSnapshot] = useState<IOntologyWorkbenchSnapshot>();
-  const [draft, setDraft] = useState<IOntologyStudioModel>({ objects: [], relations: [] });
+  const [draft, setDraft] = useState<IOntologyStudioModel>({
+    objects: [],
+    relations: [],
+  });
   const [draftRevision, setDraftRevision] = useState(0);
   const [baseline, setBaseline] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -38,7 +61,10 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
   const [dataGuideWorkspaceId, setDataGuideWorkspaceId] = useState<string>();
   const [createMode, setCreateMode] = useState<'new' | 'rename'>('new');
   const [search, setSearch] = useState('');
-  const [filePreview, setPreview] = useState<{ path: string; preview: IOntologyStandardPreview }>();
+  const [filePreview, setPreview] = useState<{
+    path: string;
+    preview: IOntologyStandardPreview;
+  }>();
   const [exporting, setExporting] = useState<{ versionId?: string }>();
   const [exportFormat, setExportFormat] = useState('owl-rdf');
   const [isExportDraft, setIsExportDraft] = useState(false);
@@ -89,49 +115,100 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
     },
     [onServerSnapshot]
   );
+  const onLoadLibrary = useCallback(async () => {
+    const sequence = ++projectReadSequence.current;
+    if (api.projects) {
+      const result = await api.projects.list();
+      if (sequence !== projectReadSequence.current || activeWorkspace.current) return;
+      setLibrary(result.items);
+      setIsSourceRegistrationAvailable(result.sourceRegistration.available);
+    } else {
+      const result = await api.listWorkbenches();
+      if (sequence !== projectReadSequence.current || activeWorkspace.current) return;
+      setLibrary(
+        result.items.map((item) => ({
+          ...item,
+          authority: 'rdf',
+        }))
+      );
+    }
+  }, [api]);
   const onRefresh = useCallback(async () => {
-    if (workspaceId) onServerSnapshot(await api.getWorkbench({ workspaceId }));
-    else setLibrary((await api.listWorkbenches()).items);
-  }, [api, onServerSnapshot, workspaceId]);
+    const sequence = ++projectReadSequence.current;
+    if (workspaceId) {
+      if (api.projects) {
+        const project = await api.projects.get({ workspaceId });
+        if (sequence !== projectReadSequence.current || activeWorkspace.current !== workspaceId) return;
+        if (project.authority === 'sudograph') {
+          setSourceProject(project);
+          return;
+        }
+      }
+      onServerSnapshot(await api.getWorkbench({ workspaceId }));
+    } else await onLoadLibrary();
+  }, [api, onLoadLibrary, onServerSnapshot, workspaceId]);
   useEffect(() => {
     let isCancelled = false;
+    const sequence = ++projectReadSequence.current;
+    setLoadFailure('');
     setIsLoading(true);
     setSnapshot(undefined);
+    setSourceProject(undefined);
     setBaseline('');
     setContextObjectId(undefined);
     setCheckReport(undefined);
     setFocusIssue(undefined);
     setRepairConversationId(undefined);
     setIsRepairTracking(false);
-    void (
-      workspaceId
-        ? api.getWorkbench({ workspaceId }).then((next) => {
-            if (isCancelled) return;
-            setSnapshot(next);
-            const model = toModel(next);
-            let saved: { revision: number; model: IOntologyStudioModel } | undefined;
-            try {
-              saved = JSON.parse(localStorage.getItem(`ontology-studio:draft:${workspaceId}`) || 'null') || undefined;
-            } catch {
-              /* Ignore an unreadable presentation cache. */
-            }
-            const isValidCache = saved && Array.isArray(saved.model?.objects) && Array.isArray(saved.model?.relations);
-            setDraft(isValidCache ? saved!.model : structuredClone(model));
-            setDraftRevision(isValidCache ? saved!.revision : next.revision || 0);
-            setBaseline(JSON.stringify(model));
-          })
-        : api.listWorkbenches().then((result) => {
-            if (!isCancelled) setLibrary(result.items);
-          })
-    )
-      .catch(onError)
+    const load = async () => {
+      if (!workspaceId) {
+        await onLoadLibrary();
+        return;
+      }
+      if (api.projects) {
+        const project = await api.projects.get({ workspaceId });
+        if (isCancelled || sequence !== projectReadSequence.current) return;
+        if (project.authority === 'sudograph') {
+          setSourceProject(project);
+          return;
+        }
+      }
+      const next = await api.getWorkbench({ workspaceId });
+      if (isCancelled) return;
+      setSnapshot(next);
+      const model = toModel(next);
+      let saved: { revision: number; model: IOntologyStudioModel } | undefined;
+      try {
+        saved = JSON.parse(localStorage.getItem(`ontology-studio:draft:${workspaceId}`) || 'null') || undefined;
+      } catch {
+        /* Ignore an unreadable presentation cache. */
+      }
+      const isValidCache = saved && Array.isArray(saved.model?.objects) && Array.isArray(saved.model?.relations);
+      setDraft(isValidCache ? saved!.model : structuredClone(model));
+      setDraftRevision(isValidCache ? saved!.revision : next.revision || 0);
+      setBaseline(JSON.stringify(model));
+    };
+    void load()
+      .catch((error: unknown) => {
+        if (!isCancelled) {
+          setLoadFailure(error instanceof Error ? error.message : String(error));
+          onError(error);
+        }
+      })
       .finally(() => {
         if (!isCancelled) setIsLoading(false);
       });
     return () => {
       isCancelled = true;
     };
-  }, [api, workspaceId, onError]);
+  }, [api, workspaceId, onError, onLoadLibrary, retryVersion]);
+  useEffect(
+    () =>
+      api.projects?.onChanged((event) => {
+        if (!workspaceId || event.workspaceId === workspaceId) void onRefresh().catch(onError);
+      }),
+    [api, workspaceId, onRefresh, onError]
+  );
   useEffect(
     () =>
       api.onWorkbenchChanged((next) => {
@@ -162,7 +239,12 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
     if (!workspaceId) return;
     setIsSaving(true);
     try {
-      const next = await api.saveStudioModel({ ...draft, workspaceId, expectedRevision: draftRevision, operationId: crypto.randomUUID() });
+      const next = await api.saveStudioModel({
+        ...draft,
+        workspaceId,
+        expectedRevision: draftRevision,
+        operationId: crypto.randomUUID(),
+      });
       isDirtyRef.current = false;
       onServerSnapshot(next, true);
       Message.success(text('saved'));
@@ -192,12 +274,20 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
     setIsCreating(true);
     try {
       if (createMode === 'rename' && workspaceId) {
-        const updated = await api.updateDraft({ workspaceId, title: values.name.trim(), description: values.description });
+        const updated = await api.updateDraft({
+          workspaceId,
+          title: values.name.trim(),
+          description: values.description,
+        });
         onServerSnapshot(updated, true);
         setIsCreateOpen(false);
         return;
       }
-      const created = await api.createWorkbench({ name: values.name.trim(), code: `ontology_${crypto.randomUUID().slice(0, 8)}`, description: values.description });
+      const created = await api.createWorkbench({
+        name: values.name.trim(),
+        code: `ontology_${crypto.randomUUID().slice(0, 8)}`,
+        description: values.description,
+      });
       setIsCreateOpen(false);
       setDataGuideWorkspaceId(created.snapshot.workspaceId);
       onNavigate(created.snapshot.workspaceId, 'model');
@@ -225,8 +315,21 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
     if (!filePreview) return;
     setIsSaving(true);
     try {
-      const target = snapshot || (await api.createWorkbench({ name: filePreview.preview.fileName.replace(/\.[^.]+$/, ''), code: `ontology_${crypto.randomUUID().slice(0, 8)}` })).snapshot;
-      const next = await api.importStandardFile({ workspaceId: target.workspaceId, expectedRevision: target.revision || 0, operationId: crypto.randomUUID(), filePath: filePreview.path, fingerprint: filePreview.preview.fingerprint });
+      const target =
+        snapshot ||
+        (
+          await api.createWorkbench({
+            name: filePreview.preview.fileName.replace(/\.[^.]+$/, ''),
+            code: `ontology_${crypto.randomUUID().slice(0, 8)}`,
+          })
+        ).snapshot;
+      const next = await api.importStandardFile({
+        workspaceId: target.workspaceId,
+        expectedRevision: target.revision || 0,
+        operationId: crypto.randomUUID(),
+        filePath: filePreview.path,
+        fingerprint: filePreview.preview.fingerprint,
+      });
       setPreview(undefined);
       if (workspaceId) onServerSnapshot(next, true);
       else onNavigate(next.workspaceId, 'model');
@@ -236,11 +339,58 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
       setIsSaving(false);
     }
   };
+  const onConnectSource = async () => {
+    if (!api.projects || isSourceOpeningRef.current) return;
+    isSourceOpeningRef.current = true;
+    setIsSourceOpening(true);
+    try {
+      let pending: { operationId: string; language: 'en' | 'zh' } | undefined;
+      try {
+        const saved = JSON.parse(localStorage.getItem(sourceRegistrationKey) || 'null');
+        if (typeof saved?.operationId === 'string' && /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(saved.operationId) && ['en', 'zh'].includes(saved.language)) pending = saved;
+      } catch {
+        /* An opaque retry handle contains no source path or credential. */
+      }
+      if (pending) {
+        const project = await api.projects.resumeSource({
+          operationId: pending.operationId,
+        });
+        if (activeWorkspace.current) return;
+        if (project) {
+          localStorage.removeItem(sourceRegistrationKey);
+          onNavigate(project.workspaceId, 'model');
+          return;
+        }
+      }
+      pending ??= {
+        operationId: crypto.randomUUID(),
+        language: (i18n.resolvedLanguage || i18n.language).startsWith('zh') ? 'zh' : 'en',
+      };
+      localStorage.setItem(sourceRegistrationKey, JSON.stringify(pending));
+      sourceOperationId.current = pending.operationId;
+      sourceLanguage.current = pending.language;
+      setIsSourceConnectOpen(true);
+    } catch (error) {
+      onError(error);
+    } finally {
+      isSourceOpeningRef.current = false;
+      setIsSourceOpening(false);
+    }
+  };
   const onExport = async () => {
     if (!workspaceId || !snapshot) return;
     try {
-      const result = await api.exportStandardFile({ workspaceId, versionId: exporting?.versionId, format: exportFormat === 'owl-xml' ? 'owlxml' : 'rdfxml', ...(isExportDraft && !exporting?.versionId ? { model: draft, expectedRevision: draftRevision } : {}) });
-      const url = URL.createObjectURL(new Blob([result.content], { type: 'application/rdf+xml;charset=utf-8' }));
+      const result = await api.exportStandardFile({
+        workspaceId,
+        versionId: exporting?.versionId,
+        format: exportFormat === 'owl-xml' ? 'owlxml' : 'rdfxml',
+        ...(isExportDraft && !exporting?.versionId ? { model: draft, expectedRevision: draftRevision } : {}),
+      });
+      const url = URL.createObjectURL(
+        new Blob([result.content], {
+          type: 'application/rdf+xml;charset=utf-8',
+        })
+      );
       const link = document.createElement('a');
       link.href = url;
       link.download = `${snapshot.draft.title.replace(/[\\/:*?"<>|]/g, '_')}.${exportFormat === 'rdf' ? 'rdf' : 'owl'}`;
@@ -253,14 +403,25 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
   };
   const context = useMemo(() => {
     const object = draft.objects.find((item) => item.id === contextObjectId);
-    return object ? { id: object.id, name: object.name, iri: object.iri, revision: draftRevision } : undefined;
+    return object
+      ? {
+          id: object.id,
+          name: object.name,
+          iri: object.iri,
+          revision: draftRevision,
+        }
+      : undefined;
   }, [draft.objects, contextObjectId, draftRevision]);
   const pageProps = snapshot ? { snapshot, api, onRefresh, onError } : undefined;
   const isConflict = snapshot && isDirty && (snapshot.revision || 0) !== draftRevision;
   const onCheckReport = useCallback(
     (report: IOntologyConsistencyCheckResult) => {
       const current = snapshotRef.current;
-      if (current && current.workspaceId === workspaceId) setCheckReport({ ...report, revision: report.revision ?? current.revision ?? 0 });
+      if (current && current.workspaceId === workspaceId)
+        setCheckReport({
+          ...report,
+          revision: report.revision ?? current.revision ?? 0,
+        });
     },
     [workspaceId]
   );
@@ -299,9 +460,16 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
     setRepairConversationId(undefined);
     setIsRepairTracking(true);
     try {
-      await api.requestAiRepair({ workspaceId: snapshot.workspaceId, title: snapshot.draft.title, prompt }, (id) => {
-        if (snapshotRef.current?.workspaceId === snapshot.workspaceId) setRepairConversationId(id);
-      });
+      await api.requestAiRepair(
+        {
+          workspaceId: snapshot.workspaceId,
+          title: snapshot.draft.title,
+          prompt,
+        },
+        (id) => {
+          if (snapshotRef.current?.workspaceId === snapshot.workspaceId) setRepairConversationId(id);
+        }
+      );
       Message.success(text('repairSent'));
     } catch (error) {
       setIsRepairTracking(false);
@@ -331,37 +499,53 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
         <div className={styles['ontology-loading']}>
           <Spin />
         </div>
+      ) : loadFailure ? (
+        <div className={styles['ontology-library']}>
+          <Empty description={loadFailure} />
+          <Button onClick={() => setRetryVersion((value) => value + 1)}>{text('sourceRefresh')}</Button>
+        </div>
+      ) : sourceProject ? (
+        <StudioSourceProject project={sourceProject} renderChat={renderChat} onBack={() => onNavigate()} onRefresh={() => onRefresh().catch(onError)} />
       ) : !workspaceId ? (
         <div className={styles['ontology-library']}>
           <div className={styles['ontology-page-heading']}>
             <div>
               <Typography.Title heading={4}>{text('library')}</Typography.Title>
-              <Typography.Text type='secondary'>{text('libraryDescription')}</Typography.Text>
+              <Typography.Text type='secondary'>{text(isSourceRegistrationAvailable ? 'sourceLibraryDescription' : 'libraryDescription')}</Typography.Text>
             </div>
             <Space>
-              <Tooltip content={importHint} position='bottom' trigger={['hover', 'focus']} style={{ maxWidth: 360 }}>
-                <Button icon={<Upload size={16} />} loading={isSaving} onClick={() => void onPickImport()}>
-                  {text('import')}
+              {api.projects && (
+                <Button type={isSourceRegistrationAvailable ? 'primary' : 'secondary'} disabled={!isSourceRegistrationAvailable} loading={isSourceOpening} onClick={() => void onConnectSource()}>
+                  {text('addConnection')}
                 </Button>
-              </Tooltip>
-              <Button
-                type='primary'
-                icon={<Plus size={16} />}
-                onClick={() => {
-                  createForm.resetFields();
-                  setCreateMode('new');
-                  setIsCreateOpen(true);
-                }}
-              >
-                {text('newOntology')}
-              </Button>
+              )}
+              {!isSourceRegistrationAvailable && (
+                <>
+                  <Tooltip content={importHint} position='bottom' trigger={['hover', 'focus']} style={{ maxWidth: 360 }}>
+                    <Button icon={<Upload size={16} />} loading={isSaving} onClick={() => void onPickImport()}>
+                      {text('import')}
+                    </Button>
+                  </Tooltip>
+                  <Button
+                    type='primary'
+                    icon={<Plus size={16} />}
+                    onClick={() => {
+                      createForm.resetFields();
+                      setCreateMode('new');
+                      setIsCreateOpen(true);
+                    }}
+                  >
+                    {text('newOntology')}
+                  </Button>
+                </>
+              )}
             </Space>
           </div>
           <Input.Search placeholder={text('searchOntology')} value={search} onChange={setSearch} style={{ maxWidth: 360, marginBottom: 24 }} />
           <Table
             rowKey='workspaceId'
             data={filteredLibrary}
-            noDataElement={<Empty description={text(search.trim() ? 'noSearchResults' : 'emptyLibrary')} />}
+            noDataElement={<Empty description={text(search.trim() ? 'noSearchResults' : isSourceRegistrationAvailable ? 'sourceEmptyLibrary' : 'emptyLibrary')} />}
             scroll={{ x: 900 }}
             columns={[
               {
@@ -373,32 +557,44 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
                   </Button>
                 ),
               },
-              { title: text('description'), dataIndex: 'description', width: 500 },
-              { title: text('objects'), dataIndex: 'objectCount', width: 80 },
+              {
+                title: text('description'),
+                dataIndex: 'description',
+                width: 500,
+              },
+              {
+                title: text('objects'),
+                width: 80,
+                render: (_value, item) => item.objectCount ?? '—',
+              },
               {
                 title: text('operations'),
                 width: 100,
-                render: (_value, item) => (
-                  <Button
-                    type='text'
-                    status='danger'
-                    onClick={() =>
-                      Modal.confirm({
-                        title: text('deleteOntology'),
-                        content: item.name,
-                        onOk: async () => {
-                          await api.deleteWorkbench({ workspaceId: item.workspaceId });
-                          await onRefresh();
-                        },
-                      })
-                    }
-                  >
-                    {text('delete')}
-                  </Button>
-                ),
+                render: (_value, item) =>
+                  item.authority === 'sudograph' ? null : (
+                    <Button
+                      type='text'
+                      status='danger'
+                      onClick={() =>
+                        Modal.confirm({
+                          title: text('deleteOntology'),
+                          content: item.name,
+                          onOk: async () => {
+                            await api.deleteWorkbench({
+                              workspaceId: item.workspaceId,
+                            });
+                            await onRefresh();
+                          },
+                        })
+                      }
+                    >
+                      {text('delete')}
+                    </Button>
+                  ),
               },
             ]}
           />
+          {api.projects && !isSourceRegistrationAvailable && <Typography.Text type='secondary'>{text('sourceRuntimeUnavailable')}</Typography.Text>}
         </div>
       ) : snapshot ? (
         <>
@@ -425,7 +621,10 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
                       disabled={isDirty}
                       onClick={() => {
                         createForm.resetFields();
-                        createForm.setFieldsValue({ name: snapshot.draft.title, description: snapshot.draft.description });
+                        createForm.setFieldsValue({
+                          name: snapshot.draft.title,
+                          description: snapshot.draft.description,
+                        });
                         setCreateMode('rename');
                         setIsCreateOpen(true);
                       }}
@@ -538,6 +737,25 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
       ) : (
         <Empty description={text('errors.notFound')} />
       )}
+      {isSourceConnectOpen && api.projects && (
+        <StudioDatabaseConnection
+          workspaceId=''
+          api={api}
+          providers={['sqlite']}
+          onRefresh={async () => {}}
+          onClose={() => setIsSourceConnectOpen(false)}
+          onError={onError}
+          onSubmit={async (connector) => {
+            const project = await api.projects!.connectSource({
+              operationId: sourceOperationId.current,
+              connector,
+              language: sourceLanguage.current,
+            });
+            localStorage.removeItem(sourceRegistrationKey);
+            if (!activeWorkspace.current) onNavigate(project.workspaceId, 'model');
+          }}
+        />
+      )}
       <Modal
         visible={isCreateOpen}
         title={text(createMode === 'rename' ? 'rename' : 'newOntology')}
@@ -551,7 +769,18 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
         unmountOnExit
       >
         <Form form={createForm} layout='vertical'>
-          <Form.Item field='name' label={text('name')} rules={[{ required: true, message: t('ontology.studio.requiredField', { field: text('name') }) }]}>
+          <Form.Item
+            field='name'
+            label={text('name')}
+            rules={[
+              {
+                required: true,
+                message: t('ontology.studio.requiredField', {
+                  field: text('name'),
+                }),
+              },
+            ]}
+          >
             <Input />
           </Form.Item>
           <Form.Item field='description' label={text('description')}>
@@ -632,8 +861,16 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
             <p>{text('standardPreservation')}</p>
             <Space wrap>
               <Tag>{filePreview.preview.document.sourceFormat}</Tag>
-              <Tag>{t('ontology.studio.objectCount', { count: filePreview.preview.model.objects.length })}</Tag>
-              <Tag>{t('ontology.studio.statementCount', { count: filePreview.preview.statementCount })}</Tag>
+              <Tag>
+                {t('ontology.studio.objectCount', {
+                  count: filePreview.preview.model.objects.length,
+                })}
+              </Tag>
+              <Tag>
+                {t('ontology.studio.statementCount', {
+                  count: filePreview.preview.statementCount,
+                })}
+              </Tag>
             </Space>
             <Table
               rowKey='id'

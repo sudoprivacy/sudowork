@@ -58,6 +58,100 @@ describe('OntologyService canonical source registration', () => {
   });
 });
 
+describe('OntologyService native source intake', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+  });
+
+  it('lists both authorities without reading a canonical model as RDF or fabricating its counts', async () => {
+    const database = {
+      listProjects: () => [
+        { id: 'old', title: 'Old', authority: 'rdf' },
+        { id: 'source', title: 'Support', authority: 'sudograph', modelRef: 'private-model' },
+      ],
+      getSnapshot: vi.fn().mockImplementation((id) => {
+        if (id !== 'old') throw new Error('Canonical models are not RDF');
+        return { draft: { title: 'Existing RDF', description: 'Legacy' }, objects: [{}] };
+      }),
+    };
+    const service = new OntologyService(database as unknown as OntologyDatabase, {} as OntologyEngine);
+    for (const name of ['SUDOGRAPH_PYTHON', 'SUDOGRAPH_COMPILER_ROOT', 'SUDOGRAPH_MODEL_DIRECTORY']) vi.stubEnv(name, 'configured');
+    const result = await service.listStudioProjects();
+    expect(result.items).toEqual([
+      { workspaceId: 'old', name: 'Existing RDF', description: 'Legacy', objectCount: 1, authority: 'rdf' },
+      { workspaceId: 'source', name: 'Support', authority: 'sudograph' },
+    ]);
+    expect(result.sourceRegistration).toEqual({ available: true, providers: ['sqlite'], execution: 'desktop' });
+    vi.stubEnv('SUDOGRAPH_COMPILER_ROOT', '');
+    expect((await service.listStudioProjects()).sourceRegistration.available).toBe(false);
+    expect(database.getSnapshot).not.toHaveBeenCalledWith('source');
+    expect(JSON.stringify(result)).not.toContain('private-model');
+  });
+
+  it('derives overview counts and observation from one committed product without leaking source details', async () => {
+    const database = { getProject: vi.fn().mockReturnValue({ id: 'source', title: 'Support', authority: 'sudograph', modelRef: 'private-model' }), getSnapshot: vi.fn() };
+    const service = new OntologyService(database as unknown as OntologyDatabase, {} as OntologyEngine);
+    const read = vi.spyOn(service, 'invokeSudograph').mockResolvedValue({
+      revision: 'r1',
+      source_registration: {
+        private_dsn: 'sqlite:///private.db',
+        connection: { observed_at: '2026-10-25T00:00:00Z' },
+        scan: { status: 'complete', structure_complete: true, objects: 2, tables: 1, database_views: 1, fields: 3 },
+        records: { delivery: 'live', rows_embedded: 0 },
+      },
+    });
+    const project = await service.getStudioProject({ workspaceId: 'source' });
+    expect(project.source).toEqual({ revision: 'r1', observedAt: '2026-10-25T00:00:00Z', structureComplete: true, objects: 2, tables: 1, databaseViews: 1, fields: 3, delivery: 'live', rowsEmbedded: 0 });
+    expect(read).toHaveBeenCalledExactlyOnceWith('source', { operation: 'overview' });
+    expect(database.getSnapshot).not.toHaveBeenCalled();
+    expect(JSON.stringify(project)).not.toContain('private');
+    read.mockResolvedValueOnce({ revision: 'legacy', source_registration: null });
+    expect((await service.getStudioProject({ workspaceId: 'source' })).source).toBeUndefined();
+    database.getProject.mockReturnValue(null);
+    await expect(service.getStudioProject({ workspaceId: 'missing' })).rejects.toThrow('notFound');
+    expect(read).toHaveBeenCalledTimes(2);
+  });
+
+  it('derives the persistent model binding in the host and retries the same intake identity', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'ontology-source-form-'));
+    try {
+      const source = path.join(directory, 'support #source.db');
+      await fs.writeFile(source, '');
+      const database = { getProject: vi.fn().mockReturnValue(null) };
+      const service = new OntologyService(database as unknown as OntologyDatabase, {} as OntologyEngine);
+      const register = vi.spyOn(service, 'registerSudographSourceProject').mockResolvedValue({} as Awaited<ReturnType<typeof service.registerSudographSourceProject>>);
+      const project = { workspaceId: 'registered', name: 'Support', authority: 'sudograph' as const };
+      vi.spyOn(service, 'getStudioProject').mockResolvedValue(project);
+      const input = { operationId: '123e4567-e89b-42d3-a456-426614174000', language: 'en' as const, connector: { name: 'Support', kind: 'database' as const, sourceType: 'sqlite' as const, path: source, writable: false, metadata: {} } };
+      expect(await service.connectStudioSource(input)).toEqual(project);
+      await service.connectStudioSource(input);
+      const binding = register.mock.calls[0][0];
+      expect(binding.workspaceId).toMatch(/^source_[a-f0-9]{32}$/);
+      expect(binding.modelRef).toBe(binding.workspaceId);
+      expect(binding.namespace).toBe(binding.workspaceId);
+      expect(binding.source).toBe(`sqlite:///${(await fs.realpath(source)).split(path.sep).join('/')}`);
+      expect(binding.operationId).toBe(input.operationId);
+      expect(register.mock.calls[1][0]).toEqual(binding);
+      expect(await service.resumeStudioSource({ operationId: input.operationId })).toBeNull();
+      database.getProject.mockReturnValue({ id: binding.workspaceId, title: 'Support', authority: 'sudograph', modelRef: binding.modelRef });
+      expect(await service.resumeStudioSource({ operationId: input.operationId })).toEqual(project);
+      expect(service.getStudioProject).toHaveBeenLastCalledWith({ workspaceId: binding.workspaceId });
+      for (const override of [{ modelRef: 'chosen' }, { namespace: 'chosen' }, { workspaceId: 'chosen' }]) {
+        await expect(service.connectStudioSource({ ...input, ...override })).rejects.toThrow();
+      }
+      for (const override of [{ sourceType: 'postgresql' }, { writable: true }, { password: 'secret' }, { path: 'relative.db' }]) {
+        await expect(service.connectStudioSource({ ...input, connector: { ...input.connector, ...override } } as typeof input)).rejects.toThrow();
+      }
+      expect(register).toHaveBeenCalledTimes(2);
+    } finally {
+      expect(path.dirname(directory)).toBe(path.resolve(os.tmpdir()));
+      expect(path.basename(directory)).toMatch(/^ontology-source-form-/);
+      await fs.rm(directory, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('OntologyService workspace selection', () => {
   it('does not change the active workspace when reading another workbench', async () => {
     const snapshot = createDefaultOntologyWorkbenchSnapshot(Date.now(), {

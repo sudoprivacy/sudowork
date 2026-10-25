@@ -2,6 +2,13 @@ import type { IOntologyDescribeAssetFieldsInput, IOntologyStudioSaveInput, IOnto
 import type { IOntologyWorkbenchApi } from '../OntologyWorkbench';
 
 export interface IOntologyStudioApi extends IOntologyWorkbenchApi {
+  projects?: {
+    list: () => Promise<import('@sudowork/ontology-common').IOntologyStudioProjectList>;
+    get: (input: { workspaceId: string }) => Promise<import('@sudowork/ontology-common').IOntologyStudioProject>;
+    connectSource: (input: import('@sudowork/ontology-common').IOntologyConnectSourceInput) => Promise<import('@sudowork/ontology-common').IOntologyStudioProject>;
+    resumeSource: (input: { operationId: string }) => Promise<import('@sudowork/ontology-common').IOntologyStudioProject | null>;
+    onChanged: (onChanged: (event: { workspaceId: string }) => void) => () => void;
+  };
   requestAiRepair: (input: { workspaceId: string; title: string; prompt: string }, onConversationReady: (conversationId: string) => void) => Promise<void>;
   createAgentBlueprint: (input: import('@sudowork/ontology-common').IOntologyAgentBlueprintInput) => Promise<{
     snapshot: IOntologyWorkbenchSnapshot;

@@ -258,6 +258,7 @@ export default defineConfig({
         '../../packages/renderer/src/pages/settings/model-account/**/*.{ts,tsx}',
         '../../packages/ontology-common/src/index.ts',
         '../../packages/ontology-common/src/studio.ts',
+        '../../packages/ontology-common/src/projects.ts',
         '../../packages/ontology-engine/src/standardOntology.ts',
         '../../packages/common/src/conversationPurpose.ts',
         '../../packages/ontology-ui/src/studio/**/*.ts',

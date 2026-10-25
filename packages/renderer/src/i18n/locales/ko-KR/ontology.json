@@ -26,6 +26,23 @@
   "objectEditor.deleteAttributeTitle": "속성 삭제",
   "objectEditor.deleteAttributeContent": "속성 {{name}}을(를) 삭제하시겠습니까? 연결된 필드 매핑도 함께 삭제됩니다.",
   "studio": {
+    "sourceLibraryDescription": "업무 데이터를 연결하거나 기존 온톨로지를 계속합니다",
+    "sourceEmptyLibrary": "데이터베이스를 연결하여 검증된 데이터 투영을 만드세요",
+    "sourceRuntimeUnavailable": "이 배포에서는 데이터 소스 모델링이 활성화되지 않았습니다. 관리자에게 문의하세요.",
+    "sourceOverview": "데이터 투영",
+    "sourceReceiptMissing": "소스 스캔 증거가 기록되지 않음",
+    "sourceRefresh": "새로 고침",
+    "sourceStructureComplete": "최근 구조 스캔 완료",
+    "sourceStructureIncomplete": "구조 스캔 미완료",
+    "sourceLiveRecords": "필요할 때 레코드 읽기",
+    "sourceSnapshotRecords": "고정된 레코드 스냅샷",
+    "sourceRecordsUnavailable": "레코드를 사용할 수 없음",
+    "sourceCounts": "테이블 {{tables}}개 · 데이터베이스 뷰 {{views}}개 · 필드 {{fields}}개",
+    "sourceObservation": "소스 확인 시간",
+    "sourceObservationUnknown": "기록되지 않음",
+    "sourceRevision": "모델 버전",
+    "sourceObservationHint": "마지막으로 검증된 스캔 결과이며 현재 연결 상태를 의미하지 않습니다. 레코드를 읽을 때 소스를 다시 확인합니다.",
+    "sourceConversationHint": "기존 온톨로지 대화를 계속할 수 있습니다. 모델 도구는 동일한 검증된 모델을 읽고 수정합니다.",
     "issues": {
       "noServiceEndpoint": "Ontology tools are not available to agents yet. Open Release to publish the ontology and register an agent."
     }

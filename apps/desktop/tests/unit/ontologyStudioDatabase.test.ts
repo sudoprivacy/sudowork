@@ -64,6 +64,8 @@ describe('ontology studio persistence', () => {
         store.registerSudographProject({ id: 'canonical', title: 'Canonical model', modelRef: 'model-1' });
         store.registerSudographProject({ id: 'canonical', title: 'Retry', modelRef: 'model-1' });
         assert.equal(store.getProject('canonical').authority, 'sudograph');
+        assert.deepEqual(store.listProjects().map(project => project.id).sort(), ['a', 'b', 'canonical', 'legacy']);
+        assert.equal(store.listProjects().find(project => project.id === 'canonical').modelRef, 'model-1');
         assert.throws(() => store.getSnapshot('canonical'), /Sudograph owns/);
         assert.throws(() => store.saveSnapshot(createDefaultOntologyWorkbenchSnapshot(1, { workspaceId: 'canonical' })), /Sudograph owns/);
         assert.throws(() => store.resetSnapshot('canonical'), /Sudograph owns/);
@@ -91,6 +93,7 @@ describe('ontology studio persistence', () => {
         assert.throws(() => store.saveSnapshot(staleAgents), /conflict/);
         store.close();
         const reopened = new OntologyStudioDatabase(${JSON.stringify(directory)});
+        assert.equal(reopened.listProjects().find(project => project.id === 'canonical').authority, 'sudograph');
         assert.equal(reopened.getSnapshot('a').objects[0].name, '订单');
         assert.equal(reopened.getAiSessionByConversationId('chat').workspace_id, 'a');
         const credentials = reopened.getSnapshot('a');
