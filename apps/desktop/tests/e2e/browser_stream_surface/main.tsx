@@ -51,12 +51,23 @@ function App() {
             stream={stream}
             isInteractive={isInteractive && isReady}
             isDragSupported
+            isLiveDragSupported
             isTouchDragging={isTouchDragging}
             zoom={zoom}
             label='Shared Chrome window'
             onInput={(value) => {
-              void fetch('/input', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value) }).then((response) => {
-                if (!response.ok) setError(`Input failed (${response.status})`);
+              return fetch('/input', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value) }).then(async (response) => {
+                if (!response.ok) {
+                  setError(`Input failed (${response.status})`);
+                  throw new Error(`Input failed (${response.status})`);
+                }
+                const reply = await response.json();
+                if (reply.session.controlEpoch !== stream.controlEpoch || reply.session.targetEpoch !== stream.targetEpoch) {
+                  setIsReady(false);
+                  const refreshed = await fetch('/stream-context');
+                  if (!refreshed.ok) throw new Error(`Context unavailable (${refreshed.status})`);
+                  setStream(await refreshed.json());
+                }
               });
             }}
             onReady={() => setIsReady(true)}

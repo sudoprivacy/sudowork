@@ -192,6 +192,7 @@ async def run_case(assets, evidence, transport, graph_html=None):
                     query = f"viewerId={viewer_id}&controlEpoch={current['controlEpoch']}&targetEpoch={current['targetEpoch']}"
                     return web.json_response(
                         {
+                            "viewerId": viewer_id,
                             "password": reply["stream"]["password"],
                             "socketPath": "/ws/browser/react-stream?" + query,
                             "browserSessionId": reply["session"]["browserSessionId"],

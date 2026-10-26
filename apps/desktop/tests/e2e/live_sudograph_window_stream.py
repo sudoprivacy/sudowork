@@ -136,7 +136,7 @@ async def matching_graph_pixels(page, viewer, state, bounds, evidence, label):
             value["foregroundPixels"] >= 30
             and value["luminanceCorrelation"] >= 0.9
             and (
-                label not in ("pan", "zoom")
+                label not in ("pan", "pan-held", "zoom")
                 or value["luminanceCorrelation"] - value["previousFrameCorrelation"]
                 >= 0.15
             )
@@ -196,6 +196,7 @@ async def verify_graph(page, viewer, evidence, graph_html, stream_events):
 
     actions = []
     for kind in ("pan", "zoom"):
+        held_match = None
         before = await page.js(GRAPH)
         started = await viewer.js(
             "({at:performance.now(),pixel:window.graphPixelMeasurements.at(-1)})"
@@ -230,6 +231,21 @@ async def verify_graph(page, viewer, evidence, graph_html, stream_events):
                     {"type": "mouseMoved", **current, "button": "left", "buttons": 1},
                 )
                 await asyncio.sleep(0.03)
+            held = await wait_for(
+                lambda: page.js(GRAPH),
+                lambda value: (
+                    abs(value["pan"]["x"] - before["pan"]["x"] + 100) < 2
+                    and abs(value["pan"]["y"] - before["pan"]["y"] + 50) < 2
+                ),
+            )
+            assert not any(
+                event["kind"] == "pointerup"
+                for event in held["events"][len(before["events"]) :]
+            ), "Require graph motion while the native pointer remains pressed"
+            held_match = await matching_graph_pixels(
+                page, viewer, held, bounds, evidence, "pan-held"
+            )
+            await screenshot(viewer, evidence / "graph-pan-before-release.png")
             await viewer.call(
                 "Input.dispatchMouseEvent",
                 {
@@ -285,7 +301,7 @@ async def verify_graph(page, viewer, evidence, graph_html, stream_events):
             return stable_samples >= 4
 
         after = await wait_for(observe_action, is_stable)
-        matched = await matching_graph_pixels(
+        matched = held_match or await matching_graph_pixels(
             page, viewer, after, bounds, evidence, kind
         )
         pixels = await wait_for(
@@ -322,6 +338,7 @@ async def verify_graph(page, viewer, evidence, graph_html, stream_events):
         chunks = await wait_for(payloads)
         action = {
             "kind": kind,
+            "verifiedChangedPixelsBeforePointerRelease": held_match is not None,
             "zoomFocusObject": before["focus"]["id"] if kind == "zoom" else None,
             "before": {key: before[key] for key in ("pan", "zoom")},
             "after": {key: after[key] for key in ("pan", "zoom")},

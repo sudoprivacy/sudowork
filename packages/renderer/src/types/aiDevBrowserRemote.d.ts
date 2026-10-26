@@ -1,6 +1,6 @@
 declare module '@ai-dev-browser/remote-page' {
   export class InputSurface {
-    constructor(element: HTMLElement, send: (input: unknown) => void, options?: { drag?: boolean; touchDrag?: boolean });
+    constructor(element: HTMLElement, send: (input: unknown) => void | Promise<void>, options?: { drag?: boolean; touchDrag?: boolean; liveDrag?: boolean; viewerId?: string });
     resize(width: number, height: number): boolean;
     clear(): void;
     dispose(): void;
