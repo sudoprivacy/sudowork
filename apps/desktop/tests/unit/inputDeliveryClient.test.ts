@@ -7,13 +7,20 @@ const state = (revision: number, pending: InputState['pending'] = []): InputStat
 afterEach(() => vi.useRealTimers());
 
 describe('host input delivery transport', () => {
-  it('accepts a restarted upstream revision while the browser socket stays connected', () => {
+  it('rejects old replies and accepts a restarted upstream revision while the browser socket stays connected', async () => {
+    vi.useFakeTimers();
     const onReset = vi.fn();
     const client = new InputDeliveryClient(() => true, vi.fn(), onReset);
     client.receive({ type: 'input_delivery_update', update: { kind: 'state', state: state(100, [queued]) } });
+    const pending = client.request('before-reset', { action: 'snapshot' });
+    const closed = expect(pending).rejects.toThrow(/outcome is unknown/);
     client.receive({ type: 'input_delivery_reset' });
+    await closed;
     expect(client.state).toBeNull();
     expect(onReset).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(0);
+    client.receive({ type: 'input_delivery_reply', requestId: 'before-reset', isSupported: true, receipt: { state: state(101, [queued]) } });
+    expect(client.state).toBeNull();
     client.receive({ type: 'input_delivery_update', update: { kind: 'state', state: state(1) } });
     expect(client.state?.revision).toBe(1);
     expect(client.state?.pending).toEqual([]);
