@@ -115,19 +115,6 @@ function createApi(): IOntologyWorkbenchApi {
     },
   ];
   snapshot.publishedVersions.push({ ...snapshot.publishedVersions[0], id: 'version-2', version: 'v2' }, { ...snapshot.publishedVersions[0], id: 'version-3', version: 'v3' });
-  snapshot.skillBlueprints = snapshot.publishedVersions.map((version) => ({
-    id: `skill-${version.id}`,
-    name: `${snapshot.draft.title} ${version.version} skill`,
-    description: 'Customer operations',
-    status: 'published',
-    ontologyVersionId: version.id,
-    version: '1.0.0',
-    entityIds: ['customer'],
-    toolManifest: [],
-    registeredSkillId: `ontology-skill-${version.id}`,
-    createdAt: 1,
-    updatedAt: 1,
-  }));
   snapshot.stats = recalculateOntologyStats(snapshot);
   const summary = summarizeOntologyWorkbenchSnapshot(snapshot);
   const mutationResult = { snapshot, summaries: [summary], activeWorkspaceId: snapshot.workspaceId };
@@ -998,21 +985,6 @@ describe('OntologyWorkbench', () => {
   it('validates quality rule expressions and displays execution results', async () => {
     const api = createApi();
     const snapshot = await api.getWorkbench();
-    snapshot.skillBlueprints = [
-      {
-        id: 'skill-version-2',
-        name: 'Customer skill',
-        description: 'Customer operations',
-        status: 'published',
-        ontologyVersionId: 'version-2',
-        version: '1.0.0',
-        entityIds: [],
-        toolManifest: [],
-        registeredSkillId: 'ontology-skill-version-2',
-        createdAt: 1,
-        updatedAt: 1,
-      },
-    ];
     snapshot.objects[0].attributes = [createAttribute()];
     snapshot.qualityRules = [
       {
@@ -1352,7 +1324,7 @@ describe('OntologyWorkbench', () => {
     await waitFor(() =>
       expect(api.createAgentBlueprint).toHaveBeenCalledWith({
         name: 'Versioned Agent',
-        skillBlueprintId: 'skill-version-2',
+        ontologyVersionId: 'version-2',
         workspaceId: 'customer_domain',
         promptTemplate: 'ontology.agent.defaultPrompt',
       })

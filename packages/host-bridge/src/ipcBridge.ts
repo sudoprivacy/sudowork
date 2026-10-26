@@ -91,7 +91,6 @@ import type {
   IOntologyPreviewAssetInput,
   IOntologyPreviewAssetResult,
   IOntologyPublishApprovalInput,
-  IOntologyPublishSkillInput,
   IOntologyPublishedVersion,
   IOntologyQualityRuleInput,
   IOntologyRegisterAgentInput,
@@ -101,8 +100,6 @@ import type {
   IOntologyRollbackInput,
   IOntologyRuntimeExecutionResult,
   IOntologySelectWorkbenchInput,
-  IOntologySkillBlueprint,
-  IOntologySkillBlueprintInput,
   IOntologySyncAssetSchemaInput,
   IOntologyWorkbenchDraftInput,
   IOntologyWorkbenchListResult,
@@ -1154,20 +1151,6 @@ export const ontology = {
   approvePublishedVersion: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, IOntologyPublishApprovalInput>('ontology.publish.approve-version'),
   rejectPublishedVersion: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, IOntologyRejectVersionInput>('ontology.publish.reject-version'),
   rollbackToVersion: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, IOntologyRollbackInput>('ontology.publish.rollback-version'),
-  createSkillBlueprint: bridge.buildProvider<
-    IBridgeResponse<{
-      snapshot: IOntologyWorkbenchSnapshot;
-      blueprint: IOntologySkillBlueprint;
-    }>,
-    IOntologySkillBlueprintInput
-  >('ontology.skill.create-blueprint'),
-  publishSkillBlueprint: bridge.buildProvider<
-    IBridgeResponse<{
-      snapshot: IOntologyWorkbenchSnapshot;
-      blueprint: IOntologySkillBlueprint;
-    }>,
-    IOntologyPublishSkillInput
-  >('ontology.skill.publish-blueprint'),
   createAgentBlueprint: bridge.buildProvider<
     IBridgeResponse<{
       snapshot: IOntologyWorkbenchSnapshot;
@@ -2379,11 +2362,6 @@ export interface ISkillHubListResponse {
  * Prefixed with `_sudowork_` to avoid conflicts with skill content files.
  */
 export interface ISkillHubMeta {
-  ontologyBinding?: {
-    workspaceId: string;
-    versionId: string;
-    skillBlueprintId: string;
-  };
   id: string;
   name: string;
   display_name: string;

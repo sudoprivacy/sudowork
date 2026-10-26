@@ -40,7 +40,6 @@ import type {
   IOntologyProbeConnectorInput,
   IOntologyProbeConnectorResult,
   IOntologyPublishApprovalInput,
-  IOntologyPublishSkillInput,
   IOntologyPublishedVersion,
   IOntologyQualityRule,
   IOntologyQualityRuleInput,
@@ -53,8 +52,7 @@ import type {
   IOntologyReviewTargetInput,
   IOntologyRollbackInput,
   IOntologyServiceEndpoint,
-  IOntologySkillBlueprint,
-  IOntologySkillBlueprintInput,
+  IOntologyToolManifestItem,
   IOntologySyncAssetSchemaInput,
   IOntologyVersionDiff,
   IOntologyVersionSnapshot,
@@ -74,57 +72,6 @@ export interface IOntologyRepository {
   saveSnapshot(snapshot: IOntologyWorkbenchSnapshot, expectedSnapshot?: IOntologyWorkbenchSnapshot): void | Promise<void>;
   deleteSnapshot(workspaceId: string): void | Promise<void>;
   resetSnapshot(workspaceId: string): void | Promise<void>;
-}
-
-function createSkillBlueprint(snapshot: IOntologyWorkbenchSnapshot, version: IOntologyPublishedVersion, input: Partial<IOntologySkillBlueprintInput>, now: number): IOntologySkillBlueprint {
-  const actions = version.snapshot.actions.filter((action) => action.status === 'active');
-  const logicFunctions = version.snapshot.logicFunctions.filter((logicFunction) => logicFunction.status === 'active');
-  return {
-    id: createHash('sha256')
-      .update(JSON.stringify(['ontology-skill', snapshot.workspaceId, version.id]))
-      .digest('hex')
-      .slice(0, 32),
-    name: input.name?.trim() || `${snapshot.draft.title}技能`,
-    description: input.description?.trim() || `${snapshot.draft.title} ${version.version} 的查询、关系遍历与业务能力。`,
-    status: 'draft',
-    ontologyVersionId: version.id,
-    version: '1.0.0',
-    entityIds: version.snapshot.objects.map((item) => item.id),
-    toolManifest: [
-      {
-        name: 'ontology.lookup',
-        description: 'Lookup ontology objects, attributes, and relations.',
-        displayName: '本体综合查询',
-        displayDescription: '查询本体中的业务对象、属性和关系。',
-        category: 'ontology',
-      },
-      ...version.snapshot.relations
-        .filter((relation) => relation.dataBinding && relation.dataBinding.mode !== 'semantic_only')
-        .map((relation) => ({
-          name: `relation_${relation.code}`,
-          description: `Traverse ${relation.name} through its configured field-level join.`,
-          displayName: `遍历“${relation.name}”关系`,
-          displayDescription: `通过已配置的字段关联遍历“${relation.name}”关系并查询关联记录。`,
-          category: 'relation' as const,
-        })),
-      ...logicFunctions.map((logicFunction) => ({
-        name: `logic_${logicFunction.code}`,
-        description: logicFunction.description || logicFunction.name,
-        displayName: logicFunction.displayName,
-        displayDescription: logicFunction.displayDescription,
-        category: 'logic' as const,
-      })),
-      ...actions.map((action) => ({
-        name: `action_${action.code}`,
-        description: action.description || action.name,
-        displayName: action.displayName,
-        displayDescription: action.displayDescription,
-        category: 'action' as const,
-      })),
-    ],
-    createdAt: now,
-    updatedAt: now,
-  };
 }
 
 export interface IOntologyFileStat {
@@ -160,6 +107,45 @@ interface IOntologyTemplateDefinition {
     cardinality: 'one_to_one' | 'one_to_many' | 'many_to_one' | 'many_to_many';
     description?: string;
   }>;
+}
+
+function createOntologyToolManifest(snapshot: IOntologyVersionSnapshot): IOntologyToolManifestItem[] {
+  return [
+    {
+      name: 'ontology.lookup',
+      description: 'Lookup ontology objects, attributes, and relations.',
+      displayName: '本体综合查询',
+      displayDescription: '查询本体中的业务对象、属性和关系。',
+      category: 'ontology',
+    },
+    ...snapshot.relations
+      .filter((relation) => relation.dataBinding && relation.dataBinding.mode !== 'semantic_only')
+      .map((relation) => ({
+        name: `relation_${relation.code}`,
+        description: `Traverse ${relation.name} through its configured field-level join.`,
+        displayName: `遍历“${relation.name}”关系`,
+        displayDescription: `通过已配置的字段关联遍历“${relation.name}”关系并查询关联记录。`,
+        category: 'relation' as const,
+      })),
+    ...snapshot.logicFunctions
+      .filter((logicFunction) => logicFunction.status === 'active')
+      .map((logicFunction) => ({
+        name: `logic_${logicFunction.code}`,
+        description: logicFunction.description || logicFunction.name,
+        displayName: logicFunction.displayName,
+        displayDescription: logicFunction.displayDescription,
+        category: 'logic' as const,
+      })),
+    ...snapshot.actions
+      .filter((action) => action.status === 'active')
+      .map((action) => ({
+        name: `action_${action.code}`,
+        description: action.description || action.name,
+        displayName: action.displayName,
+        displayDescription: action.displayDescription,
+        category: 'action' as const,
+      })),
+  ];
 }
 
 export class OntologyEngine {
@@ -1008,10 +994,6 @@ export class OntologyEngine {
       };
     });
     if (!isFound) throw new Error('Published version not found.');
-    const publishedVersion = snapshot.publishedVersions.find((version) => version.id === input.versionId)!;
-    if (!snapshot.skillBlueprints.some((skill) => skill.ontologyVersionId === publishedVersion.id)) {
-      snapshot.skillBlueprints.push(createSkillBlueprint(snapshot, publishedVersion, {}, now));
-    }
     await this.markPhase(snapshot, 'publish', 'completed', 'Ontology version approved and published.');
     addMonitorEvent(snapshot, 'publish_governance', input.comment?.trim() || 'Ontology version approved.', now);
     return this.save(snapshot);
@@ -1077,24 +1059,23 @@ export class OntologyEngine {
   }> {
     const snapshot = await this.getWorkbench(workspaceId);
     const now = Date.now();
-    const skill = snapshot.skillBlueprints.find((item) => item.id === input.skillBlueprintId && item.status === 'published');
-    if (!skill) throw new Error('A published ontology skill is required before building an Agent blueprint.');
-    const version = snapshot.publishedVersions.find((item) => item.id === skill.ontologyVersionId && item.status === 'published');
+    const version = snapshot.publishedVersions.find((item) => item.id === input.ontologyVersionId && item.status === 'published');
     if (!version) throw new Error('A published ontology version is required before building an Agent blueprint.');
-    const existing = snapshot.agentBlueprints.find((item) => item.skillBlueprintId === skill.id);
+    const existing = snapshot.agentBlueprints.find((item) => item.ontologyVersionId === version.id);
     if (existing) return { snapshot, blueprint: existing };
     const before = structuredClone(snapshot);
 
     const blueprint: IOntologyAgentBlueprint = {
       id: createHash('sha256')
-        .update(JSON.stringify([workspaceId, skill.id]))
+        .update(JSON.stringify([workspaceId, version.id]))
         .digest('hex')
         .slice(0, 32),
       name: input.name.trim() || `${snapshot.draft.title} Agent`,
       status: 'draft',
-      skillBlueprintId: skill.id,
       ontologyVersionId: version.id,
-      promptTemplate: input.promptTemplate?.trim() || `Use ${skill.name} to answer domain questions and operate only on its approved tools.`,
+      entityIds: version.snapshot.objects.map((item) => item.id),
+      promptTemplate: input.promptTemplate?.trim() || `Use ontology ${version.version} to answer domain questions and operate on approved ontology tools.`,
+      toolManifest: createOntologyToolManifest(version.snapshot),
       createdAt: now,
       updatedAt: now,
     };
@@ -1106,58 +1087,10 @@ export class OntologyEngine {
       return { snapshot: await this.save(snapshot, before), blueprint };
     } catch (error) {
       const current = await this.repository.getSnapshot(workspaceId);
-      const created = current?.agentBlueprints.find((item) => item.skillBlueprintId === skill.id);
+      const created = current?.agentBlueprints.find((item) => item.ontologyVersionId === version.id);
       if (current && created) return { snapshot: current, blueprint: created };
       throw error;
     }
-  }
-
-  async createSkillBlueprint(
-    input: IOntologySkillBlueprintInput,
-    workspaceId = 'default'
-  ): Promise<{
-    snapshot: IOntologyWorkbenchSnapshot;
-    blueprint: IOntologySkillBlueprint;
-  }> {
-    const snapshot = await this.getWorkbench(workspaceId);
-    const version = snapshot.publishedVersions.find((item) => item.id === input.ontologyVersionId && item.status === 'published');
-    if (!version) throw new Error('ontology.studio.skillErrors.versionUnavailable');
-    const existing = snapshot.skillBlueprints.find((item) => item.ontologyVersionId === version.id);
-    if (existing) return { snapshot, blueprint: existing };
-    const before = structuredClone(snapshot);
-    const blueprint = createSkillBlueprint(snapshot, version, input, Date.now());
-    snapshot.skillBlueprints.push(blueprint);
-    addMonitorEvent(snapshot, 'agent_builder', `Created ontology skill draft ${blueprint.name}.`, blueprint.createdAt);
-    return { snapshot: await this.save(snapshot, before), blueprint };
-  }
-
-  async publishSkillBlueprint(
-    input: IOntologyPublishSkillInput & { registeredSkillId: string },
-    workspaceId = 'default'
-  ): Promise<{
-    snapshot: IOntologyWorkbenchSnapshot;
-    blueprint: IOntologySkillBlueprint;
-  }> {
-    const snapshot = await this.getWorkbench(workspaceId);
-    const blueprint = snapshot.skillBlueprints.find((item) => item.id === input.skillBlueprintId);
-    if (!blueprint || blueprint.status === 'deleted') throw new Error('ontology.studio.skillErrors.notFound');
-    if (!snapshot.publishedVersions.some((version) => version.id === blueprint.ontologyVersionId && version.status === 'published')) throw new Error('ontology.studio.skillErrors.versionUnavailable');
-    if (blueprint.status === 'published') return { snapshot, blueprint };
-    const before = structuredClone(snapshot);
-    const now = Date.now();
-    const next: IOntologySkillBlueprint = {
-      ...blueprint,
-      name: input.name?.trim() || blueprint.name,
-      description: input.description?.trim() || blueprint.description,
-      status: 'published',
-      registeredSkillId: input.registeredSkillId,
-      publishedAt: now,
-      publicationError: undefined,
-      updatedAt: now,
-    };
-    snapshot.skillBlueprints = snapshot.skillBlueprints.map((item) => (item.id === next.id ? next : item));
-    addMonitorEvent(snapshot, 'agent_builder', `Published ontology skill ${next.name}.`, now);
-    return { snapshot: await this.save(snapshot, before), blueprint: next };
   }
 
   async registerAgentBlueprint(
@@ -1172,7 +1105,7 @@ export class OntologyEngine {
     const blueprint = input.blueprintId ? snapshot.agentBlueprints.find((item) => item.id === input.blueprintId) : snapshot.agentBlueprints.at(-1);
     if (!blueprint) throw new Error('Agent blueprint not found.');
     if (!snapshot.publishedVersions.some((item) => item.id === blueprint.ontologyVersionId && item.status === 'published')) throw new Error('ontology.studio.agentErrors.versionUnavailable');
-    if (snapshot.agentBlueprints.some((item) => item.id !== blueprint.id && item.skillBlueprintId === blueprint.skillBlueprintId)) throw new Error('ontology.studio.agentErrors.duplicate');
+    if (snapshot.agentBlueprints.some((item) => item.id !== blueprint.id && item.ontologyVersionId === blueprint.ontologyVersionId)) throw new Error('ontology.studio.agentErrors.duplicate');
     if (blueprint.registeredAssistantId && input.assistantId && blueprint.registeredAssistantId !== input.assistantId.trim()) throw new Error('ontology.studio.agentErrors.identityConflict');
     if (blueprint.status === 'registered') return { snapshot, blueprint };
     const before = structuredClone(snapshot);
@@ -1290,8 +1223,11 @@ export class OntologyEngine {
 
 function normalizeSnapshot(snapshot: IOntologyWorkbenchSnapshot): IOntologyWorkbenchSnapshot {
   const objects = (snapshot.objects ?? []).map(normalizeObjectDraft);
+  const { skillBlueprints: _skillBlueprints, ...snapshotWithoutSkills } = snapshot as IOntologyWorkbenchSnapshot & {
+    skillBlueprints?: unknown;
+  };
   const normalized: IOntologyWorkbenchSnapshot = {
-    ...snapshot,
+    ...snapshotWithoutSkills,
     schemaVersion: ONTOLOGY_SNAPSHOT_SCHEMA_VERSION,
     objects,
     relations: (snapshot.relations ?? []).map((relation) => normalizeRelationDraft(relation, objects)),
@@ -1305,7 +1241,7 @@ function normalizeSnapshot(snapshot: IOntologyWorkbenchSnapshot): IOntologyWorkb
     serviceEndpoints: snapshot.serviceEndpoints ?? [],
     impactAnalyses: snapshot.impactAnalyses ?? [],
     monitorEvents: snapshot.monitorEvents ?? [],
-    skillBlueprints: snapshot.skillBlueprints ?? [],
+    agentBlueprints: normalizeAgentBlueprints(snapshot),
     publishedVersions: (snapshot.publishedVersions ?? []).map((version) => {
       const versionObjects = (version.snapshot?.objects ?? []).map(normalizeObjectDraft);
       return {
@@ -1332,6 +1268,37 @@ function normalizeSnapshot(snapshot: IOntologyWorkbenchSnapshot): IOntologyWorkb
     ...normalized,
     stats: recalculateOntologyStats(normalized),
   };
+}
+
+function normalizeAgentBlueprints(snapshot: IOntologyWorkbenchSnapshot): IOntologyAgentBlueprint[] {
+  const legacy = snapshot as IOntologyWorkbenchSnapshot & {
+    skillBlueprints?: Array<{
+      id: string;
+      name?: string;
+      ontologyVersionId: string;
+      entityIds?: string[];
+      toolManifest?: IOntologyToolManifestItem[];
+    }>;
+  };
+  const skillById = new Map((legacy.skillBlueprints ?? []).map((item) => [item.id, item]));
+  return (snapshot.agentBlueprints ?? []).map((item) => {
+    const stored = item as IOntologyAgentBlueprint & {
+      skillBlueprintId?: string;
+      entityIds?: string[];
+      toolManifest?: IOntologyToolManifestItem[];
+    };
+    const skill = stored.skillBlueprintId ? skillById.get(stored.skillBlueprintId) : undefined;
+    const { skillBlueprintId: _skillBlueprintId, ...rest } = stored;
+    const ontologyVersionId = item.ontologyVersionId || skill?.ontologyVersionId || '';
+    const version = snapshot.publishedVersions?.find((entry) => entry.id === ontologyVersionId);
+    return {
+      ...rest,
+      ontologyVersionId,
+      promptTemplate: skill && item.promptTemplate === `Use ${skill.name} to answer domain questions and operate only on its approved tools.` ? `Use ontology ${version?.version || ontologyVersionId} to answer domain questions and operate on approved ontology tools.` : item.promptTemplate,
+      entityIds: item.entityIds ?? skill?.entityIds ?? [],
+      toolManifest: item.toolManifest ?? skill?.toolManifest ?? [],
+    };
+  });
 }
 
 function normalizeObjectDraft(item: IOntologyObjectDraft): IOntologyObjectDraft {
