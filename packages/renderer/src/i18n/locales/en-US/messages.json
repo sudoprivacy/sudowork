@@ -75,5 +75,13 @@
     "yesAlwaysAllowServer": "Yes, always allow all tools from server \"{{serverName}}\"",
     "no": "No (esc)"
   },
-  "openFileFailed": "Could not open the file. Check that it still exists in this session workspace and that you are connected."
+  "openFileFailed": "Could not open the file. Check that it still exists in this session workspace and that you are connected.",
+  "inputDelivery": {
+    "queue": "Queued",
+    "steer": "Steering",
+    "keys": "Enter: steer · Tab: queue · ↑: recall queued input",
+    "flushHint": "Esc: flush pending input",
+    "cancelHint": "Esc / Ctrl+C: cancel",
+    "failed": "Could not deliver input"
+  }
 }

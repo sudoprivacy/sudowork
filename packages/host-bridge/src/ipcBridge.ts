@@ -25,6 +25,7 @@ import type { IMossCatalogPage, IMossCatalogItem, IMossCatalogInstallation, Moss
 
 import { bridge } from '@office-ai/platform';
 import type { BrowserFile, BrowserSessionAction, BrowserSessionReply } from '@sudowork/contracts/browser-session';
+import type { InputAction, InputDelivery, InputReceipt, InputState } from '@sudowork/contracts/input-delivery';
 import type { IConfirmation, IResponseMessage } from '@sudowork/common/chatTypes';
 import type { IAssistantInfo, IAssistantMeta } from '@sudowork/common/assistantTypes';
 import type { IChannelPairingRequest, IChannelPluginStatus, IChannelSession, IChannelUser, IPluginCredentials } from '@sudowork/common/channelTypes';
@@ -177,8 +178,11 @@ export const conversation = {
   // Process is the SSOT (turnInputCoordinator); the renderer only reflects this for the queue chips.
   inputQueueUpdate: bridge.buildEmitter<{
     conversation_id: string;
-    queue: Array<{ id: string; preview: string }>;
+    queue?: Array<{ id: string; preview: string; delivery?: InputDelivery }>;
+    state?: InputState;
+    isReset?: boolean;
   }>('conversation.input-queue-update'),
+  inputControl: bridge.buildProvider<IBridgeResponse<{ isSupported: boolean; receipt?: InputReceipt }>, { conversation_id: string; action: InputAction }>('conversation.input-control'),
   // Pull a queued input back out (Up-arrow): removes it from the process queue and returns its content.
   dequeueInput: bridge.buildProvider<IBridgeResponse<{ content: string } | null>, { conversation_id: string; id?: string }>('conversation.dequeue-input'),
   getWorkspace: bridge.buildProvider<
@@ -2038,6 +2042,7 @@ export interface ITeamMcpStatusEvent {
 }
 
 export interface ISendMessageParams {
+  delivery?: InputDelivery;
   input: string;
   msg_id: string;
   conversation_id: string;

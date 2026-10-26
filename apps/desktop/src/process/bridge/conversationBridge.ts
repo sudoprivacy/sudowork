@@ -8,6 +8,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { spawn } from 'child_process';
 import fs from 'fs/promises';
+import { inputActionSchema } from '@sudowork/contracts/input-delivery';
 import type { IDirOrFile, MossSessionAvailableSkill, MossWorkspaceNode } from '@sudowork/host-bridge/ipcBridge';
 import type { TChatConversation } from '@sudowork/common/storage';
 import { shouldSyncWorkspaceSkills } from '@sudowork/common/utils/workspaceSkillSync';
@@ -999,7 +1000,13 @@ export function initConversationBridge(): void {
       // coordinator returns at accept/queue time (not turn end) — safe because the
       // renderer drives turn lifecycle + errors via the response stream, not this result.
       // See docs/plans/2026-07-01-conversation-interrupt-and-queue.html.
+      if (other.delivery && task.type === 'remote-agent') return (task as RemoteAgent).sendMessage({ ...payload, delivery: other.delivery });
       if (task.type === 'acp') {
+        if (other.delivery) {
+          localAgentToolControl.assertCanPrompt(browserAdmission);
+          const result = await (task as AcpAgent).submitInput({ ...payload, delivery: other.delivery });
+          return { success: result.success, msg: result.msg || result.message };
+        }
         const autoInterrupt = (await ProcessConfig.get('agent.autoInterrupt').catch(() => false)) === true;
         const messageQueue = (await ProcessConfig.get('agent.messageQueue').catch(() => true)) !== false;
         const status = turnInputCoordinator.submit(
@@ -1038,6 +1045,22 @@ export function initConversationBridge(): void {
       const errorMessage = err instanceof Error ? err.message : String(err);
       mainError('conversationBridge', `sendMessage failed for ${conversation_id}: ${errorMessage}`, err);
       return { success: false, msg: errorMessage };
+    }
+  });
+
+  ipcBridge.conversation.inputControl.provider(async ({ conversation_id, action }) => {
+    try {
+      const result = getDatabase().getConversation(conversation_id);
+      if (!result.success || !result.data) return { success: false, msg: 'conversation not found' };
+      const conversation = result.data;
+      if (conversation.type === 'acp' && conversation.extra?.isTeamMember) return { success: true, data: { isSupported: false } };
+      if (conversation.type === 'acp' && conversation.extra.mossAccountScope) assertConversationAccount(conversation);
+      const task = await WorkerManage.getTaskByIdRollbackBuild(conversation_id);
+      if (task?.type !== 'acp') return { success: true, data: { isSupported: false } };
+      const receipt = await (task as AcpAgent).controlInput(inputActionSchema.parse(action));
+      return { success: true, data: receipt ? { isSupported: true, receipt } : { isSupported: false } };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
     }
   });
 

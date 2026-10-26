@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { inputActionSchema } from './inputDelivery.js'
 
 /**
  * 会话契约（计划 3.10 / Task 5）。
@@ -209,6 +210,32 @@ export type ConversationContextDto = z.infer<typeof ConversationContextDtoSchema
 /** 浏览器 → WebUI（服务端 Zod 严校验后再转 Moss 协议） */
 export const ClientOutboundMessageSchema = z.discriminatedUnion('kind', [
   z.object({
+    kind: z.literal('input'),
+    requestId: z.string().min(1).max(255),
+    action: inputActionSchema.superRefine((action, ctx) => {
+      if (action.action !== 'submit') return
+      const images = action.content.filter((block) => block.type === 'image')
+      const textLength = action.content.reduce(
+        (length, block) => length + (block.type === 'text' ? block.text.length : 0),
+        0,
+      )
+      if (
+        action.clientId.length > 255 ||
+        textLength > 32_768 ||
+        images.length > 4 ||
+        images.some(
+          (image) =>
+            image.data.length > 15_000_000 ||
+            !['image/png', 'image/jpeg', 'image/webp'].includes(image.mimeType),
+        )
+      )
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Input exceeds the conversation content limits',
+        })
+    }),
+  }),
+  z.object({
     kind: z.literal('send'),
     /** renderer 侧 msg_id；透传给 moss 作为消息 uuid，/context 回读后用于与流式回显去重 */
     msgId: z.string().min(1).max(255).optional(),
@@ -266,6 +293,9 @@ export type ServerInboundEvent = z.infer<typeof ServerInboundEventSchema>
 
 /** 上游事件转发白名单（其余类型一律丢弃，不透传给浏览器） */
 export const UPSTREAM_EVENT_TYPES = new Set([
+  'input_delivery_update',
+  'input_delivery_reply',
+  'input_delivery_reset',
   'hello',
   'assistant',
   'tool_use',

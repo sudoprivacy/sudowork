@@ -39,6 +39,8 @@ const aliases = [
   { find: '@sudowork/contracts/agent-federation', replacement: path.resolve(__dirname, '../../packages/contracts/src/agent-federation.gen.ts') },
   { find: '@sudowork/contracts/task', replacement: path.resolve(__dirname, '../../packages/contracts/src/task.gen.ts') },
   { find: '@sudowork/moss-client/agents', replacement: path.resolve(__dirname, '../../packages/moss-client/src/MossAgentClient.ts') },
+  { find: '@sudowork/moss-client/input-delivery', replacement: path.resolve(__dirname, '../../packages/moss-client/src/InputDeliveryClient.ts') },
+  { find: '@sudowork/contracts/input-delivery', replacement: path.resolve(__dirname, '../../packages/contracts/src/inputDelivery.ts') },
   { find: '@sudowork/moss-client', replacement: path.resolve(__dirname, '../../packages/moss-client/src/index.ts') },
   { find: /^@sudowork\/ontology-common\/(.*)$/, replacement: path.resolve(__dirname, '../../packages/ontology-common/src') + '/$1' },
   { find: /^@sudowork\/ontology-common$/, replacement: path.resolve(__dirname, '../../packages/ontology-common/src/index.ts') },
@@ -106,6 +108,9 @@ export default defineConfig({
       // 新增功能时，将对应的源文件路径添加到此数组
       // 例如: 'src/process/services/newService.ts'
       include: [
+        '../../packages/contracts/src/inputDelivery.ts',
+        '../../packages/moss-client/src/InputDeliveryClient.ts',
+        '../../packages/renderer/src/hooks/useInputDelivery.ts',
         '../../packages/common/src/mossSessionContext.ts',
         '../../packages/moss-client/src/MossHostedTaskClient.ts',
         '../../packages/renderer/src/pages/hosted-agents/**/*.{ts,tsx}',

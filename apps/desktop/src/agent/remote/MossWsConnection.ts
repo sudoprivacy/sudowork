@@ -1,3 +1,5 @@
+import { InputDeliveryClient, buildInputControlMessage } from '@sudowork/moss-client/input-delivery';
+import type { InputAction, InputUpdate } from '@sudowork/contracts/input-delivery';
 /**
  * @license
  * Copyright 2025 Sudowork (sudowork.ai)
@@ -51,6 +53,7 @@ export interface MossWsConnectionConfig {
 export interface MossWsCallbacks {
   onMessage: (message: IResponseMessage) => void;
   onPermissionRequest: (request: any, requestId: string) => void;
+  onInputUpdate?: (update: InputUpdate) => void;
   onConnected?: () => void;
   onDisconnected?: () => void;
   onReconnecting?: (attempt: number, maxAttempts: number) => void;
@@ -69,6 +72,29 @@ export class MossWsConnection {
   private state: 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'closed' = 'idle';
   private reconnectAttempts = 0;
   private isUserAbortSession = false;
+  private inputTurnId: number | null = null;
+  private readonly inputClient = new InputDeliveryClient(
+    (requestId, action) => {
+      if (this.state !== 'connected' || !this.ws) return false;
+      this.ws.send(JSON.stringify(buildInputControlMessage(requestId, action)));
+      return true;
+    },
+    (update) => {
+      if (update.kind === 'state') {
+        if (update.state.activeTurnId !== null && update.state.activeTurnId !== this.inputTurnId) this.isUserAbortSession = false;
+        this.inputTurnId = update.state.activeTurnId;
+      }
+      this.callbacks.onInputUpdate?.(update);
+    }
+  );
+
+  get inputDeliveryState() {
+    return this.inputClient.state;
+  }
+
+  async controlInput(action: InputAction) {
+    return this.inputClient.request(uuid(), action);
+  }
 
   // Pending interrupt requests waiting for confirmation
   private pendingInterrupts = new Map<
@@ -363,6 +389,7 @@ export class MossWsConnection {
   }
 
   private processParsedMessage(msg: any): void {
+    if (this.inputClient.receive(msg)) return;
     if (msg.type === 'hello') {
       if (!this.sessionId && msg.session_id) {
         this.sessionId = msg.session_id;
@@ -607,6 +634,8 @@ export class MossWsConnection {
   private handleClose(code: number): void {
     const wasConnected = this.state === 'connected';
     this.state = 'closed';
+    this.inputClient.disconnect();
+    this.inputTurnId = null;
     this.ws = null;
 
     // Reject any pending interrupt confirmations
