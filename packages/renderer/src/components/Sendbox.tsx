@@ -125,6 +125,7 @@ function SendBox({
 
   // 集成预览面板的"添加到聊天"功能 / Integrate preview panel's "Add to chat" functionality
   const { setSendBoxHandler, domSnippets, removeDomSnippet, clearDomSnippets } = usePreviewContext();
+  const isDraftEmpty = !input.trim() && domSnippets.length === 0;
 
   // 注册处理器以接收来自预览面板的文本 / Register handler to receive text from preview panel
   useEffect(() => {
@@ -454,7 +455,7 @@ function SendBox({
       Message.warning(t('messages.conversationInProgress'));
     }
     if (block) return;
-    if (!input.trim() && domSnippets.length === 0) {
+    if (isDraftEmpty) {
       return;
     }
     setIsLoading(true);
@@ -513,7 +514,7 @@ function SendBox({
   };
 
   // Calculate button disabled state and style
-  const isButtonDisabled = disabled || isStopping || (!input.trim() && domSnippets.length === 0);
+  const isButtonDisabled = disabled || isStopping || isDraftEmpty;
 
   // Reusable send button component
   const sendButton = (
@@ -678,7 +679,7 @@ function SendBox({
                 }
                 if (isInputDeliveryEnabled) {
                   const isPlainKey = !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey;
-                  if (event.key === 'Tab' && isPlainKey && loading && !isAnsweringQuestion && input.trim()) {
+                  if (event.key === 'Tab' && isPlainKey && loading && !isAnsweringQuestion && !isDraftEmpty) {
                     event.preventDefault();
                     onSendMessage('queue');
                     return true;
@@ -700,7 +701,7 @@ function SendBox({
                 // Esc → interrupt, Up → dequeue — gated (see sendboxKeyGuards). Popups handled above.
                 const guardAction = resolveSendboxKey(event.key, {
                   running: Boolean(loading) || isLoading,
-                  inputEmpty: !input.trim(),
+                  inputEmpty: isDraftEmpty,
                   queueLength: queuedInputs?.length ?? 0,
                   canStop: Boolean(onStop) && !isStopping,
                   canDequeue: Boolean(onDequeueLast),
