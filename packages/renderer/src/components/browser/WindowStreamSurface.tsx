@@ -1,19 +1,27 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type RFB from '@novnc/novnc/lib/rfb.js';
 import { InputSurface } from '@ai-dev-browser/remote-page';
 
 /** Read-only pixels with the same checked gesture mapper as the JPEG viewer. */
-export default function WindowStreamSurface({ stream, isInteractive, isDragSupported, isTouchDragging, zoom, label, onInput, onReady, onDisconnect }: IWindowStreamSurfaceProps) {
+export default function WindowStreamSurface({ stream, isInteractive, isDragSupported, isLiveDragSupported = false, isTouchDragging, zoom, label, onInput, onReady, onDisconnect }: IWindowStreamSurfaceProps) {
   const targetRef = useRef<HTMLDivElement>(null);
   const clientRef = useRef<RFB | null>(null);
   const inputRef = useRef<InputSurface | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const callbacksRef = useRef({ onInput, onReady, onDisconnect });
-  const optionsRef = useRef({ isInteractive, isDragSupported, isTouchDragging, zoom, label });
+  const optionsRef = useRef({ isInteractive, isDragSupported, isLiveDragSupported, isTouchDragging, zoom, label });
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [isPainted, setIsPainted] = useState(false);
   callbacksRef.current = { onInput, onReady, onDisconnect };
-  optionsRef.current = { isInteractive, isDragSupported, isTouchDragging, zoom, label };
+  optionsRef.current = { isInteractive, isDragSupported, isLiveDragSupported, isTouchDragging, zoom, label };
+
+  const sendInput = useCallback((value: unknown, isClosed = false) => {
+    const pending = !isClosed && optionsRef.current.isInteractive ? callbacksRef.current.onInput(value) : Promise.reject(new Error('Browser input requires the current interactive viewer'));
+    // Live motion advances only after the checked host acknowledges it.
+    // Legacy one-shot events still report errors through the owning panel.
+    if (value && typeof value === 'object' && 'kind' in value && value.kind === 'drag-stream') return pending;
+    void pending.catch(() => {});
+  }, []);
 
   useEffect(() => {
     const target = targetRef.current;
@@ -44,13 +52,7 @@ export default function WindowStreamSurface({ stream, isInteractive, isDragSuppo
         inputCanvas?.removeEventListener('mousedown', onLegacyMouseDown, true);
         inputCanvas = canvas;
         canvas.addEventListener('mousedown', onLegacyMouseDown, true);
-        inputRef.current = new InputSurface(
-          canvas,
-          (value) => {
-            if (!isClosed && optionsRef.current.isInteractive) callbacksRef.current.onInput(value);
-          },
-          { drag: optionsRef.current.isDragSupported, touchDrag: optionsRef.current.isTouchDragging }
-        );
+        inputRef.current = new InputSurface(canvas, (value) => sendInput(value, isClosed), { drag: optionsRef.current.isDragSupported, touchDrag: optionsRef.current.isTouchDragging, liveDrag: optionsRef.current.isLiveDragSupported, viewerId: stream.viewerId });
       }
       canvas.setAttribute('aria-label', optionsRef.current.label);
       canvas.tabIndex = optionsRef.current.isInteractive ? 0 : -1;
@@ -126,24 +128,18 @@ export default function WindowStreamSurface({ stream, isInteractive, isDragSuppo
       client?.disconnect();
       if (clientRef.current === client) clientRef.current = null;
     };
-  }, [stream]);
+  }, [stream, sendInput]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     inputRef.current?.dispose();
-    inputRef.current = new InputSurface(
-      canvas,
-      (value) => {
-        if (optionsRef.current.isInteractive) callbacksRef.current.onInput(value);
-      },
-      { drag: isDragSupported, touchDrag: isTouchDragging }
-    );
+    inputRef.current = new InputSurface(canvas, (value) => sendInput(value), { drag: isDragSupported, touchDrag: isTouchDragging, liveDrag: isLiveDragSupported, viewerId: stream.viewerId });
     inputRef.current.resize(canvas.width, canvas.height);
     canvas.tabIndex = isInteractive ? 0 : -1;
     canvas.style.pointerEvents = isInteractive ? 'auto' : 'none';
     if (isPainted) callbacksRef.current.onReady(size);
-  }, [isInteractive, isDragSupported, isTouchDragging, isPainted, size]);
+  }, [isInteractive, isDragSupported, isLiveDragSupported, isTouchDragging, isPainted, size, sendInput, stream.viewerId]);
 
   useEffect(() => {
     if (clientRef.current) clientRef.current.scaleViewport = zoom === null;
@@ -157,6 +153,7 @@ export default function WindowStreamSurface({ stream, isInteractive, isDragSuppo
 }
 
 export interface IWindowStreamContext {
+  viewerId: string;
   password: string;
   socketPath: string;
   browserSessionId: string;
@@ -168,10 +165,11 @@ interface IWindowStreamSurfaceProps {
   stream: IWindowStreamContext;
   isInteractive: boolean;
   isDragSupported: boolean;
+  isLiveDragSupported?: boolean;
   isTouchDragging: boolean;
   zoom: number | null;
   label: string;
-  onInput: (value: unknown) => void;
+  onInput: (value: unknown) => Promise<void>;
   onReady: (size: { width: number; height: number }) => void;
   onDisconnect: () => void;
 }

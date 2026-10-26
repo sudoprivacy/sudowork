@@ -10,8 +10,8 @@ const host = vi.hoisted(() => ({ invoke: vi.fn(), stop: vi.fn(), error: vi.fn(),
 // Pixel decoding is exercised by the real React/Chrome workflow. This seam
 // observes which target the host integration actually hands to that decoder.
 vi.mock('@renderer/components/browser/WindowStreamSurface', () => ({
-  default: ({ stream }: { stream: { targetEpoch: number } }) => {
-    host.stream(stream);
+  default: ({ stream, ...props }: { stream: { targetEpoch: number } }) => {
+    host.stream(stream, props);
     return <div data-testid='streamed-window'>{stream.targetEpoch}</div>;
   },
 }));
@@ -102,6 +102,46 @@ afterEach(() => {
   host.confirm.mockReset();
   host.info.mockReset();
   host.stream.mockReset();
+});
+
+it('acknowledges live drag only after the checked input reply for the attached viewer', async () => {
+  const base = activeSession();
+  const session = { ...base, isHeadless: false, capabilities: { ...base.capabilities, windowView: true, windowStream: true, liveDragInput: true } };
+  let attachedViewer: string | undefined;
+  let acknowledge: (() => void) | undefined;
+  let isRejected = false;
+  host.invoke.mockImplementation(async ({ action }: { action: BrowserSessionAction }) => {
+    if (action.kind === 'attach') attachedViewer = action.viewerId;
+    if (action.kind === 'input') {
+      if (isRejected) return { success: false, msg: 'stale_browser_operation' };
+      return new Promise((resolve) => {
+        acknowledge = () => resolve({ success: true, data: { session } });
+      });
+    }
+    return { success: true, data: { session, ...(action.kind === 'window-stream' ? { stream: { protocol: 'rfb', isViewOnly: true, password: 'fixture-only', socketPath: '/ws/browser/owned-conversation' } } : {}) } };
+  });
+  render(<BrowserSessionPanel conversationId='owned-conversation' isViewer />);
+  await waitFor(() => expect(host.stream).toHaveBeenCalled());
+  const [stream, props] = host.stream.mock.calls.at(-1)!;
+  expect(stream.viewerId).toBe(attachedViewer);
+  expect(props.isLiveDragSupported).toBe(true);
+  await act(async () => props.onReady({ width: 1280, height: 900 }));
+  const input = { kind: 'drag-stream', phase: 'begin', gestureId: crypto.randomUUID(), sequence: 0, viewerId: attachedViewer, x: 100, y: 200 };
+  let isAcknowledged = false;
+  const pending = props.onInput(input).then(() => {
+    isAcknowledged = true;
+  });
+  await waitFor(() => expect(acknowledge).toBeTypeOf('function'));
+  expect(isAcknowledged).toBe(false);
+  expect(host.invoke.mock.calls.at(-1)?.[0]).toMatchObject({ action: { kind: 'input', surface: 'window', controlEpoch: 4, targetEpoch: 2, input } });
+  await act(async () => {
+    acknowledge!();
+    await pending;
+  });
+  expect(isAcknowledged).toBe(true);
+  isRejected = true;
+  await expect(props.onInput({ ...input, phase: 'move', sequence: 1 })).rejects.toThrow();
+  expect(host.error).toHaveBeenCalledTimes(1);
 });
 
 it('discards a late stream response after navigation and opens the current target', async () => {

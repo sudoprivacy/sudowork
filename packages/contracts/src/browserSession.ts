@@ -33,6 +33,7 @@ export const BrowserSessionStateSchema = z.object({
   capabilities: z.object({
     conversationControl: z.boolean().optional(),
     dragInput: z.boolean().optional(),
+    liveDragInput: z.boolean().optional(),
     clipboardText: z.boolean().optional(),
     selectionRead: z.boolean().optional(),
     lifecycle: z.boolean().optional(),
@@ -73,6 +74,15 @@ export const BrowserSessionStateSchema = z.object({
 
 export const BrowserInputSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("copy-selection") }),
+  z.object({
+    kind: z.literal("drag-stream"),
+    phase: z.enum(["begin", "move", "end", "cancel"]),
+    gestureId: z.string().regex(/^[a-zA-Z0-9_-]{16,64}$/),
+    sequence: z.number().int().min(0).max(4096),
+    viewerId: z.string().uuid(),
+    x: z.number().finite().nonnegative().max(8192),
+    y: z.number().finite().nonnegative().max(8192),
+  }),
   z.object({
     kind: z.literal("drag"),
     points: z

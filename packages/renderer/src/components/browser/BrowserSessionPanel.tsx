@@ -143,7 +143,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
             const latest = sessionRef.current;
             const isCurrentStream = latest?.browserSessionId === reply.session.browserSessionId && latest.profileId === reply.session.profileId && latest.controlEpoch === reply.session.controlEpoch && latest.targetEpoch === reply.session.targetEpoch;
             if (reply.stream?.socketPath && isCurrentStream) {
-              const stream = { password: reply.stream.password, socketPath: reply.stream.socketPath, browserSessionId: reply.session.browserSessionId, controlEpoch: reply.session.controlEpoch, targetEpoch: reply.session.targetEpoch };
+              const stream = { viewerId, password: reply.stream.password, socketPath: reply.stream.socketPath, browserSessionId: reply.session.browserSessionId, controlEpoch: reply.session.controlEpoch, targetEpoch: reply.session.targetEpoch };
               windowStreamRef.current = stream;
               setWindowStream(stream);
             } else if (!reply.stream?.socketPath) {
@@ -209,14 +209,15 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
 
   const onStreamInput = (value: unknown) => {
     const input = BrowserInputSchema.safeParse(value);
-    if (!input.success || !isInteractiveRef.current) return;
+    if (!input.success || !isInteractiveRef.current) return Promise.reject(new Error(t('conversation.browserSession.unavailable')));
     const generation = generationRef.current;
-    void queueInput(input.data)
+    return queueInput(input.data)
       .then((reply) => {
         if (generationRef.current === generation) updateRef.current(reply.session);
       })
       .catch((failure: unknown) => {
         if (generationRef.current === generation) Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
+        throw failure;
       });
   };
 
@@ -917,6 +918,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
               stream={windowStream}
               isInteractive={!!isController && !isPanning}
               isDragSupported={isDragSupported}
+              isLiveDragSupported={session?.capabilities.liveDragInput === true}
               isTouchDragging={isTouchDragging}
               zoom={imageZoom}
               label={t('conversation.browserSession.page')}

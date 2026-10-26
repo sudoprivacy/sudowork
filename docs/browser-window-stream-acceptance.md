@@ -91,6 +91,33 @@ TCP write as the HTTP upgrade. Each upstream is paused synchronously on open and
 resumed after both relay directions are installed. This preserves upgrade-head
 frames while keeping the existing queue bounds and authorization checks.
 
+### Live drag candidate (26 October)
+
+SDK [PR #42](https://github.com/sudoprivacy/ai-dev-browser/pull/42) adds
+capability-gated, acknowledged motion while the pointer remains pressed. The
+shared Desktop/WebUI component passes the attached viewer ID and waits for the
+checked input reply. JPEG views and workers without `liveDragInput` retain the
+bounded gesture. Pixel transport remains read-only.
+
+The installed candidate wheel passed 29 managed-browser/control regressions,
+with one existing conditional extension-fixture skip, and 306 unit tests. The
+real React/noVNC component also passed both CDP and signed-extension journeys
+against the compiled Northwind graph and the original form fixture. Both graph
+journeys verify the exact 100 by 50 pixel pan and matching decoded graph pixels
+before pointer release, then zoom and reconnect to the same browser and lease.
+
+For this local run, first changed graph pixels appeared after 89 ms over CDP
+and 104 ms over extension. Native input to the first graph render took 6 ms and
+8 ms. These observations include the local fixture and measurement path; they
+are neither a production network budget nor a controlled speed comparison with
+the earlier release. Full screenshot verification includes additional overhead.
+
+The candidate also prevents X server resets between initial readiness probes
+and the window manager's connection. A real X11 regression fails against the
+older wheel and passes with the fix. Disconnects and Stop release held input
+without granting AI control. SDK publication, the final consumer release pin,
+production deployment and physical phone acceptance remain delivery gates.
+
 ## Delivery gates
 
 The stream remains optional and capability-gated. SDK PR #39 is merged and tagged
