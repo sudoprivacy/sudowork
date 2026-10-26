@@ -128,7 +128,56 @@ form workflow. The mode change is driven by a component fixture; it does not
 establish physical-phone touch behavior. The accompanying host regression also
 requires ordinary motion to stay blocked until a fresh frame arrives.
 
+### Public package and consumer acceptance, 27 October
+
+The actual PyPI SDK 0.58.9 wheel and source archive match the tested official
+Actions build. All 203 tracked runtime files match the accepted merge. Installing
+that downloaded wheel without a source overlay passed 29 real browser/control
+regressions with one existing conditional extension-fixture skip. The one-CPU
+container finished without an OOM and was removed.
+
+The rebased shared React/noVNC component also passed both CDP and signed-extension
+journeys with that public wheel in 118.34 seconds. The actual compiled Northwind
+graph changed before pointer release, retained its exact pan and matched decoded
+pixels, then zoomed and reconnected to the same browser and human lease. Both
+transports also passed the original form journey and checked cancellation during
+an input-mode change. Graph and form screenshots were visually inspected. These
+are isolated component results; project/comment binding, production network
+latency and physical-phone acceptance remain separate.
+
+A cold actual Electron process used the product's normal installer to fetch
+SDK 0.58.9 from PyPI and load it from its isolated runtime environment in 27.56
+seconds. It used no editable package or candidate source override. The local
+consumer release pin is staged; final delivery also requires the corresponding
+GitHub release/assets verification and the current consumer CI.
+
 ## Delivery gates
+
+### Joint review acceptance map, 27 October
+
+The browser layer supplies the session, viewer, trusted input and transport.
+The Sudograph adapter supplies project/view/revision bindings, canonical comment
+targets and routing to the originating conversation. These are separate gates;
+a browser fixture does not qualify the complete review workflow.
+
+| Requirement                                | Browser evidence                                                                                                                                                                                                                                     | Remaining acceptance                                                                                                                                                                                           |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Independent review surface and reconnect   | The official Windows nightly at `329a2b3` passed native standalone Chrome and same-conversation continuation. The real shared viewer passed reload/reconnect with both CDP and signed extension while retaining the browser/profile and human lease. | A deployed WebUI viewer must retain the authorised project, task, view and model revision after refresh and reconnect.                                                                                         |
+| Exact selection and persistent comments    | The real shared-browser form journey passed exact selection/copy and trusted submission. The actual compiled Northwind graph passed pan, field location, zoom and source/viewer pixel agreement.                                                     | Submit and reopen a real authenticated comment in the WebUI viewer after zoom, field expansion and language changes. Browser pixels do not establish canonical comment identity.                               |
+| Clipboard, Chinese input and gestures      | The packaged Desktop journey passed multiline Unicode clipboard input and Chromium composition. The real window viewer passed held-drag cancellation through the checked input queue.                                                                | Verify actual OS Chinese IME, iOS selection/clipboard and graph text selection versus diagram dragging. Chromium composition and touch emulation do not establish these results.                               |
+| Ordinary conversation and interruption     | The packaged Desktop journey cancelled a pending native question with ordinary Stop, retained cancellation after reload, and continued the same conversation with exact model readback. The host retains the lease, epoch checks and input barrier.  | Repeat on the deployed WebUI with main/child activity and queued review notifications. No business handoff buttons or idle/reconnect authorisation are introduced.                                             |
+| Graph interaction latency                  | The actual graph and shared component measured page rendering, viewer feedback and end-to-end verification separately. The live-drag candidate showed changed graph pixels before pointer release over both transports.                              | Measure the deployed WebUI route and authenticated comment feedback; local timing and model round trips do not establish production interaction latency.                                                       |
+| Extension-free viewing and device coverage | Desktop standalone Chrome uses CDP. A cloud viewer displays the VM browser without installing an extension in the viewing device; the cloud browser's extension remains server-side.                                                                 | Accept the deployed panel and independent viewer on desktop browsers and a physical phone. The earlier iPhone chat result covers chat only. The optional relay to a user's local Chrome remains unimplemented. |
+
+Managed cloud review also requires host-only authenticated page bootstrap.
+SDK [PR #43](https://github.com/sudoprivacy/ai-dev-browser/pull/43) adds that
+operation to owned managed-extension browsers while retaining the existing
+personal-profile refusal. Its installed candidate passed the real CDP and signed
+extension cookie/bootstrap/error-cleanup journeys and both personal-extension
+negative journeys. It is pending CI and publication; SDK 0.58.9 does not include
+this capability. The cloud project authorisation and review-host adapter still
+require joint integration. Browser credentials must stay outside the renderer,
+model context and notification payload.
 
 The stream remains optional and capability-gated. SDK PR #39 is merged and tagged
 as v0.58.6. The GitHub and PyPI wheels have the same verified digest; all 200
