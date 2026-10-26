@@ -116,7 +116,7 @@ describe('native source intake and project routing', () => {
     render(test.view('source-1'));
     expect(await screen.findByText('1 tables · 1 database views · 3 fields')).toBeInTheDocument();
     expect(screen.getByText('Last structure scan complete')).toBeInTheDocument();
-    expect(test.renderChat).toHaveBeenCalledWith('source-1', 'Support');
+    expect(test.renderChat).toHaveBeenCalledWith('source-1', 'Support', undefined, undefined, { modelAuthority: 'sudograph' });
     expect(test.api.getWorkbench).not.toHaveBeenCalled();
     expect(screen.queryByRole('button', { name: 'Save draft' })).not.toBeInTheDocument();
     await act(async () => test.changed('unrelated'));

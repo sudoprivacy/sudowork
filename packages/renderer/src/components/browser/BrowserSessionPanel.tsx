@@ -6,6 +6,7 @@ import { BrowserFileSchema, BrowserInputSchema, BrowserSessionReplySchema, isCur
 import { PageSurface } from '@ai-dev-browser/remote-page';
 import { copyTextFromPromise } from '../../utils/clipboard';
 import WindowStreamSurface, { type IWindowStreamContext } from './WindowStreamSurface';
+import { openBrowserSessionWindow } from './openBrowserSessionWindow';
 
 function isLiveDragCancellation(input: BrowserInput) {
   return input.kind === 'drag-stream' && input.phase === 'cancel';
@@ -1008,8 +1009,4 @@ interface IBrowserSessionPanelProps {
   initialTransport?: 'extension' | 'cdp';
 }
 
-/** User gestures open either view of the same authenticated browser lease. */
-export function openBrowserSessionWindow(conversationId: string, isControlsOnly = false): void {
-  const route = isControlsOnly ? 'browser-controls' : 'browser-viewer';
-  window.open(`${location.pathname}${location.search}#/${route}/${encodeURIComponent(conversationId)}`, '_blank', isControlsOnly ? 'noopener,popup,width=460,height=250' : 'noopener');
-}
+export { openBrowserSessionWindow } from './openBrowserSessionWindow';

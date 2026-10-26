@@ -120,12 +120,37 @@ responses apply. The registry selects the model; there is no second editable
 catalogue, anonymous fallback or export grant. The Python private read worker
 reuses Sudograph's checked renderer and version-bound record reader.
 
-The HTTP/worker boundary is implemented and tested in real Chromium through
-Sudograph's `tools.accept_review --sudowork <checkout>`. That fixture installs its
-own cookie. The production browser host still needs to install the handoff under
-its existing controller/epoch barrier and open the same browser/viewer. The launch
-entry is deliberately not exposed until that interface is connected. This is
-local OS-profile scope, not cloud tenant or row/field authorization.
+The canonical Studio conversation exposes **Open review** after its persisted
+conversation is ready. The renderer sends only project and conversation IDs.
+The host resolves those identities, prepares the private session and asks
+`LocalBrowserSessions.openAuthorizedPage` to install its cookie before navigation.
+An unsuccessful browser launch revokes the application session. Credentials do
+not enter the public browser action schema, IPC replies or model tools.
+
+The existing engine acknowledgement barrier pauses tools before human control,
+including the first browser start. A new review starts owned CDP Chrome headful;
+an existing headless session retains its mode and opens the existing authenticated
+viewer route in a separate tab. A retry button remains if popup blocking prevents
+that viewer from opening. Returning through the ordinary chat message path obtains
+a fresh observation before resuming tools. The worker must advertise
+`authorizedPageLaunch`; an old runtime or unsupported personal/extension transport
+fails explicitly rather than exposing a URL or restarting an existing browser.
+
+`tests/integration/sudographReviewLaunch.live.ts` exercises the actual compiler,
+HTTP host, worker and Chrome in both modes, without fixture cookie installation.
+It requires the registered source object in the real accessibility tree, checks
+zero record preload, reload, anonymous denial and an unchanged source database,
+and preserves a screenshot and receipt. Engine pause/resume uses an explicit
+synthetic acknowledgement fixture, not a running agent. The earlier
+`tools.accept_review --sudowork <checkout>` fixture still covers paging and
+revocation but installs its own cookie and does not establish this handoff.
+This is local OS-profile scope, not cloud tenant or row/field authorization.
+
+The cross-repository native-review CI job pins both source runtimes and runs this
+same headless/headful journey on Windows and Linux. It does not replace acceptance
+of the official installed SDK. The current production SDK pin predates the new
+capability, so the entry reports that a runtime update is required until the
+corresponding public SDK release and consumer pin are delivered.
 
 ## Acceptance boundary
 
@@ -136,8 +161,8 @@ Sudograph `tools.accept_workspace_adapter` command additionally tests this real
 TypeScript client against the real Python compiler on unrelated SQLite data.
 
 The native adapter currently runs as the local desktop profile. It does not
-establish cloud tenant authorization. Cloud connector UI, authenticated standalone
-review launch and page refresh,
+establish cloud tenant authorization. Cloud connector UI, deployed WebUI review
+launch and automatic page refresh,
 active-session context refresh, ShareOne event delivery, revocation and the
 Moss/WebUI provider remain outstanding. These must be accepted before claiming
 the complete multi-user integration or enabling the adapter as a default UI.

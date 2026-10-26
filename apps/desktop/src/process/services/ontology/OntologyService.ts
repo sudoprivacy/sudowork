@@ -438,7 +438,11 @@ export class OntologyService {
   }
 
   /** Trusted browser host only. This handoff includes a secret and is not an IPC result. */
-  async createStudioReviewSession(binding: { workspaceId: string; conversationId: string }) {
+  async createStudioReviewSession(raw: { workspaceId: string; conversationId: string }) {
+    const binding = z
+      .object({ workspaceId: z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/), conversationId: z.string().min(1).max(256) })
+      .strict()
+      .parse(raw);
     this.reviewHost ??= new SudographReviewHost({
       authorize: ({ workspaceId, conversationId }) => {
         const project = this.database.getProject(workspaceId);
@@ -452,7 +456,7 @@ export class OntologyService {
         return getSudographModelClient().review(project.modelRef, `desktop:${hostname()}:${userInfo().username}`, workspaceId, request);
       },
     });
-    return this.reviewHost.createSession(binding);
+    return this.reviewHost.createSession({ workspaceId: binding.workspaceId!, conversationId: binding.conversationId! });
   }
 
   async closeReviewSessions(): Promise<void> {

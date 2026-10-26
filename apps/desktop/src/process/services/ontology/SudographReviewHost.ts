@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import type { IHostPageNavigation } from '../browserPanel/LocalBrowserWorker';
 import { SudographCompilerError } from './SudographModelClient';
 
 interface IReviewBinding {
@@ -21,9 +22,7 @@ export interface ISudographReviewHostOptions {
 }
 
 /** Private browser-host handoff. Never return this object through IPC or MCP. */
-export interface ISudographReviewLaunch {
-  url: string;
-  cookie: { name: string; value: string; url: string; path: string; httpOnly: true; sameSite: 'Strict'; expires: number };
+export interface ISudographReviewLaunch extends IHostPageNavigation {
   revoke: () => void;
 }
 

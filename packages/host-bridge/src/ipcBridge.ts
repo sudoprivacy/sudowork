@@ -1093,6 +1093,7 @@ export const ontology = {
   getProject: bridge.buildProvider<IBridgeResponse<import('@sudowork/ontology-common').IOntologyStudioProject>, { workspaceId: string }>('ontology.projects.get'),
   connectSource: bridge.buildProvider<IBridgeResponse<import('@sudowork/ontology-common').IOntologyStudioProject>, import('@sudowork/ontology-common').IOntologyConnectSourceInput>('ontology.projects.connect-source'),
   resumeSource: bridge.buildProvider<IBridgeResponse<import('@sudowork/ontology-common').IOntologyStudioProject | null>, { operationId: string }>('ontology.projects.resume-source'),
+  openReview: bridge.buildProvider<IBridgeResponse<{ surface: 'native' | 'viewer'; conversationId: string }>, { workspaceId: string; conversationId: string }>('ontology.projects.open-review'),
   modelChanged: bridge.buildEmitter<{
     workspaceId: string;
     revision: string;
