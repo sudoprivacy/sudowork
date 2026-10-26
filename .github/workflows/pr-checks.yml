@@ -2,7 +2,7 @@ name: "✓PR Checks"
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [main, dev]
   merge_group:
 
@@ -21,6 +21,8 @@ env:
 
 jobs:
   external-provider-contract:
+    # Skipped on draft PRs: heavy CI starts once the PR is marked ready.
+    if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.draft) }}
     name: External Provider Contract
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -42,6 +44,8 @@ jobs:
 
   # Job 2: Vault secrets unit tests — pure mock, no native deps
   unit-tests-secrets:
+    # Skipped on draft PRs: heavy CI starts once the PR is marked ready.
+    if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.draft) }}
     name: Secrets Unit Tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -79,6 +83,8 @@ jobs:
 
   # Job 2b: Hub catalog empty-state differentiation tests
   unit-tests-hub:
+    # Skipped on draft PRs: heavy CI starts once the PR is marked ready.
+    if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.draft) }}
     name: Hub Unit Tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -181,6 +187,8 @@ jobs:
 
   # Job 2c: Conversation resource reaper regression tests
   unit-tests-conversation-reaper:
+    # Skipped on draft PRs: heavy CI starts once the PR is marked ready.
+    if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.draft) }}
     name: Conversation Reaper Unit Tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -221,6 +229,8 @@ jobs:
   # entire suite here (same `vitest run` the nightly Code Quality job runs on Linux)
   # so dev stays release-clean and regressions are caught at PR time, not release time.
   unit-tests-full:
+    # Skipped on draft PRs: heavy CI starts once the PR is marked ready.
+    if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.draft) }}
     name: ${{ matrix.name }}
     strategy:
       fail-fast: false
@@ -309,6 +319,8 @@ jobs:
 
   # Job 3: Build test across all platforms (parallel with code-quality and unit-tests)
   build-test:
+    # Skipped on draft PRs: heavy CI starts once the PR is marked ready.
+    if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.draft) }}
     name: Build Test (${{ matrix.platform }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: ${{ matrix.timeout }}

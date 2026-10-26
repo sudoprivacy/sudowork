@@ -137,6 +137,7 @@ Common Prettier rules to follow (avoids needing a fix pass):
 - Do not merge `dev` into PR branches; merge commits are rejected by PR checks.
 - After rebasing an already-pushed PR branch, update it with `git push --force-with-lease`.
 - `dev` lands through a merge queue (rebase method). Land a PR with `gh pr merge <n> --rebase --auto`: it joins the queue, which tests the PR on top of the latest `dev` and rebases it in only after the required checks pass on that exact result. Do not update a branch just to catch up; rebase only to resolve a real conflict.
+- Open PRs as drafts while iterating and mark them ready once: draft PRs run only the fast checks, and the full build/test matrix starts when the PR is marked ready (and runs again in the merge queue).
 - Direct merges and `--admin` merges into `dev` are refused by design. If landing looks blocked, do **not** delete, disable or edit the "dev merge queue" ruleset or the branch protection — that removes the guarantee that every commit on `dev` was tested. Report it to the user instead.
 
 ### Commit Messages
