@@ -64,5 +64,7 @@ export function splitRelativePath(relativePath: string): { folderName: string; i
 /** Arco Select `filterOption`: case-insensitive match on the option's text. */
 export function filterOptionByText(input: string, option: unknown): boolean {
   const text = (option as { props?: { children?: unknown } } | undefined)?.props?.children;
-  return String(text ?? '').toLowerCase().includes(input.toLowerCase());
+  return String(text ?? '')
+    .toLowerCase()
+    .includes(input.toLowerCase());
 }

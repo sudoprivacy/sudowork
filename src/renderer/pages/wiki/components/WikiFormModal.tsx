@@ -50,8 +50,7 @@ export default function WikiFormModal({ isVisible, wiki, nodes, rootId, document
   }, [isVisible, wiki, form, rootId, ownerId]);
 
   const folderOptions = useMemo(() => {
-    const strip = (items: ReturnType<typeof buildFolderTree>): Array<{ key: string; title: string; children: unknown[] }> =>
-      items.map((item) => ({ key: item.key, title: item.key === rootId ? t('wiki.tree.root') : item.title, children: strip(item.children) }));
+    const strip = (items: ReturnType<typeof buildFolderTree>): Array<{ key: string; title: string; children: unknown[] }> => items.map((item) => ({ key: item.key, title: item.key === rootId ? t('wiki.tree.root') : item.title, children: strip(item.children) }));
     return strip(buildFolderTree(nodes, rootId));
   }, [nodes, rootId, t]);
 

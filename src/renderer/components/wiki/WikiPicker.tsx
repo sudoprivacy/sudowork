@@ -35,23 +35,14 @@ export default function WikiPicker({ wikis, isLoading, selectedIds, mentionQuery
 
   const content = (
     <div className='w-320px flex flex-col gap-8px'>
-      {isMentioning ? (
-        <div className='text-12px text-[var(--color-text-3)]'>{t('wiki.chat.mentionHint')}</div>
-      ) : (
-        <Input size='small' allowClear value={search} onChange={setSearch} placeholder={t('wiki.chat.searchPlaceholder')} />
-      )}
+      {isMentioning ? <div className='text-12px text-[var(--color-text-3)]'>{t('wiki.chat.mentionHint')}</div> : <Input size='small' allowClear value={search} onChange={setSearch} placeholder={t('wiki.chat.searchPlaceholder')} />}
       <Spin loading={isLoading} className='w-full'>
         <div className='max-h-280px overflow-auto flex flex-col'>
           {visible.length === 0 ? (
             <Empty description={t('wiki.chat.empty')} />
           ) : (
             visible.map((wiki) => (
-              <div
-                key={wiki.id}
-                className='flex items-center gap-8px px-8px py-6px rd-6px cursor-pointer hover:bg-[var(--color-fill-2)]'
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => (isMentioning ? onMentionPick(wiki) : toggle(wiki.id))}
-              >
+              <div key={wiki.id} className='flex items-center gap-8px px-8px py-6px rd-6px cursor-pointer hover:bg-[var(--color-fill-2)]' onMouseDown={(e) => e.preventDefault()} onClick={() => (isMentioning ? onMentionPick(wiki) : toggle(wiki.id))}>
                 {!isMentioning && <Checkbox checked={selectedIds.includes(wiki.id)} />}
                 <div className='min-w-0 flex-1'>
                   <div className='truncate text-13px'>{wiki.name}</div>
