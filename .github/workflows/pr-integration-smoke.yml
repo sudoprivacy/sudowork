@@ -161,8 +161,26 @@ jobs:
         with:
           bun-version-file: package.json
 
+      - name: Cache verified libvips downloads
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/npm-cache/_libvips
+          key: libvips-8.14.5-${{ runner.os }}-${{ runner.arch }}-integrity-v2
+
+      - name: Verify libvips before dependency installation
+        env:
+          npm_config_cache: ${{ runner.temp }}/npm-cache
+        run: node ../../.github/scripts/cache-sharp-libvips.mjs
+
       - name: Install dependencies
-        run: bun install --no-frozen-lockfile
+        env:
+          npm_config_cache: ${{ runner.temp }}/npm-cache
+        run: bun install --frozen-lockfile
+
+      - name: Verify sharp consumes the checked cache
+        env:
+          npm_config_cache: ${{ runner.temp }}/npm-cache
+        run: node ../../.github/scripts/verify-sharp-libvips-cache.mjs
 
       - name: Run authProxy /secrets HTTP e2e
         run: bunx vitest run tests/integration/authProxySecretsHttp.integration.test.ts
