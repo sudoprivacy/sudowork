@@ -154,6 +154,26 @@ corresponding public SDK release and consumer pin are delivered.
 
 ## Acceptance boundary
 
+### Local UX review before a public SDK release
+
+An unpackaged Desktop build accepts the host-owned
+`SUDOWORK_DEV_BROWSER_PYTHON` environment variable for an existing absolute
+interpreter path. Install the candidate browser wheel in an isolated virtual
+environment first. The service verifies that interpreter can import the worker,
+with `PYTHONPATH` and user-site imports disabled, and does not install packages
+into it. Packaged applications ignore this development setting and retain the
+official SDK version check and app-owned installer.
+
+Use a separate Electron home and user-data directory for a local UX review;
+register the source through the actual connection form. Do not copy another
+profile's login tokens or rewrite a candidate package's version to satisfy the
+production pin. Test the actual **Open review** button and resulting native
+browser, in addition to the component fixtures. This establishes the local entry
+and window switching experience; it does not confirm the UX design or establish
+production WebUI authentication, comment delivery or a configured chat model.
+
+### Integration coverage
+
 Unit tests exercise populated legacy-session migration, multiple canonical
 sessions without RDF payloads, authority conflicts, guarded legacy writes,
 scoped tool routing, error propagation and the real MCP stdio protocol. The
