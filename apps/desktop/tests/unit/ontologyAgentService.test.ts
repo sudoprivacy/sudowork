@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDefaultOntologyWorkbenchSnapshot } from '@sudowork/ontology-common';
 import type { IOntologyWorkbenchSnapshot } from '@sudowork/ontology-common';
 import type { IAssistantMeta } from '@sudowork/common/assistantTypes';
@@ -10,13 +10,12 @@ import { OntologyEngine } from '@sudowork/ontology-engine';
 import { OntologyService } from '@process/services/ontology/OntologyService';
 import type { OntologyStudioDatabase } from '@process/services/ontology/OntologyStudioDatabase';
 
-const mocks = vi.hoisted(() => ({ getMeta: vi.fn(), create: vi.fn(), enable: vi.fn(), disable: vi.fn(), uninstall: vi.fn(), installMcp: vi.fn(), removeMcp: vi.fn(), refresh: vi.fn(), skillRoot: '/tmp/ontology-agent-service-skills' }));
-vi.mock('@process/AssistantManager', () => ({ assistantManager: { getAssistantMetaWithDir: mocks.getMeta, createAssistant: mocks.create, enableAssistant: mocks.enable, disableAssistant: mocks.disable, uninstallAssistant: mocks.uninstall } }));
+const mocks = vi.hoisted(() => ({ getMeta: vi.fn(), create: vi.fn(), update: vi.fn(), enable: vi.fn(), disable: vi.fn(), uninstall: vi.fn(), installMcp: vi.fn(), removeMcp: vi.fn(), refresh: vi.fn() }));
+vi.mock('@process/AssistantManager', () => ({ assistantManager: { getAssistantMetaWithDir: mocks.getMeta, createAssistant: mocks.create, updateAssistantMeta: mocks.update, enableAssistant: mocks.enable, disableAssistant: mocks.disable, uninstallAssistant: mocks.uninstall } }));
 vi.mock('@process/services/ontology/OntologyStudioDatabase', () => ({ OntologyStudioDatabase: class {} }));
 vi.mock('@process/services/ontology/OntologyMcpRegistration', () => ({ installOntologyMcpServer: mocks.installMcp, removeOntologyMcpServer: mocks.removeMcp }));
 vi.mock('@/agent/acp/AcpDetector', () => ({ acpDetector: { refreshCustomAgents: mocks.refresh } }));
 vi.mock('@/agent/acp/AcpConnection', () => ({ AcpConnection: class {} }));
-vi.mock('@process/initStorage', async (importOriginal) => ({ ...(await importOriginal<typeof import('@process/initStorage')>()), getCustomSkillsDir: () => mocks.skillRoot }));
 
 class Repository {
   snapshot = createDefaultOntologyWorkbenchSnapshot(1, { workspaceId: 'workspace', title: 'Orders' });
@@ -39,9 +38,8 @@ class Repository {
 let repository: Repository;
 let service: OntologyService;
 let agents: Map<string, IAssistantMeta>;
-beforeEach(async () => {
+beforeEach(() => {
   vi.resetAllMocks();
-  await fs.rm(mocks.skillRoot, { recursive: true, force: true });
   repository = new Repository();
   repository.snapshot.publishedVersions = [
     {
@@ -57,26 +55,14 @@ beforeEach(async () => {
       snapshot: { objects: [], relations: [], mappings: [], qualityRules: [], logicFunctions: [], actions: [], serviceEndpoints: [], businessDocuments: [] },
     },
   ];
-  repository.snapshot.skillBlueprints = [
-    {
-      id: 'skill-v1',
-      name: 'Orders skill',
-      description: 'Order operations',
-      status: 'published',
-      ontologyVersionId: 'v1',
-      version: '1.0.0',
-      entityIds: [],
-      toolManifest: [],
-      registeredSkillId: 'ontology-skill-v1',
-      publishedAt: 1,
-      createdAt: 1,
-      updatedAt: 1,
-    },
-  ];
   agents = new Map();
   mocks.getMeta.mockImplementation(async (id: string) => (agents.has(id) ? { meta: structuredClone(agents.get(id)), category: 'custom', dir: `/synthetic/${id}` } : null));
   mocks.create.mockImplementation(async (meta: IAssistantMeta) => {
     agents.set(meta.id!, structuredClone(meta));
+    return { success: true };
+  });
+  mocks.update.mockImplementation(async (id: string, updates: Partial<IAssistantMeta>) => {
+    agents.set(id, { ...agents.get(id), ...updates });
     return { success: true };
   });
   mocks.enable.mockImplementation(async (id: string) => {
@@ -96,31 +82,44 @@ beforeEach(async () => {
   mocks.refresh.mockResolvedValue(undefined);
   service = new OntologyService(repository as unknown as OntologyStudioDatabase, new OntologyEngine(repository));
 });
-afterEach(async () => fs.rm(mocks.skillRoot, { recursive: true, force: true }));
-const create = () => service.createAgentBlueprint({ workspaceId: 'workspace', skillBlueprintId: 'skill-v1', name: 'Orders v1' });
+const create = () => service.createAgentBlueprint({ workspaceId: 'workspace', ontologyVersionId: 'v1', name: 'Orders v1' });
 
 describe('ontology agent runtime integration', () => {
-  it('publishes an ontology skill into the shared skill library with immutable provenance', async () => {
-    repository.snapshot.skillBlueprints[0] = { ...repository.snapshot.skillBlueprints[0], status: 'draft', registeredSkillId: undefined, publishedAt: undefined };
-    const result = await service.publishSkillBlueprint({ workspaceId: 'workspace', skillBlueprintId: 'skill-v1', name: 'Orders skill', description: 'Order queries and calculations' });
-    expect(result.blueprint).toMatchObject({ status: 'published', registeredSkillId: 'ontology-skill-skill-v1' });
-    const directory = path.join(mocks.skillRoot, 'ontology-skill-skill-v1');
-    expect(await fs.readFile(path.join(directory, 'SKILL.md'), 'utf8')).toContain('Use this skill for questions and operations grounded in Orders v1.');
-    expect(JSON.parse(await fs.readFile(path.join(directory, '_sudowork_meta.json'), 'utf8'))).toMatchObject({
-      id: 'ontology-skill-skill-v1',
-      display_name: 'Orders skill',
-      ontologyBinding: { workspaceId: 'workspace', versionId: 'v1', skillBlueprintId: 'skill-v1' },
-    });
-    expect(mocks.installMcp).toHaveBeenCalledWith({ blueprintId: 'skill-v1', workspaceId: 'workspace', versionId: 'v1', exportFile: '/synthetic/ontology.json' });
-  });
+  it.each([false, true])('preserves custom rules, identity and unrelated skills during migration (retry: %s)', async (isRetry) => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'ontology-agent-migration-'));
+    try {
+      const { blueprint } = await create();
+      const registered = await service.registerAgentBlueprint({ workspaceId: 'workspace', blueprintId: blueprint.id });
+      const assistantId = registered.blueprint.registeredAssistantId!;
+      const meta = agents.get(assistantId)!;
+      meta.ontologyBinding = { ...meta.ontologyBinding!, skillBlueprintId: 'skill-v1' } as NonNullable<IAssistantMeta['ontologyBinding']>;
+      meta.enabledSkills = ['ontology-skill-skill-v1', 'unrelated-skill'];
+      await fs.writeFile(
+        path.join(directory, 'AGENT.md'),
+        '# Ontology Agent\n\nUse Orders skill to answer domain questions and operate only on its approved tools.\n\nUse the installed skill "Orders skill" (ontology-skill-skill-v1) as the source of ontology semantics, tools, permissions and operating instructions.\nDo not answer domain questions from assumptions when the linked skill can query or calculate the result.\n\nAlways mask customer email addresses.'
+      );
+      mocks.getMeta.mockImplementation(async (id: string) => ({ meta: structuredClone(agents.get(id)), category: 'custom', dir: directory }));
+      if (isRetry) {
+        mocks.update.mockResolvedValueOnce({ success: false, msg: 'retry migration' });
+        await expect(service.getRegisteredAgentRuntime(assistantId)).rejects.toThrow('retry migration');
+      }
 
-  it('keeps the skill draft and removes partial files when runtime publication fails', async () => {
-    repository.snapshot.skillBlueprints[0] = { ...repository.snapshot.skillBlueprints[0], status: 'draft', registeredSkillId: undefined, publishedAt: undefined };
-    mocks.installMcp.mockRejectedValueOnce(new Error('MCP unavailable'));
-    await expect(service.publishSkillBlueprint({ workspaceId: 'workspace', skillBlueprintId: 'skill-v1', name: 'Orders skill', description: 'Order queries' })).rejects.toThrow('MCP unavailable');
-    expect(repository.snapshot.skillBlueprints[0]).toMatchObject({ status: 'failed', publicationError: 'MCP unavailable' });
-    await expect(fs.stat(path.join(mocks.skillRoot, 'ontology-skill-skill-v1'))).rejects.toMatchObject({ code: 'ENOENT' });
-    expect(mocks.removeMcp).toHaveBeenCalledWith('skill-v1');
+      const runtime = await service.getRegisteredAgentRuntime(assistantId);
+
+      expect(runtime?.meta.ontologyBinding).toEqual({ workspaceId: 'workspace', versionId: 'v1', blueprintId: blueprint.id });
+      expect(runtime?.meta.enabledSkills).toEqual(['unrelated-skill']);
+      expect(runtime?.presetContext).toContain('Ontology version ID: v1');
+      expect(runtime?.presetContext).not.toContain('Use the installed skill');
+      expect(runtime?.presetContext).not.toContain('Use Orders skill');
+      expect(runtime?.presetContext).toContain('Always mask customer email addresses.');
+      expect(runtime?.presetContext.match(/Always mask customer email addresses\./g)).toHaveLength(1);
+      expect(await fs.readFile(path.join(directory, 'AGENT.md'), 'utf8')).toContain('## Business objects');
+      expect(mocks.update).toHaveBeenCalledTimes(isRetry ? 2 : 1);
+      await service.getRegisteredAgentRuntime(assistantId);
+      expect(mocks.update).toHaveBeenCalledTimes(isRetry ? 2 : 1);
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true });
+    }
   });
 
   it('loads the registered version rules and refuses disabled or mismatched agents', async () => {
@@ -132,8 +131,8 @@ describe('ontology agent runtime integration', () => {
       const meta = agents.get(id)!;
       await fs.writeFile(path.join(directory, 'AGENT.md'), 'Use the published v1 ontology.');
       mocks.getMeta.mockImplementation(async () => ({ meta, category: 'custom', dir: directory }));
-      expect(await service.getRegisteredAgentRuntime(id)).toMatchObject({ meta: { ontologyBinding: { workspaceId: 'workspace', versionId: 'v1', skillBlueprintId: 'skill-v1', blueprintId: blueprint.id } }, presetContext: expect.stringContaining('published v1') });
-      expect((await service.getRegisteredAgentRuntime(id))?.mcpRegistration).toEqual({ workspaceId: 'workspace', versionId: 'v1', skillBlueprintId: 'skill-v1', blueprintId: blueprint.id, exportFile: '/synthetic/ontology.json' });
+      expect(await service.getRegisteredAgentRuntime(id)).toMatchObject({ meta: { ontologyBinding: { workspaceId: 'workspace', versionId: 'v1', blueprintId: blueprint.id } }, presetContext: expect.stringContaining('published v1') });
+      expect((await service.getRegisteredAgentRuntime(id))?.mcpRegistration).toEqual({ workspaceId: 'workspace', versionId: 'v1', blueprintId: blueprint.id, exportFile: '/synthetic/ontology.json' });
       meta.enabled = false;
       await expect(service.getRegisteredAgentRuntime(id)).rejects.toThrow('notFound');
       meta.enabled = true;
@@ -160,24 +159,28 @@ describe('ontology agent runtime integration', () => {
     }
   });
 
-  it('creates an owned agent that references the already-published ontology skill', async () => {
+  it('creates an owned agent and enables it only after its version-specific tools are installed', async () => {
     const { blueprint } = await create();
     const result = await service.registerAgentBlueprint({ workspaceId: 'workspace', blueprintId: blueprint.id });
-    expect(mocks.create.mock.calls[0][0]).toMatchObject({ enabled: false, enabledSkills: ['ontology-skill-v1'], ontologyBinding: { workspaceId: 'workspace', versionId: 'v1', skillBlueprintId: 'skill-v1', blueprintId: blueprint.id } });
-    expect(mocks.installMcp).not.toHaveBeenCalled();
+    expect(mocks.create.mock.calls[0][0]).toMatchObject({ enabled: false, ontologyBinding: { workspaceId: 'workspace', versionId: 'v1', blueprintId: blueprint.id } });
+    expect(mocks.create.mock.calls[0][0]).not.toHaveProperty('enabledSkills');
+    expect(mocks.create.mock.calls[0][1]).toContain('## Business objects');
+    expect(mocks.installMcp).toHaveBeenCalledWith({ blueprintId: blueprint.id, workspaceId: 'workspace', versionId: 'v1', exportFile: '/synthetic/ontology.json' });
+    expect(mocks.installMcp.mock.invocationCallOrder[0]).toBeLessThan(mocks.enable.mock.invocationCallOrder[0]);
     expect(agents.get(result.blueprint.registeredAssistantId!)?.enabled).toBe(true);
     await service.registerAgentBlueprint({ workspaceId: 'workspace', blueprintId: blueprint.id });
     expect(mocks.create).toHaveBeenCalledTimes(1);
-    expect(mocks.installMcp).not.toHaveBeenCalled();
+    expect(mocks.installMcp).toHaveBeenCalledTimes(1);
   });
 
   it('keeps a failed installation disabled and resumes it with the same agent ID', async () => {
     const { blueprint } = await create();
-    mocks.enable.mockResolvedValueOnce({ success: false, msg: 'Enable failed' });
-    await expect(service.registerAgentBlueprint({ workspaceId: 'workspace', blueprintId: blueprint.id })).rejects.toThrow('Enable failed');
+    mocks.installMcp.mockRejectedValueOnce(new Error('MCP failed'));
+    await expect(service.registerAgentBlueprint({ workspaceId: 'workspace', blueprintId: blueprint.id })).rejects.toThrow('MCP failed');
     const failed = repository.snapshot.agentBlueprints[0];
     expect(failed.status).toBe('failed');
     expect(agents.get(failed.registeredAssistantId!)?.enabled).toBe(false);
+    expect(mocks.removeMcp).toHaveBeenCalledExactlyOnceWith(blueprint.id);
     const retried = await service.registerAgentBlueprint({ workspaceId: 'workspace', blueprintId: blueprint.id });
     expect(retried.blueprint.registeredAssistantId).toBe(failed.registeredAssistantId);
     expect(mocks.create).toHaveBeenCalledTimes(1);
@@ -190,6 +193,7 @@ describe('ontology agent runtime integration', () => {
     const id = result.blueprint.registeredAssistantId!;
     await expect(service.deleteRegisteredAssistant(id, 'custom')).resolves.toBe(true);
     expect(agents.has(id)).toBe(false);
+    expect(mocks.removeMcp).toHaveBeenCalledExactlyOnceWith(blueprint.id);
     expect(repository.snapshot.agentBlueprints[0]).toMatchObject({ id: blueprint.id, status: 'deleted', registeredAssistantId: id });
     const restored = await service.registerAgentBlueprint({ workspaceId: 'workspace', blueprintId: blueprint.id });
     expect(restored.blueprint.registeredAssistantId).toBe(id);
@@ -203,6 +207,7 @@ describe('ontology agent runtime integration', () => {
     expect(agents.get(id)).toMatchObject({ enabled: true, nameI18n: { 'en-US': 'Unrelated agent' } });
     expect(mocks.create).not.toHaveBeenCalled();
     expect(mocks.disable).not.toHaveBeenCalled();
+    expect(mocks.removeMcp).not.toHaveBeenCalled();
   });
 
   it('disables historical duplicates while retaining their configuration and a single active association', async () => {
@@ -219,5 +224,6 @@ describe('ontology agent runtime integration', () => {
     expect(agents.get('extra')?.enabled).toBe(false);
     expect(agents.has('extra')).toBe(true);
     expect(mocks.uninstall).not.toHaveBeenCalled();
+    expect(mocks.removeMcp).toHaveBeenCalledExactlyOnceWith('duplicate');
   });
 });

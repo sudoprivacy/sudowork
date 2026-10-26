@@ -76,11 +76,10 @@ describe('ontology studio persistence', () => {
         assert.equal(store.listAiSessions('canonical').length, 2);
         store.deleteAiSession('canonical-session-1');
         const agents = store.getSnapshot('a');
-        agents.skillBlueprints = [{ id: 'skill', name: '订单技能', description: '订单查询', ontologyVersionId: 'version', status: 'published', version: '1.0.0', entityIds: [], toolManifest: [], registeredSkillId: 'ontology-skill', createdAt: 1, updatedAt: 1 }];
-        agents.agentBlueprints = [{ id: 'blueprint', skillBlueprintId: 'skill', ontologyVersionId: 'version', status: 'draft' }];
+        agents.agentBlueprints = [{ id: 'blueprint', name: '订单智能体', ontologyVersionId: 'version', status: 'draft', entityIds: [], toolManifest: [], promptTemplate: '', createdAt: 1, updatedAt: 1 }];
         store.saveSnapshot(agents);
         const duplicate = store.getSnapshot('a');
-        duplicate.agentBlueprints.push({ id: 'duplicate', skillBlueprintId: 'skill', ontologyVersionId: 'version', status: 'draft' });
+        duplicate.agentBlueprints.push({ id: 'duplicate', name: '重复智能体', ontologyVersionId: 'version', status: 'draft', entityIds: [], toolManifest: [], promptTemplate: '', createdAt: 1, updatedAt: 1 });
         assert.throws(() => store.saveSnapshot(duplicate), /duplicate/);
         const changedIdentity = store.getSnapshot('a');
         changedIdentity.agentBlueprints[0].id = 'replacement';

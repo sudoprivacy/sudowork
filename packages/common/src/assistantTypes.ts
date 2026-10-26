@@ -36,7 +36,6 @@ export interface IAssistantMeta {
   ontologyBinding?: {
     workspaceId: string;
     versionId: string;
-    skillBlueprintId: string;
     blueprintId: string;
   };
   id?: string;

@@ -228,16 +228,10 @@ export class OntologyStudioDatabase implements IOntologyRepository {
 
 /** Enforce version ownership inside the same transaction that persists the snapshot. */
 function assertAgentBindings(snapshot: IOntologyWorkbenchSnapshot, before: IOntologyWorkbenchSnapshot | null): void {
-  for (const versionId of new Set(snapshot.skillBlueprints.map((item) => item.ontologyVersionId))) {
-    const skills = snapshot.skillBlueprints.filter((item) => item.ontologyVersionId === versionId && item.status !== 'deleted');
-    if (skills.length > 1) throw new Error('ontology.studio.skillErrors.duplicate');
-    const previous = before?.skillBlueprints.find((item) => item.id === skills[0]?.id);
-    if (previous?.registeredSkillId && skills[0]?.registeredSkillId !== previous.registeredSkillId) throw new Error('ontology.studio.skillErrors.identityConflict');
-  }
-  const skillIds = new Set(snapshot.agentBlueprints.map((item) => item.skillBlueprintId));
-  for (const skillId of skillIds) {
-    const items = snapshot.agentBlueprints.filter((item) => item.skillBlueprintId === skillId);
-    const prior = before?.agentBlueprints.filter((item) => item.skillBlueprintId === skillId) || [];
+  const versionIds = new Set(snapshot.agentBlueprints.map((item) => item.ontologyVersionId));
+  for (const versionId of versionIds) {
+    const items = snapshot.agentBlueprints.filter((item) => item.ontologyVersionId === versionId);
+    const prior = before?.agentBlueprints.filter((item) => item.ontologyVersionId === versionId) || [];
     // Existing duplicates may be read until the registration service retires them; no new duplicate is accepted.
     if (items.length > 1 && (items.length > prior.length || items.some((item) => !prior.some((old) => old.id === item.id)))) throw new Error('ontology.studio.agentErrors.duplicate');
     if (items.length === 1 && prior.length === 1 && items[0].id !== prior[0].id) throw new Error('ontology.studio.agentErrors.identityConflict');

@@ -1557,20 +1557,9 @@ export default function OntologyWorkbench({
   ): Promise<boolean> => {
     setIsCreatingAgent(true);
     try {
-      const sourceSnapshot =
-        workspaceId === snapshot?.workspaceId
-          ? snapshot
-          : workspaceSnapshots.find((item) => item.workspaceId === workspaceId);
-      const skill = sourceSnapshot?.skillBlueprints.find(
-        (item) =>
-          item.ontologyVersionId === ontologyVersionId &&
-          item.status === "published",
-      );
-      if (!skill)
-        throw new Error("ontology.studio.agentErrors.skillUnavailable");
       const result = await api.createAgentBlueprint({
         name: agentNameValue,
-        skillBlueprintId: skill.id,
+        ontologyVersionId,
         workspaceId,
         promptTemplate: t("ontology.agent.defaultPrompt"),
       });
@@ -6792,11 +6781,6 @@ function AgentPage({
         (version) => version.id === currentDetailAgent.ontologyVersionId,
       ) ?? null)
     : null;
-  const currentDetailSkill = currentDetailAgent
-    ? (currentDetailSnapshot?.skillBlueprints.find(
-        (skill) => skill.id === currentDetailAgent.skillBlueprintId,
-      ) ?? null)
-    : null;
   const hasPublishedVersion = publishedServices.length > 0;
   const filteredAgents = useMemo(() => {
     const keyword = agentSearchValue.trim().toLowerCase();
@@ -6872,9 +6856,6 @@ function AgentPage({
         <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
           {filteredAgents.map(({ agent, workspaceSnapshot }) => {
             const status = agentManageStatus(agent);
-            const boundSkill = workspaceSnapshot.skillBlueprints.find(
-              (skill) => skill.id === agent.skillBlueprintId,
-            );
             const boundVersion = workspaceSnapshot.publishedVersions.find(
               (version) => version.id === agent.ontologyVersionId,
             );
@@ -6925,15 +6906,15 @@ function AgentPage({
                   · {boundVersion?.version ?? "-"}
                 </Typography.Text>
 
-                {!!boundSkill?.toolManifest.length && (
+                {!!agent.toolManifest.length && (
                   <div className="flex flex-wrap gap-1">
-                    {boundSkill.toolManifest.slice(0, 3).map((tool) => (
+                    {agent.toolManifest.slice(0, 3).map((tool) => (
                       <Tag key={`${agent.id}-${tool.name}`}>
-                        {tool.displayName}
+                        {tool.displayName || tool.name}
                       </Tag>
                     ))}
-                    {boundSkill.toolManifest.length > 3 && (
-                      <Tag>+{boundSkill.toolManifest.length - 3}</Tag>
+                    {agent.toolManifest.length > 3 && (
+                      <Tag>+{agent.toolManifest.length - 3}</Tag>
                     )}
                   </div>
                 )}
@@ -6980,11 +6961,11 @@ function AgentPage({
               />
               <MiniMetric
                 label={t("ontology.console.columns.tools")}
-                value={currentDetailSkill?.toolManifest.length ?? 0}
+                value={currentDetailAgent.toolManifest.length}
               />
               <MiniMetric
                 label={t("ontology.stats.objects")}
-                value={currentDetailSkill?.entityIds.length ?? 0}
+                value={currentDetailAgent.entityIds.length}
               />
               <MiniMetric
                 label={t("ontology.agentManage.ontologyService")}

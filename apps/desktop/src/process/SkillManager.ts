@@ -31,7 +31,6 @@ export type SkillStatus = 'enabled' | 'disabled';
 
 // Skill 元数据（完整字段，与 ISkillHubMeta 兼容）
 export interface ISkillMeta {
-  ontologyBinding?: { workspaceId: string; versionId: string; skillBlueprintId: string };
   id?: string;
   name?: string;
   display_name?: string;
