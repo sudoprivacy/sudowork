@@ -7,6 +7,7 @@ import {
 import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import UnoCss from 'unocss/vite'
+import { inputDeliveryAliases } from '../../scripts/input-delivery-alias.mjs'
 
 const abs = (p: string): string => fileURLToPath(new URL(p, import.meta.url))
 
@@ -25,6 +26,7 @@ export default defineConfig({
     alias: [
       browserPageViewAlias,
       browserSessionContractAlias,
+      ...inputDeliveryAliases,
       { find: '@client', replacement: abs('./src/client') },
       { find: '@shared', replacement: abs('./src/shared') },
       // Shared renderer + its workspace deps, bundled from source (same as desktop).

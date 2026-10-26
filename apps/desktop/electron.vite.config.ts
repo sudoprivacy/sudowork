@@ -7,6 +7,7 @@ import react from '@vitejs/plugin-react';
 import UnoCSS from 'unocss/vite';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
 import { browserPageViewAlias, browserSessionContractAlias } from '../../scripts/browser-view-alias.mjs';
+import { inputDeliveryAliases } from '../../scripts/input-delivery-alias.mjs';
 import unoConfig from './uno.config.ts';
 
 const nodeRequire = createRequire(import.meta.url);
@@ -90,8 +91,7 @@ const mainAliases = [
   { find: '@sudowork/moss-client/hosted-tasks', replacement: resolve('../../packages/moss-client/src/MossHostedTaskClient.ts') },
   { find: '@sudowork/moss-client/external-providers', replacement: resolve('../../packages/moss-client/src/MossExternalProviderClient.ts') },
   { find: '@sudowork/moss-client/agents', replacement: resolve('../../packages/moss-client/src/MossAgentClient.ts') },
-  { find: '@sudowork/moss-client/input-delivery', replacement: resolve('../../packages/moss-client/src/InputDeliveryClient.ts') },
-  { find: '@sudowork/contracts/input-delivery', replacement: resolve('../../packages/contracts/src/inputDelivery.ts') },
+  ...inputDeliveryAliases,
   { find: '@sudowork/moss-client', replacement: resolve('../../packages/moss-client/src/index.ts') },
   { find: /^@sudowork\/ontology-common\/(.*)$/, replacement: resolve('../../packages/ontology-common/src') + '/$1' },
   { find: /^@sudowork\/ontology-common$/, replacement: resolve('../../packages/ontology-common/src/index.ts') },
@@ -240,6 +240,7 @@ export default defineConfig(({ mode }) => {
         alias: [
           browserPageViewAlias,
           browserSessionContractAlias,
+          ...inputDeliveryAliases,
           ...commonAliasEntries(),
           { find: '@sudowork/moss-client/hosted-tasks', replacement: resolve('../../packages/moss-client/src/MossHostedTaskClient.ts') },
           { find: '@sudowork/moss-client/external-providers', replacement: resolve('../../packages/moss-client/src/MossExternalProviderClient.ts') },
