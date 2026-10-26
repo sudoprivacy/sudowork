@@ -144,6 +144,28 @@ it('acknowledges live drag only after the checked input reply for the attached v
   expect(host.error).toHaveBeenCalledTimes(1);
 });
 
+it('drains owned live input during a mode change while fresh-frame readiness is false', async () => {
+  vi.stubGlobal('navigator', { maxTouchPoints: 1 });
+  const base = activeSession();
+  const session = { ...base, isHeadless: false, capabilities: { ...base.capabilities, dragInput: true, windowView: true, windowStream: true, liveDragInput: true } };
+  const actions: BrowserSessionAction[] = [];
+  host.invoke.mockImplementation(async ({ action }: { action: BrowserSessionAction }) => {
+    actions.push(action);
+    return { success: true, data: { session, ...(action.kind === 'window-stream' ? { stream: { protocol: 'rfb', isViewOnly: true, password: 'fixture-only', socketPath: '/ws/browser/owned-conversation' } } : {}) } };
+  });
+  render(<BrowserSessionPanel conversationId='owned-conversation' isViewer />);
+  await waitFor(() => expect(host.stream).toHaveBeenCalled());
+  const [stream, props] = host.stream.mock.calls.at(-1)!;
+  await act(async () => props.onReady({ width: 1280, height: 900 }));
+  fireEvent.click(screen.getByRole('button', { name: 'touchGesture' }));
+  const input = { kind: 'drag-stream', phase: 'cancel', gestureId: crypto.randomUUID(), sequence: 2, viewerId: stream.viewerId, x: 100, y: 200 };
+  await act(async () => props.onInput(input));
+  expect(actions.filter((action) => action.kind === 'input')).toEqual([{ kind: 'input', input, surface: 'window', controlEpoch: 4, targetEpoch: 2 }]);
+  await expect(props.onInput({ ...input, phase: 'move', sequence: 3 })).rejects.toThrow();
+  expect(actions.filter((action) => action.kind === 'input')).toHaveLength(1);
+  expect(host.error).not.toHaveBeenCalled();
+});
+
 it('discards a late stream response after navigation and opens the current target', async () => {
   const base = activeSession();
   let session = { ...base, isHeadless: false, capabilities: { ...base.capabilities, windowView: true, windowStream: true } };

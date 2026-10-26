@@ -203,23 +203,30 @@ async def run_case(assets, evidence, transport, graph_html=None):
                 async def input_event(request):
                     authorize(request)
                     event = await request.json()
-                    input_log.append(
+                    logged = {
+                        key: event[key]
+                        for key in (
+                            "kind",
+                            "phase",
+                            "gestureId",
+                            "sequence",
+                            "x",
+                            "y",
+                            "key",
+                        )
+                        if key in event
+                    }
+                    input_log.append(logged)
+                    reply = await host(
                         {
-                            key: event[key]
-                            for key in ("kind", "x", "y", "key")
-                            if key in event
+                            "kind": "input",
+                            "surface": "window",
+                            "input": event,
+                            **epochs(active_context),
                         }
                     )
-                    return web.json_response(
-                        await host(
-                            {
-                                "kind": "input",
-                                "surface": "window",
-                                "input": event,
-                                **epochs(active_context),
-                            }
-                        )
-                    )
+                    logged["accepted"] = True
+                    return web.json_response(reply)
 
                 async def proxy(request):
                     authorize(request)
@@ -345,7 +352,7 @@ async def run_case(assets, evidence, transport, graph_html=None):
                     stage = "real-graph"
                     result.update(
                         await verify_graph(
-                            page, viewer, evidence, graph_html, stream_events
+                            page, viewer, evidence, graph_html, stream_events, input_log
                         )
                     )
                     state = await worker.state(controller)

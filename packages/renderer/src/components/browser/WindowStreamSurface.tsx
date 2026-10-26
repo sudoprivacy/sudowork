@@ -16,10 +16,14 @@ export default function WindowStreamSurface({ stream, isInteractive, isDragSuppo
   optionsRef.current = { isInteractive, isDragSupported, isLiveDragSupported, isTouchDragging, zoom, label };
 
   const sendInput = useCallback((value: unknown, isClosed = false) => {
-    const pending = !isClosed && optionsRef.current.isInteractive ? callbacksRef.current.onInput(value) : Promise.reject(new Error('Browser input requires the current interactive viewer'));
+    const isLiveDrag = value !== null && typeof value === 'object' && 'kind' in value && value.kind === 'drag-stream';
+    const isCancellingDrag = isLiveDrag && 'phase' in value && value.phase === 'cancel';
+    // Prop changes disable new input before disposing the old mapper. Its
+    // cancellation still needs the host's checked acknowledgement.
+    const pending = !isClosed && (optionsRef.current.isInteractive || isCancellingDrag) ? callbacksRef.current.onInput(value) : Promise.reject(new Error('Browser input requires the current interactive viewer'));
     // Live motion advances only after the checked host acknowledges it.
     // Legacy one-shot events still report errors through the owning panel.
-    if (value && typeof value === 'object' && 'kind' in value && value.kind === 'drag-stream') return pending;
+    if (isLiveDrag) return pending;
     void pending.catch(() => {});
   }, []);
 

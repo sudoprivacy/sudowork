@@ -64,8 +64,10 @@ function App() {
                 const reply = await response.json();
                 if (reply.session.controlEpoch !== stream.controlEpoch || reply.session.targetEpoch !== stream.targetEpoch) {
                   setIsReady(false);
+                  setStream(null);
                   const refreshed = await fetch('/stream-context');
                   if (!refreshed.ok) throw new Error(`Context unavailable (${refreshed.status})`);
+                  setError('');
                   setStream(await refreshed.json());
                 }
               });

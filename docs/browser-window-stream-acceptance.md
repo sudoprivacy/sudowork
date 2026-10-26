@@ -118,6 +118,16 @@ older wheel and passes with the fix. Disconnects and Stop release held input
 without granting AI control. SDK publication, the final consumer release pin,
 production deployment and physical phone acceptance remain delivery gates.
 
+A later shared-component journey reproduced a held drag whose cancellation was
+blocked while an input-mode change temporarily disabled new input. The adapter
+now lets that cancellation reach the ordinary checked queue; browser/profile,
+generation, epochs and human-controller checks remain required. The old component
+fails the actual Chrome regression. The corrected CDP and extension journeys
+both acknowledge cancellation, reconnect to the same graph and pass the original
+form workflow. The mode change is driven by a component fixture; it does not
+establish physical-phone touch behavior. The accompanying host regression also
+requires ordinary motion to stay blocked until a fresh frame arrives.
+
 ## Delivery gates
 
 The stream remains optional and capability-gated. SDK PR #39 is merged and tagged
