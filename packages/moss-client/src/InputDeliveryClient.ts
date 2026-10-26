@@ -51,7 +51,7 @@ export class InputDeliveryClient {
     if (!frame || typeof frame !== 'object') return false
     const event = frame as Record<string, unknown>
     if (event.type === 'input_delivery_reset') {
-      this.current = null
+      this.disconnect()
       this.onReset()
       return true
     }
