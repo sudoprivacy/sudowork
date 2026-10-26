@@ -6,7 +6,8 @@
 
 PR 创建、推送新提交或重新打开时触发，由以下 job 组成：
 
-- **build-test**：构建与测试
+- **build-test**：构建与测试（Windows x64/arm64 矩阵）
+- **build-test-macos-arm64 / build-test-macos-x64**：macOS 构建与测试。macOS runner 是整个组织最稀缺的资源，所以合入 `dev` 的 PR 会跳过这两个 job，它们在合并队列里对即将成为 `dev` 的那个提交运行；合入 `main` 的 PR（`main` 没有合并队列）照常运行。两者必须是带字面名称的非矩阵 job：被 `if` 跳过的矩阵 job 只会报告未展开的名称，必需检查就永远不会被满足。
 - **release-script-test**：验证发布脚本输出
 
 修改 PR 标题或描述不会触发完整检查，也不会取消正在进行的构建。构建矩阵始终展开为各平台的固定检查名，避免 `edited` 事件跳过矩阵后，让分支保护一直等待缺失的检查状态。
