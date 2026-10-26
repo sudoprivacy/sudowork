@@ -11,7 +11,9 @@ import base64
 import hmac
 import json
 import secrets
+import sys
 import tempfile
+import time
 import uuid
 from pathlib import Path
 from urllib.parse import quote
@@ -22,6 +24,9 @@ from aiohttp import web
 from ai_dev_browser.core.browser import browser_start, browser_stop
 from ai_dev_browser.remote.cdp import CDP
 from ai_dev_browser.remote.worker import Worker, application
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "apps/webui/tests/e2e"))
+from live_browser_pixels import START_RENDER_SAMPLING
 
 
 async def wait_for(operation, predicate=bool, timeout=30):
@@ -59,7 +64,7 @@ async def element_center(page, selector):
     )
 
 
-async def run_case(assets, evidence, transport):
+async def run_case(assets, evidence, transport, graph_html=None):
     evidence.mkdir(parents=True, exist_ok=False)
     host_token, ai_token, cookie = (secrets.token_hex(32) for _ in range(3))
     binding = {
@@ -70,6 +75,7 @@ async def run_case(assets, evidence, transport):
     controller = "user-react-stream"
     receipts, contexts = [], {}
     input_log, point_log = [], []
+    stream_events = []
     page = None
     active_context = {}
     viewer_browser = viewer = None
@@ -130,12 +136,17 @@ async def run_case(assets, evidence, transport):
                         raise web.HTTPForbidden()
 
                 async def target(_request):
+                    if graph_html is not None:
+                        return web.Response(
+                            body=graph_html.read_bytes(), content_type="text/html"
+                        )
                     return web.Response(
                         content_type="text/html",
                         text="""<!doctype html><meta charset="utf-8">
                 <style>body{margin:0;background:#22aa66}input,button{display:block;margin:24px;width:220px;height:40px}</style>
                 <input id="name"><button id="submit">Submit once</button><pre id="receipt"></pre>
                 <script>window.nativeEvents=[];window.nativeErrors=[];
+                let color=0;setInterval(()=>document.body.style.background=`rgb(${30+(color++%100)},80,160)`,100);
                 addEventListener('error',e=>nativeErrors.push(e.message));
                 for(const kind of ['pointerdown','pointerup','mousedown','mouseup','click','keydown','input'])
                   document.addEventListener(kind,e=>nativeEvents.push({kind,id:e.target.id,x:e.clientX,y:e.clientY,trusted:e.isTrusted}),true);
@@ -232,6 +243,13 @@ async def run_case(assets, evidence, transport):
                             async for message in source:
                                 if message.type != aiohttp.WSMsgType.BINARY:
                                     break
+                                stream_events.append(
+                                    {
+                                        "at": time.perf_counter(),
+                                        "bytes": len(message.data),
+                                        "towardViewer": destination is downstream,
+                                    }
+                                )
                                 await destination.send_bytes(message.data)
 
                         tasks = [
@@ -320,6 +338,45 @@ async def run_case(assets, evidence, transport):
                     lambda: viewer.js("document.querySelector('#status')?.textContent"),
                     lambda value: value == "ready",
                 )
+                if graph_html is not None:
+                    from live_sudograph_window_stream import verify_graph
+
+                    stage = "real-graph"
+                    result.update(
+                        await verify_graph(
+                            page, viewer, evidence, graph_html, stream_events
+                        )
+                    )
+                    state = await worker.state(controller)
+                    assert state["browserSessionId"] == held["browserSessionId"]
+                    assert state["state"] == "human" and state["isController"]
+                    result.update(
+                        accepted=True,
+                        actualReactAndNoVnc=True,
+                        preservedBrowserAndHumanLease=True,
+                    )
+                    return result
+                await viewer.js(
+                    "("
+                    + START_RENDER_SAMPLING
+                    + ")(document.querySelector('canvas').parentElement)"
+                )
+                changes = await wait_for(
+                    lambda: viewer.js("window.browserViewMeasurements"),
+                    lambda samples: (
+                        len(
+                            [
+                                sample
+                                for sample in samples
+                                if sample["surface"] == "canvas"
+                                and abs(sample["rgb"][1] - 80) < 12
+                                and abs(sample["rgb"][2] - 160) < 12
+                            ]
+                        )
+                        >= 3
+                    ),
+                )
+                result["observedDecodedPixelChanges"] = len(changes)
                 (evidence / "first-frame.png").write_bytes(
                     base64.b64decode(
                         (await viewer.call("Page.captureScreenshot"))["data"]
@@ -496,7 +553,7 @@ async def run_case(assets, evidence, transport):
                         diagnostics = {"inputs": input_log, "points": point_log}
                         if page:
                             diagnostics["target"] = await page.js(
-                                "({events:window.nativeEvents,errors:window.nativeErrors,handler:typeof document.querySelector('#submit').onclick,active:document.activeElement?.id})"
+                                "({events:window.nativeEvents,errors:window.nativeErrors,handler:typeof document.querySelector('#submit')?.onclick,active:document.activeElement?.id})"
                             )
                         diagnostics["viewer"] = await viewer.js(
                             "({events:window.viewerEvents,status:document.querySelector('#status')?.textContent})"
@@ -551,14 +608,22 @@ async def main():
     parser.add_argument("--assets", type=Path, required=True)
     parser.add_argument("--evidence", type=Path, required=True)
     parser.add_argument(
+        "--graph-html",
+        type=Path,
+        help="Actual compiled Sudograph HTML for graph interaction and pixel timing",
+    )
+    parser.add_argument(
         "--transport", choices=("cdp", "extension", "both"), default="both"
     )
     args = parser.parse_args()
     assert (args.assets / "index.html").is_file()
+    assert args.graph_html is None or args.graph_html.is_file()
     transports = ("cdp", "extension") if args.transport == "both" else (args.transport,)
     try:
         for transport in transports:
-            result = await run_case(args.assets, args.evidence / transport, transport)
+            result = await run_case(
+                args.assets, args.evidence / transport, transport, args.graph_html
+            )
             print(json.dumps(result), flush=True)
     finally:
         args.evidence.mkdir(parents=True, exist_ok=True)

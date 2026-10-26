@@ -47,6 +47,45 @@ Separate real binary WebSocket tests check bound credentials, revoked permission
 binary-only forwarding and HTTP refusal without retries. The shared-browser CI
 workflow builds and runs both Chrome component journeys in the managed image.
 
+### Published Sudograph graph and interaction timing
+
+Pass `--graph-html /absolute/path/to/northwind.html` to the same component
+journey to inspect a frozen, actual compiled graph. It reuses the existing
+authenticated fixture host and shared React component. The graph helper reads
+Cytoscape state as an oracle; every pan and zoom travels through the actual
+viewer, checked host API and trusted native Chrome input.
+
+On 26 October, the installed public SDK 0.58.6 passed both CDP and signed
+extension journeys with the published Northwind artifact
+`0c982ecf553f00421323d6439e25d0fc4dfccae7d7cc3e66ec996e85ab9d259f`.
+The graph has 19 nodes and 18 relationships. Each journey pans by 100 by 50
+pixels, locates a visible Orders field, zooms around it, and reloads the viewer
+while preserving graph state, browser identity and the human lease. Decoded
+graph images match the source browser, and the preceding real frame is rejected
+after each changed view. Image comparison calibrates the fixed display offset
+once before input and uses normalized luminance correlation to tolerate raster
+differences; later pan or zoom discrepancies are never realigned away.
+
+The complete graph run took 63.69 seconds at one CPU, 1,536 MiB and 384 PIDs.
+Peak PID use was 327, with no PID-limit events or OOMs. The unchanged default
+surface journeys also passed after adding the optional graph path. Owned
+containers, viewers and fixture services were removed after both runs.
+
+The extension run first showed changed graph pixels after 528 ms for the
+scripted drag and 203 ms for zoom. Native graph input to its first render took
+6 ms and 25 ms, respectively. These are local observations, without production
+network latency or an absolute performance-budget claim. The drag itself took
+464 ms to dispatch; the shared input mapper buffers a drag until pointer-up.
+The recorded final-image verification bound includes screenshot and measurement
+overhead and must not be reported as pure transport latency. Proxy byte counters
+can include other screen updates and do not alone identify a graph frame.
+
+Source measurements capture the complete viewport and crop only the comparison
+image. A prior clipped-CDP-capture experiment disturbed the visible Chrome
+compositor; its passing script result was rejected during screenshot review.
+This fixture does not establish current project/version bindings, authenticated
+comments, source-record privacy, production routing or physical phone behavior.
+
 Both Node proxy hops also test an unsolicited first RFB banner sent in the same
 TCP write as the HTTP upgrade. Each upstream is paused synchronously on open and
 resumed after both relay directions are installed. This preserves upgrade-head
@@ -103,6 +142,6 @@ An earlier successful build from
 candidate. Browser rollout also requires Moss's per-owner immutable image pins
 so existing profiles can retain their accepted runtime during the canary.
 
-Public authenticated WebUI/Moss streaming, a real Sudograph review and measured
-interaction latency, fresh model continuity, and physical phone acceptance
+Public authenticated WebUI/Moss streaming, a bound Sudograph review and measured
+production-path interaction latency, fresh model continuity, and physical phone acceptance
 remain release gates. Passing SDK or component tests does not satisfy them.
