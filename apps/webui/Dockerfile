@@ -41,8 +41,8 @@ RUN --mount=type=cache,id=sudowork-webui-bun,target=/root/.bun/install/cache,sha
 # Sources for the shared packages + the webui app.
 COPY packages/ packages/
 COPY apps/webui/ apps/webui/
-# Vite resolves the shared browser aliases and public page surface from source.
-COPY scripts/browser-view-alias.mjs scripts/browser-view-alias.mjs
+# Vite resolves the shared browser/input aliases and public page surface from source.
+COPY scripts/browser-view-alias.mjs scripts/input-delivery-alias.mjs scripts/input-delivery-alias.d.mts scripts/
 COPY vendor/ai-dev-browser/ai_dev_browser/remote/page_view.js vendor/ai-dev-browser/ai_dev_browser/remote/page_view.js
 
 # Build the shared package dist (contracts/common/moss-client/host-bridge) that the
