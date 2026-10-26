@@ -24,6 +24,12 @@ export function getLocalBrowserSessions(): LocalBrowserSessions {
       return JSON.parse(readFileSync(path.join(directory, 'remote', 'mcp-tools.json'), 'utf8')) as unknown[];
     },
     control: localAgentToolControl,
+    isConversationCurrent: async (conversationId) => {
+      const { getDatabase } = await import('@process/database');
+      const { isConversationInCurrentAccount } = await import('../mossExecutionContext');
+      const conversation = getDatabase().getConversation(conversationId).data;
+      return !!conversation && isConversationInCurrentAccount(conversation);
+    },
     onReturn: async (conversationId, note, epoch) => {
       const { default: WorkerManage } = await import('../../WorkerManage');
       localAgentToolControl.assertCanPrompt(epoch);
@@ -40,7 +46,19 @@ export function getLocalBrowserSessions(): LocalBrowserSessions {
 }
 
 export async function closeLocalBrowserSessions(): Promise<void> {
-  if (service) await service.close();
+  if (service) {
+    await service.close();
+    service = undefined;
+  }
+}
+
+/** Called only after the account lifecycle has stopped its local engines. */
+export async function retireLocalBrowserSessions(): Promise<void> {
+  await localAgentToolControl.retireAfterShutdown(async () => {
+    // Recover a persisted owner even when no UI has allocated a worker yet.
+    if (localAgentToolControl.status().owner) getLocalBrowserSessions();
+    await closeLocalBrowserSessions();
+  });
 }
 
 /** User slash commands use the same authenticated MCP path as agent tools. */

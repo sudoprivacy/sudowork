@@ -19,6 +19,13 @@ vi.mock('@process/services/ontology/OntologyStudioDatabase', () => ({
 }));
 vi.mock('@/agent/acp/AcpConnection', () => ({ AcpConnection: class {} }));
 vi.mock('@process/services/scode/ScodeInstallService', () => ({ getScodePath: () => null }));
+const reviewAccount = vi.hoisted(() => ({ isCurrent: true, read: vi.fn() }));
+vi.mock('@process/database', () => ({ getDatabase: () => ({ getConversation: reviewAccount.read }) }));
+vi.mock('@process/services/mossExecutionContext', () => ({
+  assertConversationAccount: () => {
+    if (!reviewAccount.isCurrent) throw new Error('Conversation belongs to a different Moss account');
+  },
+}));
 
 describe('OntologyService canonical source registration', () => {
   const input = { workspaceId: 'canonical', title: 'Canonical model', modelRef: 'model-1', source: 'sqlite:///private-source.db', namespace: 'support', operationId: 'connect-1', language: 'en' as const };
@@ -63,6 +70,8 @@ describe('OntologyService canonical source registration', () => {
 
 describe('OntologyService native source intake', () => {
   it('binds private review sessions to the persisted project and conversation and rechecks ownership', async () => {
+    reviewAccount.isCurrent = true;
+    reviewAccount.read.mockReturnValue({ data: { extra: { purpose: 'ontology', ontologyId: 'source' } } });
     const module = await import('@process/services/ontology/SudographModelClient');
     const client = { review: vi.fn().mockResolvedValue('native compiled graph') };
     vi.spyOn(module, 'getSudographModelClient').mockReturnValue(client as unknown as ReturnType<typeof module.getSudographModelClient>);
@@ -81,6 +90,12 @@ describe('OntologyService native source intake', () => {
       const headers = { Cookie: `${launch.cookie.name}=${launch.cookie.value}` };
       expect((await fetch(launch.url, { headers })).status).toBe(200);
       expect(client.review).toHaveBeenCalledWith('private-model', expect.stringMatching(/^desktop:/), 'source', { operation: 'html', endpoint: `${new URL(launch.url).pathname}v1` });
+      reviewAccount.isCurrent = false;
+      expect((await fetch(launch.url, { headers })).status).toBe(403);
+      await expect(service.createStudioReviewSession({ workspaceId: 'source', conversationId: 'chat-1' })).rejects.toThrow('different Moss account');
+      reviewAccount.isCurrent = true;
+      reviewAccount.read.mockReturnValueOnce({ data: { extra: { purpose: 'ontology', ontologyId: 'another' } } });
+      expect((await fetch(launch.url, { headers })).status).toBe(403);
       session = undefined;
       expect((await fetch(launch.url, { headers })).status).toBe(403);
       expect(client.review).toHaveBeenCalledTimes(1);

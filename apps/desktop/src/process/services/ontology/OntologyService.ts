@@ -444,10 +444,15 @@ export class OntologyService {
       .strict()
       .parse(raw);
     this.reviewHost ??= new SudographReviewHost({
-      authorize: ({ workspaceId, conversationId }) => {
+      authorize: async ({ workspaceId, conversationId }) => {
         const project = this.database.getProject(workspaceId);
         const session = this.database.getAiSessionByConversationId(conversationId);
         if (project?.authority !== 'sudograph' || session?.workspace_id !== workspaceId) throw new Error('Review conversation does not own this registered model.');
+        const { getDatabase } = await import('@process/database');
+        const { assertConversationAccount } = await import('@process/services/mossExecutionContext');
+        const conversation = getDatabase().getConversation(conversationId).data;
+        if (conversation?.extra.purpose !== 'ontology' || conversation.extra.ontologyId !== workspaceId) throw new Error('Review conversation does not own this registered model.');
+        assertConversationAccount(conversation);
       },
       read: async (workspaceId, request) => {
         const project = this.database.getProject(workspaceId);

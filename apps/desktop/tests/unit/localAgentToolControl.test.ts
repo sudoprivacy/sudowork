@@ -11,6 +11,36 @@ function fixture() {
 }
 
 describe('local browser admission and acknowledged tool barriers', () => {
+  it('retires an account only after engines and browser resources confirm shutdown and invalidates queued prompts', async () => {
+    const { control } = fixture();
+    const oldEpoch = control.assertCanPrompt();
+    await control.take('old-account', async () => {});
+    let release!: () => void;
+    const closed = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const pending = control.retireAfterShutdown(() => closed);
+    expect(() => control.assertCanPrompt()).toThrow();
+    release();
+    await pending;
+    expect(control.status()).toEqual({ state: 'ai', epoch: 2 });
+    expect(() => control.assertCanPrompt(oldEpoch)).toThrow('predates');
+  });
+
+  it('refuses retirement while an engine is registered and keeps the fence held on failed browser shutdown', async () => {
+    const { control } = fixture();
+    control.register('actor', { ready: async () => {}, connection: { hasActiveSession: true, pauseTools: async () => ({ sessionId: 'a', pauseEpoch: 1 }), resumeTools: async () => {} } });
+    await expect(control.retireAfterShutdown(async () => {})).rejects.toThrow('Stop all local agents');
+    control.unregister('actor');
+    await control.take('old-account', async () => {});
+    await expect(
+      control.retireAfterShutdown(async () => {
+        throw new Error('Browser still running');
+      })
+    ).rejects.toThrow('Browser still running');
+    expect(control.status()).toMatchObject({ state: 'error', owner: 'old-account' });
+    expect(() => control.assertCanPrompt()).toThrow();
+  });
   it('keeps the browser with AI when an active agent cannot acknowledge takeover', async () => {
     const { control } = fixture();
     control.register('unsupported', {

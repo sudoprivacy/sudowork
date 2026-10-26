@@ -55,6 +55,10 @@ export async function applyMossLocalRuntime(payload: unknown, serverUrl: string)
   if (previousScope !== scope || runtime.localRuntime.status !== 'ready' || previousCredentials.apiKey !== runtime.sudorouter_key || previousCredentials.baseUrl !== runtime.model_service_url) {
     const { default: WorkerManage } = await import('@process/WorkerManage');
     await WorkerManage.clear(previousScope === scope);
+    if (previousScope !== scope) {
+      const { retireLocalBrowserSessions } = await import('./browserPanel/localBrowserSessionHost');
+      await retireLocalBrowserSessions();
+    }
   }
   await ProcessConfig.set('eeclaw.accountScope', scope);
   await ProcessConfig.set('eeclaw.execution', runtime.execution);
@@ -130,6 +134,8 @@ export async function clearMossLocalRuntime(): Promise<void> {
   if (ProcessConfig.getSync('eeclaw.accountScope')) {
     const { default: WorkerManage } = await import('@process/WorkerManage');
     await WorkerManage.clear();
+    const { retireLocalBrowserSessions } = await import('./browserPanel/localBrowserSessionHost');
+    await retireLocalBrowserSessions();
     const backupPath = `${SCODE_CONFIG_PATH}.before-moss`;
     const config = fs.existsSync(backupPath) ? (JSON.parse(fs.readFileSync(backupPath, 'utf8')) as Record<string, unknown>) : {};
     writeConfig(config);
