@@ -299,6 +299,7 @@ document.querySelector('#clipboard-submit').onclick=event=>fetch('/clipboard-sub
             await app.click_text('新建任务', 'New task')
             await asyncio.sleep(.25)
             prompt = f'Use only sudowork-browser for this browser task. I need to see its Chrome window, so use headful mode. Open http://127.0.0.1:{fixture.server_port}, enter AI_BEFORE_{nonce} in Handoff value, and reply {ready}. Do not submit. Wait for my next message. When I tell you I finished editing, freshly observe and report the exact field value and page status without typing or submitting.'
+            prompt += ' Execute tools directly without progress narration. Keep final replies brief and in English.'
             bootstrap = f'Reply exactly SESSION_BOOTSTRAP_{nonce}. Do not use tools. I will connect my existing Chrome through the Browser panel next.'
             await app.fill('textarea', bootstrap if args.existing_profile else prompt)
             await app.key('Enter', 'Enter', 13)
