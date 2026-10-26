@@ -58,6 +58,12 @@ export class PythonRuntimeService {
   }
 
   private async prepareBrowserWorkerRuntimeInternal(): Promise<string> {
+    const developmentPython = !app.isPackaged && process.env.SUDOWORK_DEV_BROWSER_PYTHON;
+    if (developmentPython) {
+      if (!path.isAbsolute(developmentPython) || !fs.existsSync(developmentPython)) throw new Error('The development browser interpreter must be an existing absolute path.');
+      await execFileAsync(developmentPython, ['-c', "from importlib.metadata import version; import ai_dev_browser.remote.worker; print(version('ai-dev-browser'))"], { timeout: 15_000, env: { ...process.env, PYTHONPATH: '', PYTHONNOUSERSITE: '1' } });
+      return developmentPython;
+    }
     const root = path.join(app.getPath('userData'), 'browser-runtime', BROWSER_WORKER_VERSION);
     const python = path.join(root, process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python');
     const env = { ...process.env, PYTHONPATH: '', PYTHONNOUSERSITE: '1' };
