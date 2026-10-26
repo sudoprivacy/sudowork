@@ -7,6 +7,10 @@ import { PageSurface } from '@ai-dev-browser/remote-page';
 import { copyTextFromPromise } from '../../utils/clipboard';
 import WindowStreamSurface, { type IWindowStreamContext } from './WindowStreamSurface';
 
+function isLiveDragCancellation(input: BrowserInput) {
+  return input.kind === 'drag-stream' && input.phase === 'cancel';
+}
+
 /** Shared remote browser UI. The host authenticates and enforces every action. */
 export default function BrowserSessionPanel({ conversationId, isActive = true, isViewer = false, isControlsOnly = false, initialTransport = 'extension' }: IBrowserSessionPanelProps) {
   const { t } = useTranslation();
@@ -209,7 +213,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
 
   const onStreamInput = (value: unknown) => {
     const input = BrowserInputSchema.safeParse(value);
-    if (!input.success || !isInteractiveRef.current) return Promise.reject(new Error(t('conversation.browserSession.unavailable')));
+    if (!input.success || (!isInteractiveRef.current && !isLiveDragCancellation(input.data))) return Promise.reject(new Error(t('conversation.browserSession.unavailable')));
     const generation = generationRef.current;
     return queueInput(input.data)
       .then((reply) => {
@@ -298,7 +302,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
         if (
           !observed ||
           !current ||
-          !isFrameReadyRef.current ||
+          (!isFrameReadyRef.current && !isLiveDragCancellation(input)) ||
           generationRef.current !== generation ||
           current.browserSessionId !== observed.browserSessionId ||
           current.profileId !== observed.profileId ||

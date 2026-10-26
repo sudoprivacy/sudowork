@@ -144,7 +144,7 @@ async def matching_graph_pixels(page, viewer, state, bounds, evidence, label):
     )
 
 
-async def verify_graph(page, viewer, evidence, graph_html, stream_events):
+async def verify_graph(page, viewer, evidence, graph_html, stream_events, input_events):
     initial = await wait_for(lambda: page.js(GRAPH))
     assert initial["nodes"] > 1 and initial["edges"] > 0, (
         "Require an actual compiled graph with relationships"
@@ -364,6 +364,75 @@ async def verify_graph(page, viewer, evidence, graph_html, stream_events):
         )
         await screenshot(viewer, evidence / ("graph-" + kind + ".png"))
 
+    # A host-driven prop change must drain the existing press even while the
+    # component temporarily disables ordinary input. The fixture button drives
+    # that prop update; the graph press/motion still use trusted Chrome input.
+    current = await page.js(GRAPH)
+    start = await point(
+        current["offset"]["x"] + current["rect"]["x"] + current["rect"]["w"] * 0.9,
+        current["offset"]["y"] + current["rect"]["y"] + current["rect"]["h"] * 0.9,
+    )
+    input_start = len(input_events)
+    await viewer.call("Input.dispatchMouseEvent", {"type": "mouseMoved", **start})
+    await viewer.call(
+        "Input.dispatchMouseEvent",
+        {
+            "type": "mousePressed",
+            **start,
+            "button": "left",
+            "buttons": 1,
+            "clickCount": 1,
+        },
+    )
+    try:
+        await viewer.call(
+            "Input.dispatchMouseEvent",
+            {
+                "type": "mouseMoved",
+                "x": start["x"] - 20,
+                "y": start["y"] - 10,
+                "button": "left",
+                "buttons": 1,
+            },
+        )
+        await wait_for(
+            lambda: asyncio.sleep(0, result=input_events[input_start:]),
+            lambda values: any(
+                value.get("phase") == "move" and value.get("accepted")
+                for value in values
+            ),
+        )
+        # This is an explicit component lifecycle fixture, not a physical
+        # phone gesture or a claim about browser-generated secondary clicks.
+        await viewer.js("document.querySelector('button').click(); true")
+        await wait_for(
+            lambda: asyncio.sleep(0, result=input_events[input_start:]),
+            lambda values: any(
+                value.get("phase") == "cancel" and value.get("accepted")
+                for value in values
+            ),
+            timeout=3,
+        )
+    finally:
+        await viewer.call(
+            "Input.dispatchMouseEvent",
+            {
+                "type": "mouseReleased",
+                "x": start["x"] - 20,
+                "y": start["y"] - 10,
+                "button": "left",
+                "buttons": 0,
+                "clickCount": 1,
+            },
+        )
+    await wait_for(
+        lambda: viewer.js("document.querySelector('#status').textContent"),
+        lambda value: value == "ready",
+    )
+    (evidence / "mode-change-input-events.json").write_text(
+        json.dumps(input_events[input_start:], indent=2)
+    )
+
     before_reload = await page.js(GRAPH)
     boot = await viewer.js("document.documentElement.dataset.streamBoot")
     await viewer.call("Page.reload")
@@ -384,6 +453,7 @@ async def verify_graph(page, viewer, evidence, graph_html, stream_events):
     await screenshot(viewer, evidence / "graph-reconnected.png")
     return {
         "actualCompiledSudograph": True,
+        "hostModeChangeCancelledHeldInput": True,
         "graphSourceSha256": hashlib.sha256(graph_html.read_bytes()).hexdigest(),
         "graphNodes": initial["nodes"],
         "graphEdges": initial["edges"],
