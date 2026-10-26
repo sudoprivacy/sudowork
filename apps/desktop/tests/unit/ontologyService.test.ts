@@ -39,6 +39,7 @@ describe('OntologyService canonical source registration', () => {
     const project = { id: input.workspaceId, title: input.title, modelRef: input.modelRef, authority: 'sudograph' };
     let current: typeof project | null = null;
     const database = {
+      getHostSecret: vi.fn().mockReturnValue(null),
       getProject: vi.fn(() => current),
       registerSudographProject: vi.fn(() => {
         current = project;
@@ -57,7 +58,7 @@ describe('OntologyService canonical source registration', () => {
     const module = await import('@process/services/ontology/SudographModelClient');
     const client = { registerSource: vi.fn().mockRejectedValue(new Error('source scan incomplete')) };
     vi.spyOn(module, 'getSudographModelClient').mockReturnValue(client as unknown as ReturnType<typeof module.getSudographModelClient>);
-    const database = { getProject: vi.fn().mockReturnValue(null), registerSudographProject: vi.fn() };
+    const database = { getHostSecret: vi.fn().mockReturnValue(null), getProject: vi.fn().mockReturnValue(null), registerSudographProject: vi.fn() };
     const service = new OntologyService(database as unknown as OntologyDatabase, {} as OntologyEngine);
     await expect(service.registerSudographSourceProject(input)).rejects.toThrow('incomplete');
     expect(database.registerSudographProject).not.toHaveBeenCalled();
@@ -77,13 +78,15 @@ describe('OntologyService native source intake', () => {
     vi.spyOn(module, 'getSudographModelClient').mockReturnValue(client as unknown as ReturnType<typeof module.getSudographModelClient>);
     let session: { workspace_id: string } | undefined = { workspace_id: 'source' };
     const database = {
+      getHostSecret: vi.fn().mockReturnValue(null),
       getProject: vi.fn((id: string) => (id === 'source' ? { authority: 'sudograph', modelRef: 'private-model' } : null)),
       getAiSessionByConversationId: vi.fn((id: string) => (id === 'chat-1' ? session : undefined)),
       getSnapshot: vi.fn(() => {
         throw new Error('Canonical review must not read RDF');
       }),
     };
-    const service = new OntologyService(database as unknown as OntologyDatabase, {} as OntologyEngine);
+    // This fixture accepts the private read transport, independently of ShareOne.
+    const service = new OntologyService(database as unknown as OntologyDatabase, {} as OntologyEngine, undefined, undefined, async () => undefined);
     try {
       await expect(service.createStudioReviewSession({ workspaceId: 'source', conversationId: 'other' })).rejects.toThrow('does not own');
       const launch = await service.createStudioReviewSession({ workspaceId: 'source', conversationId: 'chat-1' });
@@ -123,8 +126,11 @@ describe('OntologyService native source intake', () => {
     const service = new OntologyService(database as unknown as OntologyDatabase, {} as OntologyEngine);
     for (const name of ['SUDOGRAPH_PYTHON', 'SUDOGRAPH_COMPILER_ROOT', 'SUDOGRAPH_MODEL_DIRECTORY']) vi.stubEnv(name, 'configured');
     const result = await service.listStudioProjects();
-    expect(result.items).toEqual([{ workspaceId: 'old', name: 'Existing RDF', description: 'Legacy', objectCount: 1, authority: 'rdf' }]);
-    expect(result.sourceRegistration).toEqual({ available: true, providers: ['sqlite', 'mysql', 'postgresql'], execution: 'desktop' });
+    expect(result.items).toEqual([
+      { workspaceId: 'old', name: 'Existing RDF', description: 'Legacy', objectCount: 1, authority: 'rdf' },
+      { workspaceId: 'source', name: 'Support', authority: 'sudograph' },
+    ]);
+    expect(result.sourceRegistration).toEqual({ available: true, providers: ['sqlite', 'postgresql', 'mysql'], execution: 'desktop' });
     vi.stubEnv('SUDOGRAPH_COMPILER_ROOT', '');
     expect((await service.listStudioProjects()).sourceRegistration.available).toBe(true);
     expect(database.getSnapshot).not.toHaveBeenCalledWith('source');
@@ -153,6 +159,92 @@ describe('OntologyService native source intake', () => {
     database.getProject.mockReturnValue(null);
     await expect(service.getStudioProject({ workspaceId: 'missing' })).rejects.toThrow('notFound');
     expect(read).toHaveBeenCalledTimes(2);
+  });
+
+  it('derives the persistent model binding in the host and retries the same intake identity', async () => {
+    for (const name of ['SUDOGRAPH_PYTHON', 'SUDOGRAPH_COMPILER_ROOT', 'SUDOGRAPH_MODEL_DIRECTORY']) vi.stubEnv(name, 'configured');
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'ontology-source-form-'));
+    try {
+      const source = path.join(directory, 'support #source.db');
+      await fs.writeFile(source, '');
+      const database = { getHostValue: vi.fn().mockReturnValue(null), setHostValue: vi.fn(), getProject: vi.fn().mockReturnValue(null) };
+      const service = new OntologyService(database as unknown as OntologyDatabase, {} as OntologyEngine);
+      const register = vi.spyOn(service, 'registerSudographSourceProject').mockResolvedValue({} as Awaited<ReturnType<typeof service.registerSudographSourceProject>>);
+      const project = { workspaceId: 'registered', name: 'Support', authority: 'sudograph' as const };
+      vi.spyOn(service, 'getStudioProject').mockResolvedValue(project);
+      const input = { operationId: '123e4567-e89b-42d3-a456-426614174000', language: 'en' as const, connector: { name: 'Support', kind: 'database' as const, sourceType: 'sqlite' as const, path: source, writable: false, metadata: {} } };
+      expect(await service.connectStudioSource(input)).toEqual(project);
+      await service.connectStudioSource(input);
+      const binding = register.mock.calls[0][0];
+      expect(binding.workspaceId).toMatch(/^source_[a-f0-9]{32}$/);
+      expect(binding.modelRef).toBe(binding.workspaceId);
+      expect(binding.namespace).toBe(binding.workspaceId);
+      expect(binding.source).toBe(`sqlite:///${(await fs.realpath(source)).split(path.sep).join('/')}`);
+      expect(binding.operationId).toBe(input.operationId);
+      expect(register.mock.calls[1][0]).toEqual(binding);
+      expect(await service.resumeStudioSource({ operationId: input.operationId })).toBeNull();
+      database.getProject.mockReturnValue({ id: binding.workspaceId, title: 'Support', authority: 'sudograph', modelRef: binding.modelRef });
+      expect(await service.resumeStudioSource({ operationId: input.operationId })).toEqual(project);
+      expect(service.getStudioProject).toHaveBeenLastCalledWith({ workspaceId: binding.workspaceId });
+      for (const override of [{ modelRef: 'chosen' }, { namespace: 'chosen' }, { workspaceId: 'chosen' }]) {
+        await expect(service.connectStudioSource({ ...input, ...override })).rejects.toThrow();
+      }
+      for (const override of [{ sourceType: 'postgresql' }, { writable: true }, { password: 'secret' }, { path: 'relative.db' }]) {
+        await expect(service.connectStudioSource({ ...input, connector: { ...input.connector, ...override } } as typeof input)).rejects.toThrow();
+      }
+      expect(register).toHaveBeenCalledTimes(2);
+    } finally {
+      expect(path.dirname(directory)).toBe(path.resolve(os.tmpdir()));
+      expect(path.basename(directory)).toMatch(/^ontology-source-form-/);
+      await fs.rm(directory, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('Canonical source registration recovery', () => {
+  it('joins concurrent registration and reuses its source identity after a failed scan', async () => {
+    for (const name of ['SUDOGRAPH_PYTHON', 'SUDOGRAPH_COMPILER_ROOT', 'SUDOGRAPH_MODEL_DIRECTORY']) vi.stubEnv(name, 'configured');
+    const values = new Map<string, unknown>();
+    const secrets = new Map<string, string>();
+    const projects = new Map<string, unknown>();
+    const database = {
+      getProject: (id: string) => projects.get(id) || null,
+      getHostValue: (key: string) => values.get(key) || null,
+      setHostValue: (key: string, value: unknown) => values.set(key, value),
+      setHostSecret: (key: string, value: string) => secrets.set(key, value),
+    };
+    const service = new OntologyService(database as unknown as OntologyDatabase, {} as OntologyEngine);
+    const input = {
+      operationId: '123e4567-e89b-42d3-a456-426614174000',
+      language: 'en' as const,
+      connector: { name: 'Database fixture', kind: 'database' as const, sourceType: 'postgresql' as const, host: '127.0.0.1', database: 'fixture', username: 'reader', password: 'fixture-only-password', writable: false, metadata: {} },
+    };
+    let finish!: () => void;
+    const register = vi.spyOn(service, 'registerSudographSourceProject').mockImplementationOnce(async () => {
+      await new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      throw new Error('scan incomplete');
+    });
+    const first = service.connectStudioSource(input);
+    const same = service.connectStudioSource({ ...input, operationId: '123e4567-e89b-42d3-a456-426614174001' });
+    const joined = Promise.allSettled([first, same]);
+    finish();
+    expect((await joined).every((item) => item.status === 'rejected')).toBe(true);
+    expect(register).toHaveBeenCalledTimes(1);
+    const reserved = register.mock.calls[0][0];
+    register.mockImplementationOnce(async (binding) => {
+      projects.set(binding.workspaceId, { authority: 'sudograph' });
+      return {} as Awaited<ReturnType<typeof service.registerSudographSourceProject>>;
+    });
+    vi.spyOn(service, 'getStudioProject').mockImplementation(async ({ workspaceId }) => ({ workspaceId, name: 'Database fixture', authority: 'sudograph' }));
+    const recovered = await service.connectStudioSource({ ...input, operationId: '123e4567-e89b-42d3-a456-426614174002' });
+    expect(register.mock.calls[1][0]).toEqual(reserved);
+    const reopened = await service.connectStudioSource({ ...input, operationId: '123e4567-e89b-42d3-a456-426614174003', connector: { ...input.connector, name: 'Renamed connection', password: 'rotated-fixture-password' } });
+    expect(reopened.workspaceId).toBe(recovered.workspaceId);
+    expect(register).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify(reopened)).not.toContain('password');
+    expect(JSON.parse([...secrets.values()][0]).connector.password).toBe('rotated-fixture-password');
   });
 });
 

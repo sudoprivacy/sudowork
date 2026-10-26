@@ -11,6 +11,42 @@ function fixture() {
 }
 
 describe('local browser admission and acknowledged tool barriers', () => {
+  it('switches an explicit review while keeping existing engines paused and rejecting the old owner', async () => {
+    const { control } = fixture();
+    const events: string[] = [];
+    control.register('model', {
+      ready: async () => {},
+      connection: {
+        hasActiveSession: true,
+        pauseTools: async () => {
+          events.push('pause');
+          return { sessionId: 'model', pauseEpoch: 1 };
+        },
+        resumeTools: async () => {
+          events.push('resume');
+        },
+      },
+    });
+    const old = await control.take('review-one', async () => {
+      events.push('open one');
+    });
+    await expect(control.take('review-two', async () => {})).rejects.toThrow('must be returned');
+    const next = await control.take(
+      'review-two',
+      async () => {
+        events.push('open two');
+      },
+      true
+    );
+    expect(events).toEqual(['pause', 'open one', 'open two']);
+    expect(next.epoch).toBeGreaterThan(old.epoch);
+    expect(() => control.assertCanPrompt()).toThrow();
+    await expect(control.giveBack('review-one', old.epoch, async () => {})).rejects.toThrow('stale');
+    await control.giveBack('review-two', next.epoch, async () => {
+      events.push('observe');
+    });
+    expect(events).toEqual(['pause', 'open one', 'open two', 'observe', 'resume']);
+  });
   it('retires an account only after engines and browser resources confirm shutdown and invalidates queued prompts', async () => {
     const { control } = fixture();
     const oldEpoch = control.assertCanPrompt();
@@ -136,5 +172,28 @@ describe('local browser admission and acknowledged tool barriers', () => {
     expect(() => restored.assertCanPrompt()).toThrow();
     await expect(restored.take('other', async () => {})).rejects.toThrow();
     await expect(restored.giveBack('other', held.epoch, async () => {})).rejects.toThrow();
+    const events: string[] = [];
+    restored.register('recovered', {
+      ready: async () => {},
+      connection: {
+        hasActiveSession: true,
+        pauseTools: async () => {
+          events.push('paused');
+          return { sessionId: 'recovered', pauseEpoch: 1 };
+        },
+        resumeTools: async () => {
+          events.push('resumed');
+        },
+      },
+    });
+    await restored.take(
+      'other',
+      async () => {
+        events.push('review opened');
+      },
+      true
+    );
+    expect(events).toEqual(['paused', 'review opened']);
+    expect(restored.status()).toMatchObject({ state: 'human', owner: 'other', epoch: held.epoch + 1 });
   });
 });

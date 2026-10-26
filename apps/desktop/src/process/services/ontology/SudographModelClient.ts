@@ -1,10 +1,13 @@
 import { spawn } from 'node:child_process';
 import path from 'node:path';
+import type { IOntologyConnectorInput } from '@sudowork/ontology-common';
+import { SudographSourceProvider } from './SudographSourceProvider';
 
 export interface ISudographRuntime {
   python: string;
   compilerRoot: string;
   modelDirectory: string;
+  source?: { dsn: string; connector: IOntologyConnectorInput };
 }
 
 export interface ISudographContext {
@@ -27,7 +30,7 @@ export interface ISudographSourceReceipt {
     format: 'sudograph-source-registration/v1';
     operation_id: string;
     initial_revision: string;
-    connection: { status: 'connected'; provider: 'sqlite'; source: string; observed_at: string };
+    connection: { status: 'connected'; provider: 'sqlite' | 'postgresql' | 'mysql'; source: string; observed_at: string };
     scan: { status: 'complete'; structure_complete: true; inventory_exhausted: true; objects: number; fields: number };
     records: { delivery: 'live'; export_complete: false; rows_embedded: 0 };
   };
@@ -66,7 +69,7 @@ export class SudographModelClient {
       receipt.operation_id !== input.operationId ||
       !receipt.initial_revision ||
       receipt.connection?.status !== 'connected' ||
-      receipt.connection.provider !== 'sqlite' ||
+      !['sqlite', 'postgresql', 'mysql'].includes(receipt.connection.provider) ||
       !receipt.connection.source ||
       receipt.scan?.status !== 'complete' ||
       receipt.scan.structure_complete !== true ||
@@ -91,62 +94,68 @@ export class SudographModelClient {
   private async runWorker<T>(modelRef: string, actor: string, module: 'compiler.workspace' | 'compiler.registration' | 'compiler.review_host', request: Record<string, unknown>, timeout: number, hostArgs: string[] = []): Promise<T> {
     if (!/^[a-zA-Z0-9_-]{1,128}$/.test(modelRef) || !actor.trim()) throw new Error('Invalid registered Sudograph model binding.');
     const store = path.join(this.runtime.modelDirectory, `${modelRef}.db`);
-    return new Promise<T>((resolve, reject) => {
-      const child = spawn(this.runtime.python, ['-m', module, '--store', store, '--actor', actor, ...hostArgs], {
-        cwd: this.runtime.compilerRoot,
-        windowsHide: true,
-        env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' },
-        stdio: ['pipe', 'pipe', 'pipe'],
-      });
-      const stdout: Buffer[] = [];
-      const stderr: Buffer[] = [];
-      let size = 0;
-      let isSettled = false;
-      const fail = (error: Error) => {
-        if (isSettled) return;
-        isSettled = true;
-        clearTimeout(timer);
-        reject(error);
-      };
-      const timer = setTimeout(() => {
-        child.kill();
-        fail(new Error('Sudograph compiler response timed out. Retry with the same operation ID to recover its receipt.'));
-      }, timeout);
-      child.on('error', fail);
-      child.stdin.on('error', fail);
-      child.stdout.on('data', (chunk: Buffer) => {
-        size += chunk.length;
-        if (size > 32 * 1024 * 1024) {
-          child.kill();
-          fail(new Error('Sudograph compiler response exceeds the host limit.'));
-        } else stdout.push(chunk);
-      });
-      child.stderr.on('data', (chunk: Buffer) => {
-        if (stderr.reduce((total, item) => total + item.length, 0) < 64 * 1024) stderr.push(chunk);
-      });
-      child.on('close', (code) => {
-        if (isSettled) return;
-        clearTimeout(timer);
-        if (code !== 0) return fail(new Error(`Sudograph compiler exited ${code}: ${Buffer.concat(stderr).toString('utf8')}`));
-        try {
-          const response = JSON.parse(Buffer.concat(stdout).toString('utf8')) as { ok: boolean; result?: T; error?: { code: string; reason: string; recovery: unknown } };
-          if (!response.ok || !('result' in response)) throw new SudographCompilerError(response.error?.code || 'PROTOCOL_ERROR', response.error?.reason || 'Invalid compiler response.', response.error?.recovery);
+    const provider = this.runtime.source ? new SudographSourceProvider(this.runtime.source.dsn, this.runtime.source.connector) : undefined;
+    const transport = provider ? await provider.start() : undefined;
+    try {
+      return await new Promise<T>((resolve, reject) => {
+        const child = spawn(this.runtime.python, ['-m', module, '--store', store, '--actor', actor, ...hostArgs], {
+          cwd: this.runtime.compilerRoot,
+          windowsHide: true,
+          env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1', ...(transport ? { SUDOGRAPH_REGISTERED_SOURCE: transport } : {}) },
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
+        const stdout: Buffer[] = [];
+        const stderr: Buffer[] = [];
+        let size = 0;
+        let isSettled = false;
+        const fail = (error: Error) => {
+          if (isSettled) return;
           isSettled = true;
-          resolve(response.result as T);
-        } catch (error) {
-          fail(error instanceof Error ? error : new Error(String(error)));
-        }
+          clearTimeout(timer);
+          reject(error);
+        };
+        const timer = setTimeout(() => {
+          child.kill();
+          fail(new Error('Sudograph compiler response timed out. Retry with the same operation ID to recover its receipt.'));
+        }, timeout);
+        child.on('error', fail);
+        child.stdin.on('error', fail);
+        child.stdout.on('data', (chunk: Buffer) => {
+          size += chunk.length;
+          if (size > 32 * 1024 * 1024) {
+            child.kill();
+            fail(new Error('Sudograph compiler response exceeds the host limit.'));
+          } else stdout.push(chunk);
+        });
+        child.stderr.on('data', (chunk: Buffer) => {
+          if (stderr.reduce((total, item) => total + item.length, 0) < 64 * 1024) stderr.push(chunk);
+        });
+        child.on('close', (code) => {
+          if (isSettled) return;
+          clearTimeout(timer);
+          if (code !== 0) return fail(new Error(`Sudograph compiler exited ${code}: ${Buffer.concat(stderr).toString('utf8')}`));
+          try {
+            const response = JSON.parse(Buffer.concat(stdout).toString('utf8')) as { ok: boolean; result?: T; error?: { code: string; reason: string; recovery: unknown } };
+            if (!response.ok || !('result' in response)) throw new SudographCompilerError(response.error?.code || 'PROTOCOL_ERROR', response.error?.reason || 'Invalid compiler response.', response.error?.recovery);
+            isSettled = true;
+            resolve(response.result as T);
+          } catch (error) {
+            fail(error instanceof Error ? error : new Error(String(error)));
+          }
+        });
+        child.stdin.end(JSON.stringify(request) + '\n');
       });
-      child.stdin.end(JSON.stringify(request) + '\n');
-    });
+    } finally {
+      await provider?.close();
+    }
   }
 }
 
 /** Deployment-owned configuration; registered projects fail closed if it is missing. */
-export function getSudographModelClient(): SudographModelClient {
+export function getSudographModelClient(source?: ISudographRuntime['source']): SudographModelClient {
   const python = process.env.SUDOGRAPH_PYTHON;
   const compilerRoot = process.env.SUDOGRAPH_COMPILER_ROOT;
   const modelDirectory = process.env.SUDOGRAPH_MODEL_DIRECTORY;
   if (!python || !compilerRoot || !modelDirectory) throw new Error('Sudograph runtime is not configured. Set its Python, compiler root and model directory in the host deployment.');
-  return new SudographModelClient({ python, compilerRoot, modelDirectory });
+  return new SudographModelClient({ python, compilerRoot, modelDirectory, source });
 }

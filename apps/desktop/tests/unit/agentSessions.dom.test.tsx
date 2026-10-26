@@ -89,6 +89,14 @@ afterEach(() => {
 });
 
 describe('Agent session navigation', () => {
+  it('keeps model conversations in the shared history while omitting health checks', async () => {
+    const model = { ...conversation('model'), type: 'acp', extra: { purpose: 'ontology', ontologyId: 'northwind', backend: 'scode' } };
+    state.history.mockResolvedValue([conversation('current'), model, conversation('health', reference, { isHealthCheck: true })]);
+    renderPage();
+    await waitFor(() => expect(screen.getByLabelText('sidebar history')).toHaveTextContent('current,model'));
+    expect(screen.getByLabelText('tab history')).toHaveTextContent('current,model');
+    expect(screen.getByLabelText('sidebar history')).not.toHaveTextContent('health');
+  });
   it('keeps unclassified history readable without inventing an Agent identity', async () => {
     state.history.mockResolvedValue([conversation('current', 'template-a')]);
     renderPage();

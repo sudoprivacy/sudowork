@@ -139,6 +139,8 @@ jobs:
             libasound2t64
 
       - name: Build Electron artifacts (main+preload+renderer)
+        env:
+          SHAREONE_REVIEW_GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
         run: bun run package
 
       - name: Fix Electron chrome-sandbox permissions

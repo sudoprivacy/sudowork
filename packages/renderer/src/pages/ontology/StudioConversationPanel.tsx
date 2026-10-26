@@ -9,6 +9,7 @@ import type { IOntologyAiBuilderSession } from '@sudowork/host-bridge/ipcBridge'
 import type { TChatConversation } from '@sudowork/common/storageTypes';
 import type { IStudioChatContext } from '@sudowork/ontology-ui';
 import AcpChat from '../conversation/acp/AcpChat';
+import ChatConversation from '../conversation/ChatConversation';
 import { createStudioConversation, ensureDefaultStudioConversation, withStudioConversationTimeout } from './studioConversation';
 import { openBrowserSessionWindow } from '../../components/browser/openBrowserSessionWindow';
 
@@ -242,7 +243,9 @@ export default function StudioConversationPanel({ workspaceId, workspaceName, co
             <span>{text('preparingSession')}</span>
           </div>
         ) : conversation?.type === 'acp' ? (
-          <AcpChat key={conversation.id} conversation_id={conversation.id} workspace={conversation.extra.workspace} backend={conversation.extra.backend} sessionMode={conversation.extra.sessionMode} teamSendMessage={onSend} />
+          <ChatConversation key={conversation.id} conversation={conversation}>
+            <AcpChat conversation_id={conversation.id} workspace={conversation.extra.workspace} backend={conversation.extra.backend} sessionMode={conversation.extra.sessionMode} teamSendMessage={onSend} />
+          </ChatConversation>
         ) : (
           <div className={styles['ontology-chat-empty']}>
             <Empty description={text('emptyChat')} />

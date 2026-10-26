@@ -95,6 +95,7 @@ export function initOntologyBridge(): void {
       return ok(await getLocalBrowserSessions().openAuthorizedPage(input.conversationId, launch));
     } catch (error) {
       launch?.revoke();
+      mainError('Ontology review', 'Could not open the bound review.', error instanceof Error ? error.stack : String(error));
       return fail(error);
     }
   });

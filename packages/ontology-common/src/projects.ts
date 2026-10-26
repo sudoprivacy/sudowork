@@ -1,10 +1,10 @@
-import type { IOntologyConnectorInput } from './index.js';
+import type { IOntologyConnectorInput } from "./index.js";
 
 /** Host metadata only; the canonical model is never an RDF snapshot. */
 export interface IOntologyStudioProject {
   workspaceId: string;
   name: string;
-  authority: 'rdf' | 'sudograph';
+  authority: "rdf" | "sudograph";
   description?: string;
   objectCount?: number;
   source?: {
@@ -15,7 +15,7 @@ export interface IOntologyStudioProject {
     tables: number;
     databaseViews: number;
     fields: number;
-    delivery: 'live' | 'snapshot' | 'unavailable';
+    delivery: "live" | "snapshot" | "unavailable";
     rowsEmbedded: number;
   };
 }
@@ -32,5 +32,5 @@ export interface IOntologyStudioProjectList {
 export interface IOntologyConnectSourceInput {
   operationId: string;
   connector: IOntologyConnectorInput;
-  language: 'en' | 'zh';
+  language: "en" | "zh";
 }

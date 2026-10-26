@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { IHostPageNavigation } from '../browserPanel/LocalBrowserWorker';
 import { SudographCompilerError } from './SudographModelClient';
+import type { ShareoneReviewAssets } from './ShareoneReviewAssets';
 
 interface IReviewBinding {
   workspaceId: string;
@@ -13,12 +14,20 @@ interface IReviewSession extends IReviewBinding {
   cookieName: string;
   credentialHash: Buffer;
   expiresAt: number;
+  shareId?: string | null;
+  revision?: string;
 }
 
 export interface ISudographReviewHostOptions {
   authorize: (binding: IReviewBinding) => void | Promise<void>;
   read: (workspaceId: string, request: Record<string, unknown>) => Promise<unknown>;
   now?: () => number;
+  comments?: {
+    assets: ShareoneReviewAssets;
+    prepare: (binding: IReviewBinding) => Promise<{ shareId: string } | null>;
+    proxy: (binding: IReviewBinding & { revision?: string }, route: string, method: string, body?: Record<string, unknown>) => Promise<{ status: number; body: unknown }>;
+    status: (binding: IReviewBinding) => unknown;
+  };
 }
 
 /** Private browser-host handoff. Never return this object through IPC or MCP. */
@@ -45,6 +54,7 @@ export class SudographReviewHost {
     if (this.isClosed) throw new Error('Review host is closed.');
     if (!/^[a-zA-Z0-9_-]{1,128}$/.test(binding.workspaceId) || !binding.conversationId || binding.conversationId.length > 256) throw new Error('Invalid review binding.');
     await this.options.authorize(binding);
+    const comments = this.options.comments ? await this.options.comments.prepare(binding) : undefined;
     if (this.isClosed) throw new Error('Review host is closed.');
     this.startup ??= this.start().catch((error) => {
       this.startup = undefined;
@@ -59,7 +69,7 @@ export class SudographReviewHost {
     const prefix = `/review/${id}`;
     const cookieName = `sudograph_review_${id}`;
     const expiresAt = this.now() + 30 * 60_000;
-    this.sessions.set(id, { ...binding, prefix, cookieName, credentialHash: createHash('sha256').update(credential).digest(), expiresAt });
+    this.sessions.set(id, { ...binding, prefix, cookieName, credentialHash: createHash('sha256').update(credential).digest(), expiresAt, ...(comments === undefined ? {} : { shareId: comments?.shareId || null }) });
     // Ordinary JSON, structured-clone, logging and bridge redaction must not
     // serialize the credential. Only the trusted browser host reads it explicitly.
     return Object.freeze(
@@ -94,7 +104,7 @@ export class SudographReviewHost {
   }
 
   private async respond(request: IncomingMessage, response: ServerResponse): Promise<void> {
-    const match = /^\/review\/([a-f0-9]{32})\/(v1)?$/.exec(request.url || '');
+    const match = /^\/review\/([a-f0-9]{32})\/(.*)$/.exec(request.url || '');
     const session = match && this.sessions.get(match[1]);
     const cookies = (request.headers.cookie || '').split(';').map((item) => item.trim());
     const credentials = session ? cookies.filter((item) => item.startsWith(`${session.cookieName}=`)).map((item) => item.slice(session.cookieName.length + 1)) : [];
@@ -104,6 +114,7 @@ export class SudographReviewHost {
       (request.headers.origin && request.headers.origin !== this.origin) ||
       request.headers['sec-fetch-site'] === 'cross-site' ||
       !session ||
+      (!this.options.comments && !['', 'v1'].includes(match?.[2] || '')) ||
       session.expiresAt <= this.now() ||
       credentials.length !== 1 ||
       !/^[a-f0-9]{64}$/.test(credentials[0]) ||
@@ -116,6 +127,10 @@ export class SudographReviewHost {
       await this.options.authorize(session);
     } catch {
       this.reply(response, 403, { error: 'ACCESS_DENIED' });
+      return;
+    }
+    if (this.options.comments && match![2] !== 'v1') {
+      await this.respondComments(request, response, session, match![2], match![1]);
       return;
     }
     let input: Record<string, unknown>;
@@ -171,6 +186,87 @@ export class SudographReviewHost {
         this.reply(response, status, { error: error.code, recovery: status === 409 ? 'Reload the registered model and retry this page.' : 'Use the host review entry or ask its operator.' });
       } else this.reply(response, 503, { error: 'VIEW_UNAVAILABLE' });
     }
+  }
+
+  private async respondComments(request: IncomingMessage, response: ServerResponse, session: IReviewSession, route: string, id: string): Promise<void> {
+    const provider = this.options.comments!;
+    const send = async (status: number, result: unknown, html = false) => {
+      try {
+        await this.options.authorize(session);
+      } catch {
+        this.reply(response, 403, { error: 'ACCESS_DENIED' });
+        return;
+      }
+      if (this.sessions.get(id) !== session || session.expiresAt <= this.now()) {
+        this.reply(response, 403, { error: 'ACCESS_DENIED' });
+        return;
+      }
+      this.reply(response, status, result, html);
+    };
+    if (request.method === 'GET' && route.startsWith('assets/')) {
+      const asset = provider.assets.get(route.slice('assets/'.length));
+      if (!asset) return send(404, { error: 'ASSET_UNAVAILABLE' });
+      response.writeHead(200, { 'Content-Type': asset.contentType, 'Content-Length': asset.body.length, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
+      response.end(asset.body);
+      return;
+    }
+    if (request.method === 'GET' && route === '') {
+      if (!session.shareId) session.shareId = (await provider.prepare(session))?.shareId || null;
+      const head = (await this.options.read(session.workspaceId, { operation: 'head' })) as { revision: string };
+      return send(
+        200,
+        provider.assets.shell(session.prefix, {
+          share_id: session.shareId || '',
+          filename: 'Model review',
+          content_kind: 'html',
+          allow_comments: true,
+          rawUrl: session.shareId ? `${session.prefix}/content` : '',
+          api_base: session.prefix,
+          host_read_endpoint: `${session.prefix}/v1`,
+          revision_url: `${session.prefix}/head`,
+          revision: head.revision,
+          delivery_url: `${session.prefix}/delivery`,
+          connect_required: !session.shareId,
+          site_url: 'https://shareone.vip',
+          publish_url: 'https://shareone.vip',
+        }),
+        true
+      );
+    }
+    if (request.method === 'GET' && route === 'content') {
+      if (!session.shareId) return send(409, { error: 'COMMENT_ACCOUNT_REQUIRED' });
+      const document = (await this.options.read(session.workspaceId, { operation: 'document', endpoint: `${session.prefix}/v1` })) as { html: string; revision: string };
+      if (!document?.html || !document.revision) return send(503, { error: 'MODEL_DOCUMENT_UNAVAILABLE' });
+      session.revision = document.revision;
+      return send(200, document.html, true);
+    }
+    if (request.method === 'GET' && route === 'head') return send(200, await this.options.read(session.workspaceId, { operation: 'head' }));
+    if (request.method === 'GET' && route === 'delivery') return send(200, provider.status(session));
+    if (route.startsWith('api/v1/')) {
+      let body: Record<string, unknown> | undefined;
+      if (['POST', 'PUT', 'DELETE'].includes(request.method || '')) {
+        try {
+          if (request.headers['content-type']?.split(';')[0].trim() !== 'application/json' && request.method !== 'DELETE') throw new Error('Content type');
+          const chunks: Buffer[] = [];
+          let size = 0;
+          for await (const chunk of request) {
+            size += chunk.length;
+            if (size > 1024 * 1024) throw new Error('Size');
+            chunks.push(Buffer.from(chunk));
+          }
+          if (size) {
+            const value: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+            if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Body');
+            body = value as Record<string, unknown>;
+          }
+        } catch {
+          return send(400, { error: 'COMMENT_CONTRACT' });
+        }
+      }
+      const result = await provider.proxy(session, '/' + route, request.method || 'GET', body);
+      return send(result.status, result.body);
+    }
+    return send(404, { error: 'VIEW_UNAVAILABLE' });
   }
 
   private reply(response: ServerResponse, status: number, result: unknown, isHtml = false): void {

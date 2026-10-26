@@ -26,6 +26,9 @@ vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
   },
 }));
 vi.mock('@renderer/pages/conversation/acp/AcpChat', () => ({ default: ({ conversation_id }: { conversation_id: string }) => <div data-testid='ready-conversation'>{conversation_id}</div> }));
+vi.mock('@renderer/pages/conversation/ChatConversation', () => ({
+  default: ({ conversation, children }: React.PropsWithChildren<{ conversation: { id: string } }>) => <section aria-label={`Shared conversation ${conversation.id}`}>{children}</section>,
+}));
 const i18n = createInstance();
 void i18n.init({ lng: 'zh-CN', resources: { 'zh-CN': { translation: { ontology: locale } } }, interpolation: { escapeValue: false } });
 const session = { id: 'registry', workspaceId: 'northwind', conversationId: 'northwind-chat', title: 'Northwind本体', createdAt: 1, updatedAt: 1 };
@@ -66,6 +69,11 @@ afterEach(() => {
 });
 
 describe('ontology conversation setup', () => {
+  it('uses the regular conversation shell for the selected model session', async () => {
+    mount(true);
+    const shell = await screen.findByRole('region', { name: 'Shared conversation northwind-chat' });
+    expect(within(shell).getByTestId('ready-conversation')).toHaveTextContent('northwind-chat');
+  });
   it('does not open a viewer from a late reply after the project panel closes', async () => {
     const opened = vi.spyOn(window, 'open').mockReturnValue(null);
     let complete!: (value: unknown) => void;
