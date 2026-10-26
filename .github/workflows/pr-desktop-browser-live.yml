@@ -2,6 +2,7 @@ name: Desktop shared browser acceptance
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [dev, main]
   workflow_dispatch:
 
@@ -14,6 +15,8 @@ concurrency:
 
 jobs:
   streamed-window:
+    # Skipped on draft PRs: heavy CI starts once the PR is marked ready.
+    if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.draft) }}
     name: Shared React window stream (Linux)
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -81,6 +84,8 @@ jobs:
           rm -f "$RUNNER_TEMP/browser-stream-fixture.pem"
 
   native-browser:
+    # Skipped on draft PRs: heavy CI starts once the PR is marked ready.
+    if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.draft) }}
     name: Real Chrome (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
