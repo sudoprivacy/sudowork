@@ -5,6 +5,8 @@ import { mainError } from '@process/utils/mainLogger';
 import { OntologyStudioDatabase as OntologyDatabase } from '@process/services/ontology/OntologyStudioDatabase';
 import { ontologyService } from '@process/services/ontology/OntologyService';
 import { prepareOntologyProject } from '@process/services/ontology/ontologyProjectRuntime';
+import { getDatabase } from '@process/database';
+import { assertConversationAccount, isConversationInCurrentAccount } from '@process/services/mossExecutionContext';
 
 interface IOntologyAiSessionRow {
   id: string;
@@ -40,6 +42,11 @@ function toSession(row: IOntologyAiSessionRow): IOntologyAiBuilderSession {
   };
 }
 
+function isCurrentSession(row: IOntologyAiSessionRow): boolean {
+  const conversation = getDatabase().getConversation(row.conversation_id).data;
+  return !!conversation && conversation.extra.purpose === 'ontology' && conversation.extra.ontologyId === row.workspace_id && isConversationInCurrentAccount(conversation);
+}
+
 async function resolveActiveWorkspaceId(): Promise<string> {
   const summary = await ontologyService.listWorkbenches();
   return summary.activeWorkspaceId || summary.items[0]?.workspaceId || 'default';
@@ -50,8 +57,6 @@ export function initOntologyAiBuilderBridge(): void {
     try {
       const workspaceId = input?.workspaceId?.trim() || undefined;
       // Recover an interrupted cross-database create from the persisted conversation ownership.
-      const { getDatabase } = await import('@process/database');
-      const { isConversationInCurrentAccount } = await import('@process/services/mossExecutionContext');
       const conversations = getDatabase().getUserConversations(undefined, 0, 10000).data || [];
       for (const conversation of conversations) {
         const ontologyId = conversation.extra.ontologyId;
@@ -60,7 +65,7 @@ export function initOntologyAiBuilderBridge(): void {
         getDb().createAiSession({ id: `oai_${randomUUID()}`, workspace_id: ontologyId, conversation_id: conversation.id, title: conversation.name, created_at: conversation.createTime, updated_at: conversation.modifyTime });
       }
       const rows = getDb().listAiSessions(workspaceId);
-      return { success: true, data: { items: rows.map(toSession) } };
+      return { success: true, data: { items: rows.filter(isCurrentSession).map(toSession) } };
     } catch (err) {
       mainError('OntologyAiBuilderBridge', 'listSessions failed', err);
       return { success: false, msg: err instanceof Error ? err.message : String(err) };
@@ -72,9 +77,9 @@ export function initOntologyAiBuilderBridge(): void {
       if (!input?.conversationId?.trim()) return { success: false, msg: 'conversationId is required' };
       const workspaceId = input.workspaceId?.trim() || (await resolveActiveWorkspaceId());
       if (!getDb().getProject(workspaceId)) throw new Error('ontology.studio.errors.notFound');
-      const { getDatabase } = await import('@process/database');
       const conversation = getDatabase().getConversation(input.conversationId).data;
       if (conversation?.extra.purpose !== 'ontology' || conversation.extra.ontologyId !== workspaceId) throw new Error('Ontology conversation scope mismatch.');
+      assertConversationAccount(conversation);
       const existing = getDb().getAiSessionByConversationId(input.conversationId);
       if (existing) {
         // Idempotent: creating a session for a conversation that already has
@@ -111,15 +116,15 @@ export function initOntologyAiBuilderBridge(): void {
       // the reaper's cleanup step is the single source of truth.
       const row = getDb().getAiSessionById(input.id);
       if (!row) return { success: true, data: undefined };
-      const { reapConversation } = await import('@process/services/conversationReaper');
-      await reapConversation(row.conversation_id, { reason: 'user-delete' }).catch((err) => {
-        // If the conversation is already gone (e.g. user deleted it from the
-        // sider first), still purge our registry row so the Builder page
-        // doesn't keep showing a dangling card.
-        mainError('OntologyAiBuilderBridge', 'reapConversation failed, purging session row only', err);
+      const conversation = getDatabase().getConversation(row.conversation_id).data;
+      if (conversation && !isCurrentSession(row)) throw new Error('Ontology conversation scope mismatch.');
+      if (!conversation) {
         getDb().deleteAiSession(row.id);
         ipcBridge.ontologyAiBuilder.sessionsChanged.emit({ workspaceId: row.workspace_id });
-      });
+        return { success: true, data: undefined };
+      }
+      const { reapConversation } = await import('@process/services/conversationReaper');
+      await reapConversation(row.conversation_id, { reason: 'user-delete' });
       return { success: true, data: undefined };
     } catch (err) {
       return { success: false, msg: err instanceof Error ? err.message : String(err) };
@@ -130,7 +135,7 @@ export function initOntologyAiBuilderBridge(): void {
     try {
       if (!input?.conversationId) return { success: false, msg: 'conversationId is required' };
       const row = getDb().getAiSessionByConversationId(input.conversationId);
-      return { success: true, data: row ? toSession(row) : null };
+      return { success: true, data: row && isCurrentSession(row) ? toSession(row) : null };
     } catch (err) {
       return { success: false, msg: err instanceof Error ? err.message : String(err) };
     }

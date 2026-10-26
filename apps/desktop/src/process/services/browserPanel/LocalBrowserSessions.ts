@@ -11,6 +11,7 @@ interface ILocalBrowserSessionsOptions {
   tools: () => unknown[];
   control: LocalAgentToolControl;
   onReturn: (conversationId: string, note: string | undefined, epoch: number) => Promise<void>;
+  isConversationCurrent?: (conversationId: string) => Promise<boolean>;
   env?: NodeJS.ProcessEnv;
   chromeArgs?: string[];
 }
@@ -74,7 +75,11 @@ export class LocalBrowserSessions {
 
   /** An ordinary authenticated chat send resumes the existing lease once. */
   async prepareUserMessage(conversationId: string): Promise<number> {
-    const host = this.options.control.status();
+    let host = this.options.control.status();
+    if (host.owner && this.options.isConversationCurrent && !(await this.options.isConversationCurrent(host.owner))) {
+      await this.options.control.retireAfterShutdown(() => this.close());
+      host = this.options.control.status();
+    }
     if (host.state === 'ai') return this.options.control.assertCanPrompt(host.epoch);
     if (host.owner !== conversationId || !['human', 'error'].includes(host.state)) throw new Error('Browser control transfer is in progress or belongs to another conversation');
     const worker = await this.worker(conversationId);
@@ -297,6 +302,10 @@ export class LocalBrowserSessions {
   }
 
   async close(): Promise<void> {
+    // A restarted host must recover the old owner's journal and confirm its
+    // shutdown before an account transition may release the admission fence.
+    const owner = this.options.control.status().owner;
+    if (owner && !this.workers.has(owner)) await this.worker(owner);
     // Personal Chrome can outlive the app; stop all agent tools before
     // releasing the connection so a still-running agent cannot race it.
     for (const conversationId of [...this.workers.keys()]) {
@@ -317,5 +326,8 @@ export class LocalBrowserSessions {
         failures.map((result) => result.reason),
         'Some local browser workers did not confirm shutdown'
       );
+    this.workers.clear();
+    this.server = undefined;
+    this.serverStartup = undefined;
   }
 }

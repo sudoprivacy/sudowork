@@ -32,10 +32,10 @@ let state: {
 };
 const hosts: LocalBrowserSessions[] = [];
 const input = { url: 'http://127.0.0.1:8765/review/binding/', cookie: { name: 'review', value: 'a'.repeat(64), url: 'http://127.0.0.1:8765/review/binding/', path: '/review/binding/', httpOnly: true as const, sameSite: 'Strict' as const, expires: Date.now() / 1000 + 1800 } };
-function fixture() {
+function fixture(isConversationCurrent?: (conversationId: string) => Promise<boolean>) {
   const root = mkdtempSync(path.join(os.tmpdir(), 'authorized-browser-page-'));
   const control = new LocalAgentToolControl(() => path.join(root, 'control.json'));
-  const host = new LocalBrowserSessions({ root, control, runtime: async () => '/private/python', tools: () => [], onReturn: async () => {} });
+  const host = new LocalBrowserSessions({ root, control, runtime: async () => '/private/python', tools: () => [], onReturn: async () => {}, isConversationCurrent });
   hosts.push(host);
   return { host, control };
 }
@@ -68,6 +68,26 @@ afterEach(async () => {
 });
 
 describe('private browser host review launch', () => {
+  it('closes a retired account browser before admitting the new account and keeps same-account ownership enforced', async () => {
+    let isCurrent = true;
+    const { host, control } = fixture(async () => isCurrent);
+    await host.openAuthorizedPage('old-account', input);
+    await expect(host.prepareUserMessage('new-account')).rejects.toThrow('another conversation');
+    expect(mocks.close).not.toHaveBeenCalled();
+    isCurrent = false;
+    expect(await host.prepareUserMessage('new-account')).toBe(2);
+    expect(mocks.close).toHaveBeenCalledTimes(1);
+    expect(control.status()).toEqual({ epoch: 2, state: 'ai' });
+    expect(mocks.invoke.mock.calls.some(([action]) => action.kind === 'return')).toBe(false);
+  });
+
+  it('keeps new-account prompts blocked when the old browser cannot confirm shutdown', async () => {
+    const { host, control } = fixture(async () => false);
+    await host.openAuthorizedPage('old-account', input);
+    mocks.close.mockRejectedValueOnce(new Error('Shutdown failed'));
+    await expect(host.prepareUserMessage('new-account')).rejects.toThrow('did not confirm shutdown');
+    expect(control.status()).toMatchObject({ state: 'error', owner: 'old-account' });
+  });
   it('starts visible Chrome only after the existing engine pause is acknowledged', async () => {
     const { host, control } = fixture();
     let release!: (ticket: { sessionId: string; pauseEpoch: number }) => void;

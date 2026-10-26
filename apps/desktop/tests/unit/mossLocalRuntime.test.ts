@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('electron', () => ({ net: { fetch: vi.fn() } }));
 
-const state = vi.hoisted(() => ({ values: new Map<string, unknown>(), config: {} as Record<string, unknown>, root: '', clear: vi.fn(), sync: vi.fn() }));
+const state = vi.hoisted(() => ({ values: new Map<string, unknown>(), config: {} as Record<string, unknown>, root: '', clear: vi.fn(), sync: vi.fn(), retire: vi.fn() }));
 vi.mock('@process/initStorage', () => ({ ProcessConfig: { getSync: (key: string) => state.values.get(key), set: async (key: string, value: unknown) => state.values.set(key, value) } }));
 vi.mock('@process/bridge/scodeBridge', () => ({
   readExistingConfig: () => state.config,
@@ -23,6 +23,7 @@ vi.mock('@process/services/scode/scodePaths', () => ({
 vi.mock('@process/services/authProxy/userKeySync', () => ({ syncUserKeyFromScodeConfig: state.sync }));
 vi.mock('@/common/enterpriseDebugConfig', () => ({ setCachedLocalModeAvailable: vi.fn() }));
 vi.mock('@process/WorkerManage', () => ({ default: { clear: state.clear } }));
+vi.mock('@process/services/browserPanel/localBrowserSessionHost', () => ({ retireLocalBrowserSessions: state.retire }));
 vi.mock('@process/bridge/eeclawBridge', () => ({
   getValidToken: async () => 'test-token',
   withAuthStorageLock: async (fn: () => Promise<unknown>) => fn(),
@@ -72,8 +73,18 @@ describe('managed local runtime lifecycle', () => {
     await applyMossLocalRuntime(payload(), 'https://moss.example');
     await applyMossLocalRuntime(payload('user-2', 'personal-2'), 'https://moss.example');
     expect(state.clear).toHaveBeenCalledTimes(2);
+    expect(state.retire).toHaveBeenCalledTimes(2);
+    expect(state.clear.mock.invocationCallOrder[1]).toBeLessThan(state.retire.mock.invocationCallOrder[1]);
     expect(JSON.stringify(state.config)).not.toContain('personal-1');
     expect(JSON.stringify(state.config)).toContain('personal-2');
+  });
+  it('preserves the existing identity when retiring its browser fails', async () => {
+    await applyMossLocalRuntime(payload(), 'https://moss.example');
+    const previous = state.values.get('eeclaw.accountScope');
+    state.retire.mockRejectedValueOnce(new Error('Browser shutdown unconfirmed'));
+    await expect(applyMossLocalRuntime(payload('user-2', 'personal-2'), 'https://moss.example')).rejects.toThrow('shutdown unconfirmed');
+    expect(state.values.get('eeclaw.accountScope')).toBe(previous);
+    expect(JSON.stringify(state.config)).not.toContain('personal-2');
   });
   it('clears stale credentials when provisioning becomes unavailable', async () => {
     await applyMossLocalRuntime(payload(), 'https://moss.example');

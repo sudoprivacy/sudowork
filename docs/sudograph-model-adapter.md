@@ -113,7 +113,9 @@ browser adapter must explicitly read the private handoff.
 
 `SudographReviewHost` binds a loopback listener to the current OS profile and
 rechecks project/conversation ownership for every request and after each compiler
-read. Cookie paths are scoped to their random review reference; knowing the URL
+read, including the current Moss account's ownership of the underlying
+conversation. An account switch invalidates the old session even while a read is
+in flight. Cookie paths are scoped to their random review reference; knowing the URL
 does not grant access. Sessions expire after 30 minutes and can be revoked or
 closed. Host/Origin checks, exact resource matching, bounded JSON and `no-store`
 responses apply. The registry selects the model; there is no second editable
@@ -135,6 +137,16 @@ that viewer from opening. Returning through the ordinary chat message path obtai
 a fresh observation before resuming tools. The worker must advertise
 `authorizedPageLaunch`; an old runtime or unsupported personal/extension transport
 fails explicitly rather than exposing a URL or restarting an existing browser.
+
+The Studio session registry is filtered against the conversation database and
+current account; it does not adopt or delete guest/other-account conversations.
+Creating, looking up and deleting sessions use that same ownership boundary.
+Account transitions first stop the local engines, then close the old browser
+workers and revoke their MCP tokens. Admission reopens only after shutdown is
+acknowledged, with a new epoch rejecting previously queued prompts. Failure keeps
+the fence held. Restoring an older profile with a retired account's browser lease
+uses the same checked shutdown path; another live conversation's human lease is
+never silently taken over.
 
 `tests/integration/sudographReviewLaunch.live.ts` exercises the actual compiler,
 HTTP host, worker and Chrome in both modes, without fixture cookie installation.
@@ -171,6 +183,14 @@ production pin. Test the actual **Open review** button and resulting native
 browser, in addition to the component fixtures. This establishes the local entry
 and window switching experience; it does not confirm the UX design or establish
 production WebUI authentication, comment delivery or a configured chat model.
+
+An additional authenticated trial must use the normal login UI and the actual
+Studio chat input. Compare a model's version-bound record reads with an
+independent read-only source query, inspect its real MCP calls and rendered final
+answer, and check the source digest. Read rendered Markdown through its shadow
+root; outer `innerText` omits it. Keep credentials and trial transcripts outside
+the repository. A live remote model in a local candidate Desktop build is still
+not acceptance of the deployed WebUI or the official installed SDK.
 
 ### Integration coverage
 
