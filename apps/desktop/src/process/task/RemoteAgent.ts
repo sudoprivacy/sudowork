@@ -6,6 +6,7 @@
 
 import * as nodePath from 'node:path';
 import * as fs from 'node:fs';
+import type { InputAction, InputDelivery, InputUpdate } from '@sudowork/contracts/input-delivery';
 import { appendGeneratedFilesMarker } from '@sudowork/common/generatedFiles';
 import type { IResponseMessage } from '@sudowork/host-bridge/ipcBridge';
 import type { AcpQuestionAnswerItem, TMessage } from '@sudowork/common/chatLib';
@@ -219,6 +220,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
 
         const callbacks: MossWsCallbacks = {
           onMessage: (msg) => this.handleStreamMessage(msg),
+          onInputUpdate: (update) => this.onInputUpdate(update),
           onPermissionRequest: (req, requestId) => this.handlePermissionRequest(req, requestId),
           onConnected: () => this.handleConnected(),
           onDisconnected: () => this.handleDisconnected(),
@@ -287,6 +289,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
 
         const callbacks: MossWsCallbacks = {
           onMessage: (msg) => this.handleStreamMessage(msg),
+          onInputUpdate: (update) => this.onInputUpdate(update),
           onPermissionRequest: (req, requestId) => this.handlePermissionRequest(req, requestId),
           onConnected: () => this.handleConnected(),
           onDisconnected: () => this.handleDisconnected(),
@@ -333,6 +336,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
 
         const callbacks: MossWsCallbacks = {
           onMessage: (msg) => this.handleStreamMessage(msg),
+          onInputUpdate: (update) => this.onInputUpdate(update),
           onPermissionRequest: (req, requestId) => this.handlePermissionRequest(req, requestId),
           onConnected: () => this.handleConnected(),
           onDisconnected: () => this.handleDisconnected(),
@@ -518,10 +522,9 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
     }
   }
 
-  async sendMessage(data: { content: string; files?: string[]; msg_id?: string; skills?: string[] }): Promise<{ success: boolean; msg?: string }> {
-    await this.remoteDeliverablesPromise;
-    mainLog('RemoteAgent', `sendMessage called for conversation ${this.conversation_id}`);
-    mainLog('RemoteAgent', `content length: ${data.content?.length || 0}, files: ${data.files?.length || 0}`);
+  private inputTurnId: number | null = null;
+
+  private beginInputTurn(): void {
     // Activity: cancel any pending idle detach before we start work.
     this.cancelIdleDetachTimer();
     this.status = 'running';
@@ -537,6 +540,36 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
     this.currentTurnFiles.clear();
     this.workspaceFileSnapshot = this.getWorkspaceFiles();
     mainLog('RemoteAgent', `[TURN-START] Reset file tracking, snapshot size: ${this.workspaceFileSnapshot.size}`);
+  }
+
+  async controlInput(action: InputAction) {
+    await this.initAgent();
+    return this.connection?.controlInput(action) ?? null;
+  }
+
+  private onInputUpdate(update: InputUpdate): void {
+    if (update.kind === 'state') {
+      this.isNativeInput = true;
+      if (update.state.activeTurnId !== null && update.state.activeTurnId !== this.inputTurnId) {
+        this.beginInputTurn();
+        ipcBridge.conversation.responseStream.emit({ type: 'start', conversation_id: this.conversation_id, msg_id: uuid(), data: { processingStartTime: this.processingStartTime } });
+      }
+      this.inputTurnId = update.state.activeTurnId;
+      ipcBridge.conversation.inputQueueUpdate.emit({ conversation_id: this.conversation_id, state: update.state });
+    } else if (update.kind === 'committed' && update.source === 'human') {
+      this.handleStreamMessage({ type: 'user_content', conversation_id: this.conversation_id, msg_id: update.clientId, data: update.display });
+    }
+  }
+
+  private inputEpoch = 0;
+  private isNativeInput = false;
+
+  async sendMessage(data: { content: string; files?: string[]; msg_id?: string; skills?: string[]; delivery?: InputDelivery }): Promise<{ success: boolean; msg?: string }> {
+    const inputEpoch = this.inputEpoch;
+    await this.remoteDeliverablesPromise;
+    mainLog('RemoteAgent', `sendMessage called for conversation ${this.conversation_id}`);
+    mainLog('RemoteAgent', `content length: ${data.content?.length || 0}, files: ${data.files?.length || 0}`);
+    if (!data.delivery) this.beginInputTurn();
 
     try {
       if (data.skills?.length && ProcessConfig.getSync('eeclaw.accountScope')) {
@@ -563,7 +596,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
       }
 
       // Persist the prompt through the same path as streamed replies.
-      if (data.msg_id && data.content) {
+      if (!data.delivery && data.msg_id && data.content) {
         this.handleStreamMessage({
           type: 'user_content',
           conversation_id: this.conversation_id,
@@ -572,13 +605,14 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
         });
       }
 
-      // Send start event
-      ipcBridge.conversation.responseStream.emit({
-        type: 'start',
-        conversation_id: this.conversation_id,
-        msg_id: uuid(36),
-        data: { processingStartTime: this.processingStartTime },
-      });
+      // Native turn state comes from the engine, independently of admission.
+      if (!data.delivery)
+        ipcBridge.conversation.responseStream.emit({
+          type: 'start',
+          conversation_id: this.conversation_id,
+          msg_id: uuid(36),
+          data: { processingStartTime: this.processingStartTime },
+        });
 
       // Handle file references. The incoming `data.files` are LOCAL paths
       // (staged temp files on this machine) — the remote moss agent can't read
@@ -745,8 +779,8 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
       }
 
       // Capture after uploads so input attachments are not reported as outputs.
-      this.remoteTurnSnapshot = null;
-      if (this.mossSessionId) {
+      if (!data.delivery || !this.connection.inputDeliveryState?.running) this.remoteTurnSnapshot = null;
+      if (this.mossSessionId && (!data.delivery || !this.connection.inputDeliveryState?.running)) {
         try {
           this.remoteTurnSnapshot = await readRemoteWorkspaceSnapshot(initMossApi(this.options.serverUrl), this.mossSessionId);
         } catch (error) {
@@ -755,14 +789,21 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
       }
 
       // Send to Moss Server
-      const result = this.connection.sendMessage({
-        content: contentToSend,
-        files: data.files,
-        msg_id: data.msg_id,
-        images: inlineImages.length > 0 ? inlineImages : undefined,
-      });
+      if (data.delivery && inputEpoch !== this.inputEpoch) throw new Error('Input was cancelled before delivery');
+      const result = data.delivery
+        ? {
+            success:
+              (await this.connection.controlInput({ action: 'submit', clientId: data.msg_id || uuid(), delivery: data.delivery, display: data.content, draft: { text: data.content, files: data.files, skills: data.skills }, content: [...inlineImages, { type: 'text', text: contentToSend }] })) !==
+              null,
+          }
+        : this.connection.sendMessage({
+            content: contentToSend,
+            files: data.files,
+            msg_id: data.msg_id,
+            images: inlineImages.length > 0 ? inlineImages : undefined,
+          });
 
-      if (!result.success) {
+      if (!result.success && !data.delivery) {
         this.emitErrorMessage(result.msg || 'Send failed');
       } else {
         // A successfully accepted user turn is real activity. History reads,
@@ -781,6 +822,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
 
       return result;
     } catch (error) {
+      if (data.delivery) return { success: false, msg: error instanceof Error ? error.message : String(error) };
       this.status = 'finished';
       this.turnActive = false;
       this.processingStartTime = undefined;
@@ -836,6 +878,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
    * Stop streaming response
    */
   async stop(): Promise<void> {
+    this.inputEpoch += 1;
     if (this.stopPromise) {
       return this.stopPromise;
     }
@@ -953,7 +996,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
 
   /** Schedule the idle-detach timer if not already pending and not active. */
   private scheduleIdleDetachTimer(): void {
-    if (this.turnActive) return;
+    if (this.turnActive || this.connection?.inputDeliveryState?.pending.length) return;
     if (this.idleDetachTimer) return;
     if (!this.connection) return;
 
@@ -963,7 +1006,7 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
     this.idleDetachTimer = setTimeout(() => {
       this.idleDetachTimer = null;
       // Re-check turnActive at fire time — activity may have resumed.
-      if (this.turnActive) {
+      if (this.turnActive || this.connection?.inputDeliveryState?.pending.length) {
         mainLog('RemoteAgent', `Idle detach skipped (active) for ${this.conversation_id}`);
         return;
       }
@@ -1484,15 +1527,20 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
     // disconnected lifecycle.
     this.cancelIdleDetachTimer();
     this.emitStatusMessage('connected');
+    if (this.isNativeInput) void this.connection?.controlInput({ action: 'snapshot' }).catch((error) => mainWarn('RemoteAgent', 'Could not refresh input state', error));
   }
 
   private handleDisconnected(): void {
+    this.inputTurnId = null;
+    ipcBridge.conversation.inputQueueUpdate.emit({ conversation_id: this.conversation_id, isReset: true });
     mainError('RemoteAgent', `Disconnected from Moss Server for conversation ${this.conversation_id}`);
     this.emitStatusMessage('disconnected');
     this.emitFinishMessage();
   }
 
   private handleReconnecting(attempt: number, max: number): void {
+    this.inputTurnId = null;
+    ipcBridge.conversation.inputQueueUpdate.emit({ conversation_id: this.conversation_id, isReset: true });
     mainLog('RemoteAgent', `Reconnecting to Moss Server (${attempt}/${max})`);
     this.emitStatusMessage('connecting');
   }

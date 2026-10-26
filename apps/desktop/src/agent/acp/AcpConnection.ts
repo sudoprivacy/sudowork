@@ -9,6 +9,8 @@ import { promisify } from 'util';
 import { promises as fs } from 'fs';
 import os from 'os';
 import path from 'path';
+import { INPUT_DELIVERY_METHOD, INPUT_DELIVERY_UPDATE, inputNotificationSchema, inputReceiptSchema } from '@sudowork/contracts/input-delivery';
+import type { InputAction, InputReceipt, InputState, InputUpdate } from '@sudowork/contracts/input-delivery';
 import { ACP_METHODS, getAcpResumeStrategy, JSONRPC_VERSION } from '@/types/acpTypes';
 import type { AcpBackend, AcpIncomingMessage, AcpMessage, AcpNotification, AcpPermissionRequest, AcpPromptResponseUsage, AcpQuestionRequest, AcpQuestionResponseAnswer, AcpRequest, AcpResponse, AcpSessionConfigOption, AcpSessionModels, AcpSessionUpdate } from '@/types/acpTypes';
 import { mainLog } from '@process/utils/mainLogger';
@@ -84,6 +86,8 @@ export class AcpConnection {
   // Performance tracking: timestamp when last prompt was sent
   private lastPromptSentAt: number = 0;
   private firstChunkReceived: boolean = true;
+  private inputState: InputState | null = null;
+  private inputIdleWaiters = new Set<() => void>();
 
   public onSessionUpdate: (data: AcpSessionUpdate) => void = () => {};
   public onPermissionRequest: (data: AcpPermissionRequest) => Promise<{
@@ -93,6 +97,7 @@ export class AcpConnection {
     answers: AcpQuestionResponseAnswer[];
   }> = () => Promise.resolve({ answers: [] });
   public onEndTurn: () => void = () => {}; // Handler for end_turn messages
+  public onInputUpdate: (update: InputUpdate) => void = () => {};
   public onPromptUsage: (usage: AcpPromptResponseUsage) => void = () => {}; // Handler for PromptResponse.usage (per-turn token data)
   public onFileOperation: (operation: { method: string; path: string; content?: string; sessionId: string }) => void = () => {};
   // Disconnect callback - called when child process exits unexpectedly during runtime
@@ -407,6 +412,8 @@ export class AcpConnection {
 
     // 2. Clear connection state
     this.sessionId = null;
+    this.inputState = null;
+    for (const onState of this.inputIdleWaiters) onState();
     this.isInitialized = false;
     this.isSetupComplete = false;
     this.backend = null;
@@ -577,6 +584,11 @@ export class AcpConnection {
     try {
       // 优先检查是否为 request/notification（有 method 字段）
       if ('method' in message) {
+        if (message.method === INPUT_DELIVERY_UPDATE) {
+          const notification = inputNotificationSchema.parse(message.params);
+          if (notification.sessionId === this.sessionId) this.onInputNotification(notification.update);
+          return;
+        }
         // 直接传递给 handleIncomingRequest，switch 会过滤未知 method
         this.handleIncomingRequest(message as AcpIncomingMessage).catch((_error) => {
           // Handle request errors silently
@@ -820,6 +832,7 @@ export class AcpConnection {
     });
 
     this.sessionId = response.sessionId;
+    this.inputState = null;
 
     this.parseSessionCapabilities(response);
 
@@ -851,6 +864,7 @@ export class AcpConnection {
 
     // session/load returns modes/models/configOptions but not sessionId — keep the one we sent
     this.sessionId = response.sessionId || sessionId;
+    this.inputState = null;
 
     mainLog(`[ACP ${this.backend}]`, 'session/load completed', { sessionId: this.sessionId });
 
@@ -1017,6 +1031,36 @@ export class AcpConnection {
     return initialized?._meta?.sudocode?.toolPause?.version === 1;
   }
 
+  get isInputDeliverySupported(): boolean {
+    const initialized = this.initializeResponse as unknown as { _meta?: { sudocode?: { inputDelivery?: { version?: unknown } } } } | null;
+    return initialized?._meta?.sudocode?.inputDelivery?.version === 1;
+  }
+
+  get inputDeliveryState(): InputState | null {
+    return this.inputState;
+  }
+
+  /** Submit an intent and consume the engine's authoritative receipt. */
+  async controlInput(action: InputAction): Promise<InputReceipt> {
+    const sessionId = this.sessionId;
+    if (!sessionId || !this.isInputDeliverySupported) throw new Error('This agent does not support input delivery control');
+    const response = await this.sendRequest(INPUT_DELIVERY_METHOD, { sessionId, ...action });
+    if (this.sessionId !== sessionId || !this.isConnected) throw new Error('The agent connection changed during input delivery');
+    const receipt = inputReceiptSchema.parse(response);
+    this.onInputNotification({ kind: 'state', state: receipt.state });
+    return receipt;
+  }
+
+  /** Notifications can precede RPC replies; revisions prevent an old reply restoring a consumed row. */
+  private onInputNotification(update: InputUpdate): void {
+    if (update.kind === 'state') {
+      if (this.inputState && update.state.revision <= this.inputState.revision) return;
+      this.inputState = update.state;
+    }
+    this.onInputUpdate(update);
+    for (const onState of this.inputIdleWaiters) onState();
+  }
+
   get isHttpMcpSupported(): boolean {
     const initialized = this.initializeResponse as unknown as { agentCapabilities?: { mcpCapabilities?: { http?: boolean } } } | null;
     return initialized?.agentCapabilities?.mcpCapabilities?.http === true;
@@ -1050,12 +1094,18 @@ export class AcpConnection {
       return 'disconnected';
     }
 
+    const nativeIdle = this.isInputDeliverySupported && this.inputState && (this.inputState.running || this.inputState.pending.length > 0) ? this.waitForInputIdle(this.inputState.revision, timeoutMs) : null;
     // 1. Send session/cancel notification
     this.sendMessage({
       jsonrpc: JSONRPC_VERSION,
       method: ACP_METHODS.SESSION_CANCEL,
       params: { sessionId: this.sessionId },
     });
+
+    if (nativeIdle) {
+      const isIdle = await nativeIdle;
+      return !this.isConnected ? 'disconnected' : isIdle ? 'cancelled' : 'abandoned';
+    }
 
     // 2. Check if there's a pending session/prompt to wait for
     const pendingPromptId = this.findPendingPromptRequestId();
@@ -1076,6 +1126,21 @@ export class AcpConnection {
     }
 
     return 'cancelled';
+  }
+
+  private waitForInputIdle(revision: number, timeoutMs: number): Promise<boolean> {
+    return new Promise((resolve) => {
+      const onFinish = (isIdle: boolean) => {
+        clearTimeout(timer);
+        this.inputIdleWaiters.delete(onState);
+        resolve(isIdle);
+      };
+      const onState = () => {
+        if (!this.isConnected || (this.inputState && this.inputState.revision > revision && !this.inputState.running)) onFinish(true);
+      };
+      const timer = setTimeout(() => onFinish(false), timeoutMs);
+      this.inputIdleWaiters.add(onState);
+    });
   }
 
   private resolvePendingPromptAsCancelled(requestId: number): void {
@@ -1146,6 +1211,8 @@ export class AcpConnection {
     // Reset session-level state
     this.pendingRequests.clear();
     this.sessionId = null;
+    this.inputState = null;
+    for (const onState of this.inputIdleWaiters) onState();
     this.isInitialized = false;
     this.isSetupComplete = false;
     this.backend = null;

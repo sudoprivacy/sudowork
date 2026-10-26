@@ -23,6 +23,11 @@
       "bun": "./src/MossHostedTaskClient.ts",
       "types": "./dist/MossHostedTaskClient.d.ts",
       "default": "./dist/MossHostedTaskClient.js"
+    },
+    "./input-delivery": {
+      "bun": "./src/InputDeliveryClient.ts",
+      "types": "./dist/InputDeliveryClient.d.ts",
+      "default": "./dist/InputDeliveryClient.js"
     }
   },
   "files": [

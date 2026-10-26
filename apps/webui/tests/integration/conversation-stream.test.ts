@@ -942,6 +942,154 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
     }
   }, 20_000)
 
+  test('native input keeps one writer while steering, queueing and flushing an active turn', async () => {
+    await request(app)
+      .post(`/api/conversations/${SID}/terminate`)
+      .set('Cookie', cookie1)
+      .set('Origin', 'http://localhost:5273')
+    await sleep(100)
+    upstreamMode = 'hold'
+    const writer = await browserWs(cookie1)
+    const observer = await browserWs(cookie2)
+    const events = collector(writer)
+    const observed = collector(observer)
+    const before = upstreamReceived.length
+    let revision = 0
+    const state = (isRunning: boolean, pending: unknown[] = []) => ({
+      revision: ++revision,
+      running: isRunning,
+      paused: false,
+      activeTurnId: isRunning ? 1 : null,
+      pending,
+    })
+    const send = (requestId: string, action: unknown) =>
+      writer.send(JSON.stringify({ kind: 'input', requestId, action }))
+    const waitRequest = async (action: string, after: number) => {
+      for (let i = 0; i < 100; i++) {
+        const frame = upstreamReceived
+          .slice(after)
+          .find(
+            (item) => (item.request as { action?: { action?: string } })?.action?.action === action,
+          )
+        if (frame) return frame
+        await sleep(20)
+      }
+      throw new Error(`No native ${action} reached Moss`)
+    }
+    const upstream = (event: unknown) => upstreamConnections.at(-1)!.send(JSON.stringify(event))
+    const reply = (frame: WsEvent, receipt: unknown) =>
+      upstream({
+        type: 'input_delivery_reply',
+        requestId: frame.request_id,
+        isSupported: true,
+        receipt,
+      })
+    const waitReply = (requestId: string) =>
+      events.waitFor(
+        (item) =>
+          item.kind === 'upstream' &&
+          (item.event as { requestId?: string })?.requestId === requestId,
+      )
+    try {
+      send('snapshot', { action: 'snapshot' })
+      const snapshot = await waitRequest('snapshot', before)
+      reply(snapshot, { state: state(false) })
+      await waitReply('snapshot')
+      send('first', {
+        action: 'submit',
+        clientId: 'first',
+        delivery: 'steer',
+        content: [{ type: 'text', text: 'original task' }],
+      })
+      const first = await waitRequest('submit', before)
+      const active = state(true)
+      upstream({ type: 'input_delivery_update', update: { kind: 'state', state: active } })
+      reply(first, { id: 1, state: active })
+      await waitReply('first')
+      const queuedFrom = upstreamReceived.length
+      send('queued', {
+        action: 'submit',
+        clientId: 'queued',
+        delivery: 'queue',
+        draft: { text: 'next task', files: ['/webupload/photo'] },
+        content: [
+          { type: 'text', text: 'next task' },
+          { type: 'image', mimeType: 'image/png', data: 'photo' },
+        ],
+      })
+      const queued = await waitRequest('submit', queuedFrom)
+      expect(queued.request).toMatchObject({
+        subtype: 'input',
+        action: {
+          delivery: 'queue',
+          draft: { files: ['/webupload/photo'] },
+          content: [
+            { type: 'text', text: 'next task' },
+            { type: 'image', data: 'photo' },
+          ],
+        },
+      })
+      const queuedState = state(true, [
+        { id: 2, clientId: 'queued', display: 'next task', source: 'human', delivery: 'queue' },
+      ])
+      reply(queued, { id: 2, state: queuedState })
+      await waitReply('queued')
+      observer.send(
+        JSON.stringify({
+          kind: 'input',
+          requestId: 'intrusion',
+          action: { action: 'flush_or_cancel' },
+        }),
+      )
+      const refused = await observed.waitFor(
+        (item) =>
+          item.kind === 'upstream' &&
+          (item.event as { requestId?: string })?.requestId === 'intrusion',
+      )
+      expect(refused.event).toMatchObject({ error: 'CONVERSATION_BUSY' })
+      const flushFrom = upstreamReceived.length
+      send('flush', { action: 'flush_or_cancel' })
+      const flush = await waitRequest('flush_or_cancel', flushFrom)
+      const consumed = state(true)
+      upstream({ type: 'input_delivery_update', update: { kind: 'state', state: consumed } })
+      reply(flush, { cancelled: false, state: queuedState })
+      await waitReply('flush')
+      expect(
+        upstreamReceived
+          .slice(before)
+          .some((frame) => (frame.request as { subtype?: string })?.subtype === 'interrupt'),
+      ).toBe(false)
+      upstream({ type: 'result', status: 'success' })
+      await events.waitFor(
+        (item) => item.kind === 'upstream' && (item.event as { type?: string })?.type === 'result',
+      )
+      const activeLock = await pool.query(
+        'SELECT state FROM conversation_locks WHERE principal_id=$1 AND moss_session_id=$2',
+        [principal.id, SID],
+      )
+      expect(activeLock.rows[0]?.state).toBe('running')
+      upstream({ type: 'input_delivery_update', update: { kind: 'state', state: state(false) } })
+      for (let i = 0; i < 100; i++) {
+        const lock = await pool.query(
+          'SELECT state FROM conversation_locks WHERE principal_id=$1 AND moss_session_id=$2',
+          [principal.id, SID],
+        )
+        if (lock.rows[0]?.state === 'idle') break
+        if (i === 99) throw new Error('Engine idle did not release the writer')
+        await sleep(20)
+      }
+    } finally {
+      writer.close()
+      observer.close()
+      upstreamMode = 'auto'
+      await request(app)
+        .post(`/api/conversations/${SID}/terminate`)
+        .set('Cookie', cookie1)
+        .set('Origin', 'http://localhost:5273')
+      await sleep(100)
+    }
+  }, 20_000)
+
   test('WS upgrade rejects bad origin and missing cookie', async () => {
     await expect(
       new Promise<WebSocket>((resolve, reject) => {

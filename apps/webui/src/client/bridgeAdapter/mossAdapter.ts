@@ -1,3 +1,6 @@
+import { stageFiles } from '@sudowork/renderer/utils/webFilePicker'
+import { InputDeliveryClient } from '@sudowork/moss-client/input-delivery'
+import { inputActionSchema, type InputAction } from '@sudowork/contracts/input-delivery'
 import { createMossHostedTaskPort, type HostedTaskInput } from '@sudowork/moss-client/hosted-tasks'
 import type { MossAgentFetch } from '@sudowork/moss-client/agents'
 import type * as ExternalContract from '@sudowork/contracts/external-provider'
@@ -385,7 +388,11 @@ function ensureSessionStream(sessionId: string): WebSocket | null {
     } catch {
       return
     }
-    if (frame.kind === 'lock' || frame.kind === 'writer') subscribedStreams.add(ws)
+    if ((frame.kind === 'lock' || frame.kind === 'writer') && !subscribedStreams.has(ws)) {
+      subscribedStreams.add(ws)
+      if (nativeInputSessions.has(sessionId))
+        void controlSessionInput(sessionId, { action: 'snapshot' }).catch(() => {})
+    }
     if (frame.kind === 'permissions_cleared') removePendingConfirmations(sessionId)
     if (frame.kind === 'permission_resolved' && typeof frame.requestId === 'string')
       removePendingConfirmations(sessionId, frame.requestId)
@@ -406,6 +413,7 @@ function ensureSessionStream(sessionId: string): WebSocket | null {
         request?: unknown
         request_id?: string
       }
+      if (getInputClient(sessionId).receive(event)) return
       if (event.type === 'result') {
         pendingTurns.delete(ws)
         removePendingConfirmations(sessionId)
@@ -487,6 +495,12 @@ function ensureSessionStream(sessionId: string): WebSocket | null {
   ws.addEventListener('close', () => {
     if (openStreams.get(sessionId) !== ws) return
     openStreams.delete(sessionId)
+    inputClients.get(sessionId)?.disconnect()
+    inputClients.delete(sessionId)
+    emitterRef?.emit('conversation.input-queue-update', {
+      conversation_id: sessionId,
+      isReset: true,
+    })
     removePendingConfirmations(sessionId)
     pendingQuestions.delete(sessionId)
     abortedSessions.delete(sessionId)
@@ -533,7 +547,90 @@ async function waitForSessionSubscription(sessionId: string): Promise<void> {
   })
 }
 
+const inputClients = new Map<string, InputDeliveryClient>()
+const nativeInputSessions = new Set<string>()
+const inputUploads = new Map<string, string[]>()
+const inputEpochs = new Map<string, number>()
+
+function getInputClient(sessionId: string): InputDeliveryClient {
+  let client = inputClients.get(sessionId)
+  if (!client) {
+    let activeTurnId: number | null = null
+    client = new InputDeliveryClient(
+      (requestId, action) => sendOverStream(sessionId, { kind: 'input', requestId, action }),
+      (update) => {
+        if (update.kind === 'committed' && update.source === 'human') {
+          for (const path of inputUploads.get(update.clientId) ?? [])
+            window.__sudoworkWebFileStaging?.delete(path)
+          inputUploads.delete(update.clientId)
+          emitterRef?.emit('chat.response.stream', {
+            type: 'user_content',
+            conversation_id: sessionId,
+            msg_id: update.clientId,
+            data: update.display,
+          })
+          return
+        }
+        if (update.kind !== 'state') return
+        nativeInputSessions.add(sessionId)
+        emitterRef?.emit('conversation.input-queue-update', {
+          conversation_id: sessionId,
+          state: update.state,
+        })
+        if (update.state.activeTurnId !== null && update.state.activeTurnId !== activeTurnId) {
+          emitterRef?.emit('chat.response.stream', {
+            type: 'start',
+            conversation_id: sessionId,
+            msg_id: `input-turn-${update.state.activeTurnId}`,
+            data: {},
+          })
+        }
+        activeTurnId = update.state.activeTurnId
+      },
+      () => {
+        activeTurnId = null
+        emitterRef?.emit('conversation.input-queue-update', {
+          conversation_id: sessionId,
+          isReset: true,
+        })
+      },
+    )
+    inputClients.set(sessionId, client)
+  }
+  return client
+}
+
+async function controlSessionInput(sessionId: string, action: InputAction) {
+  await waitForSessionSubscription(sessionId)
+  const receipt = await getInputClient(sessionId).request(nextMsgId(), action)
+  for (const item of receipt?.recalled ?? []) {
+    inputUploads.delete(item.clientId)
+    const images = item.content.filter((block) => block.type === 'image')
+    if (!images.length) continue
+    const draft = item.draft ?? {
+      text: item.content
+        .filter((block) => block.type === 'text')
+        .map((block) => block.text)
+        .join('\n'),
+    }
+    const files = draft.files ?? []
+    draft.files = images.map((block, index) => {
+      const existing = files[index]
+      if (existing && window.__sudoworkWebFileStaging?.has(existing)) return existing
+      const bytes = Uint8Array.from(atob(block.data), (value) => value.charCodeAt(0))
+      const name =
+        existing?.split('/').pop() ||
+        `recalled-${index + 1}.${block.mimeType.split('/')[1] || 'png'}`
+      return stageFiles([new File([bytes], name, { type: block.mimeType })])[0]!
+    })
+    item.draft = draft
+  }
+  return receipt
+}
+
 function sendOverStream(sessionId: string, payload: unknown): boolean {
+  if (payload && typeof payload === 'object' && 'kind' in payload && payload.kind === 'stop')
+    inputEpochs.set(sessionId, (inputEpochs.get(sessionId) ?? 0) + 1)
   const ws = ensureSessionStream(sessionId)
   if (!ws) return false
   if (
@@ -2375,6 +2472,17 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     return ok({ modelId, updatedAt: Date.now() })
   },
 
+  'conversation.input-control': async (req) => {
+    const sessionId = String(req?.conversation_id ?? '')
+    if (!sessionId) return fail('NO_SESSION')
+    try {
+      const receipt = await controlSessionInput(sessionId, inputActionSchema.parse(req.action))
+      return ok({ isSupported: receipt !== null, ...(receipt && { receipt }) })
+    } catch (error) {
+      return fail(error instanceof Error ? error.message : String(error))
+    }
+  },
+
   // --- chat send / control (over the session WS) ---
   'chat.send.message': async (req) => {
     const sessionId = String(req?.conversation_id ?? req?.sessionId ?? '')
@@ -2384,6 +2492,7 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     let text = extractText(req)
     // Attachments staged by the renderer's webFilePicker (pseudo /webupload/ paths);
     // any other files entries keep being ignored, as before.
+    const inputEpoch = inputEpochs.get(sessionId) ?? 0
     const staged = extractStagedUploads(req)
     let images: Array<{ mediaType: string; data: string }> = []
     if (staged.length > 0) {
@@ -2397,31 +2506,68 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
           conversation_id: sessionId,
           data: result.error,
         })
-        return ok()
+        return fail(result.error)
       }
       images = result.images
       if (result.refs.length > 0) {
         text = `${result.refs.join(' ')} ${text}`
       }
-      for (const item of staged) {
-        window.__sudoworkWebFileStaging?.delete(item.webPath)
-      }
+      if (!req?.delivery)
+        for (const item of staged) {
+          window.__sudoworkWebFileStaging?.delete(item.webPath)
+        }
     }
-    sendOverStream(
-      sessionId,
-      images.length > 0 ? { kind: 'send', text, msgId, images } : { kind: 'send', text, msgId },
+    if (req?.delivery) {
+      const action = inputActionSchema.parse({
+        action: 'submit',
+        clientId: msgId,
+        delivery: req.delivery,
+        display: extractText(req),
+        // Keep uploaded file references editable even after a browser reload.
+        draft: {
+          text,
+          files: staged
+            .filter((item) => IMAGE_MEDIA_TYPES.has(item.file.type))
+            .map((item) => item.webPath),
+          skills: req.skills,
+        },
+        content: [
+          ...images.map((image) => ({
+            type: 'image',
+            data: image.data,
+            mimeType: image.mediaType,
+          })),
+          { type: 'text', text },
+        ],
+      })
+      if (inputEpoch !== (inputEpochs.get(sessionId) ?? 0))
+        return fail('Input was cancelled before delivery')
+      inputUploads.set(
+        msgId,
+        staged.map((item) => item.webPath),
+      )
+      const receipt = await controlSessionInput(sessionId, action)
+      if (!receipt) return fail('Input delivery is unavailable')
+    } else if (
+      !sendOverStream(
+        sessionId,
+        images.length > 0 ? { kind: 'send', text, msgId, images } : { kind: 'send', text, msgId },
+      )
     )
+      return fail('NO_SESSION')
+
     // Echo the user's own message back so its bubble shows: the shared renderer does
     // no optimistic insert and relies on a user_content frame (desktop RemoteAgent does
     // the same). moss's user echo frame is dropped by mossFrameToResponses, so synthesize
     // it here. The echo and the WS send share msgId: moss persists it as the message uuid,
     // /context returns it, and the history merge dedupes this echo by msg_id.
-    emitterRef?.emit('chat.response.stream', {
-      type: 'user_content',
-      msg_id: msgId,
-      conversation_id: sessionId,
-      data: text,
-    })
+    if (!req?.delivery)
+      emitterRef?.emit('chat.response.stream', {
+        type: 'user_content',
+        msg_id: msgId,
+        conversation_id: sessionId,
+        data: text,
+      })
     return ok()
   },
   'moss.send-message': async (req) => {

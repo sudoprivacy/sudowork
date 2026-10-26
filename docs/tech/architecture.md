@@ -32,6 +32,38 @@ The capability and lifecycle contract is maintained in
 Storage and IPC providers register before the application renderer loads;
 runtime provisioning runs alongside the visible initialization screen.
 
+## Agent input delivery
+
+For native scode sessions, `engine-core` owns pending inputs, safe-boundary steering,
+next-turn admission, recall and cancellation. The CLI and ACP host share that
+coordinator. Desktop's local ACP connection, remote Moss connection and WebUI
+forward typed actions; none of these adapters schedules a second model queue.
+Foreign agents retain their existing compatibility path.
+
+The shared renderer sends Enter as `steer` and Tab as `queue`. Esc flushes pending
+input, or cancels if none remains. Ctrl+C cancels while preserving normal copy
+when text is selected. Esc waits for already-submitted attachment preparation;
+cancellation bypasses it and invalidates preparations that have not reached the
+agent. Queue chips come from revisioned engine snapshots. A user's transcript
+bubble is added only on `committed`, not when admission is acknowledged.
+
+`@sudowork/contracts/input-delivery` defines the boundary schema, while
+`@sudowork/moss-client/input-delivery` only correlates transport requests and
+projects revisions. Desktop and WebUI use the same `useInputDelivery` hook and
+composer controls. Recall returns original text, attachments and selected skills;
+host-expanded scaffolding is not re-applied to the editor.
+
+WebUI keeps authentication and its single-writer lease at the server boundary.
+An engine snapshot, rather than an earlier turn's result frame, determines whether
+that lease can return to idle. Disconnection or an unknown admission outcome is
+never automatically retried. Pending drafts live in the agent session's memory;
+this protocol does not promise recovery after the engine process exits.
+
+Native automatic turns can begin before host artifact bookkeeping finishes.
+Hosts index generated files at their actual paths and do not move them away from
+subsequent tools. Background and peer input use the engine's delivery policy;
+the UI only displays their distinct source.
+
 ## IPC Communication
 
 - Preload script: `src/preload.ts` — exposes a secure `contextBridge` API to the renderer

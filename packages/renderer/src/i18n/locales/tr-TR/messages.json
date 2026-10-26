@@ -58,5 +58,13 @@
     "yesAlwaysAllowServer": "Evet, \"{{serverName}}\" sunucusundaki tüm araçlara her zaman izin ver",
     "no": "Hayır (esc)"
   },
-  "openFileFailed": "Could not open the file. Check that it still exists in this session workspace and that you are connected."
+  "openFileFailed": "Could not open the file. Check that it still exists in this session workspace and that you are connected.",
+  "inputDelivery": {
+    "queue": "Sırada",
+    "steer": "Yönlendiriliyor",
+    "keys": "Enter: yönlendir · Tab: sıraya al · ↑: sıradaki girdiyi geri al",
+    "flushHint": "Esc: bekleyen girdiyi gönder",
+    "cancelHint": "Esc / Ctrl+C: iptal",
+    "failed": "Girdi gönderilemedi"
+  }
 }

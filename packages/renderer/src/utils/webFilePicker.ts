@@ -31,7 +31,8 @@ function nextWebUploadId(): string {
   return `${Date.now().toString(36)}-${stagingSeq}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function stageFiles(files: FileList | File[]): string[] {
+/** Stage picked or recalled files using the same browser attachment identity. */
+export function stageFiles(files: FileList | File[]): string[] {
   const staging = ensureStagingMap();
   return Array.from(files).map((file) => {
     const webPath = `${WEB_UPLOAD_PREFIX}${nextWebUploadId()}/${file.name}`;

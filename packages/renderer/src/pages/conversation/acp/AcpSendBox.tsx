@@ -7,6 +7,8 @@ import type { AcpBackend } from '@sudowork/common/acpTypes';
 import type { AcpQuestionItem, IMessageAcpQuestion, TMessage } from '@sudowork/common/chatLib';
 import { uuid } from '@sudowork/common/utils';
 import { ConfigStorage } from '@sudowork/common/storage';
+import type { InputDelivery } from '@sudowork/contracts/input-delivery';
+import { useInputDelivery } from '@renderer/hooks/useInputDelivery';
 import SendBox from '@renderer/components/Sendbox';
 import { openBrowserSessionWindow } from '@renderer/components/browser/BrowserSessionPanel';
 import ThoughtDisplay from '@renderer/components/ThoughtDisplay';
@@ -127,25 +129,10 @@ const useSendBoxDraft = (conversation_id: string) => {
   };
 };
 
-const AcpSendBox: React.FC<{
-  conversation_id: string;
-  backend: AcpBackend;
-  sessionMode?: string;
-  agentName?: string;
-  /** Team override: when set, sends route through the team API instead of the single-chat ACP API (附录 II.8). */
-  teamSendMessage?: (params: { input: string; files?: string[]; msg_id?: string; skills?: string[] }) => Promise<void>;
-  /** Team override: when set, the stop button routes through the team API (pauseMember) — team
-   * agents are built with skipCache and are invisible to conversation.stop. */
-  teamStop?: () => Promise<void>;
-  teamAnswerQuestion?: (params: { conversationId: string; toolCallId: string; answers: Array<{ id: string; value: string; label?: string }> }) => Promise<{ success: boolean; msg?: string } | void>;
-  pendingQuestion?: IMessageAcpQuestion | null;
-  pendingQuestionItems?: AcpQuestionItem[];
-  isAwaitingUserInput?: boolean;
-  onAiProcessingChange?: React.Dispatch<React.SetStateAction<boolean>>;
-  onProcessingChange?: (isProcessing: boolean) => void;
-}> = ({ conversation_id, backend, sessionMode, agentName, teamSendMessage, teamStop, teamAnswerQuestion, pendingQuestion, pendingQuestionItems, isAwaitingUserInput = false, onAiProcessingChange, onProcessingChange }) => {
+function AcpSendBox({ conversation_id, backend, sessionMode, agentName, teamSendMessage, teamStop, teamAnswerQuestion, pendingQuestion, pendingQuestionItems, isAwaitingUserInput = false, onAiProcessingChange, onProcessingChange }: IAcpSendBoxProps) {
   const { thought, running, acpStatus, aiProcessing, resetState, tokenUsage, contextLimit, processingStartTime, beginStop, endStop, beginProcessing, finishTimeoutRef } = useAcpMessage(conversation_id);
   const { t } = useTranslation();
+  const inputDelivery = useInputDelivery(conversation_id, !teamSendMessage);
   const isProcessing = (running || aiProcessing) && !isAwaitingUserInput;
   const workspaceFiles = useWorkspaceFiles();
   const { checkAndUpdateTitle } = useAutoTitle();
@@ -190,6 +177,7 @@ const AcpSendBox: React.FC<{
   // 使用 useLatestRef 保存最新的 setContent/atPath，避免重复注册 handler
   // Use useLatestRef to keep latest setters to avoid re-registering handler
   const setContentRef = useLatestRef(setContent);
+  const contentRef = useLatestRef(content);
   const atPathRef = useLatestRef(atPath);
 
   const addOrUpdateMessage = useAddOrUpdateMessage(); // Move this here so it's available in useEffect
@@ -308,7 +296,7 @@ const AcpSendBox: React.FC<{
     });
   }, [conversation_id, backend, checkAndUpdateTitle, addOrUpdateMessageRef, beginProcessing, resetState]);
 
-  const onSendHandler = async (message: string, skills?: string[]) => {
+  const onSendHandler = async (message: string, skills?: string[], delivery: InputDelivery = 'steer') => {
     // /login <title> — intercept BEFORE agent send. Text never leaves the renderer.
     const loginMatch = /^\/login\s+(.+)$/.exec(message.trim());
     if (loginMatch) {
@@ -356,7 +344,7 @@ const AcpSendBox: React.FC<{
 
     // First-interrupt confirm: only when auto-interrupt is on and a turn is running (queue
     // mode doesn't interrupt, so no confirm). Answering "打断" persists so it asks only once.
-    if ((running || aiProcessing) && autoInterruptEnabled && !autoInterruptConfirmed) {
+    if (!inputDelivery.isSupported && (running || aiProcessing) && autoInterruptEnabled && !autoInterruptConfirmed) {
       const ok = await confirmFirstInterrupt();
       if (!ok) return;
       setAutoInterruptConfirmed(true);
@@ -381,8 +369,8 @@ const AcpSendBox: React.FC<{
     // before calling onSend — no need to clear again here.
     clearFiles();
 
-    // Start AI processing loading state
-    beginProcessing();
+    // Native sessions emit their own turn-start event after admission.
+    if (!inputDelivery.isSupported) beginProcessing();
 
     // Send message via ACP
     try {
@@ -390,13 +378,15 @@ const AcpSendBox: React.FC<{
         await teamSendMessage({ input: message, files: allFiles, msg_id, ...(activeSkills?.length ? { skills: activeSkills } : {}) });
         return;
       }
-      await ipcBridge.acpConversation.sendMessage.invoke({
+      const result = await ipcBridge.acpConversation.sendMessage.invoke({
         input: message,
         msg_id,
         conversation_id,
         files: allFiles,
         skills: activeSkills,
+        ...(inputDelivery.isSupported ? { delivery } : {}),
       });
+      if (!result?.success) throw new Error(result?.msg || t('messages.inputDelivery.failed'));
 
       void checkAndUpdateTitle(conversation_id, message);
       emitter.emit('chat.history.refresh');
@@ -426,8 +416,9 @@ const AcpSendBox: React.FC<{
         resetState();
         return; // Don't re-throw error, just show the message
       }
-      // Stop loading state for other errors too
-      resetState();
+      // A rejected steer must not end the turn already in progress.
+      if (!inputDelivery.isSupported) resetState();
+      setUploadFile((previous) => [...new Set([...previous, ...allFiles])]);
       throw error;
     }
 
@@ -554,14 +545,36 @@ const AcpSendBox: React.FC<{
   );
   useEffect(() => {
     return ipcBridge.conversation.inputQueueUpdate.on((data) => {
-      if (data.conversation_id === conversation_id) setQueuedInputs(data.queue);
+      if (data.conversation_id === conversation_id && !data.state) setQueuedInputs(data.queue ?? []);
     });
   }, [conversation_id]);
-  const handleDequeueLast = useCallback(async () => {
+  const onRecallInput = useCallback(async () => {
+    if (inputDelivery.isSupported) {
+      try {
+        const receipt = await inputDelivery.onControl({ action: 'recall' });
+        const recalled = receipt.recalled ?? [];
+        const text = recalled
+          .map(
+            (item) =>
+              item.draft?.text ??
+              item.content
+                .filter((block) => block.type === 'text')
+                .map((block) => block.text)
+                .join('\n')
+          )
+          .join('\n\n');
+        if (text) setContent(contentRef.current ? `${contentRef.current}\n\n${text}` : text);
+        setUploadFile((previous) => [...new Set([...previous, ...recalled.flatMap((item) => item.draft?.files ?? [])])]);
+        setSelectedSkills((previous) => [...new Set([...previous, ...recalled.flatMap((item) => item.draft?.skills ?? [])])]);
+      } catch (error) {
+        Message.error(error instanceof Error ? error.message : t('messages.inputDelivery.failed'));
+      }
+      return;
+    }
     const res = await ipcBridge.conversation.dequeueInput.invoke({ conversation_id });
     const dequeued = res?.success ? res.data?.content : undefined;
     if (dequeued) setContent(dequeued);
-  }, [conversation_id, setContent]);
+  }, [conversation_id, inputDelivery, setContent, setUploadFile, setSelectedSkills, contentRef, t]);
 
   return (
     <div className='max-w-800px w-full mx-auto flex flex-col mt-auto mb-16px'>
@@ -571,14 +584,19 @@ const AcpSendBox: React.FC<{
         value={content}
         onChange={setContent}
         initialSelectedSkills={selectedSkills}
-        loading={isProcessing}
+        loading={inputDelivery.state?.running ?? isProcessing}
         disabled={false}
         topAttached={Boolean(thought?.subject) || isProcessing || isAwaitingUserInput}
         placeholder={isAwaitingUserInput ? t('messages.enterAnswer') : t('acp.sendbox.placeholder', { backend: agentName || backend, defaultValue: `Send message to {{backend}}...` })}
         onStop={handleStop}
-        allowSubmitWhileRunning={allowSubmitWhileRunning}
-        queuedInputs={queuedInputs}
-        onDequeueLast={handleDequeueLast}
+        allowSubmitWhileRunning={inputDelivery.isSupported || allowSubmitWhileRunning}
+        isInputDeliveryEnabled={inputDelivery.isSupported}
+        isAnsweringQuestion={Boolean(pendingQuestion)}
+        onFlushInput={async () => {
+          await inputDelivery.onControl({ action: 'flush_or_cancel' });
+        }}
+        queuedInputs={inputDelivery.state ? inputDelivery.state.pending.map((item) => ({ id: item.clientId, preview: item.display, delivery: item.delivery })) : queuedInputs}
+        onDequeueLast={!inputDelivery.state || inputDelivery.state.pending.some((item) => item.source === 'human' && item.delivery === 'queue') ? onRecallInput : undefined}
         className='z-10'
         onFilesAdded={handleFilesAdded}
         supportedExts={allSupportedExts}
@@ -741,6 +759,24 @@ const AcpSendBox: React.FC<{
       />
     </div>
   );
-};
+}
+
+interface IAcpSendBoxProps {
+  conversation_id: string;
+  backend: AcpBackend;
+  sessionMode?: string;
+  agentName?: string;
+  /** Team override: when set, sends route through the team API instead of the single-chat ACP API (附录 II.8). */
+  teamSendMessage?: (params: { input: string; files?: string[]; msg_id?: string; skills?: string[] }) => Promise<void>;
+  /** Team override: when set, the stop button routes through the team API (pauseMember) — team
+   * agents are built with skipCache and are invisible to conversation.stop. */
+  teamStop?: () => Promise<void>;
+  teamAnswerQuestion?: (params: { conversationId: string; toolCallId: string; answers: Array<{ id: string; value: string; label?: string }> }) => Promise<{ success: boolean; msg?: string } | void>;
+  pendingQuestion?: IMessageAcpQuestion | null;
+  pendingQuestionItems?: AcpQuestionItem[];
+  isAwaitingUserInput?: boolean;
+  onAiProcessingChange?: React.Dispatch<React.SetStateAction<boolean>>;
+  onProcessingChange?: (isProcessing: boolean) => void;
+}
 
 export default AcpSendBox;

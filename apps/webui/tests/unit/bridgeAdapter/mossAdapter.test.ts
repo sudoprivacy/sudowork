@@ -59,6 +59,57 @@ describe('mossAdapter: session streams', () => {
     vi.unstubAllGlobals()
   })
 
+  it('recalls queued images after browser staging is lost and starts each turn only once', async () => {
+    const updates: string[] = []
+    const off = ipc.conversation.responseStream.on((event) => updates.push(event.type))
+    const response = ipc.conversation.inputControl.invoke({
+      conversation_id: 'recall-images',
+      action: { action: 'recall' },
+    })
+    await vi.waitFor(() => expect(ViewerSocket.instances).toHaveLength(1))
+    const socket = ViewerSocket.instances[0]!
+    socket.frame({ kind: 'writer', isWriter: true })
+    await vi.waitFor(() => expect(socket.sent).toHaveLength(1))
+    const request = socket.sent[0] as { requestId: string }
+    const state = { revision: 10, activeTurnId: 2, running: true, paused: false, pending: [] }
+    window.__sudoworkWebFileStaging = new Map()
+    socket.frame({
+      kind: 'upstream',
+      event: { type: 'input_delivery_update', update: { kind: 'state', state } },
+    })
+    socket.frame({
+      kind: 'upstream',
+      event: {
+        type: 'input_delivery_reply',
+        requestId: request.requestId,
+        receipt: {
+          state: { ...state, revision: 11 },
+          recalled: [
+            {
+              clientId: 'image',
+              draft: {
+                text: '@notes.txt review',
+                files: ['/webupload/old/image.png'],
+                skills: ['review'],
+              },
+              content: [{ type: 'image', mimeType: 'image/png', data: 'YWJj' }],
+            },
+          ],
+        },
+      },
+    })
+    const result = await response
+    const item = result.data!.receipt!.recalled![0]!
+    expect(item.draft?.text).toBe('@notes.txt review')
+    expect(item.draft?.skills).toEqual(['review'])
+    const path = item.draft!.files![0]!
+    expect(window.__sudoworkWebFileStaging?.get(path)?.size).toBe(3)
+    expect(await ipc.fs.getImageBase64.invoke({ path })).toBe('data:image/png;base64,YWJj')
+    expect(updates.filter((type) => type === 'start')).toHaveLength(1)
+    off()
+    window.__sudoworkWebFileStaging = undefined
+  })
+
   it('updates the selected Session runtime without opening a stream or resending input', async () => {
     const fetch = stubFetch({ '/runtime/upgrade': { success: true } })
     expect(await ipc.moss.upgradeRuntime.invoke({ conversationId: 'session/a' })).toMatchObject({

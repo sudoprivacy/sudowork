@@ -9,6 +9,7 @@ import { ArrowUp, CloseSmall, Lightning } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconPaste } from '@arco-design/web-react/icon';
+import type { InputDelivery } from '@sudowork/contracts/input-delivery';
 import type { IInstalledSkillInfo } from '@sudowork/host-bridge/ipcBridge';
 import { skillHub } from '@sudowork/host-bridge/ipcBridge';
 import type { SlashCommandItem } from '@sudowork/common/slash/types';
@@ -32,45 +33,13 @@ import { useDragUpload } from '../hooks/useDragUpload';
 import { useCompositionInput } from '../hooks/useCompositionInput';
 import { resolveSendboxKey, shouldBlockSubmit } from './sendboxKeyGuards';
 
+const EMPTY_SKILL_SELECTION: string[] = [];
 const constVoid = (): void => undefined;
 // 临界值：超过该字符数直接切换至多行模式，避免为超长文本做昂贵的宽度测量
 // Threshold: switch to multi-line mode directly when character count exceeds this value to avoid heavy layout work
 const MAX_SINGLE_LINE_CHARACTERS = 800;
 
-const SendBox: React.FC<{
-  value?: string;
-  onChange?: (value: string) => void;
-  onSend: (message: string, skills?: string[]) => Promise<void>;
-  onStop?: () => Promise<void>;
-  disabled?: boolean;
-  loading?: boolean;
-  className?: string;
-  tools?: React.ReactNode;
-  prefix?: React.ReactNode;
-  placeholder?: string;
-  onFilesAdded?: (files: FileMetadata[]) => void;
-  supportedExts?: string[];
-  defaultMultiLine?: boolean;
-  lockMultiLine?: boolean;
-  /** Whether an element (e.g. ThoughtDisplay) is attached above the box, squaring the top corners */
-  topAttached?: boolean;
-  sendButtonPrefix?: React.ReactNode;
-  slashCommands?: SlashCommandItem[];
-  onSlashBuiltinCommand?: (name: string) => void;
-  onSkillsChange?: (skills: string[]) => void;
-  /** Initial selected skills restored from draft state */
-  initialSelectedSkills?: string[];
-  /** Workspace files for @ file references */
-  workspaceFiles?: WorkspaceFileItem[];
-  /** Called when a file is selected via @ selector, allowing parent to track the file */
-  onAtFileSelected?: (file: WorkspaceFileItem) => void;
-  /** Allow submitting while a turn is running (interrupt/queue enabled). Decision is the coordinator's. */
-  allowSubmitWhileRunning?: boolean;
-  /** Pending inputs held by the coordinator, reflected here for the queue chips. */
-  queuedInputs?: Array<{ id: string; preview: string }>;
-  /** Pull the last queued input back into the editor (Up-arrow). */
-  onDequeueLast?: () => void | Promise<void>;
-}> = ({
+function SendBox({
   onSend,
   onStop,
   prefix,
@@ -90,13 +59,16 @@ const SendBox: React.FC<{
   slashCommands = [],
   onSlashBuiltinCommand,
   onSkillsChange,
-  initialSelectedSkills = [],
+  initialSelectedSkills = EMPTY_SKILL_SELECTION,
   workspaceFiles,
   onAtFileSelected,
   allowSubmitWhileRunning = false,
   queuedInputs,
   onDequeueLast,
-}) => {
+  isInputDeliveryEnabled = false,
+  isAnsweringQuestion = false,
+  onFlushInput,
+}: ISendBoxProps) {
   const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
@@ -265,6 +237,10 @@ const SendBox: React.FC<{
   const [selectedSkills, setSelectedSkills] = useState<string[]>(() => initialSelectedSkills);
   const [loadingSkills, setLoadingSkills] = useState(false);
   const [isSkillPopoverOpen, setIsSkillPopoverOpen] = useState(false);
+
+  useEffect(() => {
+    setSelectedSkills((previous) => (previous.length === initialSelectedSkills.length && previous.every((skill, index) => skill === initialSelectedSkills[index]) ? previous : initialSelectedSkills));
+  }, [initialSelectedSkills]);
 
   // Fetch installed skills on mount and after agent-created skills are installed.
   useEffect(() => {
@@ -472,7 +448,7 @@ const SendBox: React.FC<{
     setIsInputFocused(false);
   }, []);
 
-  const sendMessageHandler = () => {
+  const onSendMessage = (delivery: InputDelivery = 'steer') => {
     const block = shouldBlockSubmit({ loading: Boolean(loading), localSendInFlight: isLoading, allowSubmitWhileRunning });
     if (block === 'in-progress') {
       Message.warning(t('messages.conversationInProgress'));
@@ -493,23 +469,40 @@ const SendBox: React.FC<{
     // 立即清空输入框和技能，避免异步 onSend 完成后覆盖用户新输入
     // Clear input and skills immediately to prevent async onSend completion from overwriting new user input
     const skillsToSend = [...selectedSkills];
+    latestInputRef.current = '';
     setInput('');
     setSelectedSkills([]);
     clearDomSnippets();
 
-    onSend(finalMessage, skillsToSend)
-      .then(() => {})
+    const admission = onSend(finalMessage, skillsToSend, delivery);
+    pendingAdmissions.current.add(admission);
+    admission
       .catch((error) => {
-        console.error('[SendBox] Error in onSend', error);
+        // Preserve new typing and append the rejected draft instead of overwriting it.
+        const current = latestInputRef.current;
+        setInputRef.current(current ? `${current}\n\n${finalMessage}` : finalMessage);
+        setSelectedSkills((previous) => [...new Set([...previous, ...skillsToSend])]);
+        Message.error(error instanceof Error ? error.message : t('messages.inputDelivery.failed'));
       })
       .finally(() => {
-        // 只有在组件仍挂载的情况下才更新状态
-        setIsLoading(false);
+        pendingAdmissions.current.delete(admission);
+        setIsLoading(pendingAdmissions.current.size > 0);
       });
+  };
+
+  // Flush follows already-submitted drafts; explicit cancellation bypasses preparation.
+  const pendingAdmissions = useRef(new Set<Promise<unknown>>());
+  const controlEpoch = useRef(0);
+  const onFlush = async () => {
+    const epoch = controlEpoch.current;
+    const results = await Promise.allSettled([...pendingAdmissions.current]);
+    if (epoch !== controlEpoch.current || results.some((result) => result.status === 'rejected')) return;
+    await onFlushInput?.();
   };
 
   const onStopClick = async () => {
     if (!onStop || isStopping) return;
+    controlEpoch.current += 1;
     setIsStopping(true);
     try {
       await onStop();
@@ -531,7 +524,7 @@ const SendBox: React.FC<{
       disabled={isButtonDisabled}
       icon={<ArrowUp theme='filled' fill='white' strokeWidth={4} />}
       onClick={() => {
-        sendMessageHandler();
+        onSendMessage();
       }}
     />
   );
@@ -628,9 +621,10 @@ const SendBox: React.FC<{
             </div>
           )}
           {(queuedInputs ?? []).length > 0 && (
-            <div className='flex flex-wrap gap-6px mb-6px'>
+            <div className='flex flex-wrap gap-2 mb-2'>
               {(queuedInputs ?? []).map((q) => (
                 <span key={q.id} data-testid='queued-input-chip' title={q.preview} className='inline-flex items-center max-w-220px px-8px py-2px rd-10px bg-2 text-12px text-t-secondary truncate'>
+                  {q.delivery && <span className='mr-1 font-medium'>{t(`messages.inputDelivery.${q.delivery}`)} · </span>}
                   {q.preview}
                 </span>
               ))}
@@ -672,34 +666,58 @@ const SendBox: React.FC<{
             onBlur={handleInputBlur}
             {...compositionHandlers}
             autoSize={isSingleLine ? false : { minRows: 2, maxRows: 5 }}
-            onKeyDown={createKeyDownHandler(sendMessageHandler, (event) => {
-              // Try skill selector first (for @), then slash command (for /)
-              if (skillSelectorController.isOpen) {
-                return skillSelectorController.onKeyDown(event);
+            onKeyDown={createKeyDownHandler(
+              () => onSendMessage(),
+              (event) => {
+                // Try skill selector first (for @), then slash command (for /)
+                if (skillSelectorController.isOpen) {
+                  return skillSelectorController.onKeyDown(event);
+                }
+                if (slashController.isOpen) {
+                  return slashController.onKeyDown(event);
+                }
+                if (isInputDeliveryEnabled) {
+                  const isPlainKey = !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey;
+                  if (event.key === 'Tab' && isPlainKey && loading && !isAnsweringQuestion && input.trim()) {
+                    event.preventDefault();
+                    onSendMessage('queue');
+                    return true;
+                  }
+                  if (event.key === 'Escape' && onFlushInput && (loading || pendingAdmissions.current.size > 0 || queuedInputs?.length)) {
+                    event.preventDefault();
+                    void onFlush().catch((error) => Message.error(error instanceof Error ? error.message : t('messages.inputDelivery.failed')));
+                    return true;
+                  }
+                  // Preserve the browser's copy shortcut whenever text is selected.
+                  const target = event.target as HTMLTextAreaElement;
+                  const isCopySelection = target.selectionStart !== target.selectionEnd || Boolean(window.getSelection()?.toString());
+                  if (event.key.toLowerCase() === 'c' && event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey && !isCopySelection && (loading || pendingAdmissions.current.size > 0 || queuedInputs?.length)) {
+                    event.preventDefault();
+                    void onStopClick();
+                    return true;
+                  }
+                }
+                // Esc → interrupt, Up → dequeue — gated (see sendboxKeyGuards). Popups handled above.
+                const guardAction = resolveSendboxKey(event.key, {
+                  running: Boolean(loading) || isLoading,
+                  inputEmpty: !input.trim(),
+                  queueLength: queuedInputs?.length ?? 0,
+                  canStop: Boolean(onStop) && !isStopping,
+                  canDequeue: Boolean(onDequeueLast),
+                });
+                if (guardAction === 'interrupt') {
+                  event.preventDefault();
+                  void onStopClick();
+                  return true;
+                }
+                if (guardAction === 'dequeue') {
+                  event.preventDefault();
+                  void onDequeueLast?.();
+                  return true;
+                }
+                return false;
               }
-              if (slashController.isOpen) {
-                return slashController.onKeyDown(event);
-              }
-              // Esc → interrupt, Up → dequeue — gated (see sendboxKeyGuards). Popups handled above.
-              const guardAction = resolveSendboxKey(event.key, {
-                running: Boolean(loading) || isLoading,
-                inputEmpty: !input.trim(),
-                queueLength: queuedInputs?.length ?? 0,
-                canStop: Boolean(onStop) && !isStopping,
-                canDequeue: Boolean(onDequeueLast),
-              });
-              if (guardAction === 'interrupt') {
-                event.preventDefault();
-                void onStopClick();
-                return true;
-              }
-              if (guardAction === 'dequeue') {
-                event.preventDefault();
-                void onDequeueLast?.();
-                return true;
-              }
-              return false;
-            })}
+            )}
           ></Input.TextArea>
           {isSingleLine && (
             <div className='flex items-center gap-3'>
@@ -708,6 +726,11 @@ const SendBox: React.FC<{
             </div>
           )}
         </div>
+        {isInputDeliveryEnabled && (loading || Boolean(queuedInputs?.length)) && (
+          <div className='text-12px text-t-secondary mt-1' data-testid='input-delivery-hint'>
+            {t('messages.inputDelivery.keys')} · {t(queuedInputs?.length ? 'messages.inputDelivery.flushHint' : 'messages.inputDelivery.cancelHint')}
+          </div>
+        )}
         {!isSingleLine && (
           <div className='sendbox-actions flex items-center justify-between gap-2 w-full'>
             <div className='sendbox-tools flex items-center'>
@@ -723,6 +746,44 @@ const SendBox: React.FC<{
       </div>
     </div>
   );
-};
+}
+
+interface ISendBoxProps {
+  value?: string;
+  onChange?: (value: string) => void;
+  onSend: (message: string, skills?: string[], delivery?: InputDelivery) => Promise<void>;
+  onStop?: () => Promise<void>;
+  disabled?: boolean;
+  loading?: boolean;
+  className?: string;
+  tools?: React.ReactNode;
+  prefix?: React.ReactNode;
+  placeholder?: string;
+  onFilesAdded?: (files: FileMetadata[]) => void;
+  supportedExts?: string[];
+  defaultMultiLine?: boolean;
+  lockMultiLine?: boolean;
+  /** Whether an element (e.g. ThoughtDisplay) is attached above the box, squaring the top corners */
+  topAttached?: boolean;
+  sendButtonPrefix?: React.ReactNode;
+  slashCommands?: SlashCommandItem[];
+  onSlashBuiltinCommand?: (name: string) => void;
+  onSkillsChange?: (skills: string[]) => void;
+  /** Initial selected skills restored from draft state */
+  initialSelectedSkills?: string[];
+  /** Workspace files for @ file references */
+  workspaceFiles?: WorkspaceFileItem[];
+  /** Called when a file is selected via @ selector, allowing parent to track the file */
+  onAtFileSelected?: (file: WorkspaceFileItem) => void;
+  /** Allow submitting while a turn is running (interrupt/queue enabled). Decision is the coordinator's. */
+  allowSubmitWhileRunning?: boolean;
+  /** Pending inputs held by the coordinator, reflected here for the queue chips. */
+  queuedInputs?: Array<{ id: string; preview: string; delivery?: InputDelivery }>;
+  /** Pull the last queued input back into the editor (Up-arrow). */
+  onDequeueLast?: () => void | Promise<void>;
+  isInputDeliveryEnabled?: boolean;
+  isAnsweringQuestion?: boolean;
+  onFlushInput?: () => Promise<void>;
+}
 
 export default SendBox;
