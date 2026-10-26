@@ -14,6 +14,78 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  sudograph-review:
+    name: Native Sudograph review (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v6
+      # Cross-repository contracts use immutable source revisions. The separate
+      # native-browser job still accepts the production installer's public pin.
+      - uses: actions/checkout@v6
+        with:
+          repository: sudoprivacy/sudograph
+          ref: 8e56b55d2358ac672db021ae00c03c5d2a2863e0
+          path: .native-review-acceptance/compiler
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: sudoprivacy/ai-dev-browser
+          ref: f4e8c8642fbcd366de3dd3ac1930d136766f5f45
+          path: .native-review-acceptance/browser
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      - uses: browser-actions/setup-chrome@v2
+        id: chrome
+        with:
+          chrome-version: stable
+      - name: Install checked source runtimes and application dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          bun install --frozen-lockfile
+          python -m pip install -r .native-review-acceptance/compiler/requirements.txt './.native-review-acceptance/browser[remote]'
+          bun run --filter=@sudowork/contracts build
+          bun build ./apps/desktop/tests/integration/sudographReviewLaunch.live.ts --target=node --format=esm --outfile=./sudograph-review-live.mjs
+      - name: Verify actual protected HTML and controlled browser handoff
+        shell: bash
+        env:
+          AI_DEV_BROWSER_CHROME: ${{ steps.chrome.outputs.chrome-path }}
+          SUDOGRAPH_COMPILER_ROOT: ${{ github.workspace }}/.native-review-acceptance/compiler
+          SUDOWORK_BROWSER_LIVE_PYTHONPATH: ${{ github.workspace }}/.native-review-acceptance/browser
+          SUDOWORK_REVIEW_LIVE_EVIDENCE: ${{ runner.temp }}/sudograph-review
+        run: |
+          set -euo pipefail
+          export SUDOGRAPH_PYTHON="$(python -c 'import sys; print(sys.executable)')"
+          export SUDOWORK_BROWSER_LIVE_PYTHON="$SUDOGRAPH_PYTHON"
+          node ./sudograph-review-live.mjs
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            xvfb-run -a node ./sudograph-review-live.mjs --headful
+          else
+            node ./sudograph-review-live.mjs --headful
+          fi
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: native-sudograph-review-${{ matrix.os }}
+          path: |
+            ${{ runner.temp }}/sudograph-review/**/receipt.json
+            ${{ runner.temp }}/sudograph-review/**/native-review.png
+            ${{ runner.temp }}/sudograph-review/**/worker.log
+          if-no-files-found: warn
+
   streamed-window:
     # Skipped on draft PRs: heavy CI starts once the PR is marked ready.
     if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.draft) }}

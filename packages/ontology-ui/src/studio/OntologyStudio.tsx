@@ -938,9 +938,13 @@ export interface IStudioChatContext {
   iri?: string;
   revision: number;
 }
+/** Host presentation capabilities are separate from business message context. */
+export interface IStudioChatOptions {
+  modelAuthority: 'sudograph' | 'rdf';
+}
 interface IOntologyStudioProps {
   onStartAgentConversation?: (assistantId: string) => void | Promise<void>;
-  renderChat: (workspaceId: string, workspaceName: string, context?: IStudioChatContext, requestedConversationId?: string) => ReactNode;
+  renderChat: (workspaceId: string, workspaceName: string, context?: IStudioChatContext, requestedConversationId?: string, options?: IStudioChatOptions) => ReactNode;
   api: IOntologyStudioApi;
   workspaceId?: string;
   page?: OntologyStudioPage;

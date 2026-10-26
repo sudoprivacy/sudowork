@@ -1,7 +1,7 @@
 import styles from '@sudowork/ontology-ui/studio/studio.module.css';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Button, Empty, Input, Message, Modal, Select, Spin, Tag } from '@arco-design/web-react';
-import { Plus, Trash2 } from 'lucide-react';
+import { ExternalLink, Plus, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
@@ -10,8 +10,9 @@ import type { TChatConversation } from '@sudowork/common/storageTypes';
 import type { IStudioChatContext } from '@sudowork/ontology-ui';
 import AcpChat from '../conversation/acp/AcpChat';
 import { createStudioConversation, ensureDefaultStudioConversation, withStudioConversationTimeout } from './studioConversation';
+import { openBrowserSessionWindow } from '../../components/browser/openBrowserSessionWindow';
 
-export default function StudioConversationPanel({ workspaceId, workspaceName, context, requestedConversationId }: IStudioConversationPanelProps) {
+export default function StudioConversationPanel({ workspaceId, workspaceName, context, requestedConversationId, isCanonicalReview = false }: IStudioConversationPanelProps) {
   const { t } = useTranslation();
   const text = (key: string) => t(`ontology.studio.${key}`);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -24,6 +25,14 @@ export default function StudioConversationPanel({ workspaceId, workspaceName, co
   const [isPreparing, setIsPreparing] = useState(false);
   const [sessionError, setSessionError] = useState('');
   const [retryAttempt, setRetryAttempt] = useState(0);
+  const [isOpeningReview, setIsOpeningReview] = useState(false);
+  const [reviewViewer, setReviewViewer] = useState<string>();
+  const isOpeningReviewRef = useRef(false);
+  const activeConversationRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    activeConversationRef.current = conversation?.id;
+    setReviewViewer(undefined);
+  }, [conversation?.id]);
   const isMountedRef = useRef(true);
   const manualCreationRef = useRef<Promise<IOntologyAiBuilderSession> | undefined>(undefined);
   useEffect(() => {
@@ -158,6 +167,26 @@ export default function StudioConversationPanel({ workspaceId, workspaceName, co
     const result = await ipcBridge.conversation.sendMessage.invoke({ conversation_id: conversation.id, input: content, files: input.files, skills: input.skills, msg_id: input.msg_id || crypto.randomUUID() });
     if (!result.success) throw new Error(result.msg || text('errors.sendFailed'));
   };
+  const onOpenReview = async () => {
+    if (!conversation || isOpeningReviewRef.current) return;
+    const conversationId = conversation.id;
+    isOpeningReviewRef.current = true;
+    setIsOpeningReview(true);
+    try {
+      const result = await ipcBridge.ontology.openReview.invoke({ workspaceId, conversationId });
+      if (!result.success || !result.data || result.data.conversationId !== conversationId) throw new Error(result.msg || 'ontology.studio.reviewUnavailable');
+      if (!isMountedRef.current || activeConversationRef.current !== conversationId) return;
+      if (result.data.surface === 'viewer') {
+        setReviewViewer(conversationId);
+        openBrowserSessionWindow(conversationId);
+      }
+    } catch (error) {
+      if (isMountedRef.current && activeConversationRef.current === conversationId) Message.error(errorText(error));
+    } finally {
+      isOpeningReviewRef.current = false;
+      if (isMountedRef.current) setIsOpeningReview(false);
+    }
+  };
   const onDelete = () => {
     const session = sessions.find((item) => item.conversationId === selectedId);
     if (!session) return;
@@ -177,6 +206,12 @@ export default function StudioConversationPanel({ workspaceId, workspaceName, co
     <>
       <div className={styles['ontology-chat-heading']}>
         <Select aria-label={text('sessionHistory')} placeholder={text('sessionHistory')} value={sessions.some((item) => item.conversationId === selectedId) ? selectedId! : undefined} options={sessions.map((item) => ({ label: item.title, value: item.conversationId }))} onChange={onSelect} />
+        {isCanonicalReview && (
+          <Button type='primary' icon={<ExternalLink size={14} />} disabled={!conversation} loading={isOpeningReview} onClick={() => void onOpenReview()}>
+            {text('openReview')}
+          </Button>
+        )}
+        {reviewViewer && <Button onClick={() => openBrowserSessionWindow(reviewViewer)}>{text('openReviewViewer')}</Button>}
         <Button
           icon={<Plus size={14} />}
           aria-label={text('newSession')}
@@ -235,4 +270,5 @@ interface IStudioConversationPanelProps {
   workspaceName: string;
   context?: IStudioChatContext;
   requestedConversationId?: string;
+  isCanonicalReview?: boolean;
 }

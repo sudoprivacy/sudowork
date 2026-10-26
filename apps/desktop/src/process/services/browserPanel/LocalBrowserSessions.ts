@@ -3,7 +3,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import path from 'node:path';
 import { BrowserSessionActionSchema, BrowserSessionReplySchema, BrowserFileSchema, type BrowserSessionAction, type BrowserSessionReply } from '@sudowork/contracts/browser-session';
 import type { LocalAgentToolControl } from './LocalAgentToolControl';
-import { LocalBrowserWorker } from './LocalBrowserWorker';
+import { LocalBrowserWorker, type IHostPageNavigation } from './LocalBrowserWorker';
 
 interface ILocalBrowserSessionsOptions {
   root: string;
@@ -150,6 +150,30 @@ export class LocalBrowserSessions {
       reply = BrowserSessionReplySchema.parse(await worker.invoke(action));
     }
     return this.decorate(conversationId, reply!);
+  }
+
+  /** A user review action uses the existing engine barrier and browser profile. */
+  async openAuthorizedPage(conversationId: string, input: IHostPageNavigation, options: { isHeadless?: boolean } = {}): Promise<{ surface: 'native' | 'viewer'; conversationId: string }> {
+    const worker = await this.worker(conversationId);
+    let reply = await this.state(worker);
+    if (reply.session.personalExtension || (reply.session.state !== 'stopped' && reply.session.transport !== 'cdp')) throw new Error('ontology.studio.reviewTransportUnsupported');
+    if (!reply.session.capabilities.authorizedPageLaunch) throw new Error('ontology.studio.reviewRuntimeUnavailable');
+    if (reply.session.state === 'stopped') reply = await this.invoke(conversationId, { kind: 'start', isHeadless: options.isHeadless ?? false, transport: 'cdp' });
+    if (reply.session.transport !== 'cdp' || reply.session.personalExtension) throw new Error('ontology.studio.reviewTransportUnsupported');
+    const before = this.options.control.status();
+    if (!reply.session.isController || reply.session.state !== 'human' || before.owner !== conversationId || before.state !== 'human') reply = await this.invoke(conversationId, { kind: 'take', controlEpoch: reply.session.controlEpoch, targetEpoch: reply.session.targetEpoch });
+    if (!reply.session.isController) throw new Error('Browser did not acknowledge human control');
+    const host = this.options.control.status();
+    if (host.owner !== conversationId || host.state !== 'human') throw new Error('Browser control is not owned by this conversation');
+    const opened = BrowserSessionReplySchema.parse(await worker.invoke({ kind: 'open-authorized-page', url: input.url, cookie: input.cookie, controlEpoch: reply.session.controlEpoch, targetEpoch: reply.session.targetEpoch }));
+    return { surface: opened.session.isHeadless === false ? 'native' : 'viewer', conversationId };
+  }
+
+  /** Trusted host inspection uses the worker's existing read-only observation. */
+  async observePage(conversationId: string): Promise<unknown> {
+    const worker = await this.worker(conversationId);
+    const { session } = await this.state(worker);
+    return worker.invoke({ kind: 'observe', controlEpoch: session.controlEpoch, targetEpoch: session.targetEpoch });
   }
 
   async upload(conversationId: string, input: { name: string; data: Uint8Array; controlEpoch: number; targetEpoch: number }) {

@@ -4,6 +4,7 @@ import { ipcBridge } from '@/common';
 import { ontologyService } from '@process/services/ontology/OntologyService';
 import { mainError } from '@process/utils/mainLogger';
 import { SudographCompilerError } from '@process/services/ontology/SudographModelClient';
+import { getLocalBrowserSessions } from '@process/services/browserPanel/localBrowserSessionHost';
 
 function ok<T>(data: T) {
   return { success: true, data: redactOntologySecrets(data) };
@@ -87,6 +88,16 @@ export function initOntologyBridge(): void {
     return ok(undefined);
   });
   ontologyService.onAgentRegistrationChanged(emitWorkbenchChanged);
+  ipcBridge.ontology.openReview.provider(async (input) => {
+    let launch: Awaited<ReturnType<typeof ontologyService.createStudioReviewSession>> | undefined;
+    try {
+      launch = await ontologyService.createStudioReviewSession(input);
+      return ok(await getLocalBrowserSessions().openAuthorizedPage(input.conversationId, launch));
+    } catch (error) {
+      launch?.revoke();
+      return fail(error);
+    }
+  });
   ipcBridge.ontology.listProjects.provider(async () => {
     try {
       return ok(await ontologyService.listStudioProjects());

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { OntologyStudio } from '@sudowork/ontology-ui';
-import type { IOntologyStudioApi, IStudioChatContext } from '@sudowork/ontology-ui';
+import type { IOntologyStudioApi, IStudioChatContext, IStudioChatOptions } from '@sudowork/ontology-ui';
 import { ONTOLOGY_DOCUMENT_EXTENSIONS } from '@sudowork/ontology-common';
 import type { OntologyStudioPage } from '@sudowork/ontology-common';
 import { requestStudioAiRepair } from './studioConversation';
@@ -135,7 +135,9 @@ export default function OntologyPage() {
   );
 
   const renderChat = useCallback(
-    (workspaceId: string, workspaceName: string, context?: IStudioChatContext, requestedConversationId?: string) => <StudioConversationPanel key={workspaceId} workspaceId={workspaceId} workspaceName={workspaceName} context={context} requestedConversationId={requestedConversationId} />,
+    (workspaceId: string, workspaceName: string, context?: IStudioChatContext, requestedConversationId?: string, options?: IStudioChatOptions) => (
+      <StudioConversationPanel key={workspaceId} workspaceId={workspaceId} workspaceName={workspaceName} context={context} requestedConversationId={requestedConversationId} isCanonicalReview={options?.modelAuthority === 'sudograph'} />
+    ),
     []
   );
   const onNavigate = useCallback(

@@ -3,6 +3,7 @@ import { Button, Card, Space, Tag, Typography } from '@arco-design/web-react';
 import { useTranslation } from 'react-i18next';
 import type { IOntologyStudioProject } from '@sudowork/ontology-common';
 import styles from './studio.module.css';
+import type { IStudioChatContext, IStudioChatOptions } from './OntologyStudio';
 
 /** A canonical project uses the existing chat, never the legacy RDF editor. */
 export default function StudioSourceProject({ project, renderChat, onBack, onRefresh }: IStudioSourceProjectProps) {
@@ -51,14 +52,14 @@ export default function StudioSourceProject({ project, renderChat, onBack, onRef
         )}
       </Card>
       <Typography.Paragraph style={{ marginTop: 16 }}>{text('sourceConversationHint')}</Typography.Paragraph>
-      <div className={styles['ontology-chat-pane']}>{renderChat(project.workspaceId, project.name)}</div>
+      <div className={styles['ontology-chat-pane']}>{renderChat(project.workspaceId, project.name, undefined, undefined, { modelAuthority: 'sudograph' })}</div>
     </div>
   );
 }
 
 interface IStudioSourceProjectProps {
   project: IOntologyStudioProject;
-  renderChat: (workspaceId: string, name: string) => ReactNode;
+  renderChat: (workspaceId: string, name: string, context?: IStudioChatContext, requestedConversationId?: string, options?: IStudioChatOptions) => ReactNode;
   onBack: () => void;
   onRefresh: () => Promise<void>;
 }

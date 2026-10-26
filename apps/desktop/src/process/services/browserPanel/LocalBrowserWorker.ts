@@ -14,6 +14,12 @@ interface ILocalBrowserWorkerOptions {
   existingExtensionRoot?: string;
 }
 
+/** Private host handoff, absent from the renderer and agent action schemas. */
+export interface IHostPageNavigation {
+  url: string;
+  cookie: { name: string; value: string; url: string; path: string; httpOnly: true; sameSite: 'Strict'; expires: number };
+}
+
 /** Process and authenticated transport adapter; browser behavior belongs to adb. */
 export class LocalBrowserWorker {
   private readonly hostToken = randomBytes(32).toString('hex');
