@@ -169,10 +169,23 @@ A separate source qualification used the installed production Chrome
 155.0.8059.84 with CDP and an isolated profile. AI launch/prefill, the native
 question, interrupt/cancellation persistence, shared viewer, Unicode clipboard,
 composition and one trusted submission succeeded. Its final model readback
-missed the unchanged 180-second deadline, so that complete journey remains
-unaccepted. An earlier cold-runtime journey also missed its 240-second model
-preparation deadline. These partial results do not replace a passing complete
-Desktop journey; the existing personal-profile result remains separate.
+missed the unchanged 180-second deadline. An earlier cold-runtime journey also
+missed its 240-second model preparation deadline. Both failures remain recorded.
+
+A later journey passed with the unmodified, checksum-verified official Windows
+nightly at `329a2b332389c6485f6e6ff153998d1d6a35660e`, public SDK 0.58.6 installed
+through the product's normal cold installer, scode 0.2.36 and a real Sonnet 4.6
+account. The fixture requested direct tool execution and brief English replies;
+all existing assertions and deadlines stayed unchanged. AI launched headful
+standalone Chrome and filled the form. The journey then cancelled a pending
+native question through the normal interrupt, preserved that cancellation after
+reload, verified selection/copy and multiline clipboard/composition input,
+submitted exactly once through trusted browser input, and continued the same
+conversation with an exact model readback. Three distinct browser-status replies
+completed in approximately 1.5 seconds each. The temporary app, background
+services and model configuration were closed normally. This passing journey
+does not establish that the earlier intermittent reply stalls are fixed, nor
+does it qualify the later live-drag SDK or the production WebUI route.
 
 An earlier successful build from
 `324a76b0` does not contain the CLI discovery fix and is not the final promotion
