@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   changed: vi.fn(),
   emit: vi.fn(),
   write: vi.fn(),
+  registerSource: vi.fn(async () => ({ workspaceId: 'new-source', name: 'New source', authority: 'sudograph' })),
   execute: vi.fn(async (input: Record<string, unknown>) => ({ snapshot: { draft: { title: 'Unpublished changes' }, objects: [], relations: [] }, execution: { output: input } })),
 }));
 vi.mock('@/common', () => ({ ipcBridge: { ontology: { modelChanged: { emit: mocks.changed }, workbenchChanged: { emit: mocks.emit } } } }));
@@ -16,8 +17,12 @@ vi.mock('@process/services/ontology/OntologyService', () => ({
   ontologyService: {
     getModelAuthority: mocks.authority,
     invokeSudograph: mocks.invoke,
+    connectStudioSource: mocks.registerSource,
     listWorkbenches: async () => ({ activeWorkspaceId: 'other-workspace' }),
-    getWorkbench: async ({ workspaceId }: { workspaceId: string }) => createDefaultOntologyWorkbenchSnapshot(1, { workspaceId }),
+    getWorkbench: async ({ workspaceId }: { workspaceId: string }) => {
+      if (mocks.authority() === 'sudograph') throw new Error('Canonical projects cannot read RDF snapshots');
+      return createDefaultOntologyWorkbenchSnapshot(1, { workspaceId });
+    },
     executeLogicFunction: mocks.execute,
     upsertObject: async (input: Record<string, unknown>) => {
       mocks.write(input);
@@ -32,6 +37,15 @@ afterEach(async () => {
 });
 
 describe('ontology project bridge scope', () => {
+  it('registers a source from a canonical builder through the shared pipeline without reading RDF', async () => {
+    const bridge = await ensureOntologyWriteBridge({ workspaceId: 'canonical', role: 'builder' });
+    mocks.authority.mockReturnValue('sudograph');
+    const input = { operationId: '123e4567-e89b-42d3-a456-426614174000', language: 'zh', connector: { kind: 'database', sourceType: 'mysql', name: 'Fixture', host: '127.0.0.1', database: 'fixture', username: 'reader', password: 'fixture-only', writable: false, metadata: {} } };
+    const response = await fetch(`http://127.0.0.1:${bridge.port}/tool/register_source`, { method: 'POST', headers: { Authorization: `Bearer ${bridge.token}` }, body: JSON.stringify({ input }) });
+    expect(response.status).toBe(200);
+    expect(mocks.registerSource).toHaveBeenCalledExactlyOnceWith(input);
+    expect((await response.json()).data).toMatchObject({ workspaceId: 'new-source', open_path: '/app/ontology/new-source/model' });
+  });
   it('requires a scoped registered model and emits the compiled revision after a successful edit', async () => {
     const scoped = await ensureOntologyWriteBridge({ workspaceId: 'canonical', role: 'builder' });
     const global = await ensureOntologyWriteBridge();
@@ -49,7 +63,7 @@ describe('ontology project bridge scope', () => {
   });
   it('does not allow a notification binding to query or edit the ontology', async () => {
     const bridge = await ensureOntologyWriteBridge({ workspaceId: 'northwind', role: 'notification' });
-    for (const route of ['execute_logic_function', 'get_snapshot', 'upsert_object', 'publish_current_draft']) {
+    for (const route of ['execute_logic_function', 'get_snapshot', 'upsert_object', 'publish_current_draft', 'register_source']) {
       const response = await fetch('http://127.0.0.1:' + bridge.port + '/tool/' + route, { method: 'POST', headers: { Authorization: 'Bearer ' + bridge.token }, body: '{}' });
       expect(response.status).toBe(403);
     }

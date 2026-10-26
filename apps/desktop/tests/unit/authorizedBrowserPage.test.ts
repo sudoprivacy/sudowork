@@ -118,7 +118,7 @@ describe('private browser host review launch', () => {
     expect(mocks.invoke).toHaveBeenCalledWith(expect.objectContaining({ kind: 'take' }));
   });
 
-  it('refuses old runtimes, unsupported transports and foreign control without installing a cookie', async () => {
+  it('refuses old runtimes and transports; only explicit review navigation can switch control', async () => {
     const { host, control } = fixture();
     delete state.capabilities.authorizedPageLaunch;
     await expect(host.openAuthorizedPage('conversation', input)).rejects.toThrow('reviewRuntimeUnavailable');
@@ -129,8 +129,10 @@ describe('private browser host review launch', () => {
     state.state = 'stopped';
     state.transport = 'cdp';
     await control.take('foreign', async () => {});
-    await expect(host.openAuthorizedPage('conversation', input)).rejects.toThrow();
+    await expect(host.invoke('conversation', { kind: 'start', isHeadless: false, transport: 'cdp' })).rejects.toThrow();
     expect(mocks.invoke.mock.calls.some(([action]) => ['start', 'open-authorized-page'].includes(action.kind))).toBe(false);
+    await expect(host.openAuthorizedPage('conversation', input)).resolves.toEqual({ surface: 'native', conversationId: 'conversation' });
+    expect(control.status()).toMatchObject({ state: 'human', owner: 'conversation', epoch: 2 });
     expect(BrowserSessionActionSchema.safeParse({ kind: 'open-authorized-page', ...input, controlEpoch: 0, targetEpoch: 0 }).success).toBe(false);
   });
 });

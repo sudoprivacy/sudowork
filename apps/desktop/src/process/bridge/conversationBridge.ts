@@ -325,6 +325,219 @@ function scheduleConversationWorkspaceSkillSync(conversation: TChatConversation 
     });
 }
 
+/** Trusted external inputs reuse the same account, browser and turn queue as chat. */
+export async function sendConversationInput({ conversation_id, files, ...other }: Parameters<typeof ipcBridge.conversation.sendMessage.invoke>[0], delivery?: { agentContent?: string; onStarted: () => Promise<void>; onCompleted: (text: string, error?: string) => Promise<void> }) {
+  mainLog('conversationBridge', `sendMessage called: conversation_id=${conversation_id}, msg_id=${other.msg_id}`);
+
+  // A7 guard: team member conversations must go through the team API, not the single-chat API.
+  const teamGuardConv = getDatabase().getConversation(conversation_id);
+  const teamGuardData = teamGuardConv.success ? teamGuardConv.data : undefined;
+  if (teamGuardData) assertConversationAccount(teamGuardData);
+  if (teamGuardData && teamGuardData.type === 'acp' && teamGuardData.extra?.isTeamMember) {
+    return { success: false, msg: 'Team member conversations must use the team API' };
+  }
+
+  let task: AcpAgent | import('../task/RemoteAgent').default | undefined;
+  let browserAdmission: number | undefined;
+  try {
+    if (teamGuardData?.type === 'acp') browserAdmission = await getLocalBrowserSessions().prepareUserMessage(conversation_id, !!delivery);
+    else if (teamGuardData?.type === 'remote-agent') {
+      const { extra, mossSessionId, pending } = getRemoteConversationSession(conversation_id);
+      if (!pending && mossSessionId) await getRemoteConversationMossApi(extra).changeBrowserConversation(mossSessionId, 'continue');
+    }
+    getProviderForConversation(conversation_id);
+    task = (await WorkerManage.getTaskByIdRollbackBuild(conversation_id)) as AcpAgent | import('../task/RemoteAgent').default | undefined;
+  } catch (err) {
+    mainLog('conversationBridge', `sendMessage: failed to get/build task: ${conversation_id}`, err);
+    return { success: false, msg: err instanceof Error ? err.message : 'conversation not found' };
+  }
+
+  if (!task) {
+    mainLog('conversationBridge', `sendMessage: conversation not found: ${conversation_id}`);
+    return { success: false, msg: 'conversation not found' };
+  }
+  mainLog('conversationBridge', `sendMessage: found task type=${task.type}, status=${task.status}`);
+
+  // 复制文件到工作空间（所有 agents 统一处理）
+  let filesToProcess = files ?? [];
+
+  // Download bdpan:// files to workspace before copying
+  const workspace = (task as any).workspace ?? '';
+  const resolvedFiles: string[] = [];
+  for (const f of filesToProcess) {
+    if (f.startsWith('bdpan://')) {
+      // Parse bdpan:///<path>?root=<root>
+      const raw = decodeURIComponent(f.slice('bdpan://'.length));
+      const qIdx = raw.indexOf('?');
+      const remoteFull = qIdx >= 0 ? raw.slice(0, qIdx) : raw;
+      const rootParam = qIdx >= 0 ? (new URLSearchParams(raw.slice(qIdx + 1)).get('root') ?? '') : '';
+      // Strip root prefix to get relative path: /apps/bdpan/abc/haha.jpg -> abc/haha.jpg
+      const rootPrefix = rootParam.endsWith('/') ? rootParam : rootParam + '/';
+      const remoteArg = remoteFull.startsWith(rootPrefix) ? remoteFull.slice(rootPrefix.length) : remoteFull.replace(/^\/+/, '');
+      const filename = remoteFull.split('/').filter(Boolean).pop() ?? 'bdpan_file';
+      const destDir = workspace || os.tmpdir();
+      const localPath = path.join(destDir, filename);
+      mainLog('ConversationBridge', `Downloading bdpan file: ${remoteArg} → ${localPath}`);
+      try {
+        const localBin = `${os.homedir()}/.local/bin`;
+        if (!process.env.PATH?.includes(localBin)) {
+          process.env.PATH = `${localBin}:${process.env.PATH ?? ''}`;
+        }
+        await new Promise<void>((resolve) => {
+          const args = ['download', remoteArg, localPath, '--json'];
+          mainLog('ConversationBridge', `bdpan spawn: bdpan ${args.join(' ')}`);
+          const child = spawn('bdpan', args, {
+            env: { ...process.env, HOME: os.homedir() },
+          });
+          let stdout = '';
+          let stderr = '';
+          child.stdout?.on('data', (d: Buffer) => {
+            stdout += d.toString();
+          });
+          child.stderr?.on('data', (d: Buffer) => {
+            stderr += d.toString();
+          });
+          child.on('close', (code) => {
+            mainLog('ConversationBridge', `bdpan exit code=${code} stdout=${stdout.trim()} stderr=${stderr.trim()}`);
+            let jsonCode: number | undefined;
+            let jsonError: string | undefined;
+            try {
+              const json = JSON.parse(stdout.trim()) as { code?: number; error?: string };
+              jsonCode = json.code;
+              jsonError = json.error || undefined;
+            } catch {
+              // Ignore non-JSON output and fall back to stderr/stdout text.
+            }
+            if (jsonCode === 0) {
+              mainLog('ConversationBridge', `Downloaded ${remoteArg} → ${localPath}`);
+              resolvedFiles.push(localPath);
+              ipcBridge.bdpan.downloadResult.emit({ success: true });
+            } else {
+              const dlErr = jsonError || stderr || stdout || 'bdpan download failed';
+              mainError('ConversationBridge', `bdpan download failed: ${dlErr}`);
+              ipcBridge.bdpan.downloadResult.emit({ success: false, error: dlErr });
+            }
+            resolve();
+          });
+          child.on('error', (err) => {
+            mainError('ConversationBridge', `bdpan spawn error: ${err.message}`);
+            ipcBridge.bdpan.downloadResult.emit({ success: false, error: err.message });
+            resolve();
+          });
+        });
+      } catch (err) {
+        mainError('ConversationBridge', `bdpan download exception: ${err}`);
+      }
+    } else {
+      resolvedFiles.push(f);
+    }
+  }
+  filesToProcess = resolvedFiles;
+
+  // Remote-agent (enterprise/moss) sessions have no usable local workspace —
+  // `workspace` is empty, so copyFilesToDirectory would resolve to the
+  // packaged app's read-only cwd and fail (EROFS), dropping the attachment.
+  // Pass the original local paths straight through; RemoteAgent.sendMessage
+  // uploads them into the moss session's server-side workspace and rewrites
+  // them to workspace-relative `@` refs. Local agents keep the copy-to-cwd path.
+  const workspaceFiles = task.type === 'remote-agent' ? filesToProcess : await copyFilesToDirectory(workspace, filesToProcess, false);
+
+  let conversation: TChatConversation | undefined;
+  try {
+    const db = getDatabase();
+    const convResult = db.getConversation(conversation_id);
+    if (convResult.success && convResult.data) {
+      conversation = convResult.data;
+    }
+  } catch {
+    // ignore
+  }
+
+  const requestedSkills = await filterEnabledSkillNames(other.skills);
+
+  // Ensure workspace skills symlinks exist before dispatching to the gateway.
+  // syncConversationWorkspaceSkills is idempotent — it skips symlinks that are already correct.
+  await queueConversationWorkspaceSkillSync(conversation, requestedSkills);
+
+  try {
+    const payload: { content: string; agentContent?: string; files: string[]; msg_id: string; skills?: string[] } = {
+      content: other.input,
+      ...(delivery?.agentContent ? { agentContent: delivery.agentContent } : {}),
+      files: workspaceFiles,
+      msg_id: other.msg_id,
+      skills: requestedSkills || [],
+    };
+
+    mainLog('conversationBridge', `sendMessage: about to call task.sendMessage for ${conversation_id}`);
+
+    // Set up channel response routing if conversation source is a channel type
+    if (conversation) {
+      setupChannelResponseRouting(conversation);
+    }
+
+    // Local (ACP) interactive path routes through the turn-input coordinator so a new
+    // message can interrupt or queue against an in-flight turn (settings-gated). The
+    // coordinator returns at accept/queue time (not turn end) — safe because the
+    // renderer drives turn lifecycle + errors via the response stream, not this result.
+    // See docs/plans/2026-07-01-conversation-interrupt-and-queue.html.
+    if (other.delivery && task.type === 'remote-agent') return (task as RemoteAgent).sendMessage({ ...payload, delivery: other.delivery });
+    if (task.type === 'acp') {
+      if (other.delivery) {
+        localAgentToolControl.assertCanPrompt(browserAdmission);
+        const result = await (task as AcpAgent).submitInput({ ...payload, delivery: other.delivery });
+        return { success: result.success, msg: result.msg || result.message };
+      }
+      const autoInterrupt = (await ProcessConfig.get('agent.autoInterrupt').catch(() => false)) === true;
+      const messageQueue = (await ProcessConfig.get('agent.messageQueue').catch(() => true)) !== false;
+      const status = turnInputCoordinator.submit(
+        conversation_id,
+        {
+          id: payload.msg_id,
+          content: payload.content,
+          solo: !!delivery,
+          // Batched flush (§3.2): when the coordinator flushes N queued items at turn-end,
+          // it hands the tail (N-1 items) to this head. We merge their text into the head's
+          // user message so exactly ONE session/prompt goes out for the whole batch. Only
+          // text is merged — tail items are text-only in practice (queued sends without
+          // attachments); their `files`/`skills` slots are not exposed to the coordinator.
+          run: async (tail) => {
+            try {
+              localAgentToolControl.assertCanPrompt(browserAdmission);
+              await delivery?.onStarted();
+              const combined = [payload.content, ...(tail || []).map((t) => t.content)].join('\n\n');
+              const result = await task.sendMessage({ ...payload, content: combined });
+              await delivery?.onCompleted((task as AcpAgent).getLastTurnProseText(), result?.success === false ? 'The agent turn failed.' : undefined);
+              return result;
+            } catch (error) {
+              await delivery?.onCompleted('', error instanceof Error ? error.message : 'The agent turn failed.');
+              throw error;
+            }
+          },
+        },
+        () => task.stop(),
+        { autoInterrupt, messageQueue },
+        emitInputQueue(conversation_id)
+      );
+      mainLog('conversationBridge', `sendMessage: coordinator status=${status} for ${conversation_id}`);
+      return status === 'busy' ? { success: false, msg: 'busy' } : { success: true };
+    }
+
+    try {
+      await delivery?.onStarted();
+      await task.sendMessage(payload);
+      await delivery?.onCompleted('');
+      mainLog('conversationBridge', `sendMessage: task.sendMessage completed for ${conversation_id}`);
+    } finally {
+      // Listener will self-cleanup on 'finish' event
+    }
+    return { success: true };
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    mainError('conversationBridge', `sendMessage failed for ${conversation_id}: ${errorMessage}`, err);
+    return { success: false, msg: errorMessage };
+  }
+}
+
 export function initConversationBridge(): void {
   ipcBridge.conversation.create.provider(async (params): Promise<TChatConversation | { __error: string }> => {
     try {
@@ -848,205 +1061,7 @@ export function initConversationBridge(): void {
   });
 
   // 通用 sendMessage 实现 - 自动根据 conversation 类型分发
-  ipcBridge.conversation.sendMessage.provider(async ({ conversation_id, files, ...other }) => {
-    mainLog('conversationBridge', `sendMessage called: conversation_id=${conversation_id}, msg_id=${other.msg_id}`);
-
-    // A7 guard: team member conversations must go through the team API, not the single-chat API.
-    const teamGuardConv = getDatabase().getConversation(conversation_id);
-    const teamGuardData = teamGuardConv.success ? teamGuardConv.data : undefined;
-    if (teamGuardData && teamGuardData.type === 'acp' && teamGuardData.extra?.isTeamMember) {
-      return { success: false, msg: 'Team member conversations must use the team API' };
-    }
-
-    let task: AcpAgent | import('../task/RemoteAgent').default | undefined;
-    let browserAdmission: number | undefined;
-    try {
-      if (teamGuardData?.type === 'acp') browserAdmission = await getLocalBrowserSessions().prepareUserMessage(conversation_id);
-      else if (teamGuardData?.type === 'remote-agent') {
-        const { extra, mossSessionId, pending } = getRemoteConversationSession(conversation_id);
-        if (!pending && mossSessionId) await getRemoteConversationMossApi(extra).changeBrowserConversation(mossSessionId, 'continue');
-      }
-      getProviderForConversation(conversation_id);
-      task = (await WorkerManage.getTaskByIdRollbackBuild(conversation_id)) as AcpAgent | import('../task/RemoteAgent').default | undefined;
-    } catch (err) {
-      mainLog('conversationBridge', `sendMessage: failed to get/build task: ${conversation_id}`, err);
-      return { success: false, msg: err instanceof Error ? err.message : 'conversation not found' };
-    }
-
-    if (!task) {
-      mainLog('conversationBridge', `sendMessage: conversation not found: ${conversation_id}`);
-      return { success: false, msg: 'conversation not found' };
-    }
-    mainLog('conversationBridge', `sendMessage: found task type=${task.type}, status=${task.status}`);
-
-    // 复制文件到工作空间（所有 agents 统一处理）
-    let filesToProcess = files ?? [];
-
-    // Download bdpan:// files to workspace before copying
-    const workspace = (task as any).workspace ?? '';
-    const resolvedFiles: string[] = [];
-    for (const f of filesToProcess) {
-      if (f.startsWith('bdpan://')) {
-        // Parse bdpan:///<path>?root=<root>
-        const raw = decodeURIComponent(f.slice('bdpan://'.length));
-        const qIdx = raw.indexOf('?');
-        const remoteFull = qIdx >= 0 ? raw.slice(0, qIdx) : raw;
-        const rootParam = qIdx >= 0 ? (new URLSearchParams(raw.slice(qIdx + 1)).get('root') ?? '') : '';
-        // Strip root prefix to get relative path: /apps/bdpan/abc/haha.jpg -> abc/haha.jpg
-        const rootPrefix = rootParam.endsWith('/') ? rootParam : rootParam + '/';
-        const remoteArg = remoteFull.startsWith(rootPrefix) ? remoteFull.slice(rootPrefix.length) : remoteFull.replace(/^\/+/, '');
-        const filename = remoteFull.split('/').filter(Boolean).pop() ?? 'bdpan_file';
-        const destDir = workspace || os.tmpdir();
-        const localPath = path.join(destDir, filename);
-        mainLog('ConversationBridge', `Downloading bdpan file: ${remoteArg} → ${localPath}`);
-        try {
-          const localBin = `${os.homedir()}/.local/bin`;
-          if (!process.env.PATH?.includes(localBin)) {
-            process.env.PATH = `${localBin}:${process.env.PATH ?? ''}`;
-          }
-          await new Promise<void>((resolve) => {
-            const args = ['download', remoteArg, localPath, '--json'];
-            mainLog('ConversationBridge', `bdpan spawn: bdpan ${args.join(' ')}`);
-            const child = spawn('bdpan', args, {
-              env: { ...process.env, HOME: os.homedir() },
-            });
-            let stdout = '';
-            let stderr = '';
-            child.stdout?.on('data', (d: Buffer) => {
-              stdout += d.toString();
-            });
-            child.stderr?.on('data', (d: Buffer) => {
-              stderr += d.toString();
-            });
-            child.on('close', (code) => {
-              mainLog('ConversationBridge', `bdpan exit code=${code} stdout=${stdout.trim()} stderr=${stderr.trim()}`);
-              let jsonCode: number | undefined;
-              let jsonError: string | undefined;
-              try {
-                const json = JSON.parse(stdout.trim()) as { code?: number; error?: string };
-                jsonCode = json.code;
-                jsonError = json.error || undefined;
-              } catch {
-                // Ignore non-JSON output and fall back to stderr/stdout text.
-              }
-              if (jsonCode === 0) {
-                mainLog('ConversationBridge', `Downloaded ${remoteArg} → ${localPath}`);
-                resolvedFiles.push(localPath);
-                ipcBridge.bdpan.downloadResult.emit({ success: true });
-              } else {
-                const dlErr = jsonError || stderr || stdout || 'bdpan download failed';
-                mainError('ConversationBridge', `bdpan download failed: ${dlErr}`);
-                ipcBridge.bdpan.downloadResult.emit({ success: false, error: dlErr });
-              }
-              resolve();
-            });
-            child.on('error', (err) => {
-              mainError('ConversationBridge', `bdpan spawn error: ${err.message}`);
-              ipcBridge.bdpan.downloadResult.emit({ success: false, error: err.message });
-              resolve();
-            });
-          });
-        } catch (err) {
-          mainError('ConversationBridge', `bdpan download exception: ${err}`);
-        }
-      } else {
-        resolvedFiles.push(f);
-      }
-    }
-    filesToProcess = resolvedFiles;
-
-    // Remote-agent (enterprise/moss) sessions have no usable local workspace —
-    // `workspace` is empty, so copyFilesToDirectory would resolve to the
-    // packaged app's read-only cwd and fail (EROFS), dropping the attachment.
-    // Pass the original local paths straight through; RemoteAgent.sendMessage
-    // uploads them into the moss session's server-side workspace and rewrites
-    // them to workspace-relative `@` refs. Local agents keep the copy-to-cwd path.
-    const workspaceFiles = task.type === 'remote-agent' ? filesToProcess : await copyFilesToDirectory(workspace, filesToProcess, false);
-
-    let conversation: TChatConversation | undefined;
-    try {
-      const db = getDatabase();
-      const convResult = db.getConversation(conversation_id);
-      if (convResult.success && convResult.data) {
-        conversation = convResult.data;
-      }
-    } catch {
-      // ignore
-    }
-
-    const requestedSkills = await filterEnabledSkillNames(other.skills);
-
-    // Ensure workspace skills symlinks exist before dispatching to the gateway.
-    // syncConversationWorkspaceSkills is idempotent — it skips symlinks that are already correct.
-    await queueConversationWorkspaceSkillSync(conversation, requestedSkills);
-
-    try {
-      const payload: { content: string; agentContent?: string; files: string[]; msg_id: string; skills?: string[] } = {
-        content: other.input,
-        files: workspaceFiles,
-        msg_id: other.msg_id,
-        skills: requestedSkills || [],
-      };
-
-      mainLog('conversationBridge', `sendMessage: about to call task.sendMessage for ${conversation_id}`);
-
-      // Set up channel response routing if conversation source is a channel type
-      if (conversation) {
-        setupChannelResponseRouting(conversation);
-      }
-
-      // Local (ACP) interactive path routes through the turn-input coordinator so a new
-      // message can interrupt or queue against an in-flight turn (settings-gated). The
-      // coordinator returns at accept/queue time (not turn end) — safe because the
-      // renderer drives turn lifecycle + errors via the response stream, not this result.
-      // See docs/plans/2026-07-01-conversation-interrupt-and-queue.html.
-      if (other.delivery && task.type === 'remote-agent') return (task as RemoteAgent).sendMessage({ ...payload, delivery: other.delivery });
-      if (task.type === 'acp') {
-        if (other.delivery) {
-          localAgentToolControl.assertCanPrompt(browserAdmission);
-          const result = await (task as AcpAgent).submitInput({ ...payload, delivery: other.delivery });
-          return { success: result.success, msg: result.msg || result.message };
-        }
-        const autoInterrupt = (await ProcessConfig.get('agent.autoInterrupt').catch(() => false)) === true;
-        const messageQueue = (await ProcessConfig.get('agent.messageQueue').catch(() => true)) !== false;
-        const status = turnInputCoordinator.submit(
-          conversation_id,
-          {
-            id: payload.msg_id,
-            content: payload.content,
-            // Batched flush (§3.2): when the coordinator flushes N queued items at turn-end,
-            // it hands the tail (N-1 items) to this head. We merge their text into the head's
-            // user message so exactly ONE session/prompt goes out for the whole batch. Only
-            // text is merged — tail items are text-only in practice (queued sends without
-            // attachments); their `files`/`skills` slots are not exposed to the coordinator.
-            run: (tail) => {
-              localAgentToolControl.assertCanPrompt(browserAdmission);
-              if (!tail || tail.length === 0) return task.sendMessage(payload);
-              const combined = [payload.content, ...tail.map((t) => t.content)].join('\n\n');
-              return task.sendMessage({ ...payload, content: combined });
-            },
-          },
-          () => task.stop(),
-          { autoInterrupt, messageQueue },
-          emitInputQueue(conversation_id)
-        );
-        mainLog('conversationBridge', `sendMessage: coordinator status=${status} for ${conversation_id}`);
-        return status === 'busy' ? { success: false, msg: 'busy' } : { success: true };
-      }
-
-      try {
-        await task.sendMessage(payload);
-        mainLog('conversationBridge', `sendMessage: task.sendMessage completed for ${conversation_id}`);
-      } finally {
-        // Listener will self-cleanup on 'finish' event
-      }
-      return { success: true };
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      mainError('conversationBridge', `sendMessage failed for ${conversation_id}: ${errorMessage}`, err);
-      return { success: false, msg: errorMessage };
-    }
-  });
+  ipcBridge.conversation.sendMessage.provider((input) => sendConversationInput(input));
 
   ipcBridge.conversation.inputControl.provider(async ({ conversation_id, action }) => {
     try {

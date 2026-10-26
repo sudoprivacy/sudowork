@@ -30,7 +30,7 @@ SUDOGRAPH_MODEL_DIRECTORY=<host-owned canonical stores>
 ```
 
 The trusted host calls `OntologyService.registerSudographSourceProject` with its
-workspace identity, title, opaque model reference, authorized SQLite source,
+workspace identity, title, opaque model reference, authorized source,
 namespace, operation ID and locale. `SudographModelClient.registerSource` invokes
 the private registrar, forces live delivery with zero embedded rows and checks
 the compiler's complete-scan receipt before binding project authority. A failed
@@ -40,13 +40,22 @@ creation and host project binding. A different registration cannot rebind the
 model. The existing lower-level `registerSudographProject` remains available for
 deployment tooling that already owns a registered canonical store.
 
-There is no agent tool for choosing source paths, changing authority or
-registering a different source. Missing configuration fails explicitly, without
-RDF fallback. The native library now connects SQLite through the shared form and
-typed IPC providers. Pinned runtime packaging remains subsequent work. Users
-are not expected to run operator commands during normal modelling.
-Complete registration currently supports
-SQLite only, independent of legacy connector probe support for other providers.
+The connection form and `sudograph_source_register` tool use the same checked
+registration pipeline. Both accept SQLite, PostgreSQL and MySQL; neither lets an
+author choose model storage, namespace or authority. The source tool returns the
+registered project and its `open_path`; connecting another source does not silently
+replace the current project's baseline. Missing runtime configuration fails explicitly.
+Users do not run operator commands during normal modelling.
+
+Sudowork owns network drivers and OS-encrypted source credentials. A private,
+short-lived loopback transport supplies provider reads to the compiler; YAML holds
+only `registered://<opaque identity>`. Reads run in a read-only repeatable-read
+transaction and registration rechecks the catalogue before publication. Discovery
+exhausts the registered schema's SELECT-visible objects without a row-count cap.
+Unsupported consistency, unavailable view definitions and unresolved structure fail
+the scan instead of yielding a complete receipt. PG foreign tables and MySQL
+non-InnoDB tables currently require another provider contract. Exact decimal, large
+integer and binary values have explicit wire encodings for live record pages.
 
 `SudographModelClient` launches a private JSON-lines worker with deployment-owned
 paths. The model writer checks source pins, namespace, identity reservations,
@@ -75,9 +84,10 @@ duplicates that host-owned prompt selection.
 
 Configured desktop deployments offer **Connect database** in the existing
 library. The host derives model reference, project identity and namespace from
-the registration operation. Intake accepts a read-only SQLite connector and
-refuses caller-selected bindings, credentials, unsupported providers and relative
-paths. Unconfigured deployments retain legacy creation; canonical projects never
+the registration operation. Intake accepts shared read-only database connectors and
+refuses caller-selected bindings, unsupported providers and relative SQLite paths.
+Database passwords are stored by the host, not model YAML or renderer storage.
+Unconfigured deployments retain legacy creation; canonical projects never
 fall back to RDF.
 
 The form retains only an opaque operation ID and locale across reloads, without
@@ -86,6 +96,12 @@ the host project registry. A completed registration opens the existing project
 without rescanning. If no project exists, selecting the source again retries the
 same compiler operation, including recovery between model publication and host
 binding. The retry handle is cleared after success.
+
+Registration also reserves its host identity before scanning. Concurrent requests
+for the same account/source join one operation. A later request recovers that
+reservation after interruption; reconnecting with a new name/password retains the
+existing project and business edits. Address migration still requires explicit
+registration evidence rather than an LLM identity guess.
 
 The library lists both authorities. Canonical details use the private `overview`
 operation: current revision/context digest and source registration receipt. They
@@ -124,6 +140,13 @@ reuses Sudograph's checked renderer and version-bound record reader.
 
 The canonical Studio conversation exposes **Open review** after its persisted
 conversation is ready. The renderer sends only project and conversation IDs.
+Its chat embeds the regular `ChatConversation` shell, including the shared
+workspace, browser, terminal and deliverables panels. The browser panel observes
+the same conversation-owned browser as the standalone review window; there is no
+second graph renderer or review session for the panel. Owned model conversations
+also appear in the normal account-scoped history. Opening one through the general
+conversation route returns to its owning project and selected model conversation.
+
 The host resolves those identities, prepares the private session and asks
 `LocalBrowserSessions.openAuthorizedPage` to install its cookie before navigation.
 An unsuccessful browser launch revokes the application session. Credentials do
@@ -145,8 +168,45 @@ Account transitions first stop the local engines, then close the old browser
 workers and revoke their MCP tokens. Admission reopens only after shutdown is
 acknowledged, with a new epoch rejecting previously queued prompts. Failure keeps
 the fence held. Restoring an older profile with a retired account's browser lease
-uses the same checked shutdown path; another live conversation's human lease is
-never silently taken over.
+uses the same checked shutdown path. An explicit Open review action can switch
+the review conversation after acknowledged engine pauses, including restart
+recovery. Ordinary browser actions and chat cannot take another conversation's lease.
+
+## Default-on private comments
+
+The normal host installs the pinned ShareOne review shell through the standard
+development/package scripts and includes its checked assets in `extraResources`.
+No caller must remember an environment override. Only an unpackaged developer
+build accepts `SUDOWORK_SHAREONE_REVIEW_ASSETS` for isolated review-shell work.
+The pinned ShareOne source repository is private. CI builds use
+`SHAREONE_REVIEW_GITHUB_TOKEN` (or the existing release `GH_TOKEN`) with read access
+to that repository. Git receives it through a repository-scoped process environment
+header, never a URL or command argument. Frontend installation uses the host Node/npm
+layout and drops Electron and cross-compilation target overrides before building
+the shell. Local development may use its configured Git credential helper or the
+verified `SHAREONE_REVIEW_SOURCE` checkout.
+
+The host serves the real ShareOne composer, sidebar and anchor SDK around local
+compiler output. It registers a private owner/collaborator ShareOne comment space
+with an empty placeholder document; the database-backed graph and live records
+remain on the authorized host. Existing ShareOne login pairs a current user's
+credential into the host vault. Provider credentials never enter page config,
+sandbox messages or browser replies. Comments default on; missing account pairing
+is visible instead of a read-only page claiming to be an integrated review.
+
+The host stamps top-level comments with the actually served revision, project and
+conversation. ShareOne's existing durable consumer API supplies comment events.
+The existing Studio SQLite registry commits an inbox before ACK; delivery joins
+the ordinary conversation queue and agent process. Agent responses are persisted
+before posting to the original thread. Failed posting retries the saved reply,
+not the LLM turn. A recorded but uncertain interrupted turn is held for explicit
+recovery instead of duplicated. Wrong-account callbacks and unrelated shares are
+refused. Multiple review sessions do not fan a bound thread into other agents.
+
+Checked edits refresh the same iframe after an active comment draft ends.
+Stable source anchors can reveal their target in another view and then read live
+records through the authenticated parent gateway. Source data is never modified;
+comment resolution alone does not confirm a business definition.
 
 `tests/integration/sudographReviewLaunch.live.ts` exercises the actual compiler,
 HTTP host, worker and Chrome in both modes, without fixture cookie installation.
@@ -202,7 +262,9 @@ TypeScript client against the real Python compiler on unrelated SQLite data.
 
 The native adapter currently runs as the local desktop profile. It does not
 establish cloud tenant authorization. Cloud connector UI, deployed WebUI review
-launch and automatic page refresh,
-active-session context refresh, ShareOne event delivery, revocation and the
-Moss/WebUI provider remain outstanding. These must be accepted before claiming
+launch, active-session context refresh and the Moss/WebUI provider remain
+outstanding. Native authenticated paging, two real comment/edit/reply rounds,
+automatic graph refresh and stable identity were accepted on isolated fixtures.
+These native receipts do not establish production cloud comment delivery or
+multi-user authorization. Remaining cloud boundaries must be accepted before claiming
 the complete multi-user integration or enabling the adapter as a default UI.

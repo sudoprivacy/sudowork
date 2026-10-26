@@ -32,3 +32,20 @@ export async function getShareoneApiKeyEnterprise(): Promise<string | null> {
     return null;
   }
 }
+
+/** Explicit account pairing; keep the key in the current user's existing Vault. */
+export async function saveShareoneApiKeyEnterprise(apiKey: string | null): Promise<boolean> {
+  if (!isEnterpriseMode()) return false;
+  const userId = getUserId();
+  const serverUrl = getMossServerUrl();
+  if (!userId || !serverUrl) throw new Error('Sign in before connecting ShareOne.');
+  const { getValidToken } = await import('@process/bridge/eeclawBridge');
+  const authToken = await getValidToken();
+  if (getUserId() !== userId || getMossServerUrl() !== serverUrl) throw new Error('Account changed during ShareOne pairing.');
+  const client = new MossSecretClient(serverUrl, authToken, userId);
+  const namespace = buildNamespace('shareone', userId);
+  if (apiKey) await client.putSecret(namespace, 'shareone_key', apiKey);
+  else for (const key of ['shareone_key', 'api_key', 'X-API-Key']) await client.deleteSecret(namespace, key);
+  if (getUserId() !== userId || getMossServerUrl() !== serverUrl) throw new Error('Account changed during ShareOne pairing.');
+  return true;
+}

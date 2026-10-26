@@ -29,6 +29,21 @@ interface IStudioOperation {
 
 export type OntologyProject = { id: string; title: string; authority: 'rdf'; modelRef: null } | { id: string; title: string; authority: 'sudograph'; modelRef: string };
 
+export interface IReviewSubscription {
+  id: string;
+  workspaceId: string;
+  conversationId: string;
+  account: string;
+  shareId: string;
+}
+export interface IReviewInboxItem {
+  id: string;
+  subscription: IReviewSubscription;
+  event: { id: string; share_id: string; comment_id: string; parent_id: string | null; event_type: string; actor_role: string };
+  status: string;
+  messageId: string;
+}
+
 /** Independent storage for the redesigned workbench; legacy ontology data is never migrated. */
 export class OntologyStudioDatabase implements IOntologyRepository {
   private readonly db: BetterSqlite3.Database;
@@ -57,6 +72,22 @@ export class OntologyStudioDatabase implements IOntologyRepository {
       )`);
       const projectColumns = this.db.prepare('PRAGMA table_info(studio_projects)').all() as Array<{ name: string }>;
       if (!projectColumns.some((column) => column.name === 'created_at')) this.db.exec('ALTER TABLE studio_projects ADD COLUMN created_at INTEGER NOT NULL DEFAULT 0');
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS studio_review_subscriptions (
+          id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL REFERENCES studio_projects(id),
+          conversation_id TEXT NOT NULL, account TEXT NOT NULL, share_id TEXT NOT NULL,
+          UNIQUE(conversation_id, share_id, account)
+        );
+        CREATE TABLE IF NOT EXISTS studio_review_inbox (
+          id TEXT PRIMARY KEY, subscription_id TEXT NOT NULL REFERENCES studio_review_subscriptions(id),
+          event_id TEXT NOT NULL, payload TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending',
+          message_id TEXT NOT NULL, error TEXT, created_at INTEGER NOT NULL,
+          UNIQUE(subscription_id, event_id)
+        );
+      `);
+      const inboxColumns = this.db.prepare('PRAGMA table_info(studio_review_inbox)').all() as Array<{ name: string }>;
+      if (!inboxColumns.some((column) => column.name === 'input_digest')) this.db.exec('ALTER TABLE studio_review_inbox ADD COLUMN input_digest TEXT');
+      this.db.exec('CREATE UNIQUE INDEX IF NOT EXISTS studio_review_input ON studio_review_inbox(subscription_id,input_digest) WHERE input_digest IS NOT NULL');
       const workspaces = this.db.prepare('SELECT id FROM studio_workspaces').all() as Array<{ id: string }>;
       for (const { id } of workspaces) this.db.prepare("INSERT OR IGNORE INTO studio_projects (id, title, authority, model_ref) VALUES (?, ?, 'rdf', NULL)").run(id, id);
       const foreignKeys = this.db.prepare('PRAGMA foreign_key_list(studio_sessions)').all() as Array<{ table: string }>;
@@ -185,6 +216,85 @@ export class OntologyStudioDatabase implements IOntologyRepository {
 
   setActiveWorkspaceId(workspaceId: string): void {
     this.db.prepare('INSERT INTO studio_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run('activeWorkspace', workspaceId);
+  }
+
+  /** Host registries only. Never expose arbitrary settings or secret keys to tools. */
+  getHostValue<T>(key: string): T | null {
+    const row = this.db.prepare('SELECT value FROM studio_settings WHERE key = ?').get(key) as { value: string } | undefined;
+    return row ? (JSON.parse(row.value) as T) : null;
+  }
+
+  setHostValue(key: string, value: unknown): void {
+    if (value === null) this.db.prepare('DELETE FROM studio_settings WHERE key = ?').run(key);
+    else this.db.prepare('INSERT INTO studio_settings VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(key, JSON.stringify(value));
+  }
+
+  getHostSecret(key: string): string | null {
+    const value = this.getHostValue<string>('secret:' + key);
+    if (value === null) return null;
+    if (!value.startsWith('encrypted:') || !safeStorage.isEncryptionAvailable()) throw new Error('Host secret storage is unavailable.');
+    return safeStorage.decryptString(Buffer.from(value.slice(10), 'base64'));
+  }
+
+  setHostSecret(key: string, value: string | null): void {
+    if (value === null) return this.setHostValue('secret:' + key, null);
+    if (!safeStorage.isEncryptionAvailable()) throw new Error('Enable OS secret storage before saving credentials.');
+    this.setHostValue('secret:' + key, 'encrypted:' + safeStorage.encryptString(value).toString('base64'));
+  }
+
+  subscribeReview(value: IReviewSubscription): void {
+    const existing = this.db.prepare('SELECT id,workspace_id,conversation_id,account,share_id FROM studio_review_subscriptions WHERE id = ?').get(value.id) as { workspace_id: string; conversation_id: string; account: string; share_id: string } | undefined;
+    if (existing && (existing.workspace_id !== value.workspaceId || existing.conversation_id !== value.conversationId || existing.account !== value.account || existing.share_id !== value.shareId)) throw new Error('Review subscription cannot be rebound.');
+    this.db.prepare('INSERT OR IGNORE INTO studio_review_subscriptions VALUES (?, ?, ?, ?, ?)').run(value.id, value.workspaceId, value.conversationId, value.account, value.shareId);
+  }
+
+  reviewSubscriptions(workspaceId: string, shareId: string): IReviewSubscription[] {
+    return this.db.prepare('SELECT id, workspace_id AS workspaceId, conversation_id AS conversationId, account, share_id AS shareId FROM studio_review_subscriptions WHERE workspace_id = ? AND share_id = ?').all(workspaceId, shareId) as IReviewSubscription[];
+  }
+
+  acceptReviewEvents(items: Array<{ id: string; subscription: IReviewSubscription; event: IReviewInboxItem['event']; messageId: string }>): void {
+    this.db.transaction(() => {
+      for (const item of items) this.db.prepare('INSERT OR IGNORE INTO studio_review_inbox (id,subscription_id,event_id,payload,message_id,created_at) VALUES (?, ?, ?, ?, ?, ?)').run(item.id, item.subscription.id, item.event.id, JSON.stringify(item.event), item.messageId, Date.now());
+    })();
+  }
+
+  reviewInbox(account: string): IReviewInboxItem[] {
+    const rows = this.db
+      .prepare(
+        `SELECT i.id,i.payload,i.status,i.message_id,s.id AS binding_id,s.workspace_id,s.conversation_id,s.account,s.share_id
+      FROM studio_review_inbox i JOIN studio_review_subscriptions s ON i.subscription_id=s.id
+      WHERE s.account = ? AND i.status IN ('pending','running','error') ORDER BY i.created_at,i.id`
+      )
+      .all(account) as Array<Record<string, string>>;
+    return rows.map((row) => ({ id: row.id, event: JSON.parse(row.payload), status: row.status, messageId: row.message_id, subscription: { id: row.binding_id, workspaceId: row.workspace_id, conversationId: row.conversation_id, account: row.account, shareId: row.share_id } }));
+  }
+
+  finishReviewEvent(id: string, status: 'running' | 'delivered' | 'error' | 'ignored', error: string | null = null): void {
+    this.db.prepare('UPDATE studio_review_inbox SET status = ?, error = ? WHERE id = ?').run(status, error, id);
+  }
+
+  reviewDeliverySummary(account: string, workspaceId: string, conversationId: string): Record<string, number> {
+    const rows = this.db
+      .prepare(
+        `SELECT i.status,count(*) AS total FROM studio_review_inbox i
+      JOIN studio_review_subscriptions s ON i.subscription_id=s.id
+      WHERE s.account=? AND s.workspace_id=? AND s.conversation_id=? GROUP BY i.status`
+      )
+      .all(account, workspaceId, conversationId) as Array<{ status: string; total: number }>;
+    return Object.fromEntries(rows.map((row) => [row.status === 'error' ? 'failed' : row.status, row.total]));
+  }
+
+  /** A screenshot/update event for the same human discussion is not a new turn. */
+  claimReviewInput(id: string, digest: string): boolean {
+    return this.db.transaction(() => {
+      const other = this.db.prepare('SELECT id FROM studio_review_inbox WHERE subscription_id=(SELECT subscription_id FROM studio_review_inbox WHERE id=?) AND input_digest=? AND id<>?').get(id, digest, id);
+      if (other) {
+        this.finishReviewEvent(id, 'ignored', 'DUPLICATE_HUMAN_INPUT');
+        return false;
+      }
+      this.db.prepare('UPDATE studio_review_inbox SET input_digest=? WHERE id=?').run(digest, id);
+      return true;
+    })();
   }
 
   listAiSessions(workspaceId?: string): IOntologyAiSessionRow[] {

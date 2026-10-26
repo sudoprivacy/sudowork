@@ -4,6 +4,7 @@ import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import type {
+  IOntologyConnectSourceInput,
   IOntologyActionDefinitionInput,
   IOntologyAgentBlueprintInput,
   IOntologyAttributeDraftInput,
@@ -61,6 +62,10 @@ export async function ontologyDesktopNotificationBinding(workspaceId: string) {
 }
 
 const handlers: Record<string, Handler> = {
+  register_source: async ({ input }) => {
+    const project = await ontologyService.connectStudioSource(input as unknown as IOntologyConnectSourceInput);
+    return { ...project, open_path: `/app/ontology/${encodeURIComponent(project.workspaceId)}/model` };
+  },
   preview_asset: async ({ workspaceId, input }) => ontologyService.previewAsset({ workspaceId, id: String(input.id || ''), limit: typeof input.limit === 'number' ? input.limit : 20 }),
   get_snapshot: async ({ workspaceId }) => ontologyService.getWorkbench({ workspaceId }),
   update_draft: async ({ input }) => ontologyService.updateDraft(sanitize(input, ['title', 'description', 'businessGoal', 'selectedAssetIds'])),
@@ -206,6 +211,13 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     }
     const workspaceId = scoped?.workspaceId || (typeof body.workspaceId === 'string' && body.workspaceId ? body.workspaceId : await resolveActiveWorkspaceId());
     const input = (body.input && typeof body.input === 'object' ? body.input : {}) as Record<string, unknown>;
+    if (toolName === 'register_source') {
+      // Source intake owns its own registry and compiler checks. It must not
+      // enter the legacy RDF snapshot guard for a canonical model conversation.
+      const data = await handler({ workspaceId, input });
+      writeJson(res, 200, { ok: true, data });
+      return;
+    }
     if (isSudographTool) {
       if (scoped?.role !== 'builder' || ontologyService.getModelAuthority(workspaceId) !== 'sudograph') {
         writeJson(res, 403, { ok: false, message: 'Sudograph tools require a session bound to its registered model.' });

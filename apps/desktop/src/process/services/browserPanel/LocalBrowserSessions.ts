@@ -74,13 +74,29 @@ export class LocalBrowserSessions {
   }
 
   /** An ordinary authenticated chat send resumes the existing lease once. */
-  async prepareUserMessage(conversationId: string): Promise<number> {
+  async prepareUserMessage(conversationId: string, isReviewInput = false): Promise<number> {
     let host = this.options.control.status();
     if (host.owner && this.options.isConversationCurrent && !(await this.options.isConversationCurrent(host.owner))) {
       await this.options.control.retireAfterShutdown(() => this.close());
       host = this.options.control.status();
     }
     if (host.state === 'ai') return this.options.control.assertCanPrompt(host.epoch);
+    if (isReviewInput && host.state === 'human' && host.owner !== conversationId) {
+      const worker = await this.worker(conversationId);
+      await this.options.control.take(
+        conversationId,
+        async () => {
+          const { session } = await this.state(worker);
+          if (session.state === 'stopped') throw new Error('Reopen the bound review before delivering its comments.');
+          if (session.state !== 'human' || !session.isController) {
+            const acquired = BrowserSessionReplySchema.parse(await worker.invoke({ kind: 'take', controlEpoch: session.controlEpoch, targetEpoch: session.targetEpoch }));
+            if (!acquired.session.isController) throw new Error('Review browser takeover was not acknowledged.');
+          }
+        },
+        true
+      );
+      host = this.options.control.status();
+    }
     if (host.owner !== conversationId || !['human', 'error'].includes(host.state)) throw new Error('Browser control transfer is in progress or belongs to another conversation');
     const worker = await this.worker(conversationId);
     const { session } = await this.state(worker);
@@ -97,7 +113,7 @@ export class LocalBrowserSessions {
     return true;
   }
 
-  async invoke(conversationId: string, value: BrowserSessionAction, isConversationContinuation = false): Promise<BrowserSessionReply> {
+  async invoke(conversationId: string, value: BrowserSessionAction, isConversationContinuation = false, isReviewNavigation = false): Promise<BrowserSessionReply> {
     const action = BrowserSessionActionSchema.parse(value);
     if (action.kind === 'state' && !this.workers.has(conversationId)) {
       if (!conversationId || conversationId.length > 256) throw new Error('Invalid local browser conversation');
@@ -130,7 +146,7 @@ export class LocalBrowserSessions {
       };
       const host = this.options.control.status();
       if (action.kind !== 'take' && host.state === 'human' && host.owner === conversationId) await acquireBrowser();
-      else await this.options.control.take(conversationId, acquireBrowser);
+      else await this.options.control.take(conversationId, acquireBrowser, isReviewNavigation);
     } else if (action.kind === 'return') {
       const before = await this.state(worker);
       if (before.session.controlEpoch !== action.controlEpoch || before.session.targetEpoch !== action.targetEpoch) throw new Error('stale_browser_operation');
@@ -163,10 +179,10 @@ export class LocalBrowserSessions {
     let reply = await this.state(worker);
     if (reply.session.personalExtension || (reply.session.state !== 'stopped' && reply.session.transport !== 'cdp')) throw new Error('ontology.studio.reviewTransportUnsupported');
     if (!reply.session.capabilities.authorizedPageLaunch) throw new Error('ontology.studio.reviewRuntimeUnavailable');
-    if (reply.session.state === 'stopped') reply = await this.invoke(conversationId, { kind: 'start', isHeadless: options.isHeadless ?? false, transport: 'cdp' });
+    if (reply.session.state === 'stopped') reply = await this.invoke(conversationId, { kind: 'start', isHeadless: options.isHeadless ?? false, transport: 'cdp' }, false, true);
     if (reply.session.transport !== 'cdp' || reply.session.personalExtension) throw new Error('ontology.studio.reviewTransportUnsupported');
     const before = this.options.control.status();
-    if (!reply.session.isController || reply.session.state !== 'human' || before.owner !== conversationId || before.state !== 'human') reply = await this.invoke(conversationId, { kind: 'take', controlEpoch: reply.session.controlEpoch, targetEpoch: reply.session.targetEpoch });
+    if (!reply.session.isController || reply.session.state !== 'human' || before.owner !== conversationId || before.state !== 'human') reply = await this.invoke(conversationId, { kind: 'take', controlEpoch: reply.session.controlEpoch, targetEpoch: reply.session.targetEpoch }, false, true);
     if (!reply.session.isController) throw new Error('Browser did not acknowledge human control');
     const host = this.options.control.status();
     if (host.owner !== conversationId || host.state !== 'human') throw new Error('Browser control is not owned by this conversation');

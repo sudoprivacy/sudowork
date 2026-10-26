@@ -5,6 +5,42 @@ export interface IOntologyProjectCommand {
   annotations?: Record<string, unknown>;
 }
 
+const sourceTools: IOntologyProjectCommand[] = [
+  {
+    name: 'sudograph_source_register',
+    description:
+      'Connect an explicitly supplied SQLite, PostgreSQL or MySQL source and run the host-selected read-only source registration using the same pipeline as the connection form. Returns its existing or new project, model authority and open_path. Use the returned scan receipt to assess coverage. Credentials stay in host secret storage and are excluded from models and results. Does not replace the current project or modify the database.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        operationId: { type: 'string', format: 'uuid' },
+        language: { type: 'string', enum: ['zh', 'en'] },
+        connector: {
+          type: 'object',
+          properties: {
+            name: { type: 'string' },
+            kind: { type: 'string', enum: ['database'] },
+            sourceType: { type: 'string', enum: ['sqlite', 'postgresql', 'mysql'] },
+            writable: { type: 'boolean', enum: [false] },
+            metadata: { type: 'object', additionalProperties: false },
+            path: { type: 'string' },
+            host: { type: 'string' },
+            port: { type: 'integer', minimum: 1, maximum: 65535 },
+            database: { type: 'string' },
+            username: { type: 'string' },
+            password: { type: 'string' },
+            params: { type: 'object', properties: { schema: { type: 'string' } }, additionalProperties: false },
+          },
+          required: ['name', 'kind', 'sourceType', 'writable', 'metadata'],
+          additionalProperties: false,
+        },
+      },
+      required: ['operationId', 'language', 'connector'],
+      additionalProperties: false,
+    },
+  },
+];
+
 const sudographTools: IOntologyProjectCommand[] = [
   { name: 'sudograph_model_contract', description: 'Read the bound canonical YAML, current revision and checked write contract.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
   {
@@ -348,5 +384,5 @@ const tools: IOntologyProjectCommand[] = [
 
 export function ontologyProjectCommands(authority: 'rdf' | 'sudograph'): IOntologyProjectCommand[] {
   const catalog = authority === 'sudograph' ? sudographTools : tools.filter((item) => !['ontology_execute_action', 'ontology_approve_all', 'ontology_publish_current_draft', 'ontology_register_agent_blueprint'].includes(item.name));
-  return catalog.map((item) => ({ ...item, name: authority === 'sudograph' ? sudographRoutes[item.name] : item.name.replace(/^ontology_/, '') }));
+  return [...sourceTools.map((item) => ({ ...item, name: 'register_source' })), ...catalog.map((item) => ({ ...item, name: authority === 'sudograph' ? sudographRoutes[item.name] : item.name.replace(/^ontology_/, '') }))];
 }

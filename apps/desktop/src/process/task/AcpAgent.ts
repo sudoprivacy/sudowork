@@ -958,7 +958,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     return pending;
   }
 
-  private async performMessage(data: { inputEpoch?: number; delivery?: InputDelivery; content: string; files?: string[]; msg_id?: string; cronMeta?: CronMessageMeta; skills?: string[]; hiddenPromptPrefix?: string; suppressUserBubble?: boolean }): Promise<{
+  private async performMessage(data: { inputEpoch?: number; delivery?: InputDelivery; content: string; agentContent?: string; files?: string[]; msg_id?: string; cronMeta?: CronMessageMeta; skills?: string[]; hiddenPromptPrefix?: string; suppressUserBubble?: boolean }): Promise<{
     success: boolean;
     msg?: string;
     message?: string;
@@ -1177,7 +1177,7 @@ This identity statement takes priority over the default identity in USER.md.
       }
 
       if (data.msg_id && data.content) {
-        let contentToSend = data.content;
+        let contentToSend = data.agentContent ?? data.content;
         if (contentToSend.includes(NEXUS_FILES_MARKER)) {
           contentToSend = contentToSend.split(NEXUS_FILES_MARKER)[0].trimEnd();
         }
@@ -1358,7 +1358,7 @@ This identity statement takes priority over the default identity in USER.md.
         return result;
       }
       const agentSendStart = Date.now();
-      const result = await this.sendToConnection(data.content, data.msg_id, undefined, true, toolEpoch, data.delivery ? { epoch: inputEpoch, delivery: data.delivery, draft: { text: data.content, files: data.files, skills: data.skills } } : undefined);
+      const result = await this.sendToConnection(data.agentContent ?? data.content, data.msg_id, undefined, true, toolEpoch, data.delivery ? { epoch: inputEpoch, delivery: data.delivery, draft: { text: data.content, files: data.files, skills: data.skills } } : undefined);
       if (ACP_PERF_LOG) mainLog('ACP-PERF', `manager: sendMessage completed ${Date.now() - agentSendStart}ms (total: ${Date.now() - managerSendStart}ms)`);
       // Handle sendToConnection error result (not thrown)
       if (!result.success) {

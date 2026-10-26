@@ -83,7 +83,7 @@ import { parseStandardOntology, exportStandardOntology, OntologyEngine, createFi
 
 import { DEFAULT_PRESET_AGENT_TYPE } from '@sudowork/common/acpTypes';
 import { assistantManager } from '@process/AssistantManager';
-
+import { ProcessConfig } from '@process/initStorage';
 import { mainError } from '@process/utils/mainLogger';
 import { acpDetector } from '@/agent/acp/AcpDetector';
 import { studioSaveSchema } from './studioValidation';
@@ -93,6 +93,8 @@ import { parseOntologyTemplateFile } from './ontologyTemplateParser';
 import { extractOntologyDocuments, readOntologyDocuments, validateOntologyDocumentFiles } from './ontologyDocumentExtractor';
 import { describeOntologyFields } from './ontologyFieldMeaning';
 import { SudographReviewHost } from './SudographReviewHost';
+import type { SudographReviewComments } from './SudographReviewComments';
+import { createSudographReviewProvider } from './SudographReviewProvider';
 import { OntologyAgentRegistry } from './OntologyAgentRegistry';
 
 export class OntologyService {
@@ -105,12 +107,16 @@ export class OntologyService {
   private readonly generatingWorkspaces = new Set<string>();
   private readonly describingAssets = new Map<string, Promise<IOntologyWorkbenchSnapshot>>();
   private reviewHost: SudographReviewHost | undefined;
+  private reviewHostStartup: Promise<SudographReviewHost> | undefined;
+  private reviewComments: SudographReviewComments | undefined;
+  private readonly sourceRegistrations = new Map<string, Promise<IOntologyStudioProject>>();
 
   constructor(
     database = new OntologyDatabase(),
     engine = new OntologyEngine(database),
     private readonly extractDocuments = extractOntologyDocuments,
-    private readonly describeFields = describeOntologyFields
+    private readonly describeFields = describeOntologyFields,
+    private readonly reviewProvider = createSudographReviewProvider
   ) {
     this.database = database;
     this.engine = engine;
@@ -314,14 +320,11 @@ export class OntologyService {
   }
 
   async listStudioProjects(): Promise<IOntologyStudioProjectList> {
-    const items = this.database
-      .listProjects()
-      .filter((project) => project.authority === 'rdf')
-      .map((project): IOntologyStudioProject => {
-        const snapshot = project.authority === 'rdf' ? this.database.getSnapshot(project.id) : null;
-        return { workspaceId: project.id, name: snapshot?.draft.title || project.title, authority: project.authority, ...(snapshot ? { description: snapshot.draft.description, objectCount: snapshot.objects.length } : {}) };
-      });
-    return { items, sourceRegistration: { available: true, providers: ['sqlite', 'mysql', 'postgresql'], execution: 'desktop' } };
+    const items = this.database.listProjects().map((project): IOntologyStudioProject => {
+      const snapshot = project.authority === 'rdf' ? this.database.getSnapshot(project.id) : null;
+      return { workspaceId: project.id, name: snapshot?.draft.title || project.title, authority: project.authority, ...(snapshot ? { description: snapshot.draft.description, objectCount: snapshot.objects.length } : {}) };
+    });
+    return { items, sourceRegistration: { available: true, providers: ['sqlite', 'postgresql', 'mysql'], execution: 'desktop' } };
   }
 
   async getStudioProject(input: { workspaceId: string }): Promise<IOntologyStudioProject> {
@@ -358,10 +361,98 @@ export class OntologyService {
 
   /** Native form intake. Model paths, namespaces and authority are host-derived. */
   async connectStudioSource(raw: IOntologyConnectSourceInput): Promise<IOntologyStudioProject> {
+    if (!process.env.SUDOGRAPH_PYTHON || !process.env.SUDOGRAPH_COMPILER_ROOT || !process.env.SUDOGRAPH_MODEL_DIRECTORY) return this.connectLegacyStudioSource(raw);
     const input = z
       .object({
         operationId: z.string().uuid(),
         language: z.enum(['en', 'zh']),
+        connector: z.discriminatedUnion('sourceType', [
+          z.object({ name: z.string().trim().min(1).max(200), sourceType: z.literal('sqlite'), path: z.string().trim().min(1), kind: z.literal('database'), writable: z.literal(false), metadata: z.object({}).strict() }).strict(),
+          z
+            .object({
+              name: z.string().trim().min(1).max(200),
+              sourceType: z.literal('postgresql'),
+              host: z.string().trim().min(1).max(253),
+              port: z.number().int().min(1).max(65535).optional(),
+              database: z.string().trim().min(1).max(200),
+              username: z.string().min(1).max(200),
+              password: z.string().max(4096),
+              params: z
+                .object({ schema: z.string().trim().min(1).max(200) })
+                .strict()
+                .optional(),
+              kind: z.literal('database'),
+              writable: z.literal(false),
+              metadata: z.object({}).strict(),
+            })
+            .strict(),
+          z
+            .object({
+              name: z.string().trim().min(1).max(200),
+              sourceType: z.literal('mysql'),
+              host: z.string().trim().min(1).max(253),
+              port: z.number().int().min(1).max(65535).optional(),
+              database: z.string().trim().min(1).max(200),
+              username: z.string().min(1).max(200),
+              password: z.string().max(4096),
+              kind: z.literal('database'),
+              writable: z.literal(false),
+              metadata: z.object({}).strict(),
+            })
+            .strict(),
+        ]),
+      })
+      .strict()
+      .parse(raw);
+    const account = ProcessConfig.getSync('eeclaw.accountScope') || 'local:' + userInfo().username;
+    const connector = input.connector;
+    let source: string;
+    if (connector.sourceType === 'sqlite') {
+      if (!path.isAbsolute(connector.path)) throw new Error('Select a SQLite file on this desktop.');
+      const filename = await fs.realpath(connector.path);
+      if (!(await fs.stat(filename)).isFile()) throw new Error('Select a SQLite database file.');
+      source = `sqlite:///${filename.split(path.sep).join('/')}`;
+    } else source = '';
+    const address =
+      connector.sourceType === 'sqlite'
+        ? source
+        : JSON.stringify([connector.sourceType, connector.host.toLowerCase(), connector.port ?? (connector.sourceType === 'mysql' ? 3306 : 5432), connector.database, connector.sourceType === 'postgresql' ? connector.params?.schema || 'public' : '', connector.username]);
+    const sourceKey = createHash('sha256')
+      .update(account + ':' + address)
+      .digest('hex');
+    const registered = this.database.getHostValue<{ workspaceId: string; source: string; operationId: string }>('registered-source:' + sourceKey);
+    if (registered && this.database.getProject(registered.workspaceId)) {
+      if (connector.sourceType !== 'sqlite') this.database.setHostSecret('source:' + registered.workspaceId, JSON.stringify({ account, dsn: registered.source, connector }));
+      this.database.setHostValue('source-operation:' + input.operationId, registered.workspaceId);
+      // Existing facts and business edits retain their one registered identity.
+      return this.getStudioProject({ workspaceId: registered.workspaceId });
+    }
+    const inflight = this.sourceRegistrations.get(sourceKey);
+    if (inflight) return inflight;
+    const pending = (async () => {
+      const identity = registered?.workspaceId || `source_${createHash('sha256').update(input.operationId).digest('hex').slice(0, 32)}`;
+      const operationId = registered?.operationId || input.operationId;
+      if (connector.sourceType !== 'sqlite') {
+        source = `registered://${identity}`;
+        this.database.setHostSecret('source:' + identity, JSON.stringify({ account, dsn: source, connector }));
+      }
+      // Reserve the host registration before compilation so a new request can
+      // recover a committed worker receipt after a host interruption.
+      this.database.setHostValue('registered-source:' + sourceKey, { workspaceId: identity, source, operationId });
+      await this.registerSudographSourceProject({ workspaceId: identity, title: connector.name, modelRef: identity, source, namespace: identity, operationId, language: input.language });
+      this.database.setHostValue('source-operation:' + input.operationId, identity);
+      return this.getStudioProject({ workspaceId: identity });
+    })();
+    this.sourceRegistrations.set(sourceKey, pending);
+    try {
+      return await pending;
+    } finally {
+      if (this.sourceRegistrations.get(sourceKey) === pending) this.sourceRegistrations.delete(sourceKey);
+    }
+  }
+
+  private async connectLegacyStudioSource(raw: IOntologyConnectSourceInput): Promise<IOntologyStudioProject> {
+    const input = z.object({ operationId: z.string().uuid(), language: z.enum(['en', 'zh']),
         connector: z
           .object({
             name: z.string().trim().min(1).max(200),
@@ -413,7 +504,7 @@ export class OntologyService {
 
   async resumeStudioSource(input: { operationId: string }): Promise<IOntologyStudioProject | null> {
     const operationId = z.string().uuid().parse(input.operationId);
-    const workspaceId = `source_${createHash('sha256').update(operationId).digest('hex').slice(0, 32)}`;
+    const workspaceId = this.database.getHostValue<string>('source-operation:' + operationId) || `source_${createHash('sha256').update(operationId).digest('hex').slice(0, 32)}`;
     if (!this.database.getProject(workspaceId)) return null;
     return this.getStudioProject({ workspaceId });
   }
@@ -424,7 +515,7 @@ export class OntologyService {
     const existing = this.database.getProject(input.workspaceId);
     if (existing && (existing.authority !== 'sudograph' || existing.modelRef !== input.modelRef)) throw new Error('Ontology model authority conflict.');
     const { getSudographModelClient } = await import('./SudographModelClient');
-    const result = await getSudographModelClient().registerSource(input.modelRef, `desktop:${hostname()}:${userInfo().username}`, { source: input.source, namespace: input.namespace, operationId: input.operationId, language: input.language });
+    const result = await getSudographModelClient(this.registeredSource(input.workspaceId)).registerSource(input.modelRef, `desktop:${hostname()}:${userInfo().username}`, { source: input.source, namespace: input.namespace, operationId: input.operationId, language: input.language });
     this.database.registerSudographProject({ id: input.workspaceId, title: input.title, modelRef: input.modelRef });
     return { project: this.database.getProject(input.workspaceId), ...result };
   }
@@ -434,7 +525,16 @@ export class OntologyService {
     const project = this.database.getProject(workspaceId);
     if (project?.authority !== 'sudograph') throw new Error('This project is not owned by Sudograph.');
     const { getSudographModelClient } = await import('./SudographModelClient');
-    return getSudographModelClient().invoke<T>(project.modelRef, `desktop:${hostname()}:${userInfo().username}`, request);
+    return getSudographModelClient(this.registeredSource(workspaceId)).invoke<T>(project.modelRef, `desktop:${hostname()}:${userInfo().username}`, request);
+  }
+
+  private registeredSource(workspaceId: string) {
+    const raw = this.database.getHostSecret('source:' + workspaceId);
+    if (!raw) return undefined;
+    const source = JSON.parse(raw) as { account: string; dsn: string; connector: IOntologyConnectorInput };
+    const account = ProcessConfig.getSync('eeclaw.accountScope') || 'local:' + userInfo().username;
+    if (source.account !== account) throw new Error('Registered source belongs to another account.');
+    return source;
   }
 
   /** Trusted browser host only. This handoff includes a secret and is not an IPC result. */
@@ -443,30 +543,50 @@ export class OntologyService {
       .object({ workspaceId: z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/), conversationId: z.string().min(1).max(256) })
       .strict()
       .parse(raw);
-    this.reviewHost ??= new SudographReviewHost({
-      authorize: async ({ workspaceId, conversationId }) => {
-        const project = this.database.getProject(workspaceId);
-        const session = this.database.getAiSessionByConversationId(conversationId);
-        if (project?.authority !== 'sudograph' || session?.workspace_id !== workspaceId) throw new Error('Review conversation does not own this registered model.');
-        const { getDatabase } = await import('@process/database');
-        const { assertConversationAccount } = await import('@process/services/mossExecutionContext');
-        const conversation = getDatabase().getConversation(conversationId).data;
-        if (conversation?.extra.purpose !== 'ontology' || conversation.extra.ontologyId !== workspaceId) throw new Error('Review conversation does not own this registered model.');
-        assertConversationAccount(conversation);
-      },
-      read: async (workspaceId, request) => {
-        const project = this.database.getProject(workspaceId);
-        if (project?.authority !== 'sudograph') throw new Error('Registered review is unavailable.');
-        const { getSudographModelClient } = await import('./SudographModelClient');
-        return getSudographModelClient().review(project.modelRef, `desktop:${hostname()}:${userInfo().username}`, workspaceId, request);
-      },
-    });
+    const authorize = async ({ workspaceId, conversationId }: { workspaceId: string; conversationId: string }) => {
+      const project = this.database.getProject(workspaceId);
+      const session = this.database.getAiSessionByConversationId(conversationId);
+      if (project?.authority !== 'sudograph' || session?.workspace_id !== workspaceId) throw new Error('Review conversation does not own this registered model.');
+      const { getDatabase } = await import('@process/database');
+      const { assertConversationAccount } = await import('@process/services/mossExecutionContext');
+      const conversation = getDatabase().getConversation(conversationId).data;
+      if (conversation?.extra.purpose !== 'ontology' || conversation.extra.ontologyId !== workspaceId) throw new Error('Review conversation does not own this registered model.');
+      assertConversationAccount(conversation);
+    };
+    const read = async (workspaceId: string, request: Record<string, unknown>) => {
+      const project = this.database.getProject(workspaceId);
+      if (project?.authority !== 'sudograph') throw new Error('Registered review is unavailable.');
+      const { getSudographModelClient } = await import('./SudographModelClient');
+      return getSudographModelClient(this.registeredSource(workspaceId)).review(project.modelRef, `desktop:${hostname()}:${userInfo().username}`, workspaceId, request);
+    };
+    await authorize({ workspaceId: binding.workspaceId!, conversationId: binding.conversationId! });
+    this.reviewHostStartup ??= (async () => {
+      const comments = await this.reviewProvider({
+        database: this.database,
+        authorize,
+        read,
+        own: (value) => {
+          this.reviewComments = value;
+        },
+      });
+      return new SudographReviewHost({ authorize, read, comments });
+    })();
+    try {
+      this.reviewHost = await this.reviewHostStartup;
+    } catch (error) {
+      this.reviewHostStartup = undefined;
+      throw error;
+    }
     return this.reviewHost.createSession({ workspaceId: binding.workspaceId!, conversationId: binding.conversationId! });
   }
 
   async closeReviewSessions(): Promise<void> {
+    await this.reviewHostStartup?.catch((): undefined => undefined);
+    this.reviewComments?.close();
+    this.reviewComments = undefined;
     await this.reviewHost?.close();
     this.reviewHost = undefined;
+    this.reviewHostStartup = undefined;
   }
 
   async saveStudioModel(raw: IOntologyStudioSaveInput) {

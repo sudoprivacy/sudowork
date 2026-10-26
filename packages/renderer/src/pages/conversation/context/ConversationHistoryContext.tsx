@@ -2,7 +2,6 @@ import { createContext, useCallback, useContext, useEffect, useMemo, type PropsW
 import useSWR from 'swr';
 import type { TChatConversation } from '@sudowork/common/storage';
 import type { IMyAgent } from '@sudowork/common/personalAgents';
-import { isOntologyConversation } from '@sudowork/common/conversationPurpose';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { useAuth } from '@renderer/context/AuthContext';
 import { addEventListener } from '@renderer/utils/emitter';
@@ -14,7 +13,7 @@ const ConversationHistoryContext = createContext<IConversationHistory | null>(nu
 async function fetchConversations(): Promise<TChatConversation[]> {
   const data = await ipcBridge.database.getUserConversations.invoke({ page: 0, pageSize: 10000, includeAllExecutionTargets: true });
   if (!Array.isArray(data)) throw new Error('Conversation history unavailable');
-  return data.filter((conversation) => !isOntologyConversation(conversation) && conversation.extra?.isHealthCheck !== true);
+  return data.filter((conversation) => conversation.extra?.isHealthCheck !== true);
 }
 
 /** Share one account-scoped history source across the sidebar and conversation header. */

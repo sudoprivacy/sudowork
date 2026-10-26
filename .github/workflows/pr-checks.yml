@@ -279,15 +279,13 @@ jobs:
         with:
           bun-version-file: package.json
 
-      - name: Cache Windows libvips downloads
-        if: runner.os == 'Windows'
+      - name: Cache verified libvips downloads
         uses: actions/cache@v4
         with:
           path: ${{ runner.temp }}/npm-cache/_libvips
-          key: libvips-8.14.5-win32-x64-integrity-v1
+          key: libvips-8.14.5-${{ runner.os }}-${{ runner.arch }}-integrity-v2
 
-      - name: Verify Windows libvips before dependency installation
-        if: runner.os == 'Windows'
+      - name: Verify libvips before dependency installation
         env:
           npm_config_cache: ${{ runner.temp }}/npm-cache
         run: node ../../.github/scripts/cache-sharp-libvips.mjs
@@ -457,6 +455,7 @@ jobs:
           just build-win-x64
           Write-Host "✓Build test passed for ${{ env.MATRIX_PLATFORM }}"
         env:
+          SHAREONE_REVIEW_GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
           NODE_OPTIONS: "--max-old-space-size=8192"
           MSVS_VERSION: 2022
           GYP_MSVS_VERSION: 2022
@@ -473,6 +472,7 @@ jobs:
           just build-win-arm64
           Write-Host "✓Build test passed for ${{ env.MATRIX_PLATFORM }}"
         env:
+          SHAREONE_REVIEW_GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
           NODE_OPTIONS: "--max-old-space-size=8192"
           MSVS_VERSION: 2022
           GYP_MSVS_VERSION: 2022
@@ -489,6 +489,7 @@ jobs:
           node scripts/build-with-builder.js ${{ env.MATRIX_ARCH }} ${{ env.MATRIX_BUILD_ARGS }}
           echo "✓Build test passed for ${{ env.MATRIX_PLATFORM }}"
         env:
+          SHAREONE_REVIEW_GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
           NODE_OPTIONS: "--max-old-space-size=8192"
           npm_config_arch: ${{ env.MATRIX_ARCH }}
           npm_config_target_arch: ${{ env.MATRIX_ARCH }}

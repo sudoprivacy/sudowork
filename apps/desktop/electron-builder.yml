@@ -150,6 +150,8 @@ files:
   - '!uno.config.ts'
 
 extraResources:
+  - from: resources/shareone-review
+    to: shareone-review
   # The SDK is a repository-root submodule, outside the Desktop app directory.
   # Keep its Python modules and MCP catalog on disk for the shared host/skill.
   - from: ../../vendor/ai-dev-browser/ai_dev_browser

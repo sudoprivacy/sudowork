@@ -29,6 +29,7 @@ function mount() {
         <Routes>
           <Route path='/conversation/:id' element={<ConversationPage />} />
           <Route path='/guid' element={<div>New task</div>} />
+          <Route path='/app/ontology/:ontologyId/model' element={<div>Model workspace</div>} />
         </Routes>
       </MemoryRouter>
     </SWRConfig>
@@ -39,6 +40,12 @@ beforeEach(() => vi.resetAllMocks());
 afterEach(cleanup);
 
 describe('conversation route recovery', () => {
+  it('returns a model session opened from shared history to its owning workspace', async () => {
+    bridge.get.mockResolvedValue({ id: 'old-link', type: 'acp', extra: { purpose: 'ontology', ontologyId: 'northwind' } });
+    mount();
+    expect(await screen.findByText('Model workspace')).toBeInTheDocument();
+    expect(bridge.openTab).not.toHaveBeenCalled();
+  });
   it('waits for the lookup before returning a missing conversation to new task', async () => {
     let resolveLookup!: (value: undefined) => void;
     bridge.get.mockReturnValue(

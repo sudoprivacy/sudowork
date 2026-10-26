@@ -1,5 +1,4 @@
 import { isGeneratedFilesOnlyMessage } from '@sudowork/common/generatedFiles';
-import { isOntologyConversation } from '@sudowork/common/conversationPurpose';
 import { getMossSessionAgentContext } from '@sudowork/common/mossSessionContext';
 /**
  * @license
@@ -315,7 +314,7 @@ export class RemoteConversationProvider implements IConversationProvider {
     await this.syncOwnedSessions().catch((error) => {
       mainError('RemoteProvider', `Failed to sync cloud sessions: ${error instanceof Error ? error.message : String(error)}`);
     });
-    const result = db.getUserConversations(undefined, page, pageSize, 'general');
+    const result = db.getUserConversations(undefined, page, pageSize, 'all');
 
     if (!result.data || result.data.length === 0) {
       mainLog('RemoteProvider', 'No conversations found in local DB');
@@ -323,7 +322,7 @@ export class RemoteConversationProvider implements IConversationProvider {
     }
 
     // Filter for remote-agent type conversations.
-    const conversations = result.data.filter((c) => !isOntologyConversation(c) && isConversationInCurrentAccount(c) && (c.type === 'remote-agent' || c.extra?.backend === 'remote-agent'));
+    const conversations = result.data.filter((c) => isConversationInCurrentAccount(c) && (c.type === 'remote-agent' || c.extra?.backend === 'remote-agent'));
 
     // Sort by modifyTime
     // 按 modifyTime 排序
