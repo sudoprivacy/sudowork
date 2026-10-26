@@ -3,8 +3,9 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { InputDelivery } from '@sudowork/contracts/input-delivery';
 import SendBox from '@renderer/components/Sendbox';
+import type { DomSnippet } from '@renderer/pages/conversation/preview/context';
 
-const host = vi.hoisted(() => ({ send: vi.fn(), flush: vi.fn(), stop: vi.fn(), setSendBoxHandler: vi.fn(), clearDomSnippets: vi.fn(), domSnippets: [], error: vi.fn() }));
+const host = vi.hoisted(() => ({ send: vi.fn(), flush: vi.fn(), stop: vi.fn(), recall: vi.fn(), setSendBoxHandler: vi.fn(), clearDomSnippets: vi.fn(), domSnippets: [] as DomSnippet[], error: vi.fn() }));
 vi.mock('react-i18next', () => {
   const t = (key: string) => key;
   return { useTranslation: () => ({ t }) };
@@ -59,6 +60,7 @@ function Composer({ isRunning = true }: IComposerProps) {
       onSend={(message: string, skills?: string[], delivery?: InputDelivery) => host.send(message, skills, delivery)}
       onStop={host.stop}
       onFlushInput={host.flush}
+      onDequeueLast={host.recall}
       defaultMultiLine
       lockMultiLine
     />
@@ -70,6 +72,8 @@ beforeEach(() => {
   host.send.mockReset().mockResolvedValue(undefined);
   host.flush.mockReset().mockResolvedValue(undefined);
   host.stop.mockReset().mockResolvedValue(undefined);
+  host.recall.mockReset().mockResolvedValue(undefined);
+  host.domSnippets = [];
 });
 
 it('uses Enter to steer, Tab to queue and Esc to flush without cancellation', async () => {
@@ -86,6 +90,16 @@ it('uses Enter to steer, Tab to queue and Esc to flush without cancellation', as
   await waitFor(() => expect(host.flush).toHaveBeenCalledTimes(1));
   expect(host.stop).not.toHaveBeenCalled();
   expect(screen.getByTestId('input-delivery-hint').textContent).toContain('flushHint');
+});
+
+it('queues a webpage fragment without text and does not recall over that unsent draft', async () => {
+  host.domSnippets = [{ id: 'selected-card', tag: 'article', html: '<article>Selected evidence</article>' }];
+  render(<Composer />);
+  const input = screen.getByRole('textbox');
+  fireEvent.keyDown(input, { key: 'ArrowUp' });
+  expect(host.recall).not.toHaveBeenCalled();
+  fireEvent.keyDown(input, { key: 'Tab' });
+  await waitFor(() => expect(host.send).toHaveBeenCalledWith('\n\n---\nDOM Snippet (article):\n```html\n<article>Selected evidence</article>\n```', [], 'queue'));
 });
 
 it('preserves IME composition and native copy while keeping Ctrl+C cancellation available', async () => {
