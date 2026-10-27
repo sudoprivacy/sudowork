@@ -17,6 +17,7 @@ import {
   SessionNotFoundError,
   createConversation,
   deleteConversation,
+  getConversation,
   getConversationModel,
   getConversationOptions,
   getUserModel,
@@ -259,6 +260,16 @@ export function createConversationRouter(deps: ConversationDeps): Router {
       const asset = await proxyAgentAvatar(deps, ctx, path)
       res.set('Content-Type', asset.contentType ?? 'application/octet-stream')
       res.send(Buffer.from(asset.buffer))
+    })().catch((err: unknown) => convErrorHandler(err, res, next))
+  })
+
+  router.get('/:id', requireSession, (req, res, next) => {
+    void (async () => {
+      const principal = await resolvePrincipal(req as AuthedRequest)
+      if (!principal) return void res.status(401).json({ error: 'SESSION_REQUIRED' })
+      const id = z.string().min(1).parse(req.params.id)
+      const ctx = await resolveCtx(req as AuthedRequest)
+      res.status(200).json(await getConversation(deps, principal, id, ctx))
     })().catch((err: unknown) => convErrorHandler(err, res, next))
   })
 

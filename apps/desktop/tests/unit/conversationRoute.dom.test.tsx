@@ -70,4 +70,16 @@ describe('conversation route recovery', () => {
     expect(await screen.findByText('Conversation old-link')).toBeInTheDocument();
     expect(screen.queryByText('New task')).not.toBeInTheDocument();
   });
+
+  it('keeps a refused bridge receipt on the conversation page until the user retries', async () => {
+    bridge.get.mockResolvedValueOnce({ success: false, msg: 'SESSION_FORBIDDEN' });
+    bridge.get.mockResolvedValue({ id: 'old-link', type: 'gemini', extra: {} });
+    mount();
+    const retry = await screen.findByRole('button', { name: 'common.retry' });
+    expect(screen.queryByText('New task')).not.toBeInTheDocument();
+    expect(bridge.openTab).not.toHaveBeenCalled();
+    fireEvent.click(retry);
+    expect(await screen.findByText('Conversation old-link')).toBeInTheDocument();
+    expect(bridge.get).toHaveBeenCalledTimes(2);
+  });
 });

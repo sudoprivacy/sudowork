@@ -1,5 +1,30 @@
 # Live shared-browser acceptance
 
+## Exact conversation links
+
+`live_conversation_links.py` creates an empty session outside the renderer's
+history cache, opens that exact conversation link, sends two real model turns
+across a reload, and requires the URL and WebSocket to keep the original session
+ID. An implicit replacement conversation fails the test. It records authoritative
+detail reads and terminates every session created by its isolated browser,
+including unexpected replacements. Renderer pages close before termination so
+background polling cannot reopen a fixture. Success requires cleanup as well as
+both model replies.
+
+Use a private JSON config containing `origin` and `apiKey`; `modelId` is optional.
+The configured account must have a real model balance. A deployment canary can
+also supply `deploymentCookie` and its expected `deploymentReceipt`.
+
+```sh
+python apps/webui/tests/e2e/live_conversation_links.py \
+  --config /private/conversation-link.json \
+  --output /private/evidence/conversation-link-001
+```
+
+`--container-fixture` adds the Chrome argument needed by the restricted Docker
+acceptance client. This test records its client location separately from physical
+phone acceptance.
+
 ## Mobile task creation and model selection
 
 Add `--exercise-model-unavailable` to verify the unavailable-model entry before

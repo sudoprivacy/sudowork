@@ -32,6 +32,7 @@ import {
   reorderPinnedConversations as reorderPinnedRows,
   updateConversationMeta as updateConversationMetaRow,
   upsertConversationModel,
+  type ConversationMeta,
 } from './conversationMetaRepository.js'
 
 /**
@@ -175,33 +176,50 @@ export async function listConversations(
     principal.id,
     visible.map((s) => s.sessionId),
   )
-  return visible.map((s) => {
-    const meta = metaMap.get(s.sessionId)
-    return {
-      id: s.sessionId,
-      taskId: s.taskId ?? s.sessionId,
-      status: s.status,
-      assistantName: s.assistantName ?? null,
-      ...(typeof s.clientMetadata?.session_template_ref === 'string'
-        ? { templateRef: s.clientMetadata.session_template_ref }
-        : {}),
-      source: s.source ?? null,
-      managementContext: getMossSessionAgentContext(s),
-      createdAt:
-        typeof (s as { createdAt?: unknown }).createdAt === 'number'
-          ? (s as { createdAt?: number }).createdAt!
-          : null,
-      lastActiveAt:
-        typeof (s as { lastActiveAt?: unknown }).lastActiveAt === 'number'
-          ? (s as { lastActiveAt?: number }).lastActiveAt!
-          : null,
-      title: meta?.title ?? null,
-      pinned: meta?.pinned ?? false,
-      pinnedAt: meta?.pinnedAt ?? null,
-      archived: meta?.archived ?? false,
-      archivedAt: meta?.archivedAt ?? null,
-    }
-  })
+  return visible.map((session) => projectConversation(session, metaMap.get(session.sessionId)))
+}
+
+/** Keep direct links and history lists on the same public projection. */
+function projectConversation(
+  s: MossSessionSummary,
+  meta?: ConversationMeta | null,
+): ConversationListItem {
+  return {
+    id: s.sessionId,
+    taskId: s.taskId ?? s.sessionId,
+    status: s.status,
+    assistantName: s.assistantName ?? null,
+    ...(typeof s.clientMetadata?.session_template_ref === 'string'
+      ? { templateRef: s.clientMetadata.session_template_ref }
+      : {}),
+    source: s.source ?? null,
+    managementContext: getMossSessionAgentContext(s),
+    createdAt:
+      typeof (s as { createdAt?: unknown }).createdAt === 'number'
+        ? (s as { createdAt?: number }).createdAt!
+        : null,
+    lastActiveAt:
+      typeof (s as { lastActiveAt?: unknown }).lastActiveAt === 'number'
+        ? (s as { lastActiveAt?: number }).lastActiveAt!
+        : null,
+    title: meta?.title ?? null,
+    pinned: meta?.pinned ?? false,
+    pinnedAt: meta?.pinnedAt ?? null,
+    archived: meta?.archived ?? false,
+    archivedAt: meta?.archivedAt ?? null,
+  }
+}
+
+/** Resolve a known browser/task session even before it appears in history. */
+export async function getConversation(
+  deps: ConversationDeps,
+  principal: Principal,
+  sessionId: string,
+  ctx: MossCallContext,
+): Promise<ConversationListItem> {
+  const session = await requireAccessibleSession(deps, principal, sessionId, ctx)
+  if (session.status === 'terminated') throw new SessionNotFoundError()
+  return projectConversation(session, await getConversationMeta(deps.pool, principal.id, sessionId))
 }
 
 export async function createConversation(

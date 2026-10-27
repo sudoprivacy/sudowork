@@ -1700,6 +1700,67 @@ describe('mossAdapter: newly created conversation list reads', () => {
     expect(conversation).toMatchObject({ id: 'sess-pending', name: 'Pending title' })
   })
 
+  it('opens an authorized browser conversation in a fresh viewer when history omits it', async () => {
+    const fetch = stubFetch({
+      '/api/conversations/browser-empty/model': { modelId: 'review-model' },
+      '/api/conversations/browser-empty': {
+        status: 200,
+        body: {
+          id: 'browser-empty',
+          taskId: 'review-task',
+          status: 'active',
+          assistantName: 'reviewer',
+          templateRef: 'review-template',
+          title: 'Browser review',
+        },
+      },
+      '/api/conversations': { conversations: [] },
+      '/api/agent-templates': [],
+    })
+
+    expect(await ipc.conversation.get.invoke({ id: 'browser-empty' })).toMatchObject({
+      id: 'browser-empty',
+      name: 'Browser review',
+      extra: {
+        mossSessionId: 'browser-empty',
+        mossAssistantRef: 'reviewer',
+        templateRef: 'review-template',
+        currentModelId: 'review-model',
+      },
+    })
+    expect(fetch).toHaveBeenCalledWith('/api/conversations/browser-empty', expect.anything())
+    expect(await ipc.moss.getSession.invoke({ sessionId: 'browser-empty' })).toMatchObject({
+      success: true,
+      data: { sessionId: 'browser-empty', taskId: 'review-task' },
+    })
+    expect(fetch.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false)
+  })
+
+  it.each([403, 503])(
+    'preserves detail refusal %s instead of opening a new task',
+    async (status) => {
+      stubFetch({
+        '/api/conversations/denied-empty': { status, body: { error: 'DETAIL_REFUSED' } },
+        '/api/conversations': { conversations: [] },
+      })
+      expect(await ipc.conversation.get.invoke({ id: 'denied-empty' })).toMatchObject({
+        success: false,
+        msg: 'DETAIL_REFUSED',
+      })
+    },
+  )
+
+  it('keeps an actually missing conversation distinct from a refused detail read', async () => {
+    stubFetch({
+      '/api/conversations/missing-empty': {
+        status: 404,
+        body: { error: 'SESSION_NOT_FOUND' },
+      },
+      '/api/conversations': { conversations: [] },
+    })
+    expect(await ipc.conversation.get.invoke({ id: 'missing-empty' })).toBeUndefined()
+  })
+
   it('keeps the selected Agent identity through creation and pending history reads', async () => {
     const reference = 'moss-agent:own:22222222-2222-4222-8222-222222222222'
     stubFetch({ '/api/conversations': { id: 'identity-pending', conversations: [] } })
