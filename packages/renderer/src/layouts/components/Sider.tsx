@@ -25,6 +25,7 @@ import { maskPhone } from '@renderer/utils';
 import SidebarNavItem from '@renderer/layouts/components/SidebarNavItem';
 import SettingsSider from './SettingsSider';
 import TeamSiderSection from './TeamSiderSection';
+import OrganizationSwitcher from './OrganizationSwitcher';
 
 const Sider: React.FC = () => {
   // 侧栏收起由外层 ArcoLayout.Sider 把宽度动画到 0 整体隐藏，内容始终保持展开态，
@@ -282,6 +283,14 @@ const Sider: React.FC = () => {
       </div>
       {/* Footer - User info area */}
       <div className='shrink-0 mt-auto pt-2 px-0'>
+        {isEnterprise && !isGuest ? (
+          <OrganizationSwitcher
+            onReload={() => {
+              window.location.hash = '/app/agents/mine';
+              window.location.reload();
+            }}
+          />
+        ) : null}
         {!isSettings ? (
           /* 用户信息下拉菜单 */
           <Dropdown

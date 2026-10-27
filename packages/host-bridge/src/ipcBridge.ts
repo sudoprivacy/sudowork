@@ -3394,6 +3394,7 @@ export interface UserProfileData {
 export type IEeclawAuthenticatedLogin = import('@sudowork/common/authLogin').IAuthenticatedLogin;
 
 export const eeclaw = {
+  getOrganizations: bridge.buildProvider<IBridgeResponse<import('@sudowork/contracts/auth').AccountOrganizations>, void>('eeclaw.get-organizations'),
   prepareLocalRuntime: bridge.buildProvider<
     IBridgeResponse<{
       execution: import('@sudowork/common/mossExecution').IMossExecutionCapabilities;
@@ -3448,7 +3449,8 @@ export const eeclaw = {
     {
       serverUrl: string;
       body: {
-        grant_type: 'password' | 'api_key' | 'oauth2' | 'phone' | 'phone_register';
+        grant_type: 'password' | 'api_key' | 'oauth2' | 'phone' | 'phone_register' | 'organization';
+        orgId?: string;
         username?: string;
         password?: string;
         api_key?: string;
@@ -3484,7 +3486,7 @@ export const eeclaw = {
   }>('eeclaw.token-refreshed'),
   /** Emitted when the enterprise token is invalid and cannot be refreshed (e.g. OAuth2 session without a refresh token) — the user must sign in again */
   authRequired: bridge.buildEmitter<{
-    reason: 'no_refresh_token' | 'refresh_failed';
+    reason: 'no_refresh_token' | 'refresh_failed' | 'organization_switch_failed';
   }>('eeclaw.auth-required'),
   /** Refresh enterprise auth token via main process (single entry point to avoid race conditions) */
   refreshToken: bridge.buildProvider<

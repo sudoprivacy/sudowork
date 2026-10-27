@@ -1,4 +1,9 @@
 {
+  "organizationSwitch": {
+    "title": "切换企业",
+    "confirm": "切换后将使用所选企业的权限和模型账户。当前会话会保留。",
+    "failed": "切换企业失败，请重新验证登录后重试。"
+  },
   "send": "发送",
   "cancel": "取消",
   "save": "保存",

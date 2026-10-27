@@ -144,6 +144,7 @@ export default defineConfig({
         '../../packages/moss-client/src/MossBrowserStream.ts',
         '../../packages/common/src/loginReturnPath.ts',
         '../../packages/host-bridge/src/agentWorkspace.ts',
+        '../../packages/renderer/src/layouts/components/OrganizationSwitcher.tsx',
         '../../packages/renderer/src/pages/conversation/utils/agentIdentity.ts',
         '../../packages/renderer/src/pages/conversation/acp/useAcpMessage.ts',
         '../../packages/renderer/src/pages/conversation/context/ConversationHistoryContext.tsx',
