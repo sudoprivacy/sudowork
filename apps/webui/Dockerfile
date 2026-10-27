@@ -21,6 +21,7 @@ COPY packages/moss-client/package.json packages/moss-client/
 COPY packages/ontology-ai/package.json packages/ontology-ai/
 COPY packages/ontology-common/package.json packages/ontology-common/
 COPY packages/ontology-engine/package.json packages/ontology-engine/
+COPY packages/ontology-runtime/package.json packages/ontology-runtime/
 COPY packages/ontology-ui/package.json packages/ontology-ui/
 COPY packages/renderer/package.json packages/renderer/
 COPY patches/ patches/
@@ -70,6 +71,7 @@ COPY packages/moss-client/package.json packages/moss-client/
 COPY packages/ontology-ai/package.json packages/ontology-ai/
 COPY packages/ontology-common/package.json packages/ontology-common/
 COPY packages/ontology-engine/package.json packages/ontology-engine/
+COPY packages/ontology-runtime/package.json packages/ontology-runtime/
 COPY packages/ontology-ui/package.json packages/ontology-ui/
 COPY packages/renderer/package.json packages/renderer/
 COPY patches/ patches/
