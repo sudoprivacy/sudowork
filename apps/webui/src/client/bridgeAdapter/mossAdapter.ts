@@ -233,6 +233,15 @@ export const externalBrowserPort = createMossExternalProviderPort(requestMossTas
 export const hostedBrowserPort = createMossHostedTaskPort(requestMossTask)
 const externalProviderPort = externalBrowserPort
 
+class WebApiError extends Error {
+  constructor(
+    readonly status: number,
+    code: string,
+  ) {
+    super(code)
+  }
+}
+
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   await prepareWebAgentWorkspace()
   const res = await fetch(path, {
@@ -268,7 +277,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
       typeof (body as { error?: unknown }).error === 'string'
         ? (body as { error: string }).error
         : `HTTP_${res.status}`
-    throw new Error(code)
+    throw new WebApiError(res.status, code)
   }
   return body as T
 }
@@ -1029,6 +1038,22 @@ async function listConversations(): Promise<ConversationListItem[]> {
     convCache = { at: Date.now(), items: conversations }
   }
   return mergePendingCreated(conversations)
+}
+
+async function findConversation(id: string): Promise<ConversationListItem | undefined> {
+  if (!id) return undefined
+  const listed = (await listConversations()).find((conversation) => conversation.id === id)
+  if (listed) return listed
+  try {
+    const detail = await apiFetch<ConversationListItem>(
+      `/api/conversations/${encodeURIComponent(id)}`,
+    )
+    if (detail.id !== id) throw new Error('CONVERSATION_ID_MISMATCH')
+    return detail
+  } catch (error) {
+    if (error instanceof WebApiError && error.status === 404) return undefined
+    throw error
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -2204,11 +2229,11 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
   },
   'moss.list-sessions': async () => ok((await listConversations()).map(toMossSession)),
   'moss.get-session': async (req) => {
-    const found = (await listConversations()).find((c) => c.id === req?.sessionId)
+    const found = await findConversation(String(req?.sessionId ?? ''))
     return found ? ok(toMossSession(found)) : fail('SESSION_NOT_FOUND')
   },
   'get-conversation': async (req) => {
-    const found = (await listConversations()).find((c) => c.id === req?.id)
+    const found = await findConversation(String(req?.id ?? ''))
     if (!found) return undefined
     const isPersonal = isPersonalAgentRef(found.assistantName ?? undefined)
     const personalAgent = isPersonal

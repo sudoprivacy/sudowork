@@ -47,7 +47,12 @@ const ChatConversationIndex: React.FC = () => {
   }, [id, closePreview]);
 
   const { data, error, isLoading, mutate } = useSWR(`conversation/${id}`, async () => {
-    return (await ipcBridge.conversation.get.invoke({ id })) ?? null;
+    const result = await ipcBridge.conversation.get.invoke({ id });
+    if (result && 'success' in result && result.success === false) {
+      const message = 'msg' in result && typeof result.msg === 'string' ? result.msg : 'Conversation lookup failed';
+      throw new Error(message);
+    }
+    return result ?? null;
   });
   const conversationDataRef = useRef<typeof data>(undefined);
 

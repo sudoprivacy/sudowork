@@ -269,6 +269,44 @@ describe('conversation REST (real PostgreSQL + fake moss)', () => {
     expect((res.body.conversations as { id: string }[]).map((c) => c.id)).toEqual(['sess-b1'])
   })
 
+  test('opens an authorized empty browser session absent from history with the same safe projection', async () => {
+    const moss = createFakeMossSession()
+    const hidden: MossSessionSummary = {
+      ...SESSIONS[0]!,
+      sessionId: 'browser-empty',
+      taskId: 'browser-task',
+      clientMetadata: { session_template_ref: 'review-template', private: 'do-not-expose' },
+    }
+    moss.get = async (_ctx, id) => (id === hidden.sessionId ? hidden : null)
+    const app = await buildApp(moss)
+    const list = await request(app).get('/api/conversations').set('Cookie', cookieA)
+    expect(
+      list.body.conversations.some((item: { id: string }) => item.id === hidden.sessionId),
+    ).toBe(false)
+    const detail = await request(app).get('/api/conversations/browser-empty').set('Cookie', cookieA)
+    expect(detail.status).toBe(200)
+    expect(detail.body).toMatchObject({
+      id: hidden.sessionId,
+      taskId: 'browser-task',
+      assistantName: 'helper',
+      templateRef: 'review-template',
+    })
+    expect(JSON.stringify(detail.body)).not.toContain('do-not-expose')
+    expect(detail.body).not.toHaveProperty('userId')
+    expect(detail.body).not.toHaveProperty('clientMetadata')
+  })
+
+  test('conversation detail requires authentication and preserves foreign and missing results', async () => {
+    const app = await buildApp()
+    expect((await request(app).get('/api/conversations/sess-a1')).status).toBe(401)
+    const foreign = await request(app).get('/api/conversations/sess-b1').set('Cookie', cookieA)
+    expect(foreign.status).toBe(403)
+    expect(foreign.body).toEqual({ error: 'SESSION_FORBIDDEN' })
+    const missing = await request(app).get('/api/conversations/missing').set('Cookie', cookieA)
+    expect(missing.status).toBe(404)
+    expect(missing.body).toEqual({ error: 'SESSION_NOT_FOUND' })
+  })
+
   test('browser file routes require authentication and reject another owner before transferring bytes', async () => {
     const app = await buildApp()
     const fileId = 'a'.repeat(32)
