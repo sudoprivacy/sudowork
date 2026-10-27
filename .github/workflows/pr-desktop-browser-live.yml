@@ -24,19 +24,13 @@ jobs:
         os: [windows-latest, ubuntu-latest]
     steps:
       - uses: actions/checkout@v6
-      # Cross-repository contracts use immutable source revisions. The separate
-      # native-browser job still accepts the production installer's public pin.
+      # Pin the compiler source and use the production installer's public SDK
+      # version, so review acceptance cannot depend on a candidate-only worker.
       - uses: actions/checkout@v6
         with:
           repository: sudoprivacy/sudograph
           ref: 8e56b55d2358ac672db021ae00c03c5d2a2863e0
           path: .native-review-acceptance/compiler
-          persist-credentials: false
-      - uses: actions/checkout@v6
-        with:
-          repository: sudoprivacy/ai-dev-browser
-          ref: f4e8c8642fbcd366de3dd3ac1930d136766f5f45
-          path: .native-review-acceptance/browser
           persist-credentials: false
       - uses: actions/setup-node@v6
         with:
@@ -51,12 +45,14 @@ jobs:
         id: chrome
         with:
           chrome-version: stable
-      - name: Install checked source runtimes and application dependencies
+      - name: Install checked compiler, official browser SDK and application dependencies
         shell: bash
         run: |
           set -euo pipefail
           bun install --frozen-lockfile
-          python -m pip install -r .native-review-acceptance/compiler/requirements.txt './.native-review-acceptance/browser[remote]'
+          version="$(bun -e "import { BROWSER_WORKER_VERSION } from './apps/desktop/src/process/services/python/browserRuntimeVersion.ts'; console.log(BROWSER_WORKER_VERSION)")"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          python -m pip --isolated install --index-url https://pypi.org/simple -r .native-review-acceptance/compiler/requirements.txt "ai-dev-browser[remote]==$version"
           bun run --filter=@sudowork/contracts build
           bun build ./apps/desktop/tests/integration/sudographReviewLaunch.live.ts --target=node --format=esm --outfile=./sudograph-review-live.mjs
       - name: Verify actual protected HTML and controlled browser handoff
@@ -64,7 +60,7 @@ jobs:
         env:
           AI_DEV_BROWSER_CHROME: ${{ steps.chrome.outputs.chrome-path }}
           SUDOGRAPH_COMPILER_ROOT: ${{ github.workspace }}/.native-review-acceptance/compiler
-          SUDOWORK_BROWSER_LIVE_PYTHONPATH: ${{ github.workspace }}/.native-review-acceptance/browser
+          SUDOWORK_BROWSER_LIVE_PYTHONPATH: ""
           SUDOWORK_REVIEW_LIVE_EVIDENCE: ${{ runner.temp }}/sudograph-review
         run: |
           set -euo pipefail

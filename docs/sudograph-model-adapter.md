@@ -241,17 +241,22 @@ synthetic acknowledgement fixture, not a running agent. The earlier
 revocation but installs its own cookie and does not establish this handoff.
 This is local OS-profile scope, not cloud tenant or row/field authorization.
 
-The cross-repository native-review CI job pins both source runtimes and runs this
-same headless/headful journey on Windows and Linux. It does not replace acceptance
-of the official installed SDK. The current production SDK pin predates the new
-capability, so the entry reports that a runtime update is required until the
-corresponding public SDK release and consumer pin are delivered.
+The cross-repository native-review CI job pins the compiler source and installs
+the official PyPI browser SDK version selected by the product installer. It runs
+this same headless/headful journey on Windows and Linux without a candidate source
+checkout or `PYTHONPATH` override. The public 0.58.9 worker passed both native
+review modes locally after the real Electron first-use installer created a fresh
+app-owned environment. This establishes the native page bootstrap and protected
+rendering boundary; the engine adapter in that test is a synthetic acknowledgement
+fixture, and production model/comment delivery remains separate acceptance.
 
 ## Acceptance boundary
 
 ### Local UX review before a public SDK release
 
-An unpackaged Desktop build accepts the host-owned
+The normal Desktop entry uses the official installer; no development interpreter
+override is required for the accepted native CDP review path. An unpackaged
+Desktop build additionally accepts the host-owned
 `SUDOWORK_DEV_BROWSER_PYTHON` environment variable for an existing absolute
 interpreter path. Install the candidate browser wheel in an isolated virtual
 environment first. The service verifies that interpreter can import the worker,
