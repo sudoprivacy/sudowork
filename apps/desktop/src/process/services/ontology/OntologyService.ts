@@ -19,6 +19,7 @@ import type {
   IOntologyStudioProject,
   IOntologyStudioProjectList,
   IOntologyConnectSourceInput,
+  IOntologyConnectorInput,
   IOntologyStandardImportInput,
   IOntologyStandardExportInput,
   IOntologyActionDefinitionInput,
@@ -361,7 +362,9 @@ export class OntologyService {
 
   /** Native form intake. Model paths, namespaces and authority are host-derived. */
   async connectStudioSource(raw: IOntologyConnectSourceInput): Promise<IOntologyStudioProject> {
-    if (!process.env.SUDOGRAPH_PYTHON || !process.env.SUDOGRAPH_COMPILER_ROOT || !process.env.SUDOGRAPH_MODEL_DIRECTORY) return this.connectLegacyStudioSource(raw);
+    const configuration = [process.env.SUDOGRAPH_PYTHON, process.env.SUDOGRAPH_COMPILER_ROOT, process.env.SUDOGRAPH_MODEL_DIRECTORY];
+    if (configuration.every((value) => !value)) return this.connectLegacyStudioSource(raw);
+    if (configuration.some((value) => !value)) throw new Error('Sudograph source registration is incompletely configured. Configure SUDOGRAPH_PYTHON, SUDOGRAPH_COMPILER_ROOT and SUDOGRAPH_MODEL_DIRECTORY.');
     const input = z
       .object({
         operationId: z.string().uuid(),
@@ -452,7 +455,10 @@ export class OntologyService {
   }
 
   private async connectLegacyStudioSource(raw: IOntologyConnectSourceInput): Promise<IOntologyStudioProject> {
-    const input = z.object({ operationId: z.string().uuid(), language: z.enum(['en', 'zh']),
+    const input = z
+      .object({
+        operationId: z.string().uuid(),
+        language: z.enum(['en', 'zh']),
         connector: z
           .object({
             name: z.string().trim().min(1).max(200),

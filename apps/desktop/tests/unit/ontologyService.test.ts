@@ -70,6 +70,17 @@ describe('OntologyService canonical source registration', () => {
 });
 
 describe('OntologyService native source intake', () => {
+  it('reports an incomplete canonical deployment instead of creating a legacy project', async () => {
+    vi.stubEnv('SUDOGRAPH_PYTHON', 'configured');
+    vi.stubEnv('SUDOGRAPH_COMPILER_ROOT', '');
+    vi.stubEnv('SUDOGRAPH_MODEL_DIRECTORY', '');
+    const engine = { probeConnector: vi.fn() };
+    const database = { saveSnapshot: vi.fn() };
+    const service = new OntologyService(database as unknown as OntologyDatabase, engine as unknown as OntologyEngine);
+    await expect(service.connectStudioSource({} as Parameters<typeof service.connectStudioSource>[0])).rejects.toThrow('incompletely configured');
+    expect(engine.probeConnector).not.toHaveBeenCalled();
+    expect(database.saveSnapshot).not.toHaveBeenCalled();
+  });
   it('binds private review sessions to the persisted project and conversation and rechecks ownership', async () => {
     reviewAccount.isCurrent = true;
     reviewAccount.read.mockReturnValue({ data: { extra: { purpose: 'ontology', ontologyId: 'source' } } });
@@ -349,7 +360,7 @@ describe('OntologyService document generation', () => {
     expect(extract.mock.calls[0][0][0].text).toContain('Invoice includes an amount.');
     expect(extract.mock.calls[0][1]).toBe('Model business records');
     const artifacts = path.join(repository.runtimeDirectory!, 'artifacts');
-    const generatedArtifacts = await fs.readdir(artifacts);
+    const generatedArtifacts = (await fs.readdir(artifacts)).filter((name) => name !== '.cli');
     expect(generatedArtifacts).toHaveLength(1);
     const runtimeModel = JSON.parse(await fs.readFile(path.join(artifacts, generatedArtifacts[0], 'ontology/runtime-model.json'), 'utf8'));
     expect(runtimeModel.objects.map((object: { code: string }) => object.code)).toEqual(['invoice']);
@@ -628,7 +639,7 @@ describe('OntologyService quality rule execution', () => {
     expect(loaded.missingBindings).toEqual([]);
     expect(loaded.manifest.runtimeDigest).toBe(candidate.version.runtimeDigest);
     expect(loaded.snapshot.assets[0].path).toContain(extracted);
-  });
+  }, 60_000);
 
   it('marks rules without a complete single-asset mapping as skipped', async () => {
     const snapshot = repository.getSnapshot('quality')!;

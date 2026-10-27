@@ -20,6 +20,9 @@ vi.mock('@process/services/scode/ScodeInstallService', () => ({ getScodePath: ()
 
 class Repository {
   snapshots = new Map<string, IOntologyWorkbenchSnapshot>();
+  getHostValue() {
+    return null;
+  }
   active = '';
   constructor(private readonly directory: string) {}
   getRuntimeDirectory() {
@@ -149,7 +152,22 @@ async function exportPackage(service: OntologyService, workspaceId: string, vers
   return target;
 }
 
+// A circulation case publishes, exports, imports and validates full CLI artifacts.
+// Windows first-read scanning takes about 2.3 s for each newly materialized CLI;
+// several complete archive round trips exceed the unit-test budget without CPU contention.
 describe('Sudowork ontology package circulation', () => {
+  it('discovers Python only when the package requires it and preserves an explicit interpreter', async () => {
+    const discovery = vi.spyOn(pythonRuntimeService, 'checkInstalled').mockResolvedValue({ installed: true, path: '/fixture/python', version: '3.12.0' });
+    const snapshot = authorRepository.getSnapshot('orders')!;
+    await author.scripts.build(snapshot);
+    expect(discovery).not.toHaveBeenCalled();
+    snapshot.logicFunctions[0] = { ...snapshot.logicFunctions[0], runtime: 'python', body: 'print(1)', configuration: {} };
+    expect((await author.scripts.build(snapshot)).bindings.python).toBe('/fixture/python');
+    expect(discovery).toHaveBeenCalledTimes(1);
+    snapshot.runtimeBindings = { python: '/configured/python' };
+    expect((await author.scripts.build(snapshot)).bindings.python).toBe('/configured/python');
+    expect(discovery).toHaveBeenCalledTimes(1);
+  });
   it('retains disabled implementations and secret slots without exporting credentials or losing request headers', async () => {
     const snapshot = authorRepository.getSnapshot('orders')!;
     snapshot.logicFunctions.push({ ...snapshot.logicFunctions[0], id: 'draft-logic', code: 'draft_logic', runtime: 'typescript', status: 'disabled', body: 'return { retained: true };', configuration: {} });
@@ -188,7 +206,7 @@ describe('Sudowork ontology package circulation', () => {
     const loaded = await loadOntologyArtifact(artifact.directory, artifact.bindings);
     expect(loaded.snapshot.actions[0].configuration).toMatchObject({ url: 'https://deployment.test/report', headers: { Authorization: 'new-header', 'X-Report-Format': 'v2' }, body: { apiToken: 'new-body' } });
     expect(loaded.missingBindings).toEqual([]);
-  });
+  }, 60_000);
 
   it('previews and imports a package without executing its CLI', async () => {
     const version = await publish(author, 'orders');
@@ -203,7 +221,7 @@ describe('Sudowork ontology package circulation', () => {
     await recipient.configureRuntimeEnvironment({ workspaceId: imported.workspaceId, bindings: { connections: { business: { sourceType: 'sqlite', path: sourceDatabase } } } });
     await exportPackage(recipient, imported.workspaceId, version.id, 'foreign-reexport.sudoonto', ['business']);
     await expect(fs.access(marker)).rejects.toThrow();
-  });
+  }, 60_000);
 
   it('creates the same editable workbench from a database without a Sudograph runtime', async () => {
     const register = vi.spyOn(recipient, 'registerSudographSourceProject');
@@ -262,7 +280,7 @@ describe('Sudowork ontology package circulation', () => {
     expect(loaded.missingBindings).toEqual([]);
     const agent = JSON.parse((await readPackageFile(independent, loaded.manifest.entrypoints.agent)).toString());
     expect(agent).toMatchObject({ id: 'default', requirements: { commandExecution: true }, authorization: { credentials: 'host-only' }, capabilityRefs: ['logic.total'] });
-  });
+  }, 60_000);
 
   it('imports without database credentials, binds a different host database and preserves the fixed runtime digest', async () => {
     vi.spyOn(pythonRuntimeService, 'checkInstalled').mockResolvedValue({ installed: true, path: '/bundled/python', version: '3.12.0' });
@@ -287,7 +305,7 @@ describe('Sudowork ontology package circulation', () => {
     expect(fork.packageIdentity?.source?.runtimeDigest).toBe(version.runtimeDigest);
     expect(fork.publishedVersions).toEqual([]);
     expect(fork.draft.title).toBe('My derivative');
-  });
+  }, 60_000);
 
   it('rejects files changed after preview without creating a partial project', async () => {
     const version = await publish(author, 'orders');
@@ -295,5 +313,5 @@ describe('Sudowork ontology package circulation', () => {
     await expect(recipient.importRuntimePackage({ filePath, fingerprint: '0'.repeat(64) })).rejects.toThrow('fileChanged');
     expect(recipientRepository.listSnapshots()).toEqual([]);
     expect(await fs.readdir(recipient.scripts.directory)).not.toContain('.import-');
-  });
+  }, 60_000);
 });

@@ -1,6 +1,6 @@
 # Sudograph model adapter: first host slice
 
-This implementation connects the existing native conversation/MCP machinery to
+This implementation connects the existing native conversation and project CLI to
 Sudograph's transactional model authoring protocol. It is not a deployment of
 the complete integration plan.
 
@@ -15,7 +15,7 @@ existing conversation registry and reaper continue to own chat lifecycle.
 
 `OntologyStudioDatabase` refuses legacy snapshot reads, saves, resets and deletes
 for Sudograph projects. This also protects callers reached through Studio,
-imports, legacy MCP tools and restore paths. No empty RDF workspace is created.
+imports, legacy authoring commands and restore paths. No empty RDF workspace is created.
 Deleting a canonical model needs its own lifecycle adapter; it is not silently
 implemented as a legacy snapshot reset.
 
@@ -40,11 +40,16 @@ creation and host project binding. A different registration cannot rebind the
 model. The existing lower-level `registerSudographProject` remains available for
 deployment tooling that already owns a registered canonical store.
 
-The connection form and `sudograph_source_register` tool use the same checked
-registration pipeline. Both accept SQLite, PostgreSQL and MySQL; neither lets an
+In a configured Sudograph deployment, the connection form and `register_source`
+project command use the same checked registration pipeline. Both accept SQLite,
+PostgreSQL and MySQL; neither lets an
 author choose model storage, namespace or authority. The source tool returns the
 registered project and its `open_path`; connecting another source does not silently
-replace the current project's baseline. Missing runtime configuration fails explicitly.
+replace the current project's baseline. Partial runtime configuration fails
+explicitly; a failed canonical scan is never retried through RDF. Deployments
+without any Sudograph runtime configuration retain the existing RDF intake and
+portable-package workflow, identified by their returned `rdf` authority. Those
+projects do not constitute a complete Sudograph projection.
 Users do not run operator commands during normal modelling.
 
 Sudowork owns network drivers and OS-encrypted source credentials. A private,
@@ -63,18 +68,27 @@ definition versions, base revisions and operation IDs. Graph, context and model
 advance together only after compilation succeeds. Ordinary model edits do not
 use the optional GitLab human-review publisher and do not change source data.
 
-The existing scoped builder bridge exposes four canonical tools:
+The shared project CLI discovers four canonical model commands and the common
+`register_source` command:
 
-- `sudograph_model_contract`
-- `sudograph_model_apply`
+- `sudograph_contract`
+- `sudograph_apply`
 - `sudograph_context`
 - `sudograph_context_read`
 
 Tool discovery uses the persisted project authority. Requests require a scoped
 builder token and matching project registration on the server. A global legacy
 token cannot call the canonical routes. Compiler conflict codes and recovery
-details survive both HTTP and MCP stdio. Successful edits emit
+details survive both HTTP and the versioned CLI JSON protocol. Successful edits emit
 `ontology.model-changed` with the model revision and context digest.
+
+The shared RDF script runtime stores its CLI in a host-owned, content-addressed
+read-only blob and links that blob into model artifacts when the filesystem
+supports it. Each use still checks its hash, and each sealed package retains its
+own checksum. Source rebuilds publish through atomic replacement and cannot
+rewrite old artifact bytes. Python discovery runs only when the runtime lock
+requires Python and no interpreter is already bound. Full CLI/archive round trips
+run as integration tests with a separate budget from browser input tests.
 
 Conversation creation and restoration load the current compiled context instead
 of the RDF builder workflow prompt for canonical projects. The renderer no longer
@@ -249,7 +263,7 @@ production WebUI authentication, comment delivery or a configured chat model.
 
 An additional authenticated trial must use the normal login UI and the actual
 Studio chat input. Compare a model's version-bound record reads with an
-independent read-only source query, inspect its real MCP calls and rendered final
+independent read-only source query, inspect its actual project commands and rendered final
 answer, and check the source digest. Read rendered Markdown through its shadow
 root; outer `innerText` omits it. Keep credentials and trial transcripts outside
 the repository. A live remote model in a local candidate Desktop build is still
@@ -259,7 +273,7 @@ not acceptance of the deployed WebUI or the official installed SDK.
 
 Unit tests exercise populated legacy-session migration, multiple canonical
 sessions without RDF payloads, authority conflicts, guarded legacy writes,
-scoped tool routing, error propagation and the real MCP stdio protocol. The
+scoped command routing, error propagation and the real project CLI protocol. The
 Sudograph `tools.accept_workspace_adapter` command additionally tests this real
 TypeScript client against the real Python compiler on unrelated SQLite data.
 

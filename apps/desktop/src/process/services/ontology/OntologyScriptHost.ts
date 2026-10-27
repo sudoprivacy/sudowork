@@ -154,9 +154,16 @@ export class OntologyScriptHost {
         artifact.bindings.actions![actionId] = await ontologyDesktopNotificationBinding(snapshot.workspaceId);
       }
     }
-    const python = await Promise.resolve(pythonRuntimeService.checkInstalled()).catch((): undefined => undefined);
-    if (!artifact.bindings.python && python?.installed && python.path) artifact.bindings.python = python.path;
+    await this.bindPythonRuntime(artifact);
     return artifact;
+  }
+
+  private async bindPythonRuntime(artifact: IOntologyArtifact): Promise<void> {
+    if (artifact.bindings.python) return;
+    const requirements = JSON.parse(await fs.readFile(path.join(artifact.directory, 'environment/runtime.lock.json'), 'utf8')) as { python: string | null };
+    if (!requirements.python) return;
+    const python = await Promise.resolve(pythonRuntimeService.checkInstalled()).catch((): undefined => undefined);
+    if (python?.installed && python.path) artifact.bindings.python = python.path;
   }
 
   async writeBindings(bindings: IOntologyRuntimeBindings, name: string = randomUUID()): Promise<string> {
@@ -218,8 +225,8 @@ export class OntologyScriptHost {
         bindings.actions![actionId] = await ontologyDesktopNotificationBinding(snapshot.workspaceId);
       }
     }
-    const python = await Promise.resolve(pythonRuntimeService.checkInstalled()).catch((): undefined => undefined);
-    if (!bindings.python && python?.installed && python.path) bindings.python = python.path;
-    return { directory, manifest, capabilities: loaded.capabilities, bindings };
+    const artifact = { directory, manifest, capabilities: loaded.capabilities, bindings };
+    await this.bindPythonRuntime(artifact);
+    return artifact;
   }
 }

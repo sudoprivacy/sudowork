@@ -7,7 +7,7 @@ export interface IOntologyProjectCommand {
 
 const sourceTools: IOntologyProjectCommand[] = [
   {
-    name: 'sudograph_source_register',
+    name: 'register_source',
     description:
       'Connect an explicitly supplied SQLite, PostgreSQL or MySQL source and run the host-selected read-only source registration using the same pipeline as the connection form. Returns its existing or new project, model authority and open_path. Use the returned scan receipt to assess coverage. Credentials stay in host secret storage and are excluded from models and results. Does not replace the current project or modify the database.',
     inputSchema: {
@@ -384,5 +384,5 @@ const tools: IOntologyProjectCommand[] = [
 
 export function ontologyProjectCommands(authority: 'rdf' | 'sudograph'): IOntologyProjectCommand[] {
   const catalog = authority === 'sudograph' ? sudographTools : tools.filter((item) => !['ontology_execute_action', 'ontology_approve_all', 'ontology_publish_current_draft', 'ontology_register_agent_blueprint'].includes(item.name));
-  return [...sourceTools.map((item) => ({ ...item, name: 'register_source' })), ...catalog.map((item) => ({ ...item, name: authority === 'sudograph' ? sudographRoutes[item.name] : item.name.replace(/^ontology_/, '') }))];
+  return [...sourceTools, ...catalog.map((item) => ({ ...item, name: authority === 'sudograph' ? sudographRoutes[item.name] : item.name.replace(/^ontology_/, '') }))];
 }

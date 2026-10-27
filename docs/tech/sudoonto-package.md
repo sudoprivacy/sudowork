@@ -142,4 +142,4 @@ node scripts/ontology.cjs invoke logic.orders_lookup \
 - 保存工作稿与构建文件产物是两个步骤；构建失败会报告，运行前重新构建，不静默回退到本体 MCP。
 - 本轮只实现客户端和共享包协议，不包含 Moss 服务端开发。
 
-主要验收位于 `ontologySudoonto.test.ts`、`ontologySudoonto.dom.test.tsx`、`ontologyScriptPackage.test.ts`，覆盖跨客户端恢复编辑、绑定新数据库、原样再导出、修改后版本来源、静态导入、秘密槽位、写权限与导出 UI。
+主要验收位于 `ontologyPackageCirculation.integration.test.ts`、`ontologySudoonto.dom.test.tsx`、`ontologyScriptPackage.integration.test.ts`，覆盖跨客户端恢复编辑、绑定新数据库、原样再导出、修改后版本来源、静态导入、秘密槽位、写权限与导出 UI。
