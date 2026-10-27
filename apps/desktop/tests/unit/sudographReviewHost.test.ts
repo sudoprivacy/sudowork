@@ -2,6 +2,7 @@ import { request as httpRequest } from 'node:http';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SudographReviewHost, type ISudographReviewLaunch } from '@process/services/ontology/SudographReviewHost';
 import { SudographCompilerError } from '@process/services/ontology/SudographModelClient';
+import type { ShareoneReviewAssets } from '@process/services/ontology/ShareoneReviewAssets';
 
 const hosts: SudographReviewHost[] = [];
 afterEach(async () => {
@@ -33,6 +34,37 @@ function post(launch: ISudographReviewLaunch, body: unknown, headers: Record<str
 }
 
 describe('Sudograph authenticated host review boundary', () => {
+  it('keeps the graph readable during credential outages and recovers using existing host credentials', async () => {
+    const prepare = vi.fn().mockRejectedValueOnce(new Error('Private credential transport diagnostic')).mockResolvedValue({ shareId: 'existing-private-share' });
+    const host = new SudographReviewHost({
+      authorize: vi.fn(),
+      read: async (_workspace, input) => (input.operation === 'document' ? { html: '<html>Original graph</html>', revision: 'r1' } : { revision: 'r1' }),
+      comments: { assets: { shell: (_prefix: string, config: unknown) => JSON.stringify(config) } as ShareoneReviewAssets, prepare, proxy: vi.fn(), status: () => ({}) },
+    });
+    hosts.push(host);
+    const launch = await host.createSession({ workspaceId: 'source', conversationId: 'chat-1' });
+    expect(prepare).not.toHaveBeenCalled();
+    const headers = { Cookie: cookie(launch) };
+    const shell = await (await fetch(launch.url, { headers })).json();
+    expect(shell.rawUrl).toBe(`${new URL(launch.url).pathname}content`);
+    expect(shell.connect_required).toBeUndefined();
+    const unavailable = await fetch(`${launch.url}connection`, { headers });
+    expect(unavailable.status).toBe(503);
+    expect(await unavailable.json()).toEqual({ state: 'unavailable', error: 'REVIEW_CONNECTION_UNAVAILABLE' });
+    expect(await (await fetch(`${launch.url}content`, { headers })).text()).toBe('<html>Original graph</html>');
+    expect(await (await fetch(`${launch.url}connection`, { headers })).json()).toEqual({ state: 'ready', share_id: 'existing-private-share' });
+    expect(prepare).toHaveBeenCalledTimes(2);
+    expect(await (await fetch(`${launch.url}connection`, { headers })).json()).toMatchObject({ state: 'ready' });
+    expect(prepare).toHaveBeenCalledTimes(2);
+    expect((await fetch(`${launch.url}connection`)).status).toBe(403);
+  });
+
+  it('requests pairing only after the provider confirms missing credentials', async () => {
+    const host = new SudographReviewHost({ authorize: vi.fn(), read: async () => ({}), comments: { assets: {} as ShareoneReviewAssets, prepare: async () => null, proxy: vi.fn(), status: () => ({}) } });
+    hosts.push(host);
+    const launch = await host.createSession({ workspaceId: 'source', conversationId: 'chat-1' });
+    expect(await (await fetch(`${launch.url}connection`, { headers: { Cookie: cookie(launch) } })).json()).toEqual({ state: 'account_required' });
+  });
   it('keeps the launch identity out of the URL and requires its path-scoped cookie', async () => {
     const { host, read } = fixture();
     const launch = await host.createSession({ workspaceId: 'source', conversationId: 'chat-1' });
