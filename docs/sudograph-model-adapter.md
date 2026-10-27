@@ -192,16 +192,22 @@ The normal host installs the pinned ShareOne review shell through the standard
 development/package scripts and includes its checked assets in `extraResources`.
 No caller must remember an environment override. Only an unpackaged developer
 build accepts `SUDOWORK_SHAREONE_REVIEW_ASSETS` for isolated review-shell work.
-The pinned ShareOne source repository is private. CI builds use
-the dedicated Actions secret `SHAREONE_REVIEW_GITHUB_TOKEN` with Contents: read
-access limited to `sudoprivacy/shareone`. The generic release `GH_TOKEN` is not a
-substitute: its repository selection may exclude ShareOne. Configure the dedicated
-credential in Sudowork repository secrets; never put its value in source or logs.
-Git receives it through a repository-scoped process environment
-header, never a URL or command argument. Frontend installation uses the host Node/npm
-layout and drops Electron and cross-compilation target overrides before building
-the shell. Local development may use its configured Git credential helper or the
-verified `SHAREONE_REVIEW_SOURCE` checkout.
+The pinned ShareOne source repository is private. CI uses a read-only deploy key
+registered on `sudoprivacy/shareone`, stored in the Sudowork Actions secret
+`SHAREONE_REVIEW_DEPLOY_KEY`. The shared `checkout-shareone-review` action reads the
+revision from the lockfile, checks out that exact commit using `actions/checkout`
+with strict SSH host verification and credential persistence disabled, then sets
+`SHAREONE_REVIEW_SOURCE` for all packaging entries. A personal token or ShareOne
+API key is not required. The generic release `GH_TOKEN` is not a substitute for
+source access. Never put private keys or tokens in source or logs.
+
+Direct builds outside these workflows may use a verified `SHAREONE_REVIEW_SOURCE`
+checkout or a dedicated `SHAREONE_REVIEW_GITHUB_TOKEN` with Contents: read access
+limited to ShareOne. For that optional HTTPS path, Git receives the token through
+a repository-scoped process environment header, never a URL or command argument.
+Frontend installation uses the host Node/npm layout and drops Electron and
+cross-compilation target overrides before building the shell. Local development
+may also use its configured Git credential helper.
 
 The host serves the real ShareOne composer, sidebar and anchor SDK around local
 compiler output. It registers a private owner/collaborator ShareOne comment space
