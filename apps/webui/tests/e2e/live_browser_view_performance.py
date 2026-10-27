@@ -59,6 +59,7 @@ async def main(args):
     )
     selected_phrase = "Exact WebUI review phrase"
     selection_layouts, clipboard_inputs, clipboard_receipts = [], [], []
+    selection_events = []
     receipts = []
     visits = []
     authenticated_visits = []
@@ -136,6 +137,7 @@ if(response.ok){clearInterval(ticker);document.body.style.background='rgb(0,128,
         def do_POST(self):
             clipboard_events = {
                 "/selection-layout": selection_layouts,
+                "/selection-event": selection_events,
                 "/clipboard-input": clipboard_inputs,
                 "/clipboard-submit": clipboard_receipts,
             }
@@ -280,10 +282,33 @@ if(response.ok){clearInterval(ticker);document.body.style.background='rgb(0,128,
                             return
                         body = request.post_data_json
                         timing = request.timing
+                        input_detail = None
+                        selection_detail = None
+                        if body["kind"] == "input":
+                            input_detail = {
+                                key: value
+                                for key, value in body.get("input", {}).items()
+                                if key
+                                in ("kind", "x", "y", "points", "phase", "sequence")
+                            }
+                            if (
+                                input_detail.get("kind") == "copy-selection"
+                                and response.status == 200
+                            ):
+                                selection = (await response.json()).get("selection", {})
+                                text = selection.get("text", "")
+                                selection_detail = {
+                                    "isAvailable": selection.get("isAvailable"),
+                                    "isEmpty": not text,
+                                    "matchesExpectedPhrase": text == selected_phrase,
+                                    "matchesAfterTrim": text.strip() == selected_phrase,
+                                }
                         requests.append(
                             {
                                 "kind": body["kind"],
                                 "status": response.status,
+                                "input": input_detail,
+                                "selection": selection_detail,
                                 "at": time.monotonic(),
                                 "errorBody": await response.text()
                                 if response.status >= 400
@@ -623,34 +648,19 @@ if(response.ok){clearInterval(ticker);document.body.style.background='rgb(0,128,
                             view_box["x"] + view_box["width"] - 20,
                             view_box["y"] + view_box["height"] - 10,
                         )
+                        # Await Chrome's complete scroll gesture before tapping
+                        # another control. This also accounts for touch slop.
                         await touch.send(
-                            "Input.dispatchTouchEvent",
-                            {"type": "touchStart", "touchPoints": [{"x": x, "y": y}]},
-                        )
-                        for distance in (50, 100, 150, 200, 250):
-                            await touch.send(
-                                "Input.dispatchTouchEvent",
-                                {
-                                    "type": "touchMove",
-                                    "touchPoints": [
-                                        {
-                                            "x": x - distance,
-                                            "y": y
-                                            - (
-                                                80 * distance / 250
-                                                if gesture == 0
-                                                else 0
-                                            ),
-                                        }
-                                    ],
-                                },
-                            )
-                            # Model a continuous human swipe. Near-zero-duration
-                            # CDP moves make Blink suppress the following tap.
-                            await asyncio.sleep(0.03)
-                        await touch.send(
-                            "Input.dispatchTouchEvent",
-                            {"type": "touchEnd", "touchPoints": []},
+                            "Input.synthesizeScrollGesture",
+                            {
+                                "x": x,
+                                "y": y,
+                                "xDistance": -250,
+                                "yDistance": -80 if gesture == 0 else 0,
+                                "gestureSourceType": "touch",
+                                "preventFling": True,
+                                "speed": 800,
+                            },
                         )
                     await touch.detach()
                     assert (
@@ -685,17 +695,49 @@ if(response.ok){clearInterval(ticker);document.body.style.background='rgb(0,128,
                         clipboard_receipts,
                         nonce,
                         evidence,
+                        source_events=selection_events,
                     )
                     await page.screenshot(
                         path=str(args.output / "selection-clipboard-ime.png")
                     )
                 if is_touch_selection_acceptance:
-                    await page.evaluate("""() => {
+                    await page.evaluate(
+                        """label => {
                         window.browserTouchDiagnostics = [];
+                        const record = value => {
+                            if (window.browserTouchDiagnostics.length < 200)
+                                window.browserTouchDiagnostics.push(value);
+                        };
+                        const current = () => {
+                            const button = [...document.querySelectorAll('button')]
+                                .find(element => element.getAttribute('aria-label') === label);
+                            return button ? {disabled:button.disabled, pressed:button.getAttribute('aria-pressed'),
+                                connected:button.isConnected, text:button.textContent} : null;
+                        };
                         for (const type of ['touchstart','touchend','pointerdown','pointerup','pointercancel','mousedown','mouseup','click']) {
-                            document.addEventListener(type, event => window.browserTouchDiagnostics.push({type, trusted:event.isTrusted, target:event.target.tagName, label:event.target.getAttribute('aria-label'), text:event.target.textContent?.slice(0,80), prevented:event.defaultPrevented}), true);
+                            document.addEventListener(type, event => {
+                                const sample = {type, trusted:event.isTrusted, target:event.target.tagName,
+                                    label:event.target.getAttribute('aria-label'), text:event.target.textContent?.slice(0,80),
+                                    timestamp:event.timeStamp, pointerType:event.pointerType,
+                                    x:event.clientX ?? event.changedTouches?.[0]?.clientX,
+                                    y:event.clientY ?? event.changedTouches?.[0]?.clientY};
+                                record({...sample, phase:'capture', prevented:event.defaultPrevented, button:current()});
+                                queueMicrotask(() => record({...sample, phase:'after-dispatch',
+                                    prevented:event.defaultPrevented, targetConnected:event.target.isConnected, button:current()}));
+                            }, true);
                         }
-                    }""")
+                        const observer = new MutationObserver(changes => {
+                            for (const change of changes) {
+                                if (change.target.getAttribute('aria-label') === label)
+                                    record({type:'button-attribute', timestamp:performance.now(),
+                                        attribute:change.attributeName, oldValue:change.oldValue, button:current()});
+                            }
+                        });
+                        observer.observe(document.body, {subtree:true, attributes:true,
+                            attributeOldValue:true, attributeFilter:['disabled','aria-pressed']});
+                    }""",
+                        labels["touchGesture"],
+                    )
                     await expect(
                         panel.get_by_role(
                             "button", name=labels["copySelection"], exact=True
@@ -725,6 +767,7 @@ if(response.ok){clearInterval(ticker);document.body.style.background='rgb(0,128,
                         evidence,
                         gesture="touch",
                         selection_only=True,
+                        source_events=selection_events,
                     )
                     await page.screenshot(
                         path=str(args.output / "touch-phrase-selection.png")
