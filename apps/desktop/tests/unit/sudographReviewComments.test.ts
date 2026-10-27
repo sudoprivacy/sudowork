@@ -100,6 +100,14 @@ it('defaults to private comments and never uploads graph content or records', as
   expect(state.requests.filter((item) => item.route.includes('/agent-consumers/'))).toHaveLength(1);
 });
 
+it('does not send an anonymous upstream request when the current account has no key', async () => {
+  const state = fixture();
+  state.controls.key = '';
+  await expect(service.prepare('project', 'conversation')).resolves.toBeNull();
+  expect(await service.proxy({ workspaceId: 'project', conversationId: 'conversation' }, '/api/v1/me', 'GET')).toEqual({ status: 401, body: { error_code: 'INVALID_API_KEY' } });
+  expect(state.requests).toHaveLength(0);
+});
+
 it('commits events before ACK, retries an uncommitted batch, and ignores duplicate/agent events', async () => {
   const state = fixture();
   state.controls.failAccept = true;

@@ -9,7 +9,10 @@ const mocks = vi.hoisted(() => ({
   client: vi.fn(),
   mainLog: vi.fn(),
   mainWarn: vi.fn(),
+  fetch: vi.fn(),
 }));
+
+vi.mock('electron', () => ({ net: { fetch: mocks.fetch } }));
 
 vi.mock('@/common/enterpriseDebugConfig', () => ({
   isEnterpriseMode: mocks.isEnterpriseMode,
@@ -44,7 +47,7 @@ describe('enterprise ShareOne credentials', () => {
     mocks.getSecret.mockResolvedValue('  private-shareone-key  ');
 
     await expect(getShareoneApiKeyEnterprise()).resolves.toBe('private-shareone-key');
-    expect(mocks.client).toHaveBeenCalledWith('https://moss.example', 'refreshed-token', 'user-a');
+    expect(mocks.client).toHaveBeenCalledWith('https://moss.example', 'refreshed-token', 'user-a', expect.any(Function));
     expect(mocks.getSecret).toHaveBeenCalledWith('user:user-a:shareone', 'shareone_key');
     expect(JSON.stringify(mocks.mainLog.mock.calls)).not.toContain('private-shareone-key');
   });
@@ -71,7 +74,7 @@ describe('enterprise ShareOne credentials', () => {
     mocks.getUserId.mockReturnValue('user-b');
     mocks.getMossServerUrl.mockReturnValue('https://other-moss.example');
     await expect(getShareoneApiKeyEnterprise()).resolves.toBe('second-key');
-    expect(mocks.client).toHaveBeenLastCalledWith('https://other-moss.example', 'refreshed-token', 'user-b');
+    expect(mocks.client).toHaveBeenLastCalledWith('https://other-moss.example', 'refreshed-token', 'user-b', expect.any(Function));
     expect(mocks.getSecret).toHaveBeenLastCalledWith('user:user-b:shareone', 'shareone_key');
   });
 
@@ -96,5 +99,15 @@ describe('enterprise ShareOne credentials', () => {
 
     await expect(getShareoneApiKeyEnterprise()).resolves.toBeNull();
     expect(mocks.getSecret).not.toHaveBeenCalled();
+  });
+
+  it('does not mistake a failed credential lookup for an unpaired review account', async () => {
+    mocks.getSecret.mockRejectedValue(new Error('Secret transport unavailable'));
+    await expect(getShareoneApiKeyEnterprise({ isRequired: true })).rejects.toMatchObject({ code: 'SHAREONE_CREDENTIAL_UNAVAILABLE' });
+  });
+
+  it('requires pairing only when the authenticated store confirms no key exists', async () => {
+    await expect(getShareoneApiKeyEnterprise({ isRequired: true })).resolves.toBeNull();
+    expect(mocks.getSecret).toHaveBeenCalledTimes(3);
   });
 });

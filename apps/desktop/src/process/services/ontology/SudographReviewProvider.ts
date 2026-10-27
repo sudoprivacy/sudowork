@@ -1,4 +1,4 @@
-import { app } from 'electron';
+import { app, net } from 'electron';
 import path from 'node:path';
 import { userInfo } from 'node:os';
 import { ProcessConfig } from '@process/initStorage';
@@ -25,7 +25,8 @@ export async function createSudographReviewProvider(options: IReviewProviderDepe
     database: options.database,
     baseUrl: process.env.SUDOWORK_SHAREONE_ORIGIN || 'https://shareone.vip',
     currentAccount: account,
-    getKey: async () => (ProcessConfig.getSync('eeclaw.accountScope') ? getShareoneApiKeyEnterprise() : options.database.getHostSecret('shareone:' + account())),
+    getKey: async () => (ProcessConfig.getSync('eeclaw.accountScope') ? getShareoneApiKeyEnterprise({ isRequired: true }) : options.database.getHostSecret('shareone:' + account())),
+    fetcher: net.fetch.bind(net),
     setKey: async (key) => {
       if (ProcessConfig.getSync('eeclaw.accountScope')) {
         if (!(await saveShareoneApiKeyEnterprise(key))) throw new Error('ShareOne account pairing is unavailable.');

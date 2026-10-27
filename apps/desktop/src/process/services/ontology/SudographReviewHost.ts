@@ -54,7 +54,6 @@ export class SudographReviewHost {
     if (this.isClosed) throw new Error('Review host is closed.');
     if (!/^[a-zA-Z0-9_-]{1,128}$/.test(binding.workspaceId) || !binding.conversationId || binding.conversationId.length > 256) throw new Error('Invalid review binding.');
     await this.options.authorize(binding);
-    const comments = this.options.comments ? await this.options.comments.prepare(binding) : undefined;
     if (this.isClosed) throw new Error('Review host is closed.');
     this.startup ??= this.start().catch((error) => {
       this.startup = undefined;
@@ -69,7 +68,7 @@ export class SudographReviewHost {
     const prefix = `/review/${id}`;
     const cookieName = `sudograph_review_${id}`;
     const expiresAt = this.now() + 30 * 60_000;
-    this.sessions.set(id, { ...binding, prefix, cookieName, credentialHash: createHash('sha256').update(credential).digest(), expiresAt, ...(comments === undefined ? {} : { shareId: comments?.shareId || null }) });
+    this.sessions.set(id, { ...binding, prefix, cookieName, credentialHash: createHash('sha256').update(credential).digest(), expiresAt });
     // Ordinary JSON, structured-clone, logging and bridge redaction must not
     // serialize the credential. Only the trusted browser host reads it explicitly.
     return Object.freeze(
@@ -211,7 +210,6 @@ export class SudographReviewHost {
       return;
     }
     if (request.method === 'GET' && route === '') {
-      if (!session.shareId) session.shareId = (await provider.prepare(session))?.shareId || null;
       const head = (await this.options.read(session.workspaceId, { operation: 'head' })) as { revision: string };
       return send(
         200,
@@ -220,21 +218,29 @@ export class SudographReviewHost {
           filename: 'Model review',
           content_kind: 'html',
           allow_comments: true,
-          rawUrl: session.shareId ? `${session.prefix}/content` : '',
+          rawUrl: `${session.prefix}/content`,
           api_base: session.prefix,
           host_read_endpoint: `${session.prefix}/v1`,
           revision_url: `${session.prefix}/head`,
           revision: head.revision,
           delivery_url: `${session.prefix}/delivery`,
-          connect_required: !session.shareId,
+          connection_url: `${session.prefix}/connection`,
           site_url: 'https://shareone.vip',
           publish_url: 'https://shareone.vip',
         }),
         true
       );
     }
+    if (request.method === 'GET' && route === 'connection') {
+      try {
+        if (!session.shareId) session.shareId = (await provider.prepare(session))?.shareId || null;
+        return send(200, session.shareId ? { state: 'ready', share_id: session.shareId } : { state: 'account_required' });
+      } catch {
+        // Failure to read an existing credential is not proof that none exists.
+        return send(503, { state: 'unavailable', error: 'REVIEW_CONNECTION_UNAVAILABLE' });
+      }
+    }
     if (request.method === 'GET' && route === 'content') {
-      if (!session.shareId) return send(409, { error: 'COMMENT_ACCOUNT_REQUIRED' });
       const document = (await this.options.read(session.workspaceId, { operation: 'document', endpoint: `${session.prefix}/v1` })) as { html: string; revision: string };
       if (!document?.html || !document.revision) return send(503, { error: 'MODEL_DOCUMENT_UNAVAILABLE' });
       session.revision = document.revision;

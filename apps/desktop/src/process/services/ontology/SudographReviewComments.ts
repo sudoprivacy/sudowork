@@ -24,6 +24,7 @@ interface ICommentsOptions {
   baseUrl: string;
   currentAccount: () => string;
   getKey: () => Promise<string | null>;
+  fetcher?: typeof fetch;
   setKey: (key: string | null) => Promise<void>;
   authorize: (binding: { workspaceId: string; conversationId: string }) => Promise<void>;
   head: (workspaceId: string) => Promise<{ revision: string; context_digest: string }>;
@@ -52,12 +53,13 @@ export class SudographReviewComments {
     if (!route.startsWith('/api/') || route.startsWith('//') || route.includes('..')) throw new Error('Invalid ShareOne route.');
     const account = this.options.currentAccount();
     const credential = key === undefined ? await this.options.getKey() : key;
+    if (key === undefined && !credential) return { status: 401, body: { error_code: 'INVALID_API_KEY' } };
     if (account !== this.options.currentAccount()) throw new Error('Review account changed.');
     if (this.isClosed) throw new Error('Review comments are closed.');
     const controller = new AbortController();
     this.requests.add(controller);
     try {
-      const response = await fetch(new URL(route, this.options.baseUrl), {
+      const response = await (this.options.fetcher || fetch)(new URL(route, this.options.baseUrl), {
         method,
         redirect: 'error',
         signal: AbortSignal.any([AbortSignal.timeout(30000), controller.signal]),
@@ -145,8 +147,8 @@ export class SudographReviewComments {
       if (settings?.viewer_scope !== 'owner_and_collaborators' || settings.allow_comments !== true) throw new Error('ShareOne review policy could not be confirmed.');
     }
     // This read enforces current ShareOne collaborator/viewer access too.
-    this.requireSuccess(await this.request(`/api/v1/shares/${space.shareId}/comments/changes`));
-    this.requireSuccess(await this.request(`/api/v1/agent-consumers/${space.consumer}`, 'PUT', { share_id: space.shareId, start: 'beginning' }));
+    this.requireSuccess(await this.request(`/api/v1/shares/${space.shareId}/comments/changes`, 'GET', undefined, key));
+    this.requireSuccess(await this.request(`/api/v1/agent-consumers/${space.consumer}`, 'PUT', { share_id: space.shareId, start: 'beginning' }, key));
     if (account !== this.options.currentAccount()) throw new Error('Review account changed.');
     return space;
   }
