@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       nightly_tag:
-        description: 'Nightly tag to promote (e.g. nightly-2026-04-01-abc1234)'
+        description: "Nightly tag to promote (e.g. nightly-2026-04-01-abc1234)"
         required: true
         type: string
       target_version:
-        description: 'Target release version (must match the candidate manifests)'
+        description: "Target release version (must match the candidate manifests)"
         required: true
         type: string
 
@@ -21,7 +21,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  BUN_INSTALL_REGISTRY: 'https://registry.npmjs.org/'
+  BUN_INSTALL_REGISTRY: "https://registry.npmjs.org/"
 
 jobs:
   validate-candidate:
@@ -35,10 +35,11 @@ jobs:
         with:
           ref: ${{ inputs.nightly_tag }}
           fetch-depth: 0
+          submodules: true
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: "22"
       - name: Validate version and audited source tree
         id: candidate
         env:
@@ -63,7 +64,7 @@ jobs:
     name: Manual Audit
     needs: regression-test
     runs-on: ubuntu-latest
-    environment: 'candidate-approval'
+    environment: "candidate-approval"
     steps:
       - name: Audit checkpoint
         run: echo 'Candidate source and supported platform builds passed the audit gate.'
@@ -78,11 +79,12 @@ jobs:
         with:
           ref: ${{ needs.validate-candidate.outputs.commit }}
           fetch-depth: 0
+          submodules: true
           token: ${{ secrets.GH_TOKEN }}
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: "22"
       - name: Tag the audited candidate
         env:
           NIGHTLY_TAG: ${{ inputs.nightly_tag }}
@@ -100,11 +102,12 @@ jobs:
         with:
           ref: ${{ needs.validate-candidate.outputs.commit }}
           fetch-depth: 0
+          submodules: true
           token: ${{ secrets.GH_TOKEN }}
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: "22"
       - name: Publish the exact audited source
         env:
           NIGHTLY_TAG: ${{ inputs.nightly_tag }}
