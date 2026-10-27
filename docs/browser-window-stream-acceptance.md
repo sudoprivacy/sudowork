@@ -174,8 +174,10 @@ SDK [PR #43](https://github.com/sudoprivacy/ai-dev-browser/pull/43) adds that
 operation to owned managed-extension browsers while retaining the existing
 personal-profile refusal. Its installed candidate passed the real CDP and signed
 extension cookie/bootstrap/error-cleanup journeys and both personal-extension
-negative journeys. It is pending CI and publication; SDK 0.58.9 does not include
-this capability. The cloud project authorisation and review-host adapter still
+negative journeys. PR #43 has shipped in public SDK 0.58.10. The current Desktop
+installer pin remains 0.58.9, which supports the native managed CDP review path;
+it does not include this managed-extension bootstrap. The cloud project
+authorisation, review-host adapter and corresponding runtime delivery still
 require joint integration. Browser credentials must stay outside the renderer,
 model context and notification payload.
 
