@@ -493,7 +493,7 @@
       },
       "publish": {
         "title": "Ontology Service",
-        "description": "Manage published ontology versions, service status, and MCP tools."
+        "description": "Manage published ontology versions, service status, and script capabilities."
       },
       "agent": {
         "title": "Ontology Apps",
@@ -637,7 +637,7 @@
   },
   "runtime": {
     "title": "Runtime and Services",
-    "description": "Generate document templates, logic functions, action definitions, and MCP/OSDK/API service endpoints.",
+    "description": "Generate document templates, logic functions, action definitions, and CLI/OSDK/API service endpoints.",
     "functions": "Functions",
     "actions": "Actions",
     "endpoints": "Endpoints",
@@ -788,7 +788,7 @@
   },
   "publishConsole": {
     "environmentTitle": "Ontology Services",
-    "environmentDescription": "View every ontology service. Open a card to inspect versions, service status, and MCP tools.",
+    "environmentDescription": "View every ontology service. Open a card to inspect versions, service status, and script capabilities.",
     "empty": "No ontologies",
     "emptyHint": "Create an ontology from the ontology list first.",
     "servingVersion": "{{version}} · Serving",
@@ -818,12 +818,12 @@
     "emptyLogic": "No logic",
     "emptyActions": "No actions"
   },
-  "mcpService": {
+  "scriptService": {
     "title": "Ontology Service",
-    "detailsTitle": "MCP Service Capabilities",
-    "description": "Expose this ontology's serving version to Sudocode through a managed, read-only MCP stdio server.",
+    "detailsTitle": "Ontology script capabilities",
+    "description": "Execute ontology capabilities through the same scripts used locally and in exported packages.",
     "running": "Registered in Sudocode",
-    "notRegistered": "Register an ontology Agent to enable MCP",
+    "notRegistered": "Register an ontology agent to use its scripts",
     "registeredAgents": "Registered Agents",
     "paramCountLabel": "Parameters",
     "copy": "Copy",
@@ -842,7 +842,7 @@
     "errorCount": "Errors",
     "lastCall": "Last Call",
     "apiKeyTitle": "API Key (X-API-Key)",
-    "apiKeyFallback": "Not configured: set MCP_API_KEYS in the server .env",
+    "apiKeyFallback": "Configure resource bindings in the runtime environment",
     "copyKey": "Copy Key",
     "endpointToolDescription": "{{protocol}} service endpoint with {{count}} tools.",
     "actionToolDescription": "Execute {{executor}} action.",
@@ -980,7 +980,7 @@
     "sessionTitle": "AI Build · {{title}}",
     "initialPrompt": "Please act as the Ontology AI Builder and help me construct the \"{{title}}\" ontology. Start by calling ontology_get_snapshot to inspect current state, then progress through: define goal → confirm data assets → extract objects/relations → add mappings & quality rules → consistency check → publish → register agent, using the corresponding ontology_* tools to actually persist every step to the database.",
     "initialPromptGoalLine": "Business goal: {{goal}}",
-    "presetContext": "You are helping the user build the ontology \"{{title}}\" (workspace_id: {{workspaceId}}) inside SudoWork's Ontology Workbench via the AI Builder entry.\n\n**Key rule**: You MUST use the `ontology-builder` MCP's `ontology_*` tools to actually create/update objects, attributes, relations, mappings, quality rules, logic functions and actions. Every write is reflected live in the workbench UI the user is looking at; describing structure only in chat means the user sees no change.\n\n**Available tools**: ontology_get_snapshot, ontology_update_draft, ontology_upsert_object, ontology_upsert_attribute, ontology_upsert_relation, ontology_upsert_mapping, ontology_upsert_quality_rule, ontology_upsert_logic_function, ontology_upsert_action, ontology_execute_logic_function, ontology_execute_relation, ontology_execute_action, ontology_generate_draft_from_assets, ontology_run_consistency_check, ontology_publish_current_draft, ontology_create_agent_blueprint, ontology_register_agent_blueprint.\n\n**Workflow**:\n1. Call ontology_get_snapshot at session start.\n2. If the user hasn't given a business goal, ask; then ontology_update_draft to store it.\n3. Extract objects: ontology_upsert_object one at a time (parallel batches OK); name in the user's language, code in snake_case.\n4. Add attributes per object with ontology_upsert_attribute (objectId + name + dataType required); bind mappedField if you already know the asset field.\n5. Build relations with ontology_upsert_relation; configure direct dataBinding when join keys are known, junction dataBinding for many-to-many bridge assets, and semantic_only only for conceptual relations.\n6. Add mappings and quality rules, then execute new logic, field-bound relations, and actions with test arguments before publishing.\n7. When done, ontology_run_consistency_check; on isValid=false, read issues[] and fix them.\n8. **Review is done by the human**: tell the user \"open the workbench preview and click Approve All\". Never approve on their behalf.\n9. After the user confirms approval, call ontology_publish_current_draft.\n10. After publish, ontology_create_agent_blueprint + ontology_register_agent_blueprint.\n\nAlways pass workspace_id: \"{{workspaceId}}\" (unless the user switches ontology explicitly). Keep replies concise — one line summarising the round and one line suggesting the next step.",
+    "presetContext": "Build ontology {{title}} using the host-provided project script commands. Read the current model and command contract before editing. Keep changes scoped to workspace_id={{workspaceId}}. Validate queries and relationships through the shared script runtime. Publishing and business writes require the workbench user to confirm.",
     "modal": {
       "title": "Start a new AI build",
       "confirm": "Start",
@@ -1043,8 +1043,8 @@
     "navigation": "Ontology workspace pages",
     "fileMenu": "File",
     "import": "Import ontology",
-    "importFileHint": "Supports .owl, .rdf, .xml (RDF/XML or OWL/XML), up to {{maxSize}} MB",
-    "importFileFilter": "Ontology files (.owl, .rdf, .xml)",
+    "importFileHint": "Supports .owl, .rdf and .xml (up to {{maxSize}} MB), and .sudoonto packages (up to 512 MB)",
+    "importFileFilter": "Ontology files (RDF / OWL / Sudowork package)",
     "export": "Export",
     "save": "Save draft",
     "saved": "Saved",
@@ -1188,6 +1188,26 @@
     "severity": "Severity",
     "locate": "Locate in model",
     "releaseTitle": "Versions and publishing",
+    "exportRuntimePackage": "Export Sudowork ontology package",
+    "packageExportDescription": "Export a .sudoonto package with the model, capability scripts and agent instructions. Other clients can import and edit it; Moss can later publish an enterprise agent from the same package.",
+    "packageDone": "Done",
+    "packageFileSize": "File size: {{size}} MB",
+    "packageDigest": "Package digest",
+    "packageVerification": {
+      "binding-required": "Integrity checks passed; the runtime environment needs configuration.",
+      "passed": "Integrity and resource checks passed; see the package report for verification coverage.",
+      "not-run": "Integrity checks passed; runtime environment verification has not run."
+    },
+    "packageContents": "{{version}} · {{count}} capabilities",
+    "packageEmbeddedResources": "Select data snapshots or files to include",
+    "packageBindingsHint": "SQLite snapshots include the whole database. Unselected resources and external services require deployment bindings. Connection credentials are excluded; do not hardcode credentials in capability source.",
+    "packageExportSuccess": "Ontology runtime package exported",
+    "packageBindingsRequired": "{{count}} resource bindings still need configuration in the target environment",
+    "packagePhase": {
+      "collecting": "Collecting resources",
+      "validating": "Validating package",
+      "packing": "Creating archive"
+    },
     "releaseDescription": "Publish ontology versions, then optionally create and register agents",
     "createCandidate": "Create candidate",
     "emptyVersions": "No versions yet",
@@ -1386,6 +1406,34 @@
     "agentNewConversation": "New conversation",
     "issues": {
       "noServiceEndpoint": "Ontology tools are not available to agents yet. Open Release to publish the ontology and register an agent."
-    }
+    },
+    "packageImportTitle": "Import Sudowork ontology package",
+    "packageImportHint": "Create a new local project with the model, mappings, capability source and agent instructions. Import does not execute capabilities. Configure external resources on the Data page.",
+    "packageImportFork": "Create an independent derivative with a new ontology identity and preserved provenance",
+    "packageImportUnavailable": "This host does not support importing Sudowork ontology packages.",
+    "runtimeEnvironment": "Runtime environment",
+    "configureConnection": "Configure connection",
+    "bindFile": "Choose file",
+    "runtimeEnvironmentHint": "Configure local data resources. These settings stay on this device and are excluded from exported packages.",
+    "bindingMissing": "Needs configuration",
+    "bindingConfigured": "Configured",
+    "configureBindings": "Configure resource bindings",
+    "verifyBindings": "Verify environment",
+    "bindingEditorHint": "Fill in the resource configuration. Empty strings preserve existing values; saved credentials are never displayed. allowedActions controls agent action permissions. Database writes also require writable: true.",
+    "portableAgent": "Portable agent definition",
+    "portableAgentHint": "These instructions travel with the next published .sudoonto package and support local or future enterprise agents. Existing published versions stay unchanged.",
+    "agentInstructions": "Agent instructions",
+    "defaultAgentInstructions": "Answer business questions using ontology definitions and capability results. Discover capabilities and inspect arguments first. Do not invent data; business writes require user authorization.",
+    "packageSourceVersion": "Source version: {{version}}",
+    "editActionName": "Edit action: {{name}}",
+    "deleteActionName": "Delete action: {{name}}",
+    "addAction": "New action",
+    "editAction": "Edit action",
+    "runAction": "Execute action",
+    "invalidActionDefinition": "Check the JSON configuration, parameters and output schema.",
+    "actionConfiguration": "Execution configuration (JSON)",
+    "actionParameters": "Parameters (JSON)",
+    "actionOutput": "Output schema (JSON)",
+    "actionExecutionHint": "This action may modify business data or call external services. Confirm the arguments and target resources before executing."
   }
 }

@@ -6606,12 +6606,12 @@ function OntologyServiceDetails({ snapshot }: IOntologyServiceDetailsProps) {
   );
   const serviceName = registeredBlueprints.at(-1)
     ? `ontology-${registeredBlueprints.at(-1)?.id}`
-    : t("ontology.mcpService.notRegistered");
-  const mcpTools = useMemo(() => buildMcpTools(snapshot, t), [snapshot, t]);
+    : t("ontology.scriptService.notRegistered");
+  const scriptCapabilities = useMemo(() => buildScriptCapabilities(snapshot, t), [snapshot, t]);
   const onCopyText = useCallback(
     async (text: string) => {
       await navigator.clipboard.writeText(text);
-      Message.success(t("ontology.mcpService.copied"));
+      Message.success(t("ontology.scriptService.copied"));
     },
     [t],
   );
@@ -6621,10 +6621,10 @@ function OntologyServiceDetails({ snapshot }: IOntologyServiceDetailsProps) {
       <section className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 max-w-3xl">
           <Typography.Title heading={5} className="!mb-2">
-            {t("ontology.mcpService.detailsTitle")}
+            {t("ontology.scriptService.detailsTitle")}
           </Typography.Title>
           <Typography.Text className="text-sm" type="secondary">
-            {t("ontology.mcpService.description")}
+            {t("ontology.scriptService.description")}
           </Typography.Text>
         </div>
         <div className={`${WORKBENCH_CARD_CLASS} p-4`}>
@@ -6637,8 +6637,8 @@ function OntologyServiceDetails({ snapshot }: IOntologyServiceDetailsProps) {
             <Typography.Text className="text-sm">
               {t(
                 registeredBlueprints.length > 0
-                  ? "ontology.mcpService.running"
-                  : "ontology.mcpService.notRegistered",
+                  ? "ontology.scriptService.running"
+                  : "ontology.scriptService.notRegistered",
               )}
             </Typography.Text>
           </div>
@@ -6652,7 +6652,7 @@ function OntologyServiceDetails({ snapshot }: IOntologyServiceDetailsProps) {
               disabled={registeredBlueprints.length === 0}
               onClick={() => void onCopyText(serviceName)}
             >
-              {t("ontology.mcpService.copy")}
+              {t("ontology.scriptService.copy")}
             </Button>
           </div>
         </div>
@@ -6660,23 +6660,23 @@ function OntologyServiceDetails({ snapshot }: IOntologyServiceDetailsProps) {
 
       <div className="flex flex-col gap-4">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-          <McpMetricCard
+          <ScriptMetricCard
             title={t("ontology.stats.versions")}
             value={snapshot.stats.publishedVersionCount}
             suffix=""
           />
-          <McpMetricCard
+          <ScriptMetricCard
             title={t("ontology.stats.objects")}
             value={snapshot.stats.objectCount}
             suffix=""
           />
-          <McpMetricCard
+          <ScriptMetricCard
             title={t("ontology.runtime.functions")}
             value={snapshot.stats.logicFunctionCount}
             suffix=""
           />
-          <McpMetricCard
-            title={t("ontology.mcpService.registeredAgents")}
+          <ScriptMetricCard
+            title={t("ontology.scriptService.registeredAgents")}
             value={registeredBlueprints.length}
             suffix=""
           />
@@ -6686,11 +6686,11 @@ function OntologyServiceDetails({ snapshot }: IOntologyServiceDetailsProps) {
           className="rounded bg-[var(--color-bg-1)] shadow-sm"
           rowKey="name"
           pagination={false}
-          data={mcpTools}
-          noDataElement={<Empty description={t("ontology.mcpService.empty")} />}
+          data={scriptCapabilities}
+          noDataElement={<Empty description={t("ontology.scriptService.empty")} />}
           columns={[
             {
-              title: t("ontology.mcpService.toolName"),
+              title: t("ontology.scriptService.toolName"),
               dataIndex: "name",
               width: 220,
             },
@@ -6700,9 +6700,9 @@ function OntologyServiceDetails({ snapshot }: IOntologyServiceDetailsProps) {
               ellipsis: true,
             },
             {
-              title: t("ontology.mcpService.paramCountLabel"),
+              title: t("ontology.scriptService.paramCountLabel"),
               width: 140,
-              render: (_: unknown, tool: IMcpToolDefinition) =>
+              render: (_: unknown, tool: IScriptCapabilityDefinition) =>
                 Object.keys(tool.inputSchema.properties).length,
             },
           ]}
@@ -7107,7 +7107,7 @@ function PublishedArtifactSection({
   );
 }
 
-function McpMetricCard({ title, value, suffix }: IMcpMetricCardProps) {
+function ScriptMetricCard({ title, value, suffix }: IScriptMetricCardProps) {
   return (
     <div className={`${WORKBENCH_CARD_CLASS} p-4`}>
       <Typography.Text className="block text-sm" type="secondary">
@@ -7373,61 +7373,14 @@ function agentManageStatus(
   return agent.status === "draft" ? "draft" : "published";
 }
 
-function buildMcpTools(
+function buildScriptCapabilities(
   snapshot: IOntologyWorkbenchSnapshot,
   t: TranslateFn,
-): IMcpToolDefinition[] {
-  const baseTools: IMcpToolDefinition[] = [
-    {
-      name: "ontology_get_overview",
-      description: t("ontology.mcpService.coreTools.overview"),
-      inputSchema: { properties: {} },
-    },
-    {
-      name: "ontology_search",
-      description: t("ontology.mcpService.coreTools.query"),
-      inputSchema: {
-        properties: {
-          query: {
-            type: "string",
-            description: t("ontology.mcpService.paramDescriptions.query"),
-          },
-          limit: {
-            type: "number",
-            description: t("ontology.mcpService.paramDescriptions.limit"),
-          },
-        },
-        required: ["query"],
-      },
-    },
-    {
-      name: "ontology_get_object",
-      description: t("ontology.mcpService.coreTools.object"),
-      inputSchema: {
-        properties: {
-          id_or_code: {
-            type: "string",
-            description: t("ontology.mcpService.paramDescriptions.objectId"),
-          },
-        },
-        required: ["id_or_code"],
-      },
-    },
-    {
-      name: "ontology_list_logic",
-      description: t("ontology.mcpService.coreTools.logic"),
-      inputSchema: { properties: {} },
-    },
-    {
-      name: "ontology_list_relations",
-      description: t("ontology.mcpService.coreTools.relations"),
-      inputSchema: { properties: {} },
-    },
-    {
-      name: "ontology_list_actions",
-      description: t("ontology.mcpService.coreTools.actions"),
-      inputSchema: { properties: {} },
-    },
+): IScriptCapabilityDefinition[] {
+  const baseTools: IScriptCapabilityDefinition[] = [
+    { name: "inspect", description: t("ontology.scriptService.coreTools.overview"), inputSchema: { properties: {} } },
+    { name: "list", description: t("ontology.scriptService.coreTools.logic"), inputSchema: { properties: {} } },
+    { name: "describe", description: t("ontology.scriptService.coreTools.object"), inputSchema: { properties: { capabilityId: { type: "string", description: t("ontology.scriptService.paramDescriptions.scope") } }, required: ["capabilityId"] } },
   ];
   const runtimeArtifactTools = [
     ...snapshot.logicFunctions
@@ -7437,7 +7390,7 @@ function buildMcpTools(
       .filter((item) => item.status === "active")
       .map((item) => ({ prefix: "action", item })),
   ].map(({ prefix, item }) => ({
-    name: `${prefix}_${item.code}`.replace(/[^a-zA-Z0-9_-]/g, "_"),
+    name: prefix + "." + item.code,
     description: item.description || item.name,
     inputSchema: {
       properties: Object.fromEntries(
@@ -7460,7 +7413,7 @@ function buildMcpTools(
         relation.dataBinding && relation.dataBinding.mode !== "semantic_only",
     )
     .map((relation) => ({
-      name: `relation_${relation.code}`.replace(/[^a-zA-Z0-9_-]/g, "_"),
+      name: "relation." + relation.code,
       description: t("ontology.relationRuntime.toolDescription", {
         name: relation.name,
       }),
@@ -7469,20 +7422,20 @@ function buildMcpTools(
           query: {
             type: "object",
             description: t(
-              "ontology.mcpService.paramDescriptions.relationQuery",
+              "ontology.scriptService.paramDescriptions.relationQuery",
             ),
           },
           direction: {
             type: "string",
-            description: t("ontology.mcpService.paramDescriptions.direction"),
+            description: t("ontology.scriptService.paramDescriptions.direction"),
           },
           limit: {
             type: "number",
-            description: t("ontology.mcpService.paramDescriptions.limit"),
+            description: t("ontology.scriptService.paramDescriptions.limit"),
           },
           maxDepth: {
             type: "number",
-            description: t("ontology.mcpService.paramDescriptions.maxDepth"),
+            description: t("ontology.scriptService.paramDescriptions.maxDepth"),
           },
         },
       },
@@ -10463,13 +10416,13 @@ interface IPublishedArtifactItem {
   meta: string;
 }
 
-interface IMcpMetricCardProps {
+interface IScriptMetricCardProps {
   title: string;
   value: number;
   suffix: string;
 }
 
-interface IMcpToolDefinition {
+interface IScriptCapabilityDefinition {
   name: string;
   description: string;
   inputSchema: {

@@ -6,7 +6,7 @@ import type { IOntologyStudioApi } from './api';
 
 const defaultProviders = ['postgresql', 'mysql', 'sqlite'] as const;
 
-export default function StudioDatabaseConnection({ workspaceId, api, onRefresh, onClose, onError, providers = defaultProviders, onSubmit }: IStudioDatabaseConnectionProps) {
+export default function StudioDatabaseConnection({ workspaceId, api, onRefresh, onClose, onError, providers = defaultProviders, onSubmit, initialConnector }: IStudioDatabaseConnectionProps) {
   const { t } = useTranslation();
   const text = (key: string) => t(`ontology.studio.${key}`);
   const requiredMessage = (field: string) => t('ontology.studio.requiredField', { field });
@@ -84,6 +84,17 @@ export default function StudioDatabaseConnection({ workspaceId, api, onRefresh, 
           sourceType: providers[0],
           port: 5432,
           schema: 'public',
+          ...(initialConnector
+            ? {
+                name: initialConnector.name,
+                host: initialConnector.host,
+                port: initialConnector.port || (providers[0] === 'mysql' ? 3306 : 5432),
+                database: initialConnector.database,
+                username: initialConnector.username,
+                path: initialConnector.path,
+                schema: initialConnector.params?.schema || 'public',
+              }
+            : {}),
         }}
       >
         <Form.Item
@@ -195,6 +206,7 @@ export default function StudioDatabaseConnection({ workspaceId, api, onRefresh, 
 }
 
 interface IStudioDatabaseConnectionProps {
+  initialConnector?: Partial<IOntologyConnectorInput>;
   providers?: readonly ('postgresql' | 'mysql' | 'sqlite')[];
   onSubmit?: (connector: IOntologyConnectorInput) => Promise<void>;
   workspaceId: string;

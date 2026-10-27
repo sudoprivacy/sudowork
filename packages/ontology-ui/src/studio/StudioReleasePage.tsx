@@ -6,6 +6,8 @@ import { ontologyBlockingIssues } from '@sudowork/ontology-common';
 import type { IOntologyConsistencyCheckResult, IOntologyAgentBlueprint, IOntologyPublishedVersion, IOntologyWorkbenchSnapshot } from '@sudowork/ontology-common';
 import type { IOntologyStudioApi } from './api';
 import styles from './studio.module.css';
+import StudioPackageExport from './StudioPackageExport';
+import StudioAgentDefinition from './StudioAgentDefinition';
 
 export default function StudioReleasePage({ snapshot, api, onRefresh, onError, onExport, onReport, onViewChecks, onStartAgentConversation, isModelDirty = false }: IStudioReleasePageProps) {
   const { t } = useTranslation();
@@ -18,6 +20,7 @@ export default function StudioReleasePage({ snapshot, api, onRefresh, onError, o
   const [registeringVersions, setRegisteringVersions] = useState<string[]>([]);
   const pending = useRef(new Set<string>());
   const [detail, setDetail] = useState<string>();
+  const [packageVersionId, setPackageVersionId] = useState<string>();
   const [agentDetailId, setAgentDetailId] = useState<string>();
   const [creatingVersion, setCreatingVersion] = useState<IOntologyPublishedVersion>();
   const [agentForm] = Form.useForm<{ name: string }>();
@@ -95,7 +98,7 @@ export default function StudioReleasePage({ snapshot, api, onRefresh, onError, o
   const onOpenCreate = (version: IOntologyPublishedVersion) => {
     const suffix = text('agentNameSuffix');
     agentForm.resetFields();
-    agentForm.setFieldValue('name', `${snapshot.draft.title.slice(0, Math.max(1, 100 - suffix.length))}${suffix}`);
+    agentForm.setFieldValue('name', version.snapshot.agentDefinition?.name || `${snapshot.draft.title.slice(0, Math.max(1, 100 - suffix.length))}${suffix}`);
     setCreatingVersion(version);
   };
   const onConfirmCreate = async () => {
@@ -132,6 +135,7 @@ export default function StudioReleasePage({ snapshot, api, onRefresh, onError, o
         </Button>
       </div>
       {isModelDirty && <Alert type='warning' content={text('saveBeforeChecks')} style={{ marginBottom: 16 }} />}
+      {api.updateAgentDefinition && <StudioAgentDefinition snapshot={snapshot} onSave={api.updateAgentDefinition} onRefresh={onRefresh} onError={onError} isDisabled={isModelDirty} />}
       {publishCheck && publishCheck.issues.length > 0 && (
         <div style={{ marginBottom: 16 }}>
           <Alert
@@ -213,6 +217,11 @@ export default function StudioReleasePage({ snapshot, api, onRefresh, onError, o
                   <Button type='text' onClick={() => onExport(version.id)}>
                     {text('export')}
                   </Button>
+                  {version.status === 'published' && api.runtimePackage && (
+                    <Button type='text' onClick={() => setPackageVersionId(version.id)}>
+                      {text('exportRuntimePackage')}
+                    </Button>
+                  )}
                   {version.status === 'submitted' && (
                     <>
                       <Button
@@ -389,6 +398,7 @@ export default function StudioReleasePage({ snapshot, api, onRefresh, onError, o
       <Modal visible={detail !== undefined} title={text('versionDiff')} footer={null} onCancel={() => setDetail(undefined)} style={{ width: 'min(900px, 90vw)' }}>
         <pre className={styles['ontology-code']}>{detail}</pre>
       </Modal>
+      {packageVersionId && api.runtimePackage && <StudioPackageExport workspaceId={snapshot.workspaceId} versionId={packageVersionId} api={api.runtimePackage} onClose={() => setPackageVersionId(undefined)} onError={onError} />}
     </section>
   );
 }

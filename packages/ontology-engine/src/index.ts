@@ -112,7 +112,7 @@ interface IOntologyTemplateDefinition {
 function createOntologyToolManifest(snapshot: IOntologyVersionSnapshot): IOntologyToolManifestItem[] {
   return [
     {
-      name: 'ontology.lookup',
+      name: 'inspect',
       description: 'Lookup ontology objects, attributes, and relations.',
       displayName: '本体综合查询',
       displayDescription: '查询本体中的业务对象、属性和关系。',
@@ -121,7 +121,7 @@ function createOntologyToolManifest(snapshot: IOntologyVersionSnapshot): IOntolo
     ...snapshot.relations
       .filter((relation) => relation.dataBinding && relation.dataBinding.mode !== 'semantic_only')
       .map((relation) => ({
-        name: `relation_${relation.code}`,
+        name: `relation.${relation.code}`,
         description: `Traverse ${relation.name} through its configured field-level join.`,
         displayName: `遍历“${relation.name}”关系`,
         displayDescription: `通过已配置的字段关联遍历“${relation.name}”关系并查询关联记录。`,
@@ -130,7 +130,7 @@ function createOntologyToolManifest(snapshot: IOntologyVersionSnapshot): IOntolo
     ...snapshot.logicFunctions
       .filter((logicFunction) => logicFunction.status === 'active')
       .map((logicFunction) => ({
-        name: `logic_${logicFunction.code}`,
+        name: `logic.${logicFunction.code}`,
         description: logicFunction.description || logicFunction.name,
         displayName: logicFunction.displayName,
         displayDescription: logicFunction.displayDescription,
@@ -139,7 +139,7 @@ function createOntologyToolManifest(snapshot: IOntologyVersionSnapshot): IOntolo
     ...snapshot.actions
       .filter((action) => action.status === 'active')
       .map((action) => ({
-        name: `action_${action.code}`,
+        name: `action.${action.code}`,
         description: action.description || action.name,
         displayName: action.displayName,
         displayDescription: action.displayDescription,
@@ -167,9 +167,9 @@ export class OntologyEngine {
   }
 
   async listWorkbenches(activeWorkspaceId = 'default'): Promise<IOntologyWorkbenchListResult> {
-    const snapshots = await this.listNormalizedSnapshots(activeWorkspaceId);
+    const snapshots = await this.listNormalizedSnapshots();
     return {
-      activeWorkspaceId,
+      activeWorkspaceId: snapshots.some((snapshot) => snapshot.workspaceId === activeWorkspaceId) ? activeWorkspaceId : snapshots[0]?.workspaceId || '',
       items: snapshots.filter((snapshot) => snapshot.workspaceId !== 'default').map((snapshot) => summarizeOntologyWorkbenchSnapshot(snapshot)),
     };
   }
@@ -209,10 +209,10 @@ export class OntologyEngine {
       createDefaultOntologyWorkbenchSnapshot(Date.now(), {
         workspaceId: 'default',
       });
-    const nextActiveWorkspaceId = activeWorkspaceId === workspaceId || !remaining.some((snapshot) => snapshot.workspaceId === activeWorkspaceId) ? fallbackSnapshot.workspaceId : activeWorkspaceId;
+    const nextActiveWorkspaceId = activeWorkspaceId === workspaceId || !remaining.some((snapshot) => snapshot.workspaceId === activeWorkspaceId) ? remaining[0]?.workspaceId || '' : activeWorkspaceId;
     const list = await this.listWorkbenches(nextActiveWorkspaceId);
     return {
-      snapshot: nextActiveWorkspaceId === fallbackSnapshot.workspaceId ? fallbackSnapshot : await this.getWorkbench(nextActiveWorkspaceId),
+      snapshot: !nextActiveWorkspaceId || nextActiveWorkspaceId === fallbackSnapshot.workspaceId ? fallbackSnapshot : await this.getWorkbench(nextActiveWorkspaceId),
       summaries: list.items,
       activeWorkspaceId: list.activeWorkspaceId,
     };
@@ -976,7 +976,7 @@ export class OntologyEngine {
     return { snapshot: await this.save(snapshot), version };
   }
 
-  async approvePublishedVersion(input: IOntologyPublishApprovalInput, workspaceId = 'default'): Promise<IOntologyWorkbenchSnapshot> {
+  async approvePublishedVersion(input: IOntologyPublishApprovalInput, workspaceId = 'default', runtimeDigest?: string): Promise<IOntologyWorkbenchSnapshot> {
     const snapshot = await this.getWorkbench(workspaceId);
     const now = Date.now();
     let isFound = false;
@@ -987,6 +987,7 @@ export class OntologyEngine {
       return {
         ...version,
         status: 'published',
+        runtimeDigest,
         isActive: true,
         approvedAt: now,
         approvedBy: input.reviewerId?.trim() || 'local-reviewer',
@@ -1074,7 +1075,7 @@ export class OntologyEngine {
       status: 'draft',
       ontologyVersionId: version.id,
       entityIds: version.snapshot.objects.map((item) => item.id),
-      promptTemplate: input.promptTemplate?.trim() || `Use ontology ${version.version} to answer domain questions and operate on approved ontology tools.`,
+      promptTemplate: input.promptTemplate?.trim() || version.snapshot.agentDefinition?.instructions || `Use ontology ${version.version} to answer domain questions and operate on approved ontology tools.`,
       toolManifest: createOntologyToolManifest(version.snapshot),
       createdAt: now,
       updatedAt: now,
@@ -1168,11 +1169,9 @@ export class OntologyEngine {
     return snapshot;
   }
 
-  private async listNormalizedSnapshots(activeWorkspaceId: string): Promise<IOntologyWorkbenchSnapshot[]> {
+  private async listNormalizedSnapshots(): Promise<IOntologyWorkbenchSnapshot[]> {
     const snapshots = (await this.repository.listSnapshots()).map((snapshot) => normalizeSnapshot(snapshot));
-    if (snapshots.length > 0) return snapshots.sort((left, right) => right.updatedAt - left.updatedAt);
-    const snapshot = await this.getWorkbench(activeWorkspaceId);
-    return [snapshot];
+    return snapshots.sort((left, right) => (right.createdAt ?? 0) - (left.createdAt ?? 0) || left.workspaceId.localeCompare(right.workspaceId));
   }
 
   private async markPhase(snapshot: IOntologyWorkbenchSnapshot, phaseName: IOntologyPhaseTransitionInput['phase'], status: IOntologyPhaseTransitionInput['status'], summary?: string): Promise<void> {
@@ -2172,11 +2171,11 @@ function createServiceEndpoints(snapshot: IOntologyWorkbenchSnapshot, now: numbe
   const runtimeToolCount = snapshot.logicFunctions.filter((item) => item.status === 'active').length + snapshot.actions.filter((item) => item.status === 'active').length + snapshot.relations.filter((item) => item.dataBinding && item.dataBinding.mode !== 'semantic_only').length;
   return [
     {
-      id: snapshot.serviceEndpoints.find((endpoint) => endpoint.protocol === 'mcp')?.id ?? randomUUID(),
-      name: 'Ontology MCP Tools',
-      protocol: 'mcp',
+      id: snapshot.serviceEndpoints.find((endpoint) => endpoint.protocol === 'script')?.id ?? randomUUID(),
+      name: 'Ontology Script CLI',
+      protocol: 'script',
       status: snapshot.objects.length > 0 ? 'active' : 'draft',
-      toolCount: 6 + runtimeToolCount,
+      toolCount: 3 + runtimeToolCount,
       updatedAt: now,
     },
     {
@@ -2200,6 +2199,10 @@ function createServiceEndpoints(snapshot: IOntologyWorkbenchSnapshot, now: numbe
 
 function createVersionSnapshot(snapshot: IOntologyWorkbenchSnapshot): IOntologyVersionSnapshot {
   return {
+    agentDefinition: structuredClone(snapshot.agentDefinition),
+    packageIdentity: structuredClone(snapshot.packageIdentity),
+    authoringDraft: structuredClone(snapshot.draft),
+    runtimeEnvironment: { assets: structuredClone(snapshot.assets), connectors: snapshot.connectors.map((item) => ({ id: item.id, name: item.name, kind: item.kind, sourceType: item.sourceType, writable: item.writable, metadata: {}, probeStatus: 'not_tested', createdAt: 0, updatedAt: 0 })) },
     semanticDocument: structuredClone(snapshot.semanticDocument),
     revision: snapshot.revision,
     objects: structuredClone(snapshot.objects),
@@ -2666,17 +2669,17 @@ function runtimeActionConfigurationIssue(action: IOntologyActionDefinition, snap
       const identityAttribute = object.attributes.find((attribute) => attribute.code === 'id') ?? object.attributes.find((attribute) => attribute.required);
       if (!identityAttribute) return 'an id or required identity attribute is required';
       const identityAssetIds = new Set(runtimeAttributeAssetIds(snapshot, object.id, identityAttribute.id));
-      const hasWritableAsset = object.attributes.some(
+      const isDatabaseAsset = object.attributes.some(
         (attribute) =>
           attribute.id !== identityAttribute.id &&
           runtimeAttributeAssetIds(snapshot, object.id, attribute.id).some((assetId) => {
             if (!identityAssetIds.has(assetId)) return false;
             const asset = snapshot.assets.find((item) => item.id === assetId);
             const connectorId = typeof asset?.metadata.connectorId === 'string' ? asset.metadata.connectorId : undefined;
-            return snapshot.connectors.some((connector) => connector.id === connectorId && connector.writable === true);
+            return snapshot.connectors.some((connector) => connector.id === connectorId && connector.kind === 'database');
           })
       );
-      if (!hasWritableAsset) return 'identity and target attributes must share a writable database asset';
+      if (!isDatabaseAsset) return 'identity and target attributes must share a database asset';
       return null;
     }
     const functionCode = typeof config.functionCode === 'string' ? config.functionCode.trim() : '';
@@ -2685,7 +2688,7 @@ function runtimeActionConfigurationIssue(action: IOntologyActionDefinition, snap
     return null;
   }
   if (action.executor === 'api') {
-    if (typeof config.url !== 'string' || !config.url.trim()) return 'configuration.url is required';
+    if (typeof config.url !== 'string' || !config.url.trim()) return config.resourceRef === 'action:' + action.id ? null : 'configuration.url is required';
     if (!config.url.includes('{{')) {
       try {
         const url = new URL(config.url);
@@ -2702,14 +2705,13 @@ function runtimeActionConfigurationIssue(action: IOntologyActionDefinition, snap
     if (!connector) return 'a database connector could not be resolved';
     const command = /^\s*([A-Za-z]+)/.exec(config.statement)?.[1]?.toUpperCase();
     if (!['SELECT', 'INSERT', 'UPDATE', 'DELETE'].includes(command ?? '')) return 'only SELECT, INSERT, UPDATE, and DELETE are supported';
-    if (command !== 'SELECT' && connector.writable !== true) return 'SQL writes require a connector marked writable';
     return null;
   }
   if (action.executor === 'notification') {
     if (typeof config.message !== 'string' || !config.message.trim()) return 'configuration.message is required';
     return null;
   }
-  if (typeof config.command !== 'string' || !path.isAbsolute(config.command)) return 'configuration.command must be an absolute path';
+  if (typeof config.command !== 'string' || (!path.isAbsolute(config.command) && !['node', 'python3', 'python', 'bash', 'sh'].includes(config.command))) return config.resourceRef === 'action:' + action.id ? null : 'configuration.command must identify an executable or a supported interpreter';
   return null;
 }
 

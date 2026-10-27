@@ -19,6 +19,73 @@ function emitWorkbenchChanged(snapshot: IOntologyWorkbenchSnapshot): void {
 }
 
 export function initOntologyBridge(): void {
+  ipcBridge.ontology.previewRuntimePackage.provider(async (input) => {
+    try {
+      return ok(await ontologyService.previewRuntimePackage(input));
+    } catch (error) {
+      return fail(error);
+    }
+  });
+  ipcBridge.ontology.importRuntimePackage.provider(async (input) => {
+    try {
+      const snapshot = await ontologyService.importRuntimePackage(input);
+      ipcBridge.ontology.projectsChanged.emit({ workspaceId: snapshot.workspaceId });
+      emitWorkbenchChanged(snapshot);
+      return ok(snapshot);
+    } catch (error) {
+      return fail(error);
+    }
+  });
+  ipcBridge.ontology.getRuntimeEnvironment.provider(async (input) => {
+    try {
+      return ok(await ontologyService.getRuntimeEnvironment(input));
+    } catch (error) {
+      return fail(error);
+    }
+  });
+  ipcBridge.ontology.configureRuntimeEnvironment.provider(async (input) => {
+    try {
+      const result = await ontologyService.configureRuntimeEnvironment(input);
+      emitWorkbenchChanged(await ontologyService.getWorkbench(input));
+      return ok(result);
+    } catch (error) {
+      return fail(error);
+    }
+  });
+  ipcBridge.ontology.verifyRuntimeEnvironment.provider(async (input) => {
+    try {
+      return ok(await ontologyService.verifyRuntimeEnvironment(input));
+    } catch (error) {
+      return fail(error);
+    }
+  });
+  ipcBridge.ontology.updateAgentDefinition.provider(async (input) => {
+    try {
+      const snapshot = await ontologyService.updateAgentDefinition(input);
+      emitWorkbenchChanged(snapshot);
+      return ok(snapshot);
+    } catch (error) {
+      return fail(error);
+    }
+  });
+  ipcBridge.ontology.planRuntimePackage.provider(async (input) => {
+    try {
+      return ok(await ontologyService.planRuntimePackage(input));
+    } catch (error) {
+      return fail(error);
+    }
+  });
+  ipcBridge.ontology.exportRuntimePackage.provider(async (input) => {
+    try {
+      return ok(await ontologyService.exportRuntimePackage(input, (event) => ipcBridge.ontology.packageExportProgress.emit(event)));
+    } catch (error) {
+      return fail(error);
+    }
+  });
+  ipcBridge.ontology.cancelRuntimePackageExport.provider(async ({ requestId }) => {
+    ontologyService.cancelRuntimePackageExport(requestId);
+    return ok(undefined);
+  });
   ontologyService.onAgentRegistrationChanged(emitWorkbenchChanged);
   ipcBridge.ontology.listProjects.provider(async () => {
     try {
@@ -124,7 +191,8 @@ export function initOntologyBridge(): void {
   ipcBridge.ontology.deleteWorkbench.provider(async (input) => {
     try {
       const result = await ontologyService.deleteWorkbench(input);
-      emitWorkbenchChanged(result.snapshot);
+      ipcBridge.ontology.projectsChanged.emit({ workspaceId: input.workspaceId });
+      if (result.activeWorkspaceId) emitWorkbenchChanged(result.snapshot);
       return ok(result);
     } catch (err) {
       return fail(err);

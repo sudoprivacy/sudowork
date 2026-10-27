@@ -111,10 +111,10 @@ export default function StudioConversationPanel({ workspaceId, workspaceName, co
       .then(async (item) => {
         if (isCancelled) return;
         if (item?.extra.purpose !== 'ontology' || item.extra.ontologyId !== workspaceId) throw new Error('ontology.studio.errors.sessionUnavailable');
-        const builder = await ipcBridge.ontologyAiBuilder.ensureBuilderMcp.invoke({ workspaceId });
+        const builder = await ipcBridge.ontologyAiBuilder.prepareProject.invoke({ workspaceId });
         if (!builder.success || !builder.data) throw new Error(builder.msg || 'ontology.studio.errors.builderUnavailable');
         if (isCancelled) return;
-        const extra = { ...item.extra, extraMcpConfigs: [builder.data.mcpConfig] };
+        const extra = { ...item.extra, presetContext: builder.data.instructions };
         const isUpdated = await ipcBridge.conversation.update.invoke({ id: item.id, updates: { extra } as Partial<TChatConversation>, mergeExtra: true });
         if (!isUpdated) throw new Error('ontology.studio.errors.builderUnavailable');
         if (!isCancelled) {

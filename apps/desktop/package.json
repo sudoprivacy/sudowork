@@ -9,10 +9,10 @@
   },
   "scripts": {
     "hook:build": "node scripts/build-hook.js",
-    "start": "bun run hook:build && bun run browser-mcp:build && bun run team-mcp:build && bun run ontology-mcp:build && bun run ontology-builder-mcp:build && node scripts/launch-dev.js start",
-    "cli": "bun run hook:build && bun run browser-mcp:build && node scripts/launch-dev.js start",
-    "package": "bun run browser-mcp:build && bun run ontology-mcp:build && bun run ontology-builder-mcp:build && electron-vite build",
-    "make": "bun run browser-mcp:build && bun run ontology-mcp:build && bun run ontology-builder-mcp:build && electron-vite build",
+    "start": "bun run hook:build && bun run browser-mcp:build && bun run team-mcp:build && bun run ontology-cli:build && node scripts/launch-dev.js start",
+    "cli": "bun run hook:build && bun run browser-mcp:build && bun run ontology-cli:build && node scripts/launch-dev.js start",
+    "package": "bun run browser-mcp:build && bun run ontology-cli:build && electron-vite build",
+    "make": "bun run browser-mcp:build && bun run ontology-cli:build && electron-vite build",
     "clean": "rm -rf out dist .vite",
     "dist": "node  scripts/build-with-builder.js",
     "cli:download": "bun run scode:download && bun run node:download",
@@ -34,15 +34,13 @@
     "mcporter:download:force": "node scripts/download-mcporter.js --force",
     "browser-mcp:build": "node scripts/build-browser-mcp.js",
     "team-mcp:build": "node scripts/build-team-mcp.js",
-    "ontology-mcp:build": "node scripts/build-ontology-mcp.js",
-    "ontology-builder-mcp:build": "node scripts/build-ontology-builder-mcp.js",
-    "build:mac": "bun run scode:download && bun run node:download && bun run bdpan:download && bun run mcporter:download && bun run browser-mcp:build && bun run team-mcp:build && bun run ontology-mcp:build && node  scripts/build-with-builder.js auto --mac --arm64 --x64",
-    "build:mac:arm64": "bun run scode:download && bun run node:download && bun run bdpan:download && bun run mcporter:download && bun run browser-mcp:build && bun run team-mcp:build && bun run ontology-mcp:build && node  scripts/build-with-builder.js arm64 --mac --arm64",
-    "build:mac:x64": "bun run scode:download && bun run node:download && bun run bdpan:download && bun run mcporter:download && bun run browser-mcp:build && bun run team-mcp:build && bun run ontology-mcp:build && node  scripts/build-with-builder.js x64 --mac --x64",
-    "build:win": "bun run scode:download && bun run node:download && bun run bdpan:download && bun run mcporter:download && bun run browser-mcp:build && bun run team-mcp:build && bun run ontology-mcp:build && node  scripts/build-with-builder.js auto --win",
-    "build:win:arm64": "bun run scode:download && bun run node:download && bun run bdpan:download && bun run mcporter:download && bun run browser-mcp:build && bun run team-mcp:build && bun run ontology-mcp:build && node  scripts/build-with-builder.js arm64 --win --arm64",
-    "build:win:x64": "bun run scode:download && bun run node:download && bun run bdpan:download && bun run mcporter:download && bun run browser-mcp:build && bun run team-mcp:build && bun run ontology-mcp:build && node  scripts/build-with-builder.js x64 --win --x64",
-    "build:linux": "bun run scode:download && bun run node:download && bun run bdpan:download && bun run mcporter:download && bun run browser-mcp:build && bun run team-mcp:build && bun run ontology-mcp:build && node  scripts/build-with-builder.js auto --linux",
+    "build:mac": "bun run scode:download && bun run node:download && bun run bdpan:download && bun run mcporter:download && bun run browser-mcp:build && bun run team-mcp:build && bun run ontology-cli:build && node  scripts/build-with-builder.js auto --mac --arm64 --x64",
+    "build:mac:arm64": "bun run scode:download && bun run node:download && bun run bdpan:download && bun run mcporter:download && bun run browser-mcp:build && bun run team-mcp:build && bun run ontology-cli:build && node  scripts/build-with-builder.js arm64 --mac --arm64",
+    "build:mac:x64": "bun run scode:download && bun run node:download && bun run bdpan:download && bun run mcporter:download && bun run browser-mcp:build && bun run team-mcp:build && bun run ontology-cli:build && node  scripts/build-with-builder.js x64 --mac --x64",
+    "build:win": "bun run scode:download && bun run node:download && bun run bdpan:download && bun run mcporter:download && bun run browser-mcp:build && bun run team-mcp:build && bun run ontology-cli:build && node  scripts/build-with-builder.js auto --win",
+    "build:win:arm64": "bun run scode:download && bun run node:download && bun run bdpan:download && bun run mcporter:download && bun run browser-mcp:build && bun run team-mcp:build && bun run ontology-cli:build && node  scripts/build-with-builder.js arm64 --win --arm64",
+    "build:win:x64": "bun run scode:download && bun run node:download && bun run bdpan:download && bun run mcporter:download && bun run browser-mcp:build && bun run team-mcp:build && bun run ontology-cli:build && node  scripts/build-with-builder.js x64 --win --x64",
+    "build:linux": "bun run scode:download && bun run node:download && bun run bdpan:download && bun run mcporter:download && bun run browser-mcp:build && bun run team-mcp:build && bun run ontology-cli:build && node  scripts/build-with-builder.js auto --linux",
     "lint": "eslint --quiet --ext .ts,.tsx .",
     "check": "bun run type:check && bun run lint && bun run format:check && bunx vitest run",
     "type:check": "bunx tsc --noEmit",
@@ -66,7 +64,8 @@
     "debug:mcp:validate": "bunx tsx scripts/debug-mcp.ts validate",
     "debug:custom-agent": "bunx tsx scripts/debug-custom-agent.ts",
     "test:libreoffice": "npx tsx test-libreoffice.ts",
-    "postinstall": "node scripts/postinstall.js"
+    "postinstall": "node scripts/postinstall.js",
+    "ontology-cli:build": "node scripts/build-ontology-cli.js"
   },
   "keywords": [],
   "author": {
@@ -262,7 +261,8 @@
     "xterm": "^5.3.0",
     "yaml": "^2.9.0",
     "yauzl": "^3.2.1",
-    "zod": "^3.25.76"
+    "zod": "^3.25.76",
+    "@sudowork/ontology-runtime": "workspace:*"
   },
   "optionalDependencies": {
     "@rollup/rollup-win32-x64-msvc": "^4.46.2",

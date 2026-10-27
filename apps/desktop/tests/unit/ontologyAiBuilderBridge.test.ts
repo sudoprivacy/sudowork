@@ -24,22 +24,14 @@ describe('ontology AI builder bridge contract', () => {
     expect(source).toMatch(/if \(existing\) \{[\s\S]*return \{ success: true, data: toSession\(existing\) \};/);
   });
 
-  it('installs the builder MCP so the AI can write to the ontology', () => {
-    // This is the single most important behavioural invariant of the AI
-    // Builder flow: without the MCP registration, the chat becomes a plain
-    // conversation and the workbench data stays empty. Pinning it here
-    // catches regressions if someone deletes the registration call.
+  it('prepares the script commands used for ontology authoring', () => {
     const source = fs.readFileSync(bridgeSource, 'utf8');
-    expect(source).toContain('ensureOntologyBuilderMcpServer');
+    expect(source).toContain('prepareOntologyProject');
   });
 
-  it('surfaces the mcpConfig on ensureBuilderMcp so the caller can inject it into session/new', () => {
-    // Scode's user-scope MCP is NOT auto-loaded into acp sessions — the
-    // caller MUST pass mcpConfig via conversation.create's extra so
-    // session/new.mcp_servers contains ontology-builder. Verify the wiring
-    // is still in place.
+  it('returns the prepared project instructions', () => {
     const source = fs.readFileSync(bridgeSource, 'utf8');
-    expect(source).toContain('data: { ready: true, mcpConfig }');
+    expect(source).toContain('data: prepared');
   });
 
   it('deleteSession routes through conversationReaper so sider deletion stays in sync', () => {
@@ -92,19 +84,19 @@ describe('AcpAgent extraMcpConfigs plumbing', () => {
   });
 });
 
-describe('OntologyAIBuilderPage passes MCP config to session/new', () => {
+describe('OntologyAIBuilderPage prepares script context', () => {
   const pageSource = fs.readFileSync(path.resolve(__dirname, '../../../../packages/ontology-ai/src/OntologyAIBuilderPage.tsx'), 'utf8');
 
-  it('runs ensureBuilderMcp BEFORE conversation.create (scode reads MCP at spawn)', () => {
-    const ensureIndex = pageSource.indexOf('ontologyAiBuilder.ensureBuilderMcp.invoke');
+  it('prepares the project before creating its conversation', () => {
+    const ensureIndex = pageSource.indexOf('ontologyAiBuilder.prepareProject.invoke');
     const createIndex = pageSource.indexOf('conversation.create.invoke');
     expect(ensureIndex).toBeGreaterThan(-1);
     expect(createIndex).toBeGreaterThan(-1);
     expect(ensureIndex).toBeLessThan(createIndex);
   });
 
-  it('injects the returned mcpConfig into extra.extraMcpConfigs', () => {
-    expect(pageSource).toContain('extraMcpConfigs: [mcpRes.data.mcpConfig]');
+  it('injects the project script instructions', () => {
+    expect(pageSource).toContain('presetContext: project.data.instructions');
   });
 });
 

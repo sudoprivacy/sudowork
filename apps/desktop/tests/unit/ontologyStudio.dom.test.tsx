@@ -103,7 +103,7 @@ describe('ontology studio workspace', () => {
     const { api } = fixture();
     const { onNavigate } = mount(api);
     await screen.findByText('还没有本体，可以新建或导入 RDF/OWL 文件');
-    const importHint = '支持 .owl、.rdf、.xml（RDF/XML 或 OWL/XML），最大 5 MB';
+    const importHint = '支持 .owl、.rdf、.xml（最大 5 MB）和 .sudoonto 本体包（最大 512 MB）';
     expect(screen.queryByText(importHint)).not.toBeInTheDocument();
     const importButton = screen.getByRole('button', { name: '导入本体' });
     fireEvent.mouseEnter(importButton);

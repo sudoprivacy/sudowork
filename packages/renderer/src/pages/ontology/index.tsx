@@ -37,8 +37,24 @@ export default function OntologyPage() {
       previewStandardFile: async (input) => unwrap(await ipcBridge.ontology.previewStandardFile.invoke(input), t('ontology.errors.importFailed')),
       importStandardFile: async (input) => unwrap(await ipcBridge.ontology.importStandardFile.invoke(input), t('ontology.errors.importFailed')),
       exportStandardFile: async (input) => unwrap(await ipcBridge.ontology.exportStandardFile.invoke(input), t('ontology.errors.operationFailed')),
+      runtimePackage: {
+        plan: async (input) => unwrap(await ipcBridge.ontology.planRuntimePackage.invoke(input), t('ontology.errors.operationFailed')),
+        export: async (input) => unwrap(await ipcBridge.ontology.exportRuntimePackage.invoke(input), t('ontology.errors.operationFailed')),
+        cancel: async (input) => unwrap(await ipcBridge.ontology.cancelRuntimePackageExport.invoke(input), t('ontology.errors.operationFailed')),
+        onProgress: (onChanged) => ipcBridge.ontology.packageExportProgress.on(onChanged),
+      },
+      packageImport: {
+        preview: async (input) => unwrap(await ipcBridge.ontology.previewRuntimePackage.invoke(input), t('ontology.errors.importFailed')),
+        import: async (input) => unwrap(await ipcBridge.ontology.importRuntimePackage.invoke(input), t('ontology.errors.importFailed')),
+      },
+      runtimeEnvironment: {
+        get: async (input) => unwrap(await ipcBridge.ontology.getRuntimeEnvironment.invoke(input), t('ontology.errors.loadFailed')),
+        configure: async (input) => unwrap(await ipcBridge.ontology.configureRuntimeEnvironment.invoke(input), t('ontology.errors.saveFailed')),
+        verify: async (input) => unwrap(await ipcBridge.ontology.verifyRuntimeEnvironment.invoke(input), t('ontology.errors.checkFailed')),
+      },
+      updateAgentDefinition: async (input) => unwrap(await ipcBridge.ontology.updateAgentDefinition.invoke(input), t('ontology.errors.saveFailed')),
       pickStandardFile: async () => {
-        const result = unwrap(await ipcBridge.dialog.showOpen.invoke({ properties: ['openFile'], filters: [{ name: t('ontology.studio.importFileFilter'), extensions: ['rdf', 'owl', 'xml'] }] }), t('ontology.errors.importFailed'));
+        const result = unwrap(await ipcBridge.dialog.showOpen.invoke({ properties: ['openFile'], filters: [{ name: t('ontology.studio.importFileFilter'), extensions: ['rdf', 'owl', 'xml', 'sudoonto'] }] }), t('ontology.errors.importFailed'));
         return result.canceled ? undefined : result.filePaths[0];
       },
       pickDataFiles: async () => {

@@ -1,6 +1,8 @@
 export * from './studio.js';
 export * from './projects.js';
+export * from './runtimePackage.js';
 import type { IOntologySemanticDocument } from './studio.js';
+import type { IOntologyAgentDefinition, IOntologyPackageIdentity, IOntologyRuntimeBindings } from './runtimePackage.js';
 export * from './qualityRuleExpression.js';
 
 export const ONTOLOGY_SNAPSHOT_SCHEMA_VERSION = 5;
@@ -198,6 +200,9 @@ export interface IOntologyReviewItem {
 }
 
 export interface IOntologyPublishedVersion {
+  runtimeLocation?: string;
+  ontologyId?: string;
+  runtimeDigest?: string;
   id: string;
   version: string;
   status: OntologyVersionStatus;
@@ -215,6 +220,13 @@ export interface IOntologyPublishedVersion {
 }
 
 export interface IOntologyVersionSnapshot {
+  agentDefinition?: IOntologyAgentDefinition;
+  packageIdentity?: IOntologyPackageIdentity;
+  authoringDraft?: IOntologyWorkbenchDraft;
+  runtimeEnvironment?: {
+    assets: IOntologyEnvironmentAsset[];
+    connectors: IOntologyConnectorConfig[];
+  };
   semanticDocument?: IOntologySemanticDocument;
   revision?: number;
   objects: IOntologyObjectDraft[];
@@ -383,7 +395,7 @@ export interface IOntologyActionDefinition {
 export interface IOntologyServiceEndpoint {
   id: string;
   name: string;
-  protocol: 'mcp' | 'osdk' | 'api';
+  protocol: 'script' | 'osdk' | 'api';
   status: OntologyArtifactStatus;
   toolCount: number;
   updatedAt: number;
@@ -441,6 +453,11 @@ export interface IOntologyWorkbenchStats {
 }
 
 export interface IOntologyWorkbenchSnapshot {
+  sourceRequestHash?: string;
+  agentDefinition?: IOntologyAgentDefinition;
+  packageIdentity?: IOntologyPackageIdentity;
+  runtimeBindings?: IOntologyRuntimeBindings;
+  createdAt?: number;
   revision?: number;
   agentRevision?: number;
   semanticDocument?: IOntologySemanticDocument;
@@ -800,6 +817,7 @@ export interface IOntologyExecuteRuntimeInput {
 }
 
 export interface IOntologyRuntimeExecution {
+  executedFunctionIds?: string[];
   kind: 'logic' | 'action' | 'relation';
   artifactId: string;
   code: string;
@@ -911,6 +929,7 @@ export function createDefaultOntologyWorkbenchSnapshot(now = Date.now(), options
 
   return {
     schemaVersion: ONTOLOGY_SNAPSHOT_SCHEMA_VERSION,
+    createdAt: now,
     workspaceId: options.workspaceId?.trim() || 'default',
     activePhase: 'scan',
     draft: {
@@ -965,7 +984,7 @@ export function summarizeOntologyWorkbenchSnapshot(snapshot: IOntologyWorkbenchS
     actionCount: snapshot.actions.length,
     publishedVersionCount: snapshot.publishedVersions.filter((item) => item.status === 'published').length,
     agentBlueprintCount: snapshot.agentBlueprints.length,
-    createdAt: Math.min(...timestamps),
+    createdAt: snapshot.createdAt ?? Math.min(...timestamps),
     updatedAt: snapshot.updatedAt,
     status: 'active',
   };

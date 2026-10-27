@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { Alert, Button, Empty, Form, Input, Message, Modal, Select, Space, Table, Tag, Tooltip, Typography } from '@arco-design/web-react';
 import { useTranslation } from 'react-i18next';
-import type { IOntologyWorkbenchSnapshot, IOntologyLogicFunction, IOntologyRuntimeExecution, IOntologyEnvironmentAsset, IOntologyConnectorConfig, IOntologyFunctionParameter, OntologyJsonValue } from '@sudowork/ontology-common';
+import type { IOntologyWorkbenchSnapshot, IOntologyLogicFunction, IOntologyActionDefinition, IOntologyRuntimeExecution, IOntologyEnvironmentAsset, IOntologyConnectorConfig, IOntologyFunctionParameter, OntologyJsonValue } from '@sudowork/ontology-common';
 import { ontologyFieldSignature } from '@sudowork/ontology-common';
 import StudioAssetPreview from './StudioAssetPreview';
 import StudioDatabaseConnection from './StudioDatabaseConnection';
+import StudioRuntimeEnvironment from './StudioRuntimeEnvironment';
+import StudioActionEditor from './StudioActionEditor';
 import styles from './studio.module.css';
 import type { IOntologyStudioApi } from './api';
 
@@ -159,6 +161,7 @@ export function StudioDataPage({ snapshot, api, onRefresh, onError }: IStudioDat
           </Button>
         </Space>
       </div>
+      {api.runtimeEnvironment && <StudioRuntimeEnvironment workspaceId={snapshot.workspaceId} revision={snapshot.revision} api={api.runtimeEnvironment} workbenchApi={api} connectors={snapshot.connectors} onRefresh={onRefresh} onError={onError} />}
       {!!snapshot.connectors.length && (
         <>
           <Typography.Title heading={6}>{text('dataConnections')}</Typography.Title>
@@ -300,6 +303,8 @@ export function StudioCapabilitiesPage({ snapshot, api, onRefresh, onError }: IS
   const { t } = useTranslation();
   const text = (key: string) => t(`ontology.studio.${key}`);
   const [editing, setEditing] = useState<IOntologyLogicFunction | 'new'>();
+  const [editingAction, setEditingAction] = useState<IOntologyActionDefinition | 'new'>();
+  const [runningAction, setRunningAction] = useState<IOntologyActionDefinition>();
   const [editingRuntime, setEditingRuntime] = useState<IOntologyLogicFunction['runtime']>('sql');
   const [running, setRunning] = useState<IOntologyLogicFunction>();
   const [argumentsText, setArgumentsText] = useState('{}');
@@ -397,9 +402,12 @@ export function StudioCapabilitiesPage({ snapshot, api, onRefresh, onError }: IS
           <Typography.Title heading={5}>{text('capabilitiesTitle')}</Typography.Title>
           <Typography.Text type='secondary'>{text('capabilitiesDescription')}</Typography.Text>
         </div>
-        <Button type='primary' onClick={() => onOpen()}>
-          {text('addCapability')}
-        </Button>
+        <Space>
+          <Button onClick={() => setEditingAction('new')}>{text('addAction')}</Button>
+          <Button type='primary' onClick={() => onOpen()}>
+            {text('addCapability')}
+          </Button>
+        </Space>
       </div>
       <Table
         rowKey='id'
@@ -453,10 +461,29 @@ export function StudioCapabilitiesPage({ snapshot, api, onRefresh, onError }: IS
               { title: text('name'), dataIndex: 'displayName', width: 260 },
               { title: text('executor'), dataIndex: 'executor', width: 140 },
               { title: text('description'), dataIndex: 'displayDescription', width: 400 },
+              {
+                title: text('operations'),
+                width: 240,
+                render: (_value, item) => (
+                  <Space>
+                    <Button type='text' aria-label={t('ontology.studio.editActionName', { name: item.displayName })} onClick={() => setEditingAction(item)}>
+                      {text('edit')}
+                    </Button>
+                    <Button type='text' disabled={item.status !== 'active'} onClick={() => setRunningAction(item)}>
+                      {text('runAction')}
+                    </Button>
+                    <Button type='text' status='danger' aria-label={t('ontology.studio.deleteActionName', { name: item.displayName })} onClick={() => void api.deleteAction({ workspaceId: snapshot.workspaceId, id: item.id }).then(onRefresh).catch(onError)}>
+                      {text('delete')}
+                    </Button>
+                  </Space>
+                ),
+              },
             ]}
           />
         </>
       )}
+      {editingAction && <StudioActionEditor action={editingAction === 'new' ? undefined : editingAction} snapshot={snapshot} api={api} onClose={() => setEditingAction(undefined)} onRefresh={onRefresh} onError={onError} />}
+      {runningAction && <StudioActionEditor action={runningAction} snapshot={snapshot} api={api} isExecution onClose={() => setRunningAction(undefined)} onRefresh={onRefresh} onError={onError} />}
       <Modal visible={editing !== undefined} title={text('editCapability')} onCancel={() => setEditing(undefined)} onOk={onSave} style={{ width: 'min(780px, 90vw)' }} unmountOnExit>
         <Form form={form} layout='vertical'>
           <Form.Item field='displayName' label={text('name')} rules={[{ required: true, message: t('ontology.studio.requiredField', { field: text('name') }) }]}>

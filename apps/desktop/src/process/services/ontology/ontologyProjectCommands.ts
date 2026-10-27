@@ -1,25 +1,11 @@
-/*
- * @license
- * Copyright 2026 Sudowork (sudowork.ai)
- * SPDX-License-Identifier: Apache-2.0
- *
- * Ontology builder MCP server — write access.
- *
- * All tool calls forward to the main-process loopback bridge (see
- * OntologyWriteBridge.ts). We never talk to SQLite directly from here so
- * every change goes through the same ontologyService methods the workbench
- * UI uses, which means `workbenchChanged` fires and the UI refreshes live.
- */
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { CallToolRequestSchema, ListToolsRequestSchema, type Tool } from '@modelcontextprotocol/sdk/types.js';
+export interface IOntologyProjectCommand {
+  name: string;
+  description?: string;
+  inputSchema: Record<string, unknown>;
+  annotations?: Record<string, unknown>;
+}
 
-const baseUrl = process.env.ONTOLOGY_WRITE_BASE_URL;
-const token = process.env.ONTOLOGY_WRITE_TOKEN;
-const envWorkspaceId = process.env.ONTOLOGY_WORKSPACE_ID;
-const isSudograph = process.env.ONTOLOGY_MODEL_AUTHORITY === 'sudograph';
-
-const sudographTools: Tool[] = [
+const sudographTools: IOntologyProjectCommand[] = [
   { name: 'sudograph_model_contract', description: 'Read the bound canonical YAML, current revision and checked write contract.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
   {
     name: 'sudograph_model_apply',
@@ -38,16 +24,12 @@ const sudographTools: Tool[] = [
     },
   },
 ];
-const sudographRoutes: Record<string, string> = { sudograph_model_contract: 'sudograph_contract', sudograph_model_apply: 'sudograph_apply', sudograph_context: 'sudograph_context', sudograph_context_read: 'sudograph_context_read' };
 
-if (!baseUrl || !token) {
-  console.error('[ontology-builder-mcp] ONTOLOGY_WRITE_BASE_URL and ONTOLOGY_WRITE_TOKEN are required');
-  process.exit(1);
-}
+const sudographRoutes: Record<string, string> = { sudograph_model_contract: 'sudograph_contract', sudograph_model_apply: 'sudograph_apply', sudograph_context: 'sudograph_context', sudograph_context_read: 'sudograph_context_read' };
 
 const objectIdArg = { type: 'string', description: 'Ontology object id (obtained from ontology_get_snapshot).' };
 
-const tools: Tool[] = [
+const tools: IOntologyProjectCommand[] = [
   {
     name: 'ontology_preview_asset',
     description: 'Read a bounded sample of a data asset in the bound ontology. Use its observed fields as evidence before creating mappings or query functions.',
@@ -364,81 +346,7 @@ const tools: Tool[] = [
   },
 ];
 
-const nameToRoute: Record<string, string> = {
-  ontology_preview_asset: 'preview_asset',
-  ontology_get_snapshot: 'get_snapshot',
-  ontology_update_draft: 'update_draft',
-  ontology_upsert_object: 'upsert_object',
-  ontology_upsert_attribute: 'upsert_attribute',
-  ontology_upsert_relation: 'upsert_relation',
-  ontology_upsert_mapping: 'upsert_mapping',
-  ontology_upsert_quality_rule: 'upsert_quality_rule',
-  ontology_upsert_logic_function: 'upsert_logic_function',
-  ontology_upsert_action: 'upsert_action',
-  ontology_execute_logic_function: 'execute_logic_function',
-  ontology_execute_relation: 'execute_relation',
-  ontology_execute_action: 'execute_action',
-  ontology_generate_draft_from_assets: 'generate_draft_from_assets',
-  ontology_run_consistency_check: 'run_consistency_check',
-  ontology_publish_current_draft: 'publish_current_draft',
-  ontology_create_agent_blueprint: 'create_agent_blueprint',
-  ontology_register_agent_blueprint: 'register_agent_blueprint',
-};
-
-function textResult(value: unknown, isError = false) {
-  return {
-    ...(isError ? { isError: true } : {}),
-    content: [
-      {
-        type: 'text' as const,
-        text: `<ontology-write-result>\n${JSON.stringify(value, null, 2)}\n</ontology-write-result>`,
-      },
-    ],
-  };
+export function ontologyProjectCommands(authority: 'rdf' | 'sudograph'): IOntologyProjectCommand[] {
+  const catalog = authority === 'sudograph' ? sudographTools : tools.filter((item) => !['ontology_execute_action', 'ontology_approve_all', 'ontology_publish_current_draft', 'ontology_register_agent_blueprint'].includes(item.name));
+  return catalog.map((item) => ({ ...item, name: authority === 'sudograph' ? sudographRoutes[item.name] : item.name.replace(/^ontology_/, '') }));
 }
-
-async function callBridge(route: string, workspaceId: string | undefined, input: Record<string, unknown>): Promise<unknown> {
-  const url = `${baseUrl!.replace(/\/+$/, '')}/tool/${route}`;
-  const body = JSON.stringify({ workspaceId: workspaceId || envWorkspaceId || undefined, input });
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token!}`,
-    },
-    body,
-  });
-  const text = await response.text();
-  let parsed: { ok?: boolean; data?: unknown; message?: string };
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    parsed = { ok: false, message: text };
-  }
-  if (!response.ok || parsed?.ok === false) {
-    throw new Error(JSON.stringify(parsed));
-  }
-  return parsed?.data ?? parsed;
-}
-
-const server = new Server({ name: 'sudowork-ontology-builder', version: '1.0.0' }, { capabilities: { tools: {} } });
-
-server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: isSudograph ? sudographTools : envWorkspaceId ? tools.filter((tool) => !['ontology_execute_action', 'ontology_approve_all', 'ontology_publish_current_draft', 'ontology_register_agent_blueprint'].includes(tool.name)) : tools }));
-
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  try {
-    const args = (request.params.arguments ?? {}) as Record<string, unknown>;
-    const { workspace_id: workspaceId, ...rest } = args;
-    const route = (isSudograph ? sudographRoutes : nameToRoute)[request.params.name];
-    if (!route) throw new Error(`Unknown tool: ${request.params.name}`);
-    const data = await callBridge(route, typeof workspaceId === 'string' ? workspaceId : undefined, rest);
-    return textResult(data);
-  } catch (error) {
-    return textResult(error instanceof Error ? error.message : String(error), true);
-  }
-});
-
-server.connect(new StdioServerTransport()).catch((error) => {
-  console.error('[ontology-builder-mcp] failed to start stdio transport:', error);
-  process.exitCode = 1;
-});

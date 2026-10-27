@@ -24,7 +24,7 @@ export interface IOntologyStudioProjectList {
   items: IOntologyStudioProject[];
   sourceRegistration: {
     available: boolean;
-    providers: ['sqlite'];
+    providers: Array<'sqlite' | 'mysql' | 'postgresql'>;
     execution: 'desktop';
   };
 }
