@@ -370,11 +370,11 @@ assets/*                         选择携带数据时才有
 
 ## 12. 测试证据与阅读入口
 
-客户端完整包闭环的主要回归见新增 `ontologySudoonto.test.ts` 和 `ontologySudoonto.dom.test.tsx`，包括静态导入、恢复编辑、版本来源、绑定新数据库、原样再导出及交互。其余直接回归证据如下：
+客户端完整包闭环的主要回归见新增 `ontologyPackageCirculation.integration.test.ts` 和 `ontologySudoonto.dom.test.tsx`，包括静态导入、恢复编辑、版本来源、绑定新数据库、原样再导出及交互。其余直接回归证据如下：
 
 | 测试 | 覆盖的设计约束 |
 | --- | --- |
-| [ontologyScriptPackage](../../apps/desktop/tests/unit/ontologyScriptPackage.test.ts) | 原源文件移走后的运行、数据库快照、篡改检查、秘密分离、绑定依赖、目标宿主写权限、脚本固定和取消 |
+| [ontologyScriptPackage](../../apps/desktop/tests/integration/ontologyScriptPackage.integration.test.ts) | 原源文件移走后的运行、数据库快照、篡改检查、秘密分离、绑定依赖、目标宿主写权限、脚本固定和取消 |
 | [ontologyService](../../apps/desktop/tests/unit/ontologyService.test.ts) | 建模生成产物、真实 CLI 执行、关系/动作语义、冻结发布与桌面导出服务 |
 | [ontologyAgentToolRoundtrip](../../apps/desktop/tests/unit/ontologyAgentToolRoundtrip.test.ts) | 在具备 Sudocode 二进制时，以模拟模型服务驱动真实命令工具调用 CLI，并恢复会话 |
 | [ontologyProjectCli](../../apps/desktop/tests/unit/ontologyProjectCli.test.ts) | 项目命令发现与 Sudograph 冲突恢复信息 |

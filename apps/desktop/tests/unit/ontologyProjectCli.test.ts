@@ -37,12 +37,15 @@ describe('ontology authoring CLI', () => {
       }
     };
     try {
-      expect((await run('list')).data.commands.map((item: { name: string }) => item.name)).toEqual(['sudograph_contract', 'sudograph_apply', 'sudograph_context', 'sudograph_context_read']);
+      expect((await run('list')).data.commands.map((item: { name: string }) => item.name)).toEqual(['register_source', 'sudograph_contract', 'sudograph_apply', 'sudograph_context', 'sudograph_context_read']);
       expect(await run('sudograph_contract')).toMatchObject({ isSuccess: true, data: { revision: 'r1' } });
       expect(requests[0]).toEqual({ route: '/tool/sudograph_contract', auth: 'Bearer scoped-token', body: { workspaceId: 'registered', input: {} } });
       expect(await run('sudograph_apply', { base_revision: 'r0', operation_id: 'edit-1', model: 'yaml' })).toMatchObject({ isSuccess: false, error: { code: 'MODEL_CONFLICT', recovery: { paths: ['definitions.refund'] } } });
+      const source = { operationId: '123e4567-e89b-42d3-a456-426614174000', language: 'en', connector: { kind: 'database', name: 'Fixture', sourceType: 'sqlite', path: '/fixture/source.sqlite', writable: false, metadata: {} } };
+      expect(await run('register_source', source)).toMatchObject({ isSuccess: true });
+      expect(requests[2]).toEqual({ route: '/tool/register_source', auth: 'Bearer scoped-token', body: { workspaceId: 'registered', input: source } });
       expect(await run('upsert_object', { name: 'bypass' })).toMatchObject({ isSuccess: false, error: { code: 'CAPABILITY_NOT_FOUND' } });
-      expect(requests).toHaveLength(2);
+      expect(requests).toHaveLength(3);
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));
       await fs.rm(directory, { recursive: true, force: true });

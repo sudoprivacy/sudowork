@@ -115,7 +115,29 @@ async function invoke(root: string, command: string[], bindings?: string, inputA
   }
 }
 
+// Real CLI processes and complete archive round trips use the integration budget.
 describe('portable ontology scripts', () => {
+  it('keeps published CLI bytes pinned across source rebuilds and rejects a corrupted shared blob', async () => {
+    const input = path.join(directory, 'fixture.cjs');
+    const root = path.join(directory, 'artifacts');
+    await fs.writeFile(input, "exports.version = 'one';\n");
+    const first = await buildOntologyArtifact(snapshot, { root, cliFile: input });
+    snapshot.draft.description = 'Another model revision';
+    const second = await buildOntologyArtifact(snapshot, { root, cliFile: input });
+    await fs.writeFile(input, "exports.version = 'two';\n");
+    const third = await buildOntologyArtifact(snapshot, { root, cliFile: input });
+    expect(await fs.readFile(path.join(first.directory, 'scripts/ontology.cjs'), 'utf8')).toContain("'one'");
+    expect(await fs.readFile(path.join(second.directory, 'scripts/ontology.cjs'), 'utf8')).toContain("'one'");
+    expect(await fs.readFile(path.join(third.directory, 'scripts/ontology.cjs'), 'utf8')).toContain("'two'");
+    for (const artifact of [first, second, third]) expect((await verifyPackage(artifact.directory)).runtimeDigest).toBe(artifact.manifest.runtimeDigest);
+    const blob = (await fs.readdir(path.join(root, '.cli'))).find((name) => name.endsWith('.cjs'))!;
+    const target = path.join(root, '.cli', blob);
+    const oldContent = await fs.readFile(target, 'utf8');
+    await fs.chmod(target, 0o600);
+    await fs.writeFile(target, 'corrupted');
+    await fs.writeFile(input, oldContent);
+    await expect(buildOntologyArtifact(snapshot, { root, cliFile: input })).rejects.toMatchObject({ code: 'PACKAGE_INTEGRITY_FAILED' });
+  }, 60_000);
   it('requires the target host to authorize writable connections independently from the package author', async () => {
     snapshot.connectors[0].writable = true;
     const artifact = await buildOntologyArtifact(snapshot, { root: path.join(directory, 'artifacts'), cliFile });
@@ -127,7 +149,7 @@ describe('portable ontology scripts', () => {
     await fs.writeFile(bindings, canonicalJson({ ...targetBindings, connections: { business: { ...targetBindings.connections.business, writable: true } } }));
     expect(await invoke(artifact.directory, ['invoke', 'action.update_order'], bindings)).toMatchObject({ isSuccess: true });
     expect(await invoke(artifact.directory, ['invoke', 'logic.sales_report'], bindings)).toMatchObject({ isSuccess: true, data: [{ count: 250, total: 313741 }] });
-  });
+  }, 60_000);
 
   it('preserves existing nested credential and provider parameter bindings', async () => {
     const definitions = [
@@ -142,7 +164,7 @@ describe('portable ontology scripts', () => {
       expect((await loadOntologyArtifact(artifact.directory, artifact.bindings)).missingBindings).toEqual([]);
       expect((await loadOntologyArtifact(artifact.directory)).missingBindings).toEqual(['business']);
     }
-  });
+  }, 60_000);
 
   it('only requires the bindings used by the invoked capability, including function action dependencies', async () => {
     snapshot.actions.push(
@@ -165,7 +187,7 @@ describe('portable ontology scripts', () => {
     const bindings = path.join(directory, 'bindings.json');
     await fs.writeFile(bindings, canonicalJson({ allowedActions: ['report-action'] }));
     expect(await invoke(target, ['invoke', 'action.report_action'], bindings)).toMatchObject({ isSuccess: true, data: [{ count: 250, total: 313750 }], meta: { executedFunctionIds: ['sales-report'] } });
-  });
+  }, 60_000);
 
   it('executes the same immutable scripts locally and from an exported database snapshot without the original source', async () => {
     snapshot.assets[0].fields[0].sampleValues = ['private-preview-row'];
@@ -189,7 +211,7 @@ describe('portable ontology scripts', () => {
     expect(model).not.toContain('private-preview-row');
     const examples = await fs.readFile(path.join(target, 'environment/bindings.example.json'), 'utf8');
     expect(examples).not.toContain('never-export-this-password');
-  });
+  }, 60_000);
 
   it('reports external bindings and refuses package tampering before executing a capability', async () => {
     const artifact = await buildOntologyArtifact(snapshot, { root: path.join(directory, 'artifacts'), cliFile });
@@ -200,7 +222,7 @@ describe('portable ontology scripts', () => {
     const database = new DatabaseSync(databasePath);
     expect(database.prepare('SELECT COUNT(*) AS count FROM orders').get()?.count).toBe(250);
     database.close();
-  });
+  }, 60_000);
 
   it('keeps model changes in a different artifact and requires explicit action authorization', async () => {
     const original = await buildOntologyArtifact(snapshot, { root: path.join(directory, 'artifacts'), cliFile });
@@ -211,7 +233,7 @@ describe('portable ontology scripts', () => {
     await fs.writeFile(bindings, canonicalJson({ ...original.bindings, allowedActions: [] }));
     expect(await invoke(original.directory, ['invoke', 'action.update_order'], bindings)).toMatchObject({ isSuccess: false, error: { code: 'WRITE_NOT_AUTHORIZED' } });
     expect(await invoke(original.directory, ['invoke', 'logic.sales_report'], bindings)).toMatchObject({ isSuccess: true, data: [{ count: 250, total: 313750 }] });
-  });
+  }, 60_000);
 
   it('rejects archive traversal and does not leave partially extracted files', async () => {
     const zip = new JSZip();
@@ -222,7 +244,7 @@ describe('portable ontology scripts', () => {
     await expect(extractOntologyArchive(archive, target)).rejects.toThrow();
     await expect(fs.access(path.join(directory, 'escaped'))).rejects.toThrow();
     await expect(fs.access(target)).rejects.toThrow();
-  });
+  }, 60_000);
 
   it('pins custom script source and runs it after the original file is removed', async () => {
     const source = path.join(directory, 'increment.cjs');
@@ -254,7 +276,7 @@ describe('portable ontology scripts', () => {
     const model = await fs.readFile(path.join(artifact.directory, 'ontology/runtime-model.json'), 'utf8');
     expect(model).not.toContain(source);
     expect(model).not.toContain(process.execPath);
-  });
+  }, 60_000);
 
   it('keeps action credentials in private bindings without dropping the request template', async () => {
     snapshot.actions = [{ ...snapshot.actions[0], executor: 'api', configuration: { url: 'https://service.example/submit', method: 'POST', body: { apiToken: 'private-action-token', orderId: '{{id}}' } }, parameters: [{ name: 'id', type: 'integer', required: true }] }];
@@ -264,7 +286,7 @@ describe('portable ontology scripts', () => {
     expect(model).not.toContain('private-action-token');
     expect(model).toContain('{{id}}');
     expect(model).toContain('$secret');
-  });
+  }, 60_000);
 
   it('detects a changed implementation even if its checksum index was regenerated', async () => {
     const artifact = await buildOntologyArtifact(snapshot, { root: path.join(directory, 'artifacts'), cliFile });
@@ -272,7 +294,7 @@ describe('portable ontology scripts', () => {
     await fs.writeFile(path.join(artifact.directory, implementation.file), 'SELECT 0 AS count');
     await sealPackage(artifact.directory);
     await expect(verifyPackage(artifact.directory)).rejects.toThrow('published digest');
-  });
+  }, 60_000);
 
   it('cancels export without overwriting an existing destination', async () => {
     const artifact = await buildOntologyArtifact(snapshot, { root: path.join(directory, 'artifacts'), cliFile });
@@ -282,7 +304,7 @@ describe('portable ontology scripts', () => {
     controller.abort();
     await expect(exportOntologyArchive(artifact, { targetPath: target, embeddedResourceIds: ['business'], signal: controller.signal })).rejects.toThrow();
     expect(await fs.readFile(target, 'utf8')).toBe('existing user export');
-  });
+  }, 60_000);
 
   it('reuses identical scripts after local execution updates usage counters', async () => {
     const original = await buildOntologyArtifact(snapshot, { root: path.join(directory, 'artifacts'), cliFile });
@@ -294,5 +316,5 @@ describe('portable ontology scripts', () => {
     const repeated = await buildOntologyArtifact(snapshot, { root: path.join(directory, 'artifacts'), cliFile });
     expect(repeated.manifest.runtimeDigest).toBe(original.manifest.runtimeDigest);
     expect(repeated.directory).toBe(original.directory);
-  });
+  }, 60_000);
 });

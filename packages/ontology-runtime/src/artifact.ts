@@ -131,6 +131,36 @@ async function fileChecksum(filePath: string): Promise<IFileChecksum> {
   return { sha256: digest.digest('hex'), bytes };
 }
 
+/** Reuse one immutable CLI blob without copying and rescanning it for every model edit. */
+async function materializeRuntimeCli(root: string, content: string | Uint8Array, target: string): Promise<void> {
+  const digest = contentHash(content);
+  const directory = path.join(root, '.cli');
+  const blob = path.join(directory, digest + '.cjs');
+  await fs.mkdir(directory, { recursive: true, mode: 0o700 });
+  try {
+    await fs.access(blob);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    const temporary = blob + '.tmp-' + randomUUID();
+    try {
+      await fs.writeFile(temporary, content, { flag: 'wx', mode: 0o444 });
+      await fs.rename(temporary, blob).catch((renameError: NodeJS.ErrnoException) => {
+        if (!['EEXIST', 'ENOTEMPTY', 'EPERM'].includes(renameError.code || '')) throw renameError;
+      });
+    } finally {
+      await fs.rm(temporary, { force: true });
+    }
+  }
+  if (!(await fs.lstat(blob)).isFile() || (await fileChecksum(blob)).sha256 !== digest) throw new OntologyPackageError('PACKAGE_INTEGRITY_FAILED', 'Runtime CLI blob changed.');
+  await fs.mkdir(path.dirname(target), { recursive: true, mode: 0o700 });
+  try {
+    await fs.link(blob, target);
+  } catch (error) {
+    if (!['EXDEV', 'EPERM', 'EACCES', 'ENOTSUP', 'EOPNOTSUPP', 'EMLINK'].includes((error as NodeJS.ErrnoException).code || '')) throw error;
+    await fs.copyFile(blob, target, constants.COPYFILE_FICLONE);
+  }
+}
+
 export async function listPackageFiles(root: string, prefix = ''): Promise<string[]> {
   const output: string[] = [];
   for (const entry of await fs.readdir(path.join(root, prefix), { withFileTypes: true })) {
@@ -519,10 +549,7 @@ export async function buildOntologyArtifact(snapshot: IOntologyWorkbenchSnapshot
       for (const [name, content] of files) {
         if (name === 'scripts/ontology.cjs') {
           const target = packageFilePath(staging, name);
-          await fs.mkdir(path.dirname(target), { recursive: true, mode: 0o700 });
-          await fs.copyFile(options.cliFile, target, constants.COPYFILE_FICLONE);
-          if ((await fileChecksum(target)).sha256 !== contentHash(content)) await fs.writeFile(target, content);
-          await fs.chmod(target, 0o600);
+          await materializeRuntimeCli(options.root, content, target);
         } else await writePackageFile(staging, name, content);
       }
       await writePackageFile(staging, 'manifest.json', canonicalJson(manifest));

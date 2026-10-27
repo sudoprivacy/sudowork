@@ -119,7 +119,7 @@ CLI 是执行协议，不是租户隔离设施。未来 Moss 必须提供按调�
 bun run build:packages
 cd apps/desktop
 bun run ontology-cli:build
-bunx vitest run tests/unit/ontologyScriptPackage.test.ts \
+bunx vitest run tests/integration/ontologyScriptPackage.integration.test.ts \
   tests/unit/ontologyProjectCli.test.ts \
   tests/unit/ontologyAgentToolRoundtrip.test.ts \
   tests/unit/ontologyPackageExport.dom.test.tsx
