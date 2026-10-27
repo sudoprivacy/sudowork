@@ -103,6 +103,8 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
   const upstreamConnections: WebSocket[] = []
   const upstreamReceived: WsEvent[] = []
   const upstreamAuthHeaders: string[] = []
+  const upstreamRequestUrls: string[] = []
+  const browserConnections: WebSocket[] = []
   const terminalWrites: string[] = []
   let terminalDisposals = 0
   let isRemoteTerminalAvailable = true
@@ -114,7 +116,10 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
       })
       // The upgrade response can contain the first lock frame in the same packet.
       collector(ws)
-      ws.once('open', () => resolve(ws))
+      ws.once('open', () => {
+        browserConnections.push(ws)
+        resolve(ws)
+      })
       ws.once('error', reject)
     })
   }
@@ -137,6 +142,7 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
         return
       }
       upstreamAuthHeaders.push(String(req.headers.authorization ?? ''))
+      upstreamRequestUrls.push(req.url ?? '')
       upstreamWss.handleUpgrade(req, socket, head, (ws) => {
         upstreamConnections.push(ws)
         ws.on('message', (data) => {
@@ -354,8 +360,22 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
   })
 
   afterAll(async () => {
-    browserServer?.close()
-    upstreamServer?.close()
+    await coordinator.terminate(principal.id, SID)
+    await Promise.all(
+      [...browserConnections, ...upstreamConnections].map((ws) =>
+        ws.readyState === ws.CLOSED
+          ? Promise.resolve()
+          : new Promise<void>((resolve) => {
+              ws.once('close', () => resolve())
+              ws.close()
+            }),
+      ),
+    )
+    await Promise.all(
+      [browserServer, upstreamServer].map(
+        (server) => new Promise<void>((resolve) => server.close(() => resolve())),
+      ),
+    )
     await destroyTestDatabase(pool)
   })
 
@@ -387,15 +407,31 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
       (e) => e.kind === 'upstream' && (e.event as { type?: string })?.type === 'assistant',
     )
     await c2.waitFor((e) => e.kind === 'writer' && e.isWriter === false)
+    await c2.waitFor(
+      (event) => event.kind === 'upstream' && (event.event as { type?: string })?.type === 'result',
+    )
 
     // observer 在 idle 期发送 → 抢占成为新 writer（idle 乐观可写，先发先得）
     const takeover1 = collector(ws1)
     const takeover2 = collector(ws2)
+    const takeoverStart1 = takeover1.events.length
+    const takeoverStart2 = takeover2.events.length
     ws2.send(JSON.stringify({ kind: 'send', text: 'hack', images: [] }))
-    await takeover2.waitFor((e) => e.kind === 'lock' && e.state === 'running')
-    await takeover2.waitFor((e) => e.kind === 'writer' && e.isWriter === true)
+    await takeover2.waitFor(
+      (e) =>
+        takeover2.events.indexOf(e) >= takeoverStart2 && e.kind === 'lock' && e.state === 'running',
+    )
+    await takeover2.waitFor(
+      (e) =>
+        takeover2.events.indexOf(e) >= takeoverStart2 && e.kind === 'writer' && e.isWriter === true,
+    )
     // 旧 writer 被切为观察者
-    await takeover1.waitFor((e) => e.kind === 'writer' && e.isWriter === false)
+    await takeover1.waitFor(
+      (e) =>
+        takeover1.events.indexOf(e) >= takeoverStart1 &&
+        e.kind === 'writer' &&
+        e.isWriter === false,
+    )
 
     // upstream 收到抢占者的消息，且以新 writer 的 Bearer 重建连接
     // （waitFor 的事件在 broadcastLockState 同步发出，而抢占接管需 resume+握手后
@@ -418,6 +454,20 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
       message: { content: [{ type: 'text', text: 'hack' }] },
     })
     expect(upstreamAuthHeaders.at(-1)).toBe('Bearer at-stream-2')
+
+    // Arrival at the fake upstream is not completion of its database-backed turn.
+    const takeoverResult = await takeover2.waitFor(
+      (event) =>
+        takeover2.events.indexOf(event) >= takeoverStart2 &&
+        event.kind === 'upstream' &&
+        (event.event as { type?: string })?.type === 'result',
+    )
+    expect(
+      takeover2.events
+        .slice(0, takeover2.events.indexOf(takeoverResult))
+        .filter((event) => event.kind === 'lock')
+        .at(-1)?.state,
+    ).toBe('idle')
 
     ws1.close()
     ws2.close()
@@ -1111,6 +1161,49 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
       }),
     ).rejects.toThrow()
   })
+
+  test('a routed Moss session completes one normal turn with header authentication', async () => {
+    await request(app)
+      .post(`/api/conversations/${SID}/terminate`)
+      .set('Cookie', cookie1)
+      .set('Origin', 'http://localhost:5273')
+    await sleep(150)
+    upstreamMode = 'auto'
+    upstreamWsUrlOverride = `ws://127.0.0.1:${upstreamPort}/ws/sessions/${SID}?moss_route=owner-4949`
+    const beforeConnections = upstreamAuthHeaders.length
+    const beforeMessages = upstreamReceived.length
+    const ws = await browserWs(cookie1)
+    const events = collector(ws)
+    try {
+      await events.waitFor((event) => event.kind === 'writer')
+      ws.send(JSON.stringify({ kind: 'send', text: 'Continue the same routed session' }))
+      const completed = await events.waitFor(
+        (event) =>
+          event.kind === 'upstream' && (event.event as { type?: string })?.type === 'result',
+      )
+      expect((completed.event as { status?: string }).status).toBe('success')
+      expect(upstreamAuthHeaders.slice(beforeConnections)).toEqual(['Bearer at-stream'])
+      expect(upstreamRequestUrls.slice(beforeConnections)).toEqual([
+        `/ws/sessions/${SID}?moss_route=owner-4949`,
+      ])
+      expect(
+        upstreamReceived.slice(beforeMessages).filter((frame) => frame.type === 'user'),
+      ).toHaveLength(1)
+      const lock = await pool.query<{ state: string }>(
+        'SELECT state FROM conversation_locks WHERE principal_id=$1 AND moss_session_id=$2',
+        [principal.id, SID],
+      )
+      expect(lock.rows[0]?.state).toBe('idle')
+    } finally {
+      upstreamWsUrlOverride = null
+      ws.close()
+      await request(app)
+        .post(`/api/conversations/${SID}/terminate`)
+        .set('Cookie', cookie1)
+        .set('Origin', 'http://localhost:5273')
+      await sleep(150)
+    }
+  }, 20_000)
 
   // A ws_url whose host differs from the configured one is rejected before any socket is opened,
   // so moss never sees an upgrade and logs nothing. The browser only ever gets UPSTREAM_FAILED,
