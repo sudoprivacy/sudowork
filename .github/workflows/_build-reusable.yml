@@ -103,6 +103,7 @@ jobs:
     env:
       BUILD_SERVER_BASE_URL: ${{ inputs.server_base_url }}
       BUILD_SERVER_LOCKED: ${{ inputs.server_locked }}
+      SHAREONE_REVIEW_GITHUB_TOKEN: ${{ secrets.SHAREONE_REVIEW_GITHUB_TOKEN }}
 
     outputs:
       commit-short: ${{ steps.commit.outputs.short }}

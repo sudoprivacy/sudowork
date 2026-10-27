@@ -45,6 +45,10 @@ describe('portable private review build preparation', () => {
     expect(reviewGitEnvironment({}).GIT_TERMINAL_PROMPT).toBe('0');
   });
 
+  it('does not substitute a release credential when CI lacks dedicated private-source access', () => {
+    expect(() => reviewGitEnvironment({ CI: 'true', SHAREONE_REVIEW_GITHUB_TOKEN: '', GH_TOKEN: 'unrelated-release-token' })).toThrow('SHAREONE_REVIEW_GITHUB_TOKEN');
+  });
+
   it('uses the host frontend toolchain when packaging for another architecture or Electron', () => {
     const original = {
       npm_config_arch: 'arm64',

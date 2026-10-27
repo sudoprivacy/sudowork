@@ -15,7 +15,7 @@ function resolveNpmCli(nodeExecutable = process.execPath, npmExecPath = process.
 /** Send private repository credentials only through Git's process environment. */
 function reviewGitEnvironment(environment = process.env) {
   const env = { ...environment, GIT_TERMINAL_PROMPT: '0' };
-  const token = environment.SHAREONE_REVIEW_GITHUB_TOKEN || environment.GH_TOKEN;
+  const token = environment.SHAREONE_REVIEW_GITHUB_TOKEN || (!environment.CI ? environment.GH_TOKEN : undefined);
   if (!token) {
     if (environment.CI) throw new Error('The pinned ShareOne source is private. Configure SHAREONE_REVIEW_GITHUB_TOKEN with read access to sudoprivacy/shareone for this build.');
     return env;

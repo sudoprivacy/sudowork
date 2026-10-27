@@ -179,8 +179,11 @@ development/package scripts and includes its checked assets in `extraResources`.
 No caller must remember an environment override. Only an unpackaged developer
 build accepts `SUDOWORK_SHAREONE_REVIEW_ASSETS` for isolated review-shell work.
 The pinned ShareOne source repository is private. CI builds use
-`SHAREONE_REVIEW_GITHUB_TOKEN` (or the existing release `GH_TOKEN`) with read access
-to that repository. Git receives it through a repository-scoped process environment
+the dedicated Actions secret `SHAREONE_REVIEW_GITHUB_TOKEN` with Contents: read
+access limited to `sudoprivacy/shareone`. The generic release `GH_TOKEN` is not a
+substitute: its repository selection may exclude ShareOne. Configure the dedicated
+credential in Sudowork repository secrets; never put its value in source or logs.
+Git receives it through a repository-scoped process environment
 header, never a URL or command argument. Frontend installation uses the host Node/npm
 layout and drops Electron and cross-compilation target overrides before building
 the shell. Local development may use its configured Git credential helper or the

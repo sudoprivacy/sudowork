@@ -27,7 +27,11 @@ vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
 }));
 vi.mock('@renderer/pages/conversation/acp/AcpChat', () => ({ default: ({ conversation_id }: { conversation_id: string }) => <div data-testid='ready-conversation'>{conversation_id}</div> }));
 vi.mock('@renderer/pages/conversation/ChatConversation', () => ({
-  default: ({ conversation, children }: React.PropsWithChildren<{ conversation: { id: string } }>) => <section aria-label={`Shared conversation ${conversation.id}`}>{children}</section>,
+  default: ({ conversation, children }: React.PropsWithChildren<{ conversation: { id: string } }>) => (
+    <section aria-label={`Shared conversation ${conversation.id}`} data-custom-send={children != null}>
+      {children ?? <div data-testid='ready-conversation'>{conversation.id}</div>}
+    </section>
+  ),
 }));
 const i18n = createInstance();
 void i18n.init({ lng: 'zh-CN', resources: { 'zh-CN': { translation: { ontology: locale } } }, interpolation: { escapeValue: false } });
@@ -73,6 +77,7 @@ describe('ontology conversation setup', () => {
     mount(true);
     const shell = await screen.findByRole('region', { name: 'Shared conversation northwind-chat' });
     expect(within(shell).getByTestId('ready-conversation')).toHaveTextContent('northwind-chat');
+    expect(shell).toHaveAttribute('data-custom-send', 'false');
   });
   it('does not open a viewer from a late reply after the project panel closes', async () => {
     const opened = vi.spyOn(window, 'open').mockReturnValue(null);
