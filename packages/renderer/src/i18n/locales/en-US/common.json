@@ -1,4 +1,9 @@
 {
+  "organizationSwitch": {
+    "title": "Switch enterprise",
+    "confirm": "Use the selected enterprise's permissions and model account. Your current conversation will be preserved.",
+    "failed": "Unable to switch enterprise. Verify your login and try again."
+  },
   "send": "Send",
   "cancel": "Cancel",
   "save": "Save",

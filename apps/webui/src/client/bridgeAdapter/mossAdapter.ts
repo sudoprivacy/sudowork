@@ -1878,6 +1878,13 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
       },
     })
   },
+  'eeclaw.get-organizations': async () => {
+    try {
+      return ok(await apiFetch('/api/auth/organizations'))
+    } catch (error) {
+      return fail(errMessage(error))
+    }
+  },
   // The agents this person has. Assembled by moss because only it knows which
   // of the three kinds a stored reference is and where each kind's name lives;
   // doing it here would put the template-is-not-an-agent distinction into the

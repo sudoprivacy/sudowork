@@ -1,4 +1,9 @@
 {
+  "organizationSwitch": {
+    "title": "Şirket değiştir",
+    "confirm": "Seçilen şirketin izinleri ve model hesabı kullanılacak. Mevcut görüşmeniz korunacak.",
+    "failed": "Şirket değiştirilemiyor. Girişinizi yeniden doğrulayıp tekrar deneyin."
+  },
   "send": "Gönder",
   "cancel": "İptal",
   "save": "Kaydet",

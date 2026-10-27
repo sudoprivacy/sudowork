@@ -34,6 +34,22 @@ export const MossMeSchema = z.object({
 })
 export type MossMe = z.infer<typeof MossMeSchema>
 
+/** Verified memberships contain public identity fields only. */
+export const AccountOrganizationsSchema = z.object({
+  organizations: z.array(
+    z.object({
+      id: z.string().min(1),
+      name: z.string().min(1),
+      userId: z.string().min(1),
+      role: z.string().min(1),
+    }),
+  ),
+})
+export type AccountOrganizations = z.infer<typeof AccountOrganizationsSchema>
+export const SwitchOrganizationRequestSchema = z
+  .object({ orgId: z.string().trim().min(1).max(128) })
+  .strict()
+
 /** 自定义 Moss 服务器地址（可选）：仅 http(s) 完整 URL，登录时该会话所有 moss 调用走此地址 */
 const MossBaseUrlSchema = z
   .string()

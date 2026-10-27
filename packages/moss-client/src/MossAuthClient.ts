@@ -1,6 +1,8 @@
 import {
   MossMeSchema,
   MossTokenSetSchema,
+  AccountOrganizationsSchema,
+  type AccountOrganizations,
   type MossMe,
   type MossTokenSet,
 } from '@sudowork/contracts/auth'
@@ -37,6 +39,7 @@ export interface MossAuthPort {
   refresh(refreshToken: string, baseUrl: string): Promise<MossTokenSet>
   me(accessToken: string, baseUrl: string): Promise<MossMe>
   switchOrg?(accessToken: string, orgId: string, baseUrl: string): Promise<MossTokenSet>
+  organizations?(accessToken: string, baseUrl: string): Promise<AccountOrganizations>
 }
 
 /** Raised when the control plane refuses a send until the cooldown elapses. */
@@ -71,6 +74,15 @@ function rateLimitMessage(err: unknown): string | undefined {
 
 export function createMossAuthPort(mossFetch: MossFetch): MossAuthPort {
   return {
+    async organizations(accessToken, baseUrl) {
+      return AccountOrganizationsSchema.parse(
+        await mossFetch(baseUrl, {
+          method: 'GET',
+          path: '/api/v1/auth/organizations',
+          accessToken,
+        }),
+      )
+    },
     async switchOrg(accessToken, orgId, baseUrl) {
       const json = await mossFetch(baseUrl, {
         method: 'POST',

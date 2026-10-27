@@ -184,6 +184,7 @@ interface AuthContextValue {
   ensureValidToken: (forceRefresh?: boolean) => Promise<string | null>;
   forceRefreshToken: () => Promise<string | null>;
   enterpriseLogin: (params: EnterpriseLoginParams | EnterpriseLoginParamsByKey) => Promise<LoginResult>;
+  switchOrganization: (orgId: string) => Promise<LoginResult>;
   enterpriseLoginWithOAuth2: (params: Record<string, string>) => Promise<LoginResult>;
   loginByPassword: (params: PasswordLoginParams) => Promise<PasswordAuthResult>;
   registerByPassword: (params: PasswordRegisterParams) => Promise<PasswordAuthResult>;
@@ -1314,6 +1315,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   );
 
   const login = useCallback(({ phone, code, mossBaseUrl }: LoginParams): Promise<LoginResult> => performLogin({ grant_type: 'phone', phone, code, mossBaseUrl }), [performLogin]);
+  const switchOrganization = useCallback((orgId: string): Promise<LoginResult> => performLogin({ grant_type: 'organization', orgId }), [performLogin]);
 
   const register = useCallback(({ phone, code, nickname, invitation_code, mossBaseUrl }: RegisterParams): Promise<RegisterResult> => performLogin({ grant_type: 'phone_register', phone, code, nickname, invitation_code, mossBaseUrl }), [performLogin]);
 
@@ -1652,6 +1654,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       ensureValidToken,
       forceRefreshToken,
       enterpriseLogin,
+      switchOrganization,
       enterpriseLoginWithOAuth2,
       loginByPassword,
       registerByPassword,
@@ -1675,6 +1678,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       ensureValidToken,
       forceRefreshToken,
       enterpriseLogin,
+      switchOrganization,
       enterpriseLoginWithOAuth2,
       loginByPassword,
       registerByPassword,

@@ -4,7 +4,7 @@ import type { MossAuthPort, MossCallContext, MossSessionPort } from '@sudowork/m
 import { MossHttpError, MossNetworkError } from '@sudowork/moss-client'
 import { digestToken, generateSessionToken } from '../../security/sessionToken.js'
 import { decryptToken, encryptToken } from '../../security/tokenCipher.js'
-import type { MossMe, MossTokenSet } from '@sudowork/contracts/auth'
+import type { AccountOrganizations, MossMe, MossTokenSet } from '@sudowork/contracts/auth'
 import { findPrincipalById, upsertPrincipal, type Principal } from './principalRepository.js'
 import {
   createWebSession,
@@ -244,13 +244,7 @@ async function fetchMe(deps: AuthDeps, accessToken: string, baseUrl: string): Pr
   }
 }
 
-/** Verify a scoped Agent grant before rotating the browser into the manager's selected organization. */
-export async function openAgentWorkspace(
-  deps: AuthDeps,
-  session: WebSessionRow,
-  input: { sessionId: string; orgId: string },
-  sessions: MossSessionPort,
-): Promise<LoginResult | null> {
+async function verifiedAccountSession(deps: AuthDeps, session: WebSessionRow) {
   const principal = await findPrincipalById(deps.pool, session.principalId)
   if (!principal) throw new InvalidCredentialsError()
   const ctx = await getMossContext(deps, session)
@@ -258,27 +252,102 @@ export async function openAgentWorkspace(
   if (me.user.id !== principal.mossUserId || me.organization?.id !== principal.orgId) {
     throw new AuthRequestRejectedError(403, 'Session identity is unavailable')
   }
+  return { principal, ctx, me }
+}
+
+/** Read memberships using the server-held human credential; raw tokens never reach the browser. */
+export async function listAccountOrganizations(
+  deps: AuthDeps,
+  session: WebSessionRow,
+): Promise<AccountOrganizations> {
+  const { ctx } = await verifiedAccountSession(deps, session)
+  return fetchAccountOrganizations(deps, ctx)
+}
+
+async function fetchAccountOrganizations(
+  deps: AuthDeps,
+  ctx: MossCallContext,
+): Promise<AccountOrganizations> {
+  if (!deps.mossAuth.organizations)
+    throw new AuthRequestRejectedError(403, 'Organization selection is unavailable')
+  try {
+    return await deps.mossAuth.organizations(ctx.accessToken, ctx.baseUrl)
+  } catch (error) {
+    if (error instanceof MossNetworkError) throw new MossUnavailableError(error)
+    if (error instanceof MossHttpError && [400, 403, 404].includes(error.status)) {
+      throw new AuthRequestRejectedError(
+        error.status as 400 | 403 | 404,
+        'Verify your phone to select an enterprise',
+      )
+    }
+    throw error
+  }
+}
+
+async function selectAccountOrganization(
+  deps: AuthDeps,
+  ctx: MossCallContext,
+  me: MossMe,
+  orgId: string,
+) {
+  if (!deps.mossAuth.switchOrg)
+    throw new AuthRequestRejectedError(403, 'Organization selection is unavailable')
+  let expectedUserId = me.user.id
+  if (!(me.isSuperAdmin || me.role === 'super_admin')) {
+    if (!deps.mossAuth.organizations)
+      throw new AuthRequestRejectedError(403, 'Organization selection is unavailable')
+    const available = await fetchAccountOrganizations(deps, ctx)
+    const member = available.organizations.find((org) => org.id === orgId)
+    if (!member) throw new AuthRequestRejectedError(403, 'Active organization membership required')
+    expectedUserId = member.userId
+  }
+  let tokens: MossTokenSet
+  try {
+    tokens = await deps.mossAuth.switchOrg(ctx.accessToken, orgId, ctx.baseUrl)
+  } catch (error) {
+    if (error instanceof MossHttpError && [400, 403, 404].includes(error.status)) {
+      throw new AuthRequestRejectedError(
+        error.status as 400 | 403 | 404,
+        'Organization is unavailable',
+      )
+    }
+    throw error
+  }
+  const selected = await fetchMe(deps, tokens.access_token, ctx.baseUrl)
+  if (selected.user.id !== expectedUserId || selected.organization?.id !== orgId) {
+    throw new AuthRequestRejectedError(403, 'Organization identity is unavailable')
+  }
+  return { tokens, selected }
+}
+
+/** Rotate the cookie only after Moss verifies the actual selected membership. */
+export async function switchAccountOrganization(
+  deps: AuthDeps,
+  session: WebSessionRow,
+  orgId: string,
+): Promise<LoginResult | null> {
+  const { principal, ctx, me } = await verifiedAccountSession(deps, session)
+  if (principal.orgId === orgId) return null
+  const { tokens, selected } = await selectAccountOrganization(deps, ctx, me, orgId)
+  const next = await performLogin(deps, tokens, selected, session.mossBaseUrl)
+  await deleteWebSession(deps.pool, session.id)
+  return next
+}
+
+/** Verify a scoped Agent grant before rotating into the selected enterprise identity. */
+export async function openAgentWorkspace(
+  deps: AuthDeps,
+  session: WebSessionRow,
+  input: { sessionId: string; orgId: string },
+  sessions: MossSessionPort,
+): Promise<LoginResult | null> {
+  const { principal, ctx, me } = await verifiedAccountSession(deps, session)
   let tokens: MossTokenSet | undefined
   let selected = me
   if (principal.orgId !== input.orgId) {
-    if (!(me.isSuperAdmin || me.role === 'super_admin') || !deps.mossAuth.switchOrg) {
-      throw new AuthRequestRejectedError(403, 'Organization switch is not permitted')
-    }
-    try {
-      tokens = await deps.mossAuth.switchOrg(ctx.accessToken, input.orgId, ctx.baseUrl)
-    } catch (error) {
-      if (error instanceof MossHttpError && [400, 403, 404].includes(error.status)) {
-        throw new AuthRequestRejectedError(
-          error.status as 400 | 403 | 404,
-          'Organization is unavailable',
-        )
-      }
-      throw error
-    }
-    selected = await fetchMe(deps, tokens.access_token, ctx.baseUrl)
-    if (selected.user.id !== principal.mossUserId || selected.organization?.id !== input.orgId) {
-      throw new AuthRequestRejectedError(403, 'Organization identity is unavailable')
-    }
+    const selection = await selectAccountOrganization(deps, ctx, me, input.orgId)
+    tokens = selection.tokens
+    selected = selection.selected
   }
   let agentSession
   try {
@@ -297,7 +366,7 @@ export async function openAgentWorkspace(
   }
   if (
     !agentSession ||
-    !isSessionAccessible(agentSession, { mossUserId: principal.mossUserId, orgId: input.orgId })
+    !isSessionAccessible(agentSession, { mossUserId: selected.user.id, orgId: input.orgId })
   ) {
     throw new AuthRequestRejectedError(403, 'Agent workspace is unavailable')
   }
