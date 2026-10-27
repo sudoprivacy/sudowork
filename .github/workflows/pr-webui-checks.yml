@@ -76,6 +76,9 @@ jobs:
         with:
           submodules: true
 
+      - name: Verify live acceptance error reporting
+        run: python3 -m unittest discover -s apps/webui/tests/e2e -p test_live_browser_ui.py
+
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
