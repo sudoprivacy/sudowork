@@ -244,7 +244,7 @@ export default function StudioConversationPanel({ workspaceId, workspaceName, co
           </div>
         ) : conversation?.type === 'acp' ? (
           <ChatConversation key={conversation.id} conversation={conversation}>
-            <AcpChat conversation_id={conversation.id} workspace={conversation.extra.workspace} backend={conversation.extra.backend} sessionMode={conversation.extra.sessionMode} teamSendMessage={onSend} />
+            {isCanonicalReview ? undefined : <AcpChat conversation_id={conversation.id} workspace={conversation.extra.workspace} backend={conversation.extra.backend} sessionMode={conversation.extra.sessionMode} teamSendMessage={onSend} />}
           </ChatConversation>
         ) : (
           <div className={styles['ontology-chat-empty']}>

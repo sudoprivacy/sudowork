@@ -455,7 +455,7 @@ jobs:
           just build-win-x64
           Write-Host "✓Build test passed for ${{ env.MATRIX_PLATFORM }}"
         env:
-          SHAREONE_REVIEW_GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          SHAREONE_REVIEW_GITHUB_TOKEN: ${{ secrets.SHAREONE_REVIEW_GITHUB_TOKEN }}
           NODE_OPTIONS: "--max-old-space-size=8192"
           MSVS_VERSION: 2022
           GYP_MSVS_VERSION: 2022
@@ -472,7 +472,7 @@ jobs:
           just build-win-arm64
           Write-Host "✓Build test passed for ${{ env.MATRIX_PLATFORM }}"
         env:
-          SHAREONE_REVIEW_GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          SHAREONE_REVIEW_GITHUB_TOKEN: ${{ secrets.SHAREONE_REVIEW_GITHUB_TOKEN }}
           NODE_OPTIONS: "--max-old-space-size=8192"
           MSVS_VERSION: 2022
           GYP_MSVS_VERSION: 2022
@@ -489,7 +489,7 @@ jobs:
           node scripts/build-with-builder.js ${{ env.MATRIX_ARCH }} ${{ env.MATRIX_BUILD_ARGS }}
           echo "✓Build test passed for ${{ env.MATRIX_PLATFORM }}"
         env:
-          SHAREONE_REVIEW_GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          SHAREONE_REVIEW_GITHUB_TOKEN: ${{ secrets.SHAREONE_REVIEW_GITHUB_TOKEN }}
           NODE_OPTIONS: "--max-old-space-size=8192"
           npm_config_arch: ${{ env.MATRIX_ARCH }}
           npm_config_target_arch: ${{ env.MATRIX_ARCH }}
