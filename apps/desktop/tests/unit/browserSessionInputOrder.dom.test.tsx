@@ -4,8 +4,11 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, expect, it, vi } from 'vitest';
 import type { BrowserSessionAction, BrowserSessionState } from '@sudowork/contracts/browser-session';
 import BrowserSessionPanel from '@renderer/components/browser/BrowserSessionPanel';
+import { isElectronDesktop } from '@renderer/utils/platform';
 
 const host = vi.hoisted(() => ({ invoke: vi.fn(), stop: vi.fn(), error: vi.fn(), confirm: vi.fn(), info: vi.fn(), stream: vi.fn() }));
+
+vi.mock('@renderer/utils/platform', () => ({ isElectronDesktop: vi.fn(() => false) }));
 
 // Pixel decoding is exercised by the real React/Chrome workflow. This seam
 // observes which target the host integration actually hands to that decoder.
@@ -102,6 +105,42 @@ afterEach(() => {
   host.confirm.mockReset();
   host.info.mockReset();
   host.stream.mockReset();
+  vi.mocked(isElectronDesktop).mockReturnValue(false);
+});
+
+it('shows the existing local Chrome target without opening another application window', async () => {
+  vi.mocked(isElectronDesktop).mockReturnValue(true);
+  const opened = vi.spyOn(window, 'open').mockReturnValue(null);
+  const session = { ...activeSession(), transport: 'cdp' as const, isHeadless: false, capabilities: { ...activeSession().capabilities, nativeWindow: true } };
+  host.invoke.mockImplementation(async () => ({ success: true, data: { session } }));
+  render(<BrowserSessionPanel conversationId='owned-conversation' />);
+  fireEvent.click(await screen.findByRole('button', { name: 'openNative' }));
+  await waitFor(() => expect(host.invoke).toHaveBeenCalledWith({ conversationId: 'owned-conversation', action: { kind: 'select-tab', targetId: 'owned-tab', controlEpoch: 4, targetEpoch: 2 } }));
+  expect(opened).not.toHaveBeenCalled();
+});
+
+it('keeps a remote browser in a separate viewer tab even on a Desktop host', async () => {
+  vi.mocked(isElectronDesktop).mockReturnValue(true);
+  const opened = vi.spyOn(window, 'open').mockReturnValue(null);
+  const session = activeSession();
+  host.invoke.mockImplementation(async () => ({ success: true, data: { session } }));
+  render(<BrowserSessionPanel conversationId='owned-conversation' />);
+  fireEvent.click(await screen.findByRole('button', { name: 'openViewer' }));
+  expect(opened).toHaveBeenCalledWith(expect.stringContaining('#/browser-viewer/owned-conversation'), '_blank', 'noopener');
+  expect(host.invoke.mock.calls.some(([input]) => input.action.kind === 'select-tab')).toBe(false);
+});
+
+it('waits for acknowledged control before showing the local browser', async () => {
+  vi.mocked(isElectronDesktop).mockReturnValue(true);
+  let session = { ...activeSession(), state: 'ai' as BrowserSessionState['state'], isController: false, isHeadless: false, capabilities: { ...activeSession().capabilities, nativeWindow: true } };
+  host.invoke.mockImplementation(async ({ action }: { action: BrowserSessionAction }) => {
+    if (action.kind === 'take') session = { ...session, state: 'human', isController: true, controlEpoch: 5 };
+    return { success: true, data: { session } };
+  });
+  render(<BrowserSessionPanel conversationId='owned-conversation' />);
+  fireEvent.click(await screen.findByRole('button', { name: 'openNative' }));
+  await waitFor(() => expect(host.invoke).toHaveBeenCalledWith({ conversationId: 'owned-conversation', action: { kind: 'select-tab', targetId: 'owned-tab', controlEpoch: 5, targetEpoch: 2 } }));
+  expect(host.invoke.mock.calls.findIndex(([input]) => input.action.kind === 'take')).toBeLessThan(host.invoke.mock.calls.findIndex(([input]) => input.action.kind === 'select-tab'));
 });
 
 it('acknowledges live drag only after the checked input reply for the attached viewer', async () => {

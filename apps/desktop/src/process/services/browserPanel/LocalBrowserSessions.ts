@@ -66,7 +66,7 @@ export class LocalBrowserSessions {
   }
 
   private decorate(conversationId: string, reply: BrowserSessionReply): BrowserSessionReply {
-    reply = { ...reply, session: { ...reply.session, capabilities: { ...reply.session.capabilities, conversationControl: true } } };
+    reply = { ...reply, session: { ...reply.session, capabilities: { ...reply.session.capabilities, conversationControl: true, nativeWindow: reply.session.state !== 'stopped' && (reply.session.isHeadless === false || !!reply.session.personalExtension) } } };
     const host = this.options.control.status();
     if (host.state === 'ai') return reply;
     if (host.owner !== conversationId) return { ...reply, session: { ...reply.session, state: 'error', isController: false, isHumanControlHeld: true, error: 'browser_control_held_by_another_conversation' } };

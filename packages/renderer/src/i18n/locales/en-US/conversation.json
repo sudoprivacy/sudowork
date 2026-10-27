@@ -402,6 +402,7 @@
     "headless": "Headless",
     "headful": "Windowed",
     "openViewer": "Open separately",
+    "openNative": "Show browser window",
     "unavailable": "The browser session is unavailable. Reconnect to continue.",
     "waiting": "The browser will appear when SudoWork starts it.",
     "disconnected": "Connection lost. Browser input remains paused. Reconnect and use the conversation to continue.",

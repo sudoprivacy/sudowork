@@ -7,6 +7,7 @@ import { PageSurface } from '@ai-dev-browser/remote-page';
 import { copyTextFromPromise } from '../../utils/clipboard';
 import WindowStreamSurface, { type IWindowStreamContext } from './WindowStreamSurface';
 import { openBrowserSessionWindow } from './openBrowserSessionWindow';
+import { isElectronDesktop } from '../../utils/platform';
 
 function isLiveDragCancellation(input: BrowserInput) {
   return input.kind === 'drag-stream' && input.phase === 'cancel';
@@ -18,6 +19,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
   const [session, setSession] = useState<BrowserSessionState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isTransferring, setIsTransferring] = useState(false);
+  const [isOpeningSeparate, setIsOpeningSeparate] = useState(false);
   const [isFileTransferring, setIsFileTransferring] = useState(false);
   const [isClipboardBusy, setIsClipboardBusy] = useState(false);
   const [isTextComposing, setIsTextComposing] = useState(false);
@@ -108,6 +110,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     isInteractiveRef.current = false;
     setIsFrameReady(false);
     setIsFileTransferring(false);
+    setIsOpeningSeparate(false);
     setIsClipboardBusy(false);
     setIsTextComposing(false);
     fileChoiceRef.current = null;
@@ -681,6 +684,37 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     }
   };
 
+  const isNativeWindowAvailable = isElectronDesktop() && session?.capabilities.nativeWindow === true;
+  const onOpenSeparate = async () => {
+    if (!isNativeWindowAvailable) {
+      openBrowserSessionWindow(conversationId);
+      return;
+    }
+    const generation = generationRef.current;
+    setIsOpeningSeparate(true);
+    try {
+      await pendingInputsRef.current;
+      if (generationRef.current !== generation) return;
+      let current = sessionRef.current;
+      if (!current?.activeTargetId || !current.capabilities.nativeWindow) throw new Error(t('conversation.browserSession.unavailable'));
+      if (current.state !== 'human' || !current.isController) {
+        const acquired = await invoke({ kind: 'take', controlEpoch: current.controlEpoch, targetEpoch: current.targetEpoch });
+        if (generationRef.current !== generation) return;
+        update(acquired.session);
+        current = acquired.session;
+      }
+      if (!current.activeTargetId || !current.capabilities.nativeWindow || current.state !== 'human' || !current.isController) throw new Error(t('conversation.browserSession.unavailable'));
+      // Selecting the existing target brings its native Chrome window forward.
+      // It keeps the page, cookies, drafts and shared panel on that same target.
+      const reply = await invoke({ kind: 'select-tab', targetId: current.activeTargetId, controlEpoch: current.controlEpoch, targetEpoch: current.targetEpoch });
+      if (generationRef.current === generation) update(reply.session);
+    } catch (failure) {
+      if (generationRef.current === generation) Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
+    } finally {
+      if (generationRef.current === generation) setIsOpeningSeparate(false);
+    }
+  };
+
   const controls = (
     <div className='flex flex-wrap items-center gap-2'>
       <span role='status'>{isTransferring ? t('conversation.browserSession.transferring') : t(`conversation.browserSession.state.${session?.state || 'stopped'}`)}</span>
@@ -688,8 +722,8 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
       {session?.personalExtension ? <span>{t('conversation.browserSession.personalBrowser')}</span> : null}
       {isViewer && !isControlsOnly ? <a href={`${location.pathname}${location.search}#/conversation/${encodeURIComponent(conversationId)}`}>{t('conversation.browserSession.openConversation')}</a> : null}
       {!isViewer || isControlsOnly ? (
-        <Button size='mini' onClick={() => openBrowserSessionWindow(conversationId)}>
-          {t('conversation.browserSession.openViewer')}
+        <Button size='mini' disabled={!session || isOpeningSeparate} onClick={() => void onOpenSeparate()}>
+          {t(`conversation.browserSession.${isNativeWindowAvailable ? 'openNative' : 'openViewer'}`)}
         </Button>
       ) : null}
       {isViewer && !isControlsOnly && session?.capabilities.windowView ? (

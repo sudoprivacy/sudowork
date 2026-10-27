@@ -38,6 +38,7 @@
     "headless": "无窗口",
     "headful": "显示窗口",
     "openViewer": "独立查看",
+    "openNative": "打开浏览器窗口",
     "unavailable": "浏览器会话不可用，请重新连接后继续。",
     "waiting": "SudoWork 启动浏览器后，画面会显示在这里。",
     "disconnected": "连接已断开，浏览器操作保持暂停。请重新连接，并通过会话继续。",

@@ -28,8 +28,37 @@
   padding: 16px;
   overflow: hidden;
 }
-.ontology-source-project > :global(.arco-card) {
+.ontology-source-project > .ontology-page-heading {
+  margin-bottom: 8px;
+}
+.ontology-source-status {
   flex-shrink: 0;
+  margin-bottom: 8px;
+  border: 1px solid var(--color-border-2);
+  border-radius: 6px;
+  font-size: 12px;
+}
+.ontology-source-status > summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+.ontology-source-status > summary::before {
+  content: "▸";
+}
+.ontology-source-status[open] > summary::before {
+  content: "▾";
+}
+.ontology-source-counts {
+  color: var(--color-text-3);
+}
+.ontology-source-receipt {
+  padding: 8px 12px;
+  border-top: 1px solid var(--color-border-2);
+  overflow-wrap: anywhere;
 }
 .ontology-source-project > .ontology-chat-pane {
   flex: 1;
@@ -379,17 +408,33 @@
 .ontology-data-guide-option.is-recommended .ontology-data-guide-title {
   color: rgb(var(--primary-6)) !important;
 }
-.ontology-data-guide-grid:has(.ontology-data-guide-option.is-model-first:hover) .ontology-data-guide-option.is-recommended,
-.ontology-data-guide-grid:has(.ontology-data-guide-option.is-model-first:focus-visible) .ontology-data-guide-option.is-recommended {
+.ontology-data-guide-grid:has(.ontology-data-guide-option.is-model-first:hover)
+  .ontology-data-guide-option.is-recommended,
+.ontology-data-guide-grid:has(
+    .ontology-data-guide-option.is-model-first:focus-visible
+  )
+  .ontology-data-guide-option.is-recommended {
   border-color: var(--color-border-2);
   background: var(--color-bg-1);
 }
-.ontology-data-guide-grid:has(.ontology-data-guide-option.is-model-first:hover) .ontology-data-guide-option.is-recommended .ontology-data-guide-title,
-.ontology-data-guide-grid:has(.ontology-data-guide-option.is-model-first:focus-visible) .ontology-data-guide-option.is-recommended .ontology-data-guide-title {
+.ontology-data-guide-grid:has(.ontology-data-guide-option.is-model-first:hover)
+  .ontology-data-guide-option.is-recommended
+  .ontology-data-guide-title,
+.ontology-data-guide-grid:has(
+    .ontology-data-guide-option.is-model-first:focus-visible
+  )
+  .ontology-data-guide-option.is-recommended
+  .ontology-data-guide-title {
   color: var(--color-text-1) !important;
 }
-.ontology-data-guide-grid:has(.ontology-data-guide-option.is-model-first:hover) .ontology-data-guide-option.is-recommended .ontology-data-guide-icon,
-.ontology-data-guide-grid:has(.ontology-data-guide-option.is-model-first:focus-visible) .ontology-data-guide-option.is-recommended .ontology-data-guide-icon {
+.ontology-data-guide-grid:has(.ontology-data-guide-option.is-model-first:hover)
+  .ontology-data-guide-option.is-recommended
+  .ontology-data-guide-icon,
+.ontology-data-guide-grid:has(
+    .ontology-data-guide-option.is-model-first:focus-visible
+  )
+  .ontology-data-guide-option.is-recommended
+  .ontology-data-guide-icon {
   background: var(--color-fill-2);
   color: var(--color-text-2);
 }
@@ -399,11 +444,13 @@
   background: rgb(var(--primary-1));
 }
 .ontology-data-guide-option.is-model-first:hover .ontology-data-guide-title,
-.ontology-data-guide-option.is-model-first:focus-visible .ontology-data-guide-title {
+.ontology-data-guide-option.is-model-first:focus-visible
+  .ontology-data-guide-title {
   color: rgb(var(--primary-6)) !important;
 }
 .ontology-data-guide-option.is-model-first:hover .ontology-data-guide-icon,
-.ontology-data-guide-option.is-model-first:focus-visible .ontology-data-guide-icon {
+.ontology-data-guide-option.is-model-first:focus-visible
+  .ontology-data-guide-icon {
   background: rgb(var(--primary-2));
   color: rgb(var(--primary-6));
 }
