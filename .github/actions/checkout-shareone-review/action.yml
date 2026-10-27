@@ -1,0 +1,42 @@
+name: Checkout pinned ShareOne review source
+description: Read the locked private source using a repository-scoped deploy key.
+inputs:
+  ssh-key:
+    description: Read-only deploy key for sudoprivacy/shareone.
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Validate source pin and dedicated credential
+      id: pin
+      shell: bash
+      working-directory: ${{ github.workspace }}
+      env:
+        REVIEW_DEPLOY_KEY: ${{ inputs.ssh-key }}
+      run: |
+        node <<'NODE'
+        const fs = require('node:fs');
+        const lock = JSON.parse(fs.readFileSync('apps/desktop/resources/shareone-review.lock.json', 'utf8'));
+        if (lock.repository !== 'https://github.com/sudoprivacy/shareone.git' || !/^[a-f0-9]{40}$/.test(lock.revision) || lock.format !== 'shareone-review-shell/v1') throw new Error('Invalid ShareOne review source pin.');
+        if (!process.env.REVIEW_DEPLOY_KEY?.trim()) throw new Error('Configure the repository secret SHAREONE_REVIEW_DEPLOY_KEY with a read-only deploy key for sudoprivacy/shareone.');
+        fs.appendFileSync(process.env.GITHUB_OUTPUT, `revision=${lock.revision}\n`);
+        NODE
+    - name: Checkout private source with read-only repository access
+      uses: actions/checkout@v6
+      with:
+        repository: sudoprivacy/shareone
+        ref: ${{ steps.pin.outputs.revision }}
+        path: apps/desktop/.cache/shareone-review-src
+        ssh-key: ${{ inputs.ssh-key }}
+        ssh-strict: true
+        persist-credentials: false
+        fetch-depth: 1
+    - name: Select prepared source for every packaging entry
+      shell: bash
+      working-directory: ${{ github.workspace }}
+      run: |
+        node <<'NODE'
+        const fs = require('node:fs');
+        const path = require('node:path');
+        fs.appendFileSync(process.env.GITHUB_ENV, `SHAREONE_REVIEW_SOURCE=${path.resolve('apps/desktop/.cache/shareone-review-src')}\n`);
+        NODE
