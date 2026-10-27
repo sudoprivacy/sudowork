@@ -95,6 +95,8 @@ const mainAliases = [
   { find: '@sudowork/moss-client', replacement: resolve('../../packages/moss-client/src/index.ts') },
   { find: /^@sudowork\/ontology-common\/(.*)$/, replacement: resolve('../../packages/ontology-common/src') + '/$1' },
   { find: /^@sudowork\/ontology-common$/, replacement: resolve('../../packages/ontology-common/src/index.ts') },
+  { find: /^@sudowork\/ontology-runtime\/(.*)$/, replacement: resolve('../../packages/ontology-runtime/src') + '/$1' },
+  { find: /^@sudowork\/ontology-runtime$/, replacement: resolve('../../packages/ontology-runtime/src') + '/index.ts' },
   { find: /^@sudowork\/ontology-engine\/(.*)$/, replacement: resolve('../../packages/ontology-engine/src') + '/$1' },
   { find: /^@sudowork\/ontology-engine$/, replacement: resolve('../../packages/ontology-engine/src/index.ts') },
   { find: '@sudowork/contracts/auth', replacement: resolve('../../packages/contracts/src/auth.ts') },
@@ -166,7 +168,23 @@ export default defineConfig(({ mode }) => {
         externalizeDepsPlugin({
           // @sudowork/* are workspace packages bundled from source (aliased above)
           // so the main process has no runtime dependency on their dist build.
-          exclude: ['fix-path', 'v8-compile-cache', 'unified', 'remark-parse', 'remark-gfm', 'mdast-util-from-markdown', 'mdast-util-gfm', 'docx', '@sudowork/moss-client', '@sudowork/contracts', '@sudowork/common', '@sudowork/host-bridge', '@sudowork/ontology-common', '@sudowork/ontology-engine'],
+          exclude: [
+            'fix-path',
+            'v8-compile-cache',
+            'unified',
+            'remark-parse',
+            'remark-gfm',
+            'mdast-util-from-markdown',
+            'mdast-util-gfm',
+            'docx',
+            '@sudowork/moss-client',
+            '@sudowork/contracts',
+            '@sudowork/common',
+            '@sudowork/host-bridge',
+            '@sudowork/ontology-common',
+            '@sudowork/ontology-engine',
+            '@sudowork/ontology-runtime',
+          ],
         }),
         ...(!isDevelopment
           ? [

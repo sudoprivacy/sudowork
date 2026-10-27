@@ -4,12 +4,12 @@ import { initOntologyAiBuilderBridge } from '@process/bridge/ontologyAiBuilderBr
 const fixture = vi.hoisted(() => ({ handlers: new Map<string, (input?: any) => Promise<any>>(), sessions: [] as Array<Record<string, any>>, conversations: [] as Array<Record<string, any>> }));
 vi.mock('@/common', () => ({
   ipcBridge: {
-    ontologyAiBuilder: Object.fromEntries(['listSessions', 'createSession', 'deleteSession', 'getSessionByConversation', 'ensureBuilderMcp', 'sessionsChanged'].map((name) => [name, { provider: (callback: (input?: any) => Promise<any>) => fixture.handlers.set(name, callback), emit: vi.fn() }])),
+    ontologyAiBuilder: Object.fromEntries(['listSessions', 'createSession', 'deleteSession', 'getSessionByConversation', 'prepareProject', 'sessionsChanged'].map((name) => [name, { provider: (callback: (input?: any) => Promise<any>) => fixture.handlers.set(name, callback), emit: vi.fn() }])),
   },
 }));
 vi.mock('@process/utils/mainLogger', () => ({ mainLog: vi.fn(), mainError: vi.fn() }));
 vi.mock('@process/services/ontology/OntologyService', () => ({ ontologyService: {} }));
-vi.mock('@process/services/ontology/OntologyMcpRegistration', () => ({ ensureOntologyBuilderMcpServer: vi.fn() }));
+vi.mock('@process/services/ontology/ontologyProjectRuntime', () => ({ prepareOntologyProject: vi.fn() }));
 vi.mock('@process/database', () => ({ getDatabase: () => ({ getUserConversations: () => ({ data: fixture.conversations }) }) }));
 vi.mock('@process/services/mossExecutionContext', () => ({ isConversationInCurrentAccount: () => true }));
 vi.mock('@process/services/ontology/OntologyStudioDatabase', () => ({

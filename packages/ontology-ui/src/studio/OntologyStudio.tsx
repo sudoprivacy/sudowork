@@ -3,11 +3,12 @@ import type { CSSProperties, ReactNode } from 'react';
 import { Button, Card, Dropdown, Empty, Form, Input, Menu, Message, Modal, Select, Space, Spin, Table, Tag, Tooltip, Typography } from '@arco-design/web-react';
 import { useTranslation } from 'react-i18next';
 import { ArrowLeft, Database, MessageSquare, Plus, Save, Upload, Workflow } from 'lucide-react';
-import type { IOntologyConsistencyCheckResult, IOntologyConsistencyIssue, IOntologyWorkbenchSnapshot, IOntologyStudioProject, IOntologyStudioModel, IOntologyStandardPreview, OntologyStudioPage } from '@sudowork/ontology-common';
+import type { IOntologyConsistencyCheckResult, IOntologyConsistencyIssue, IOntologyWorkbenchSnapshot, IOntologyStudioProject, IOntologyStudioModel, IOntologyStandardPreview, IOntologyPackagePreview, OntologyStudioPage } from '@sudowork/ontology-common';
 import { STUDIO_MAX_FILE_BYTES } from '@sudowork/ontology-common';
 import StudioModelEditor from './StudioModelEditor';
 import StudioDatabaseConnection from './StudioDatabaseConnection';
 import StudioSourceProject from './StudioSourceProject';
+import StudioPackageImport from './StudioPackageImport';
 import { StudioCapabilitiesPage, StudioChecksPage, StudioDataPage, StudioReleasePage } from './StudioPages';
 import type { IOntologyStudioApi } from './api';
 import styles from './studio.module.css';
@@ -27,7 +28,6 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
   });
   const [library, setLibrary] = useState<IOntologyStudioProject[]>([]);
   const [sourceProject, setSourceProject] = useState<IOntologyStudioProject>();
-  const [isSourceRegistrationAvailable, setIsSourceRegistrationAvailable] = useState(false);
   const [isSourceConnectOpen, setIsSourceConnectOpen] = useState(false);
   const sourceOperationId = useRef('');
   const sourceLanguage = useRef<'en' | 'zh'>('en');
@@ -65,6 +65,7 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
     path: string;
     preview: IOntologyStandardPreview;
   }>();
+  const [packagePreview, setPackagePreview] = useState<{ filePath: string; preview: IOntologyPackagePreview }>();
   const [exporting, setExporting] = useState<{ versionId?: string }>();
   const [exportFormat, setExportFormat] = useState('owl-rdf');
   const [isExportDraft, setIsExportDraft] = useState(false);
@@ -121,7 +122,6 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
       const result = await api.projects.list();
       if (sequence !== projectReadSequence.current || activeWorkspace.current) return;
       setLibrary(result.items);
-      setIsSourceRegistrationAvailable(result.sourceRegistration.available);
     } else {
       const result = await api.listWorkbenches();
       if (sequence !== projectReadSequence.current || activeWorkspace.current) return;
@@ -303,6 +303,11 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
       const path = await api.pickStandardFile();
       if (!path) return;
       setIsSaving(true);
+      if (/\.sudoonto$/i.test(path)) {
+        if (!api.packageImport) throw new Error(text('packageImportUnavailable'));
+        setPackagePreview({ filePath: path, preview: await api.packageImport.preview({ filePath: path }) });
+        return;
+      }
       const preview = await api.previewStandardFile({ filePath: path });
       setPreview({ path, ...{ preview } });
     } catch (error) {
@@ -511,41 +516,37 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
           <div className={styles['ontology-page-heading']}>
             <div>
               <Typography.Title heading={4}>{text('library')}</Typography.Title>
-              <Typography.Text type='secondary'>{text(isSourceRegistrationAvailable ? 'sourceLibraryDescription' : 'libraryDescription')}</Typography.Text>
+              <Typography.Text type='secondary'>{text('libraryDescription')}</Typography.Text>
             </div>
             <Space>
               {api.projects && (
-                <Button type={isSourceRegistrationAvailable ? 'primary' : 'secondary'} disabled={!isSourceRegistrationAvailable} loading={isSourceOpening} onClick={() => void onConnectSource()}>
+                <Button type='secondary' loading={isSourceOpening} onClick={() => void onConnectSource()}>
                   {text('addConnection')}
                 </Button>
               )}
-              {!isSourceRegistrationAvailable && (
-                <>
-                  <Tooltip content={importHint} position='bottom' trigger={['hover', 'focus']} style={{ maxWidth: 360 }}>
-                    <Button icon={<Upload size={16} />} loading={isSaving} onClick={() => void onPickImport()}>
-                      {text('import')}
-                    </Button>
-                  </Tooltip>
-                  <Button
-                    type='primary'
-                    icon={<Plus size={16} />}
-                    onClick={() => {
-                      createForm.resetFields();
-                      setCreateMode('new');
-                      setIsCreateOpen(true);
-                    }}
-                  >
-                    {text('newOntology')}
-                  </Button>
-                </>
-              )}
+              <Tooltip content={importHint} position='bottom' trigger={['hover', 'focus']} style={{ maxWidth: 360 }}>
+                <Button icon={<Upload size={16} />} loading={isSaving} onClick={() => void onPickImport()}>
+                  {text('import')}
+                </Button>
+              </Tooltip>
+              <Button
+                type='primary'
+                icon={<Plus size={16} />}
+                onClick={() => {
+                  createForm.resetFields();
+                  setCreateMode('new');
+                  setIsCreateOpen(true);
+                }}
+              >
+                {text('newOntology')}
+              </Button>
             </Space>
           </div>
           <Input.Search placeholder={text('searchOntology')} value={search} onChange={setSearch} style={{ maxWidth: 360, marginBottom: 24 }} />
           <Table
             rowKey='workspaceId'
             data={filteredLibrary}
-            noDataElement={<Empty description={text(search.trim() ? 'noSearchResults' : isSourceRegistrationAvailable ? 'sourceEmptyLibrary' : 'emptyLibrary')} />}
+            noDataElement={<Empty description={text(search.trim() ? 'noSearchResults' : 'emptyLibrary')} />}
             scroll={{ x: 900 }}
             columns={[
               {
@@ -594,7 +595,6 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
               },
             ]}
           />
-          {api.projects && !isSourceRegistrationAvailable && <Typography.Text type='secondary'>{text('sourceRuntimeUnavailable')}</Typography.Text>}
         </div>
       ) : snapshot ? (
         <>
@@ -737,11 +737,23 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
       ) : (
         <Empty description={text('errors.notFound')} />
       )}
+      {packagePreview && api.packageImport && (
+        <StudioPackageImport
+          {...packagePreview}
+          api={api.packageImport}
+          onClose={() => setPackagePreview(undefined)}
+          onError={onError}
+          onImported={(imported) => {
+            setPackagePreview(undefined);
+            onNavigate(imported.workspaceId, 'model');
+          }}
+        />
+      )}
       {isSourceConnectOpen && api.projects && (
         <StudioDatabaseConnection
           workspaceId=''
           api={api}
-          providers={['sqlite']}
+          providers={['sqlite', 'mysql', 'postgresql']}
           onRefresh={async () => {}}
           onClose={() => setIsSourceConnectOpen(false)}
           onError={onError}

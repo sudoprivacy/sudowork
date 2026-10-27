@@ -213,10 +213,8 @@ extraResources:
   # format) for each team agent. Normal sessions never load it.
   - from: resources/team-mcp/index.js
     to: team-mcp/index.js
-  - from: resources/ontology-mcp/index.js
-    to: ontology-mcp/index.js
-  - from: resources/ontology-builder-mcp/index.js
-    to: ontology-builder-mcp/index.js
+  - from: resources/ontology-cli/ontology.cjs
+    to: ontology-cli/ontology.cjs
   # Scode binary - versioned, optional
   - from: resources
     to: .

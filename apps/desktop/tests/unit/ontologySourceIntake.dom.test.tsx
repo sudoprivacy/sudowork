@@ -66,7 +66,7 @@ afterEach(() => {
 });
 
 describe('native source intake and project routing', () => {
-  it('uses the shared SQLite form, retains the retry identity and never creates a legacy workspace', async () => {
+  it('uses the shared connection form and retries the same host-owned intake operation', async () => {
     const test = fixture();
     test.projects.connectSource.mockRejectedValueOnce(new Error('SCAN_INCOMPLETE: repair source schema'));
     render(test.view());
@@ -143,13 +143,14 @@ describe('native source intake and project routing', () => {
     expect(test.api.getWorkbench).not.toHaveBeenCalled();
   });
 
-  it('disables unsupported source intake while preserving existing legacy creation', async () => {
+  it('keeps database, file import and blank project creation available without an external compiler flag', async () => {
     const test = fixture();
     test.projects.list.mockResolvedValue({ items: [], sourceRegistration: { available: false, providers: ['sqlite'], execution: 'desktop' } });
     render(test.view());
-    expect(await screen.findByRole('button', { name: 'Connect database' })).toBeDisabled();
+    expect(await screen.findByRole('button', { name: 'Connect database' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'New ontology' })).toBeEnabled();
-    expect(screen.getByText('Source modeling is not available in this deployment. Contact your administrator.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Import ontology' })).toBeEnabled();
+    expect(screen.queryByText('Source modeling is not available in this deployment. Contact your administrator.')).not.toBeInTheDocument();
     expect(test.projects.connectSource).not.toHaveBeenCalled();
   });
 });

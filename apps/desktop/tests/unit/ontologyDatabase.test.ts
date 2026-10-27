@@ -17,7 +17,7 @@ describe('OntologyDatabase schema', () => {
     expect(source).not.toContain('snapshot_json');
     expect(source).not.toContain('connector.credential ? `plain://');
     expect(source).toContain('safeStorage.encryptString');
-    expect(source).toContain('writeMcpExport');
+    expect(source).not.toContain('writeMcpExport');
 
     // Clearing quality_rules must be keyed on created_by (matching readQualityRules), otherwise
     // rules whose asset_id fell back to the object id survive the wipe and re-inserting the same

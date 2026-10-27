@@ -2,6 +2,22 @@ import type { IOntologyDescribeAssetFieldsInput, IOntologyStudioSaveInput, IOnto
 import type { IOntologyWorkbenchApi } from '../OntologyWorkbench';
 
 export interface IOntologyStudioApi extends IOntologyWorkbenchApi {
+  packageImport?: {
+    preview: (input: { filePath: string }) => Promise<import('@sudowork/ontology-common').IOntologyPackagePreview>;
+    import: (input: import('@sudowork/ontology-common').IOntologyPackageImportInput) => Promise<IOntologyWorkbenchSnapshot>;
+  };
+  runtimeEnvironment?: {
+    get: (input: { workspaceId: string }) => Promise<import('@sudowork/ontology-common').IOntologyRuntimeEnvironment>;
+    configure: (input: { workspaceId: string; bindings: import('@sudowork/ontology-common').IOntologyRuntimeBindings }) => Promise<import('@sudowork/ontology-common').IOntologyRuntimeEnvironment>;
+    verify: (input: { workspaceId: string }) => Promise<import('@sudowork/ontology-common').OntologyJsonValue | undefined>;
+  };
+  updateAgentDefinition?: (input: { workspaceId: string; expectedRevision: number; definition: import('@sudowork/ontology-common').IOntologyAgentDefinition }) => Promise<IOntologyWorkbenchSnapshot>;
+  runtimePackage?: {
+    plan: (input: { workspaceId: string; versionId: string }) => Promise<import('@sudowork/ontology-common').IOntologyPackagePlan>;
+    export: (input: import('@sudowork/ontology-common').IOntologyPackageExportInput) => Promise<import('@sudowork/ontology-common').IOntologyPackageExportResult>;
+    cancel: (input: { requestId: string }) => Promise<void>;
+    onProgress: (onChanged: (event: import('@sudowork/ontology-common').IOntologyPackageExportProgress) => void) => () => void;
+  };
   projects?: {
     list: () => Promise<import('@sudowork/ontology-common').IOntologyStudioProjectList>;
     get: (input: { workspaceId: string }) => Promise<import('@sudowork/ontology-common').IOntologyStudioProject>;

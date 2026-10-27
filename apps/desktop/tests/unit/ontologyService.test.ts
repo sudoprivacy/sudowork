@@ -4,7 +4,10 @@ import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
+import { dialog } from 'electron';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { extractOntologyArchive } from '@sudowork/ontology-runtime/archive';
+import { loadOntologyArtifact } from '@sudowork/ontology-runtime/artifact';
 import { createDefaultOntologyWorkbenchSnapshot } from '@sudowork/ontology-common';
 import type { IOntologyDocumentExtraction, IOntologyWorkbenchSnapshot } from '@sudowork/ontology-common';
 import { OntologyEngine } from '@sudowork/ontology-engine';
@@ -91,7 +94,7 @@ describe('OntologyService native source intake', () => {
     vi.unstubAllEnvs();
   });
 
-  it('lists both authorities without reading a canonical model as RDF or fabricating its counts', async () => {
+  it('lists unified workbench projects and enables database modeling without an external compiler', async () => {
     const database = {
       listProjects: () => [
         { id: 'old', title: 'Old', authority: 'rdf' },
@@ -105,13 +108,10 @@ describe('OntologyService native source intake', () => {
     const service = new OntologyService(database as unknown as OntologyDatabase, {} as OntologyEngine);
     for (const name of ['SUDOGRAPH_PYTHON', 'SUDOGRAPH_COMPILER_ROOT', 'SUDOGRAPH_MODEL_DIRECTORY']) vi.stubEnv(name, 'configured');
     const result = await service.listStudioProjects();
-    expect(result.items).toEqual([
-      { workspaceId: 'old', name: 'Existing RDF', description: 'Legacy', objectCount: 1, authority: 'rdf' },
-      { workspaceId: 'source', name: 'Support', authority: 'sudograph' },
-    ]);
-    expect(result.sourceRegistration).toEqual({ available: true, providers: ['sqlite'], execution: 'desktop' });
+    expect(result.items).toEqual([{ workspaceId: 'old', name: 'Existing RDF', description: 'Legacy', objectCount: 1, authority: 'rdf' }]);
+    expect(result.sourceRegistration).toEqual({ available: true, providers: ['sqlite', 'mysql', 'postgresql'], execution: 'desktop' });
     vi.stubEnv('SUDOGRAPH_COMPILER_ROOT', '');
-    expect((await service.listStudioProjects()).sourceRegistration.available).toBe(false);
+    expect((await service.listStudioProjects()).sourceRegistration.available).toBe(true);
     expect(database.getSnapshot).not.toHaveBeenCalledWith('source');
     expect(JSON.stringify(result)).not.toContain('private-model');
   });
@@ -138,44 +138,6 @@ describe('OntologyService native source intake', () => {
     database.getProject.mockReturnValue(null);
     await expect(service.getStudioProject({ workspaceId: 'missing' })).rejects.toThrow('notFound');
     expect(read).toHaveBeenCalledTimes(2);
-  });
-
-  it('derives the persistent model binding in the host and retries the same intake identity', async () => {
-    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'ontology-source-form-'));
-    try {
-      const source = path.join(directory, 'support #source.db');
-      await fs.writeFile(source, '');
-      const database = { getProject: vi.fn().mockReturnValue(null) };
-      const service = new OntologyService(database as unknown as OntologyDatabase, {} as OntologyEngine);
-      const register = vi.spyOn(service, 'registerSudographSourceProject').mockResolvedValue({} as Awaited<ReturnType<typeof service.registerSudographSourceProject>>);
-      const project = { workspaceId: 'registered', name: 'Support', authority: 'sudograph' as const };
-      vi.spyOn(service, 'getStudioProject').mockResolvedValue(project);
-      const input = { operationId: '123e4567-e89b-42d3-a456-426614174000', language: 'en' as const, connector: { name: 'Support', kind: 'database' as const, sourceType: 'sqlite' as const, path: source, writable: false, metadata: {} } };
-      expect(await service.connectStudioSource(input)).toEqual(project);
-      await service.connectStudioSource(input);
-      const binding = register.mock.calls[0][0];
-      expect(binding.workspaceId).toMatch(/^source_[a-f0-9]{32}$/);
-      expect(binding.modelRef).toBe(binding.workspaceId);
-      expect(binding.namespace).toBe(binding.workspaceId);
-      expect(binding.source).toBe(`sqlite:///${(await fs.realpath(source)).split(path.sep).join('/')}`);
-      expect(binding.operationId).toBe(input.operationId);
-      expect(register.mock.calls[1][0]).toEqual(binding);
-      expect(await service.resumeStudioSource({ operationId: input.operationId })).toBeNull();
-      database.getProject.mockReturnValue({ id: binding.workspaceId, title: 'Support', authority: 'sudograph', modelRef: binding.modelRef });
-      expect(await service.resumeStudioSource({ operationId: input.operationId })).toEqual(project);
-      expect(service.getStudioProject).toHaveBeenLastCalledWith({ workspaceId: binding.workspaceId });
-      for (const override of [{ modelRef: 'chosen' }, { namespace: 'chosen' }, { workspaceId: 'chosen' }]) {
-        await expect(service.connectStudioSource({ ...input, ...override })).rejects.toThrow();
-      }
-      for (const override of [{ sourceType: 'postgresql' }, { writable: true }, { password: 'secret' }, { path: 'relative.db' }]) {
-        await expect(service.connectStudioSource({ ...input, connector: { ...input.connector, ...override } } as typeof input)).rejects.toThrow();
-      }
-      expect(register).toHaveBeenCalledTimes(2);
-    } finally {
-      expect(path.dirname(directory)).toBe(path.resolve(os.tmpdir()));
-      expect(path.basename(directory)).toMatch(/^ontology-source-form-/);
-      await fs.rm(directory, { recursive: true, force: true });
-    }
   });
 });
 
@@ -205,6 +167,11 @@ describe('OntologyService workspace selection', () => {
 class DocumentRepository {
   snapshots = new Map<string, IOntologyWorkbenchSnapshot>();
   activeWorkspaceId = 'documents';
+  runtimeDirectory?: string;
+
+  getRuntimeDirectory() {
+    return this.runtimeDirectory;
+  }
 
   getSnapshot(workspaceId: string) {
     return structuredClone(this.snapshots.get(workspaceId) ?? null);
@@ -243,6 +210,7 @@ describe('OntologyService document generation', () => {
   beforeEach(async () => {
     directory = await fs.mkdtemp(path.join(os.tmpdir(), 'ontology-document-service-'));
     repository = new DocumentRepository();
+    repository.runtimeDirectory = path.join(directory, 'runtime');
     repository.saveSnapshot(createDefaultOntologyWorkbenchSnapshot(100, { workspaceId: 'documents' }));
     repository.saveSnapshot(createDefaultOntologyWorkbenchSnapshot(100, { workspaceId: 'other' }));
     engine = new OntologyEngine(repository);
@@ -273,6 +241,11 @@ describe('OntologyService document generation', () => {
     expect(first.objects[0].attributes).toEqual([]);
     expect(extract.mock.calls[0][0][0].text).toContain('Invoice includes an amount.');
     expect(extract.mock.calls[0][1]).toBe('Model business records');
+    const artifacts = path.join(repository.runtimeDirectory!, 'artifacts');
+    const generatedArtifacts = await fs.readdir(artifacts);
+    expect(generatedArtifacts).toHaveLength(1);
+    const runtimeModel = JSON.parse(await fs.readFile(path.join(artifacts, generatedArtifacts[0], 'ontology/runtime-model.json'), 'utf8'));
+    expect(runtimeModel.objects.map((object: { code: string }) => object.code)).toEqual(['invoice']);
     await fs.writeFile(filePath, 'Shipment has a tracking number.');
     const second = await service.generateDraft(input);
     expect(second.objects.map((object) => object.code)).toEqual(['shipment']);
@@ -460,6 +433,7 @@ describe('OntologyService quality rule execution', () => {
     ];
     repository = new DocumentRepository();
     repository.saveSnapshot(snapshot);
+    repository.runtimeDirectory = path.join(directory, 'runtime');
     service = new OntologyService(repository as unknown as OntologyDatabase, new OntologyEngine(repository));
   });
 
@@ -521,6 +495,32 @@ describe('OntologyService quality rule execution', () => {
     const candidate = await service.publishCurrentDraft({ workspaceId: 'quality' });
     const published = await service.approvePublishedVersion({ workspaceId: 'quality', versionId: candidate.version.id });
     expect(published.publishedVersions.find((version) => version.id === candidate.version.id)?.status).toBe('published');
+  });
+
+  it('exports the frozen published artifact through the desktop service and verifies embedded resources independently', async () => {
+    const snapshot = repository.getSnapshot('quality')!;
+    snapshot.qualityRules = [];
+    repository.saveSnapshot(snapshot);
+    const candidate = await service.publishCurrentDraft({ workspaceId: 'quality' });
+    await service.approvePublishedVersion({ workspaceId: 'quality', versionId: candidate.version.id });
+    const input = { requestId: 'desktop-export', workspaceId: 'quality', versionId: candidate.version.id, embeddedResourceIds: ['file:transactions-asset'] };
+    vi.mocked(dialog.showSaveDialog).mockResolvedValueOnce({ canceled: true, filePath: '' });
+    expect(await service.exportRuntimePackage(input)).toEqual({ isCancelled: true });
+    const target = path.join(directory, 'transactions.ontology.zip');
+    vi.mocked(dialog.showSaveDialog).mockResolvedValueOnce({ canceled: false, filePath: target });
+    const progress = vi.fn();
+    const result = await service.exportRuntimePackage(input, progress);
+    expect(result).toMatchObject({ isCancelled: false, filePath: target, runtimeDigest: candidate.version.runtimeDigest, runtimeVerification: 'passed', requiresBindings: [], fileBytes: expect.any(Number), packageDigest: expect.stringMatching(/^sha256:/) });
+    expect(progress).toHaveBeenCalledWith(expect.objectContaining({ requestId: input.requestId, phase: 'packing' }));
+    const extracted = path.join(directory, 'independent-export');
+    await extractOntologyArchive(target, extracted);
+    const report = JSON.parse(await fs.readFile(path.join(extracted, 'verification/export-report.json'), 'utf8'));
+    expect(report.runtimeCheck.resources).toEqual([expect.objectContaining({ id: 'transactions-asset', verification: 'file-access' })]);
+    await fs.rename(snapshot.assets[0].path!, snapshot.assets[0].path! + '.unavailable');
+    const loaded = await loadOntologyArtifact(extracted);
+    expect(loaded.missingBindings).toEqual([]);
+    expect(loaded.manifest.runtimeDigest).toBe(candidate.version.runtimeDigest);
+    expect(loaded.snapshot.assets[0].path).toContain(extracted);
   });
 
   it('marks rules without a complete single-asset mapping as skipped', async () => {

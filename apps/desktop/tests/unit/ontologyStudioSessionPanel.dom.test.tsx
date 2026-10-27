@@ -14,7 +14,7 @@ vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
   ontologyAiBuilder: {
     listSessions: { invoke: bridge.list },
     createSession: { invoke: bridge.register },
-    ensureBuilderMcp: { invoke: bridge.prepare },
+    prepareProject: { invoke: bridge.prepare },
     deleteSession: { invoke: bridge.remove },
     sessionsChanged: {
       on: (callback: (event: { workspaceId: string }) => void) => {
@@ -49,7 +49,7 @@ beforeEach(() => {
     sessions = [session];
     return { success: true, data: session };
   });
-  bridge.prepare.mockResolvedValue({ success: true, data: { mcpConfig: { name: 'ontology-builder' } } });
+  bridge.prepare.mockResolvedValue({ success: true, data: { isReady: true, instructions: 'Use ontology project scripts' } });
   bridge.get.mockResolvedValue({ id: session.conversationId, type: 'acp', extra: { purpose: 'ontology', ontologyId: 'northwind', workspace: '/tmp/northwind', backend: 'scode' } });
   bridge.update.mockResolvedValue(true);
   bridge.remove.mockImplementation(async () => {

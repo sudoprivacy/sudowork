@@ -6,6 +6,7 @@ export function redactOntologySecrets<T>(value: T): T {
   const isConnector = typeof record.sourceType === 'string' && typeof record.probeStatus === 'string';
   return Object.fromEntries(
     Object.entries(record).flatMap(([key, item]) => {
+      if (key === 'runtimeBindings' || key === 'sourceRequestHash') return [];
       if (isConnector && ['password', 'credential', 'headers'].includes(key)) return [];
       if (isConnector && key === 'credentialRef') return item ? [[key, 'stored']] : [];
       return [[key, redactOntologySecrets(item)]];

@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import type { IOntologyAiBuilderSession } from '@sudowork/host-bridge/ipcBridge';
 import { ipcBridge } from '@/common';
-import { mainError, mainLog } from '@process/utils/mainLogger';
+import { mainError } from '@process/utils/mainLogger';
 import { OntologyStudioDatabase as OntologyDatabase } from '@process/services/ontology/OntologyStudioDatabase';
 import { ontologyService } from '@process/services/ontology/OntologyService';
-import { ensureOntologyBuilderMcpServer } from '@process/services/ontology/OntologyMcpRegistration';
+import { prepareOntologyProject } from '@process/services/ontology/ontologyProjectRuntime';
 
 interface IOntologyAiSessionRow {
   id: string;
@@ -82,15 +82,6 @@ export function initOntologyAiBuilderBridge(): void {
         // errors after page refreshes.
         return { success: true, data: toSession(existing) };
       }
-      // Ensure the builder MCP is installed in Sudocode before the AI turn
-      // fires, so the very first message can already invoke ontology_* tools.
-      // Best-effort: if MCP install fails (e.g. bundle missing during dev),
-      // the session is still created — the chat just won't be able to write.
-      try {
-        await ensureOntologyBuilderMcpServer(workspaceId);
-      } catch (err) {
-        mainLog('OntologyAiBuilderBridge', `builder MCP registration skipped: ${err instanceof Error ? err.message : String(err)}`);
-      }
       const now = Date.now();
       const row: IOntologyAiSessionRow = {
         id: `oai_${randomUUID()}`,
@@ -145,12 +136,12 @@ export function initOntologyAiBuilderBridge(): void {
     }
   });
 
-  ipcBridge.ontologyAiBuilder.ensureBuilderMcp.provider(async (input) => {
+  ipcBridge.ontologyAiBuilder.prepareProject.provider(async (input) => {
     try {
-      const mcpConfig = await ensureOntologyBuilderMcpServer(input?.workspaceId);
-      return { success: true, data: { ready: true, mcpConfig } };
+      const prepared = await prepareOntologyProject(input.workspaceId);
+      return { success: true, data: prepared };
     } catch (err) {
-      mainError('OntologyAiBuilderBridge', 'ensureBuilderMcp failed', err);
+      mainError('OntologyAiBuilderBridge', 'prepareProject failed', err);
       return { success: false, msg: err instanceof Error ? err.message : String(err) };
     }
   });

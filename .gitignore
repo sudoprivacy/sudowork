@@ -252,3 +252,6 @@ nexus-data/
 
 # Pix Agent
 .pi-lens/
+
+# Generated ontology script runtime
+apps/desktop/resources/ontology-cli/ontology.cjs

@@ -1,4 +1,6 @@
 import http from 'node:http';
+import { Notification } from 'electron';
+import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import type {
@@ -20,6 +22,7 @@ import { mainError, mainLog } from '@process/utils/mainLogger';
 import { ontologyService } from '@process/services/ontology/OntologyService';
 import { redactOntologySecrets } from './ontologySnapshot';
 import { SudographCompilerError } from './SudographModelClient';
+import { ontologyProjectCommands } from './ontologyProjectCommands';
 
 interface IHandlerContext {
   workspaceId: string;
@@ -29,21 +32,33 @@ interface IHandlerContext {
 type Handler = (ctx: IHandlerContext) => Promise<unknown>;
 
 /**
- * Loopback HTTP bridge that lets the `ontology-builder-mcp` subprocess call
+ * Loopback HTTP bridge that lets the ontology project CLI call
  * back into the main-process `ontologyService` singleton. All routes are
  * simple POST + JSON. Auth via a per-launch bearer token; server binds to
  * 127.0.0.1 only, so it is never reachable from outside the machine.
  *
  * We keep the surface small: every write matches an existing `ontologyService`
- * method 1:1, which means anything the AI does through MCP goes through the
+ * method 1:1, which means anything the AI does through the script protocol goes through the
  * same code path as the manual workbench UI (including `workbenchChanged`
  * emitter → live UI refresh).
  */
 let serverInstance: http.Server | null = null;
 let bearerToken: string | null = null;
 let boundPort: number | null = null;
-type OntologyBridgeScope = { workspaceId: string; role: 'builder' } | { workspaceId: string; versionId: string; role: 'runtime' };
+type OntologyBridgeScope = { workspaceId: string; role: 'builder' | 'notification' };
 const scopedTokens = new Map<string, OntologyBridgeScope>();
+const notificationTokens = new Map<string, string>();
+
+export async function ontologyDesktopNotificationBinding(workspaceId: string) {
+  const bridge = await ensureOntologyWriteBridge();
+  let token = notificationTokens.get(workspaceId);
+  if (!token) {
+    token = randomBytes(24).toString('hex');
+    scopedTokens.set(token, { workspaceId, role: 'notification' });
+    notificationTokens.set(workspaceId, token);
+  }
+  return { url: 'http://127.0.0.1:' + bridge.port + '/notification', headers: { Authorization: 'Bearer ' + token } };
+}
 
 const handlers: Record<string, Handler> = {
   preview_asset: async ({ workspaceId, input }) => ontologyService.previewAsset({ workspaceId, id: String(input.id || ''), limit: typeof input.limit === 'number' ? input.limit : 20 }),
@@ -103,12 +118,6 @@ async function readBody(req: http.IncomingMessage): Promise<string> {
   });
 }
 
-/**
- * Starts the loopback bridge if it isn't already running. Idempotent — the
- * MCP registration calls this before every install; repeat calls just return
- * the existing endpoint. Also returns the token so the caller can push it
- * into the MCP subprocess env.
- */
 export async function ensureOntologyWriteBridge(scope?: OntologyBridgeScope): Promise<{ port: number; token: string }> {
   if (scope) {
     const bridge = await ensureOntologyWriteBridge();
@@ -136,6 +145,7 @@ export async function ensureOntologyWriteBridge(scope?: OntologyBridgeScope): Pr
     });
   });
   serverInstance = server;
+  server.unref();
   mainLog('OntologyWriteBridge', `listening on 127.0.0.1:${boundPort}`);
   return { port: boundPort!, token: bearerToken };
 }
@@ -153,16 +163,31 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       return;
     }
     const url = req.url ?? '';
+    if (scoped?.role === 'notification') {
+      if (url !== '/notification') {
+        writeJson(res, 403, { ok: false, message: 'This binding only authorizes desktop notifications.' });
+        return;
+      }
+      const payload = JSON.parse(await readBody(req)) as { title?: string; message?: string };
+      if (typeof payload.title !== 'string' || typeof payload.message !== 'string' || payload.title.length > 1000 || payload.message.length > 64_000 || !Notification.isSupported()) throw new Error('Desktop notifications are unavailable or invalid.');
+      new Notification({ title: payload.title, body: payload.message }).show();
+      writeJson(res, 200, { delivered: true, title: payload.title, message: payload.message });
+      return;
+    }
+    if (url === '/commands') {
+      if (!scoped || scoped.role !== 'builder') {
+        writeJson(res, 403, { ok: false, message: 'A project-scoped authoring context is required.' });
+        return;
+      }
+      writeJson(res, 200, { ok: true, data: { commands: ontologyProjectCommands(ontologyService.getModelAuthority(scoped.workspaceId)) } });
+      return;
+    }
     const match = /^\/tool\/([a-zA-Z0-9_]+)$/.exec(url);
     if (!match) {
       writeJson(res, 404, { ok: false, message: 'Not found' });
       return;
     }
     const toolName = match[1];
-    if (scoped?.role === 'runtime' && !['execute_logic_function', 'execute_relation', 'execute_action'].includes(toolName)) {
-      writeJson(res, 403, { ok: false, message: 'Published ontology agents can only execute their version-bound capabilities.' });
-      return;
-    }
     if (scoped?.role === 'builder' && ['execute_action', 'approve_all', 'publish_current_draft', 'register_agent_blueprint'].includes(toolName)) {
       writeJson(res, 403, { ok: false, message: 'This operation requires the workbench review or execution interface.' });
       return;
@@ -197,13 +222,6 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       writeJson(res, 200, { ok: true, data });
       return;
     }
-    if (scoped?.role === 'runtime') {
-      if ((input.workspaceId && input.workspaceId !== scoped.workspaceId) || (input.versionId && input.versionId !== scoped.versionId)) {
-        writeJson(res, 403, { ok: false, message: 'Published ontology version scope mismatch.' });
-        return;
-      }
-      input.versionId = scoped.versionId;
-    }
     if (scoped?.role === 'builder' && toolName === 'execute_logic_function') {
       const snapshot = await ontologyService.getWorkbench({ workspaceId });
       const fn = snapshot.logicFunctions.find((item) => (input.id ? item.id === input.id : item.code === input.code));
@@ -212,15 +230,26 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
         return;
       }
     }
+    if (scoped?.role === 'builder' && toolName === 'upsert_action') {
+      const snapshot = await ontologyService.getWorkbench({ workspaceId });
+      const existing = snapshot.actions.find((item) => item.id === input.id);
+      if ((input.executor || existing?.executor) === 'custom_script') {
+        const configuration = { ...existing?.configuration, ...(input.configuration && typeof input.configuration === 'object' ? input.configuration : {}) };
+        const allowed = new Set([
+          ...snapshot.assets.flatMap((asset) => (asset.path ? [path.resolve(asset.path)] : [])),
+          ...(Array.isArray(existing?.configuration.args) ? existing.configuration.args.filter((argument): argument is string => typeof argument === 'string' && path.isAbsolute(argument)).map((argument) => path.resolve(argument)) : []),
+        ]);
+        const args = Array.isArray(configuration.args) ? configuration.args : [];
+        if (args.some((argument) => typeof argument === 'string' && /\.(?:m?js|cjs|py|sh)$/.test(argument) && !argument.includes('{{') && !allowed.has(path.resolve(argument)))) {
+          writeJson(res, 403, { ok: false, message: 'Import script files into this project before referencing them from generated actions.' });
+          return;
+        }
+      }
+    }
     if (scoped) await ontologyService.getWorkbench({ workspaceId });
     const data = await handler!({ workspaceId, input: { ...input, workspaceId } });
     const changed = data && typeof data === 'object' && 'snapshot' in data ? data.snapshot : data;
     if (toolName !== 'get_snapshot' && changed && typeof changed === 'object' && 'workspaceId' in changed && 'objects' in changed) ipcBridge.ontology.workbenchChanged.emit(redactOntologySecrets(changed as import('@sudowork/ontology-common').IOntologyWorkbenchSnapshot));
-    if (scoped?.role === 'runtime') {
-      if (!data || typeof data !== 'object' || !('execution' in data)) throw new Error('Ontology runtime returned no execution result.');
-      writeJson(res, 200, { ok: true, data: { workspaceId, versionId: scoped.versionId, execution: data.execution } });
-      return;
-    }
     writeJson(res, 200, { ok: true, data: summarizeResult(data, input) });
   } catch (err) {
     mainError('OntologyWriteBridge', 'request failed', err);
@@ -297,5 +326,6 @@ export async function closeOntologyWriteBridge(): Promise<void> {
   bearerToken = null;
   boundPort = null;
   scopedTokens.clear();
+  notificationTokens.clear();
   if (server) await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
 }

@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { mkdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { isDeepStrictEqual } from 'node:util';
 import { safeStorage } from 'electron';
 import BetterSqlite3 from 'better-sqlite3';
@@ -53,10 +53,12 @@ export class OntologyStudioDatabase implements IOntologyRepository {
     this.db.transaction(() => {
       this.db.exec(`CREATE TABLE IF NOT EXISTS studio_projects (
         id TEXT PRIMARY KEY, title TEXT NOT NULL, authority TEXT NOT NULL CHECK(authority IN ('rdf', 'sudograph')),
-        model_ref TEXT UNIQUE, CHECK((authority = 'rdf' AND model_ref IS NULL) OR (authority = 'sudograph' AND model_ref IS NOT NULL))
+        model_ref TEXT UNIQUE, created_at INTEGER NOT NULL DEFAULT 0, CHECK((authority = 'rdf' AND model_ref IS NULL) OR (authority = 'sudograph' AND model_ref IS NOT NULL))
       )`);
+      const projectColumns = this.db.prepare('PRAGMA table_info(studio_projects)').all() as Array<{ name: string }>;
+      if (!projectColumns.some((column) => column.name === 'created_at')) this.db.exec('ALTER TABLE studio_projects ADD COLUMN created_at INTEGER NOT NULL DEFAULT 0');
       const workspaces = this.db.prepare('SELECT id FROM studio_workspaces').all() as Array<{ id: string }>;
-      for (const { id } of workspaces) this.db.prepare("INSERT OR IGNORE INTO studio_projects VALUES (?, ?, 'rdf', NULL)").run(id, id);
+      for (const { id } of workspaces) this.db.prepare("INSERT OR IGNORE INTO studio_projects (id, title, authority, model_ref) VALUES (?, ?, 'rdf', NULL)").run(id, id);
       const foreignKeys = this.db.prepare('PRAGMA foreign_key_list(studio_sessions)').all() as Array<{ table: string }>;
       if (foreignKeys.some((key) => key.table === 'studio_workspaces')) {
         this.db.exec(`
@@ -76,7 +78,7 @@ export class OntologyStudioDatabase implements IOntologyRepository {
   }
 
   listProjects(): OntologyProject[] {
-    return this.db.prepare('SELECT id, title, authority, model_ref AS modelRef FROM studio_projects ORDER BY title, id').all() as OntologyProject[];
+    return this.db.prepare('SELECT id, title, authority, model_ref AS modelRef FROM studio_projects ORDER BY created_at DESC, rowid DESC').all() as OntologyProject[];
   }
 
   /** Host registration only. A project cannot switch model authorities implicitly. */
@@ -88,7 +90,7 @@ export class OntologyStudioDatabase implements IOntologyRepository {
         if (existing.authority !== 'sudograph' || existing.modelRef !== input.modelRef) throw new Error('Ontology model authority conflict.');
         return;
       }
-      this.db.prepare("INSERT INTO studio_projects VALUES (?, ?, 'sudograph', ?)").run(input.id, input.title, input.modelRef);
+      this.db.prepare("INSERT INTO studio_projects (id, title, authority, model_ref, created_at) VALUES (?, ?, 'sudograph', ?, ?)").run(input.id, input.title, input.modelRef, Date.now());
     })();
   }
 
@@ -127,6 +129,7 @@ export class OntologyStudioDatabase implements IOntologyRepository {
       if ((expectedSnapshot && !isDeepStrictEqual(before, expectedSnapshot)) || (before && (snapshot.revision || 0) !== (before.revision || 0))) throw new Error('ontology.studio.errors.conflict');
       if (before && (snapshot.agentRevision || 0) !== (before.agentRevision || 0)) throw new Error('ontology.studio.errors.conflict');
       assertAgentBindings(snapshot, before);
+      snapshot.createdAt = before?.createdAt ?? snapshot.createdAt ?? Date.now();
       snapshot.agentRevision = (before?.agentRevision || 0) + (!isDeepStrictEqual(before?.agentBlueprints || [], snapshot.agentBlueprints) ? 1 : 0);
       const semantic = snapshot.semanticDocument || before?.semanticDocument || createSemanticDocument(snapshot.workspaceId);
       const isDocumentChanged = before && !isDeepStrictEqual(before.semanticDocument, snapshot.semanticDocument);
@@ -143,17 +146,20 @@ export class OntologyStudioDatabase implements IOntologyRepository {
       let payload: string;
       if (safeStorage.isEncryptionAvailable()) payload = `encrypted:${safeStorage.encryptString(raw).toString('base64')}`;
       else {
-        const isSecretPresent = snapshot.connectors.some((connector) => connector.password || Object.keys(connector.credential || {}).length || Object.keys(connector.headers || {}).length);
+        const bindings = snapshot.runtimeBindings;
+        const isSecretPresent =
+          [...snapshot.connectors, ...Object.values(bindings?.connections || {})].some((connector) => connector.password || Object.keys(connector.credential || {}).length || Object.keys(connector.headers || {}).length) ||
+          Object.values(bindings?.actions || {}).some((action) => action.headers && Object.keys(action.headers).length) ||
+          Object.values(bindings?.secrets || {}).some((value) => value !== '' && value !== null);
         if (isSecretPresent) throw new Error('ontology.studio.errors.credentialStorage');
         payload = raw;
       }
       this.db
         .prepare('INSERT INTO studio_workspaces (id, revision, payload, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET revision = excluded.revision, payload = excluded.payload, updated_at = excluded.updated_at')
         .run(snapshot.workspaceId, snapshot.revision, payload, snapshot.updatedAt);
-      this.db.prepare("INSERT INTO studio_projects VALUES (?, ?, 'rdf', NULL) ON CONFLICT(id) DO UPDATE SET title = excluded.title").run(snapshot.workspaceId, snapshot.draft.title);
+      this.db.prepare("INSERT INTO studio_projects (id, title, authority, model_ref, created_at) VALUES (?, ?, 'rdf', NULL, ?) ON CONFLICT(id) DO UPDATE SET title = excluded.title").run(snapshot.workspaceId, snapshot.draft.title, snapshot.createdAt);
       if (operation) this.db.prepare('INSERT INTO studio_operations (workspace_id, id, payload) VALUES (?, ?, ?)').run(snapshot.workspaceId, operation.id, operation.payload);
     })();
-    this.writeMcpExport(snapshot);
   }
 
   deleteSnapshot(workspaceId: string): void {
@@ -162,7 +168,6 @@ export class OntologyStudioDatabase implements IOntologyRepository {
       this.db.prepare('DELETE FROM studio_workspaces WHERE id = ?').run(workspaceId);
       this.db.prepare('DELETE FROM studio_projects WHERE id = ?').run(workspaceId);
     })();
-    rmSync(this.getMcpExportPath(workspaceId), { force: true });
   }
 
   resetSnapshot(workspaceId: string): void {
@@ -207,22 +212,9 @@ export class OntologyStudioDatabase implements IOntologyRepository {
   close(): void {
     this.db.close();
   }
-  getMcpExportPath(workspaceId: string): string {
-    return path.join(this.directory, `mcp-${encodeURIComponent(workspaceId)}.json`);
-  }
 
-  private writeMcpExport(snapshot: IOntologyWorkbenchSnapshot): void {
-    const payload = {
-      schemaVersion: snapshot.schemaVersion,
-      workspaceId: snapshot.workspaceId,
-      title: snapshot.draft.title,
-      updatedAt: snapshot.updatedAt,
-      versions: snapshot.publishedVersions.map((version) => ({ ...version, snapshot: { ...version.snapshot, logicFunctions: version.snapshot.logicFunctions.map(({ body: _body, ...fn }) => fn), actions: version.snapshot.actions.map(({ configuration: _configuration, ...action }) => action) } })),
-    };
-    const target = this.getMcpExportPath(snapshot.workspaceId);
-    const temporary = `${target}.tmp`;
-    writeFileSync(temporary, JSON.stringify(payload), { mode: 0o600 });
-    renameSync(temporary, target);
+  getRuntimeDirectory(): string {
+    return path.join(this.directory, 'runtime');
   }
 }
 
@@ -246,6 +238,8 @@ function modelFingerprint(snapshot: IOntologyWorkbenchSnapshot): string {
   return JSON.stringify(
     {
       document: snapshot.semanticDocument?.statements,
+      agentDefinition: snapshot.agentDefinition,
+      packageIdentity: snapshot.packageIdentity,
       draft: snapshot.draft,
       objects: snapshot.objects,
       relations: snapshot.relations,

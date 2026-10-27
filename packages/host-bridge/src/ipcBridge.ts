@@ -1078,6 +1078,16 @@ export const localKnowledgeBase = {
 };
 
 export const ontology = {
+  previewRuntimePackage: bridge.buildProvider<IBridgeResponse<import('@sudowork/ontology-common').IOntologyPackagePreview>, { filePath: string }>('ontology.package.preview'),
+  importRuntimePackage: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, import('@sudowork/ontology-common').IOntologyPackageImportInput>('ontology.package.import'),
+  getRuntimeEnvironment: bridge.buildProvider<IBridgeResponse<import('@sudowork/ontology-common').IOntologyRuntimeEnvironment>, { workspaceId: string }>('ontology.environment.get'),
+  configureRuntimeEnvironment: bridge.buildProvider<IBridgeResponse<import('@sudowork/ontology-common').IOntologyRuntimeEnvironment>, { workspaceId: string; bindings: import('@sudowork/ontology-common').IOntologyRuntimeBindings }>('ontology.environment.configure'),
+  verifyRuntimeEnvironment: bridge.buildProvider<IBridgeResponse<import('@sudowork/ontology-common').OntologyJsonValue | undefined>, { workspaceId: string }>('ontology.environment.verify'),
+  updateAgentDefinition: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, { workspaceId: string; expectedRevision: number; definition: import('@sudowork/ontology-common').IOntologyAgentDefinition }>('ontology.agent-definition.update'),
+  planRuntimePackage: bridge.buildProvider<IBridgeResponse<import('@sudowork/ontology-common').IOntologyPackagePlan>, { workspaceId: string; versionId: string }>('ontology.package.plan'),
+  exportRuntimePackage: bridge.buildProvider<IBridgeResponse<import('@sudowork/ontology-common').IOntologyPackageExportResult>, import('@sudowork/ontology-common').IOntologyPackageExportInput>('ontology.package.export'),
+  cancelRuntimePackageExport: bridge.buildProvider<IBridgeResponse<void>, { requestId: string }>('ontology.package.cancel'),
+  packageExportProgress: bridge.buildEmitter<import('@sudowork/ontology-common').IOntologyPackageExportProgress>('ontology.package.progress'),
   projectsChanged: bridge.buildEmitter<{ workspaceId: string }>('ontology.projects.changed'),
   listProjects: bridge.buildProvider<IBridgeResponse<import('@sudowork/ontology-common').IOntologyStudioProjectList>, void>('ontology.projects.list'),
   getProject: bridge.buildProvider<IBridgeResponse<import('@sudowork/ontology-common').IOntologyStudioProject>, { workspaceId: string }>('ontology.projects.get'),
@@ -1197,25 +1207,7 @@ export const ontologyAiBuilder = {
   deleteSession: bridge.buildProvider<IBridgeResponse<void>, { id: string }>('ontology-ai-builder.delete-session'),
   getSessionByConversation: bridge.buildProvider<IBridgeResponse<IOntologyAiBuilderSession | null>, { conversationId: string }>('ontology-ai-builder.get-session-by-conversation'),
   sessionsChanged: bridge.buildEmitter<{ workspaceId: string }>('ontology-ai-builder.sessions-changed'),
-  /**
-   * Ensure the write-capable ontology-builder MCP is registered with Sudocode
-   * and return the mcpConfig payload the caller should inject into
-   * `conversation.create`'s `extra.extraMcpConfigs`. Necessary because scode's
-   * user-scope MCP is NOT auto-loaded into acp sessions — sessions only see
-   * the MCPs passed to `session/new.mcpServers`.
-   */
-  ensureBuilderMcp: bridge.buildProvider<
-    IBridgeResponse<{
-      ready: boolean;
-      mcpConfig: {
-        name: string;
-        command: string;
-        args?: string[];
-        env?: Array<{ name: string; value: string }>;
-      };
-    }>,
-    { workspaceId: string } | undefined
-  >('ontology-ai-builder.ensure-builder-mcp'),
+  prepareProject: bridge.buildProvider<IBridgeResponse<{ isReady: boolean; command: string; contextArgument: string; instructions: string }>, { workspaceId: string }>('ontology-ai-builder.prepare-project'),
 };
 
 // FUSE-T installer (macOS) / FUSE-T 安装（macOS 专用）

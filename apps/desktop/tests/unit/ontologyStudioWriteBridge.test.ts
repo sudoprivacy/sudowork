@@ -31,7 +31,7 @@ afterEach(async () => {
   mocks.authority.mockReturnValue('rdf');
 });
 
-describe('published ontology runtime bridge scope', () => {
+describe('ontology project bridge scope', () => {
   it('requires a scoped registered model and emits the compiled revision after a successful edit', async () => {
     const scoped = await ensureOntologyWriteBridge({ workspaceId: 'canonical', role: 'builder' });
     const global = await ensureOntologyWriteBridge();
@@ -47,24 +47,10 @@ describe('published ontology runtime bridge scope', () => {
     expect(mocks.invoke).toHaveBeenCalledWith('canonical', { operation: 'apply', request: { base_revision: 'r0', operation_id: 'edit-1', model: 'checked yaml' } });
     expect(mocks.changed).toHaveBeenCalledWith({ workspaceId: 'canonical', revision: 'r1', contextDigest: 'd1' });
   });
-  it('pins queries to the registered ontology version', async () => {
-    const bridge = await ensureOntologyWriteBridge({ workspaceId: 'northwind', versionId: 'v1', role: 'runtime' });
-    const response = await fetch(`http://127.0.0.1:${bridge.port}/tool/execute_logic_function`, { method: 'POST', headers: { Authorization: `Bearer ${bridge.token}` }, body: JSON.stringify({ input: { code: 'low_stock', arguments: {} } }) });
-    expect(response.status).toBe(200);
-    expect(mocks.execute).toHaveBeenCalledWith({ workspaceId: 'northwind', versionId: 'v1', code: 'low_stock', arguments: {} });
-    expect(await response.json()).toEqual({ ok: true, data: { workspaceId: 'northwind', versionId: 'v1', execution: { output: { workspaceId: 'northwind', versionId: 'v1', code: 'low_stock', arguments: {} } } } });
-  });
-
-  it('rejects switching versions, switching ontologies, and editing the workbench', async () => {
-    const bridge = await ensureOntologyWriteBridge({ workspaceId: 'northwind', versionId: 'v1', role: 'runtime' });
-    for (const request of [
-      { route: 'execute_logic_function', input: { versionId: 'v2' } },
-      { route: 'execute_logic_function', input: { workspaceId: 'another' } },
-      { route: 'upsert_object', input: {} },
-      { route: 'publish_current_draft', input: {} },
-      { route: 'get_snapshot', input: {} },
-    ]) {
-      const response = await fetch(`http://127.0.0.1:${bridge.port}/tool/${request.route}`, { method: 'POST', headers: { Authorization: `Bearer ${bridge.token}` }, body: JSON.stringify({ input: request.input }) });
+  it('does not allow a notification binding to query or edit the ontology', async () => {
+    const bridge = await ensureOntologyWriteBridge({ workspaceId: 'northwind', role: 'notification' });
+    for (const route of ['execute_logic_function', 'get_snapshot', 'upsert_object', 'publish_current_draft']) {
+      const response = await fetch('http://127.0.0.1:' + bridge.port + '/tool/' + route, { method: 'POST', headers: { Authorization: 'Bearer ' + bridge.token }, body: '{}' });
       expect(response.status).toBe(403);
     }
     expect(mocks.execute).not.toHaveBeenCalled();
@@ -73,6 +59,16 @@ describe('published ontology runtime bridge scope', () => {
 });
 
 describe('studio builder bridge scope', () => {
+  it('does not let generated script actions read files outside imported project assets', async () => {
+    const bridge = await ensureOntologyWriteBridge({ workspaceId: 'orders', role: 'builder' });
+    const response = await fetch('http://127.0.0.1:' + bridge.port + '/tool/upsert_action', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + bridge.token },
+      body: JSON.stringify({ input: { executor: 'custom_script', configuration: { command: process.execPath, args: ['/private/unrelated-config.js'] } } }),
+    });
+    expect(response.status).toBe(403);
+    expect(mocks.write).not.toHaveBeenCalled();
+  });
   it('binds writes to the session ontology and emits a workspace change', async () => {
     const bridge = await ensureOntologyWriteBridge({ workspaceId: 'orders', role: 'builder' });
     const response = await fetch(`http://127.0.0.1:${bridge.port}/tool/upsert_object`, { method: 'POST', headers: { Authorization: `Bearer ${bridge.token}` }, body: JSON.stringify({ input: { name: 'Order', workspaceId: 'other-workspace' } }) });

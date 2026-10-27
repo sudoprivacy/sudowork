@@ -236,7 +236,8 @@ describe.runIf(isNativeRuntime)('SQLite business ingestion with the real driver'
     const blueprint = await service.createAgentBlueprint({ workspaceId, ontologyVersionId: candidate.version.id, name: 'Commerce agent' });
     const registered = await service.registerAgentBlueprint({ workspaceId, blueprintId: blueprint.blueprint.id });
     expect(registered.blueprint.status).toBe('registered');
-    expect(runtime.install).toHaveBeenCalledWith(expect.objectContaining({ workspaceId, versionId: candidate.version.id }));
+    expect(runtime.install).not.toHaveBeenCalled();
+    expect(registered.snapshot.publishedVersions.find((version) => version.id === candidate.version.id)?.runtimeDigest).toMatch(/^sha256:/);
     expect(await fingerprint()).toBe(before);
     console.log('SQLITE_NATIVE_VERIFIED');
   });
@@ -319,7 +320,7 @@ describe.runIf(isNativeRuntime)('SQLite business ingestion with the real driver'
     await service.upsertAction({ ...action, workspaceId, configuration: { connectorId, statement: 'UPDATE orders SET customer_id=999999 WHERE id=1' } });
     await expect(service.executeAction({ workspaceId, id: action.id })).rejects.toThrow(/FOREIGN KEY/);
     await service.upsertAction({ ...action, workspaceId, configuration: { connectorId, statement: "UPDATE orders SET status='bad' WHERE id=1; DELETE FROM orders" } });
-    await expect(service.executeAction({ workspaceId, id: action.id })).rejects.toThrow(/more than one statement/);
+    await expect(service.executeAction({ workspaceId, id: action.id })).rejects.toThrow(/sqliteStatement/);
     expect(db.prepare('SELECT status, customer_id FROM orders WHERE id=1').get()).toEqual({ status: 'paid', customer_id: 1 });
     db.close();
   });

@@ -1561,10 +1561,10 @@ describe('OntologyWorkbench', () => {
     expect(screen.queryByText('ontology.console.views.service.title')).not.toBeInTheDocument();
     const serviceCard = screen.getByText('Customer Domain').closest('[role="button"]');
     fireEvent.click(serviceCard as HTMLElement);
-    expect(await screen.findByText('ontology.mcpService.detailsTitle')).toBeInTheDocument();
-    expect(screen.queryByText('ontology.mcpService.toolDistribution')).not.toBeInTheDocument();
-    expect(screen.queryByText('ontology.mcpService.tabs.docs')).not.toBeInTheDocument();
-    expect(screen.queryByText('ontology.mcpService.managedServers')).not.toBeInTheDocument();
+    expect(await screen.findByText('ontology.scriptService.detailsTitle')).toBeInTheDocument();
+    expect(screen.queryByText('ontology.scriptService.toolDistribution')).not.toBeInTheDocument();
+    expect(screen.queryByText('ontology.scriptService.tabs.docs')).not.toBeInTheDocument();
+    expect(screen.queryByText('ontology.scriptService.managedServers')).not.toBeInTheDocument();
   });
 
   it('offers all four object construction workflows', async () => {
