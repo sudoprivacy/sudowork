@@ -127,6 +127,27 @@ export function initMossBridge(): void {
       return { success: false, msg: error instanceof Error ? error.message : 'Browser connection failed' };
     }
   });
+  ipcBridge.browserSession.ownerInfo.provider(async ({ conversationId }) => {
+    try {
+      // A local browser conversation never reports browser_profile_in_use.
+      if (isLocalBrowserConversation(conversationId)) return { success: true, data: { owner: null, browserRunning: false } };
+      const api = await ensureMossApiInitialized();
+      if (!api) return { success: false, msg: 'unavailable' };
+      return { success: true, data: await api.browserOwnerInfo(await remoteSessionId(conversationId)) };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error ? error.message : 'unavailable' };
+    }
+  });
+  ipcBridge.conversation.terminateMossSession.provider(async ({ conversation_id }) => {
+    try {
+      const api = await ensureMossApiInitialized();
+      if (!api) return { success: false, msg: 'unavailable' };
+      await api.terminateSession(await remoteSessionId(conversation_id));
+      return { success: true };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error ? error.message : 'unavailable' };
+    }
+  });
   // moss.is-enterprise-mode
   ipcBridge.moss.isEnterpriseMode.provider(async () => {
     return isEnterpriseMode();

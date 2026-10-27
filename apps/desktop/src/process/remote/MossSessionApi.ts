@@ -6,7 +6,7 @@
 
 import WebSocket from 'ws';
 import type { IResponseMessage, MossSessionAvailableSkill, MossWorkspaceFilePreview, MossWorkspaceNode } from '@sudowork/host-bridge/ipcBridge';
-import { BrowserSessionActionSchema, BrowserSessionReplySchema, type BrowserSessionAction, type BrowserSessionReply } from '@sudowork/contracts/browser-session';
+import { BrowserOwnerInfoSchema, BrowserSessionActionSchema, BrowserSessionReplySchema, type BrowserOwnerInfo, type BrowserSessionAction, type BrowserSessionReply } from '@sudowork/contracts/browser-session';
 import { changeMossBrowserConversation, uploadBrowserFile, downloadBrowserFile, upgradeMossRuntime, MossHttpError, isMossRuntimeUpdateRequired } from '@sudowork/moss-client';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 import { getValidToken } from '@process/bridge/eeclawBridge';
@@ -20,6 +20,13 @@ import { ipcBridge } from '@/common';
  * 企业模式下会话管理全部通过 Moss Server API 实现
  * 本地不持久化任何会话数据
  */
+
+/** Keep the upstream snake_case error code instead of dropping the real cause. */
+async function upstreamErrorCode(response: Response, fallback: string): Promise<string> {
+  const body = (await response.json().catch(() => null)) as { error?: unknown } | null;
+  return typeof body?.error === 'string' && /^[a-z_]{1,80}$/.test(body.error) ? body.error : fallback;
+}
+
 export class MossSessionApi {
   private serverUrl: string;
   private accessToken: string | null = null;
@@ -68,8 +75,28 @@ export class MossSessionApi {
       body: JSON.stringify(BrowserSessionActionSchema.parse(action)),
       signal: AbortSignal.timeout(action.kind === 'start' || action.kind === 'restart' ? 90_000 : 30_000),
     });
-    if (!response.ok) throw new Error(`Browser session request failed (${response.status})`);
+    if (!response.ok) throw new Error(await upstreamErrorCode(response, `Browser session request failed (${response.status})`));
     return BrowserSessionReplySchema.parse(await response.json());
+  }
+
+  async browserOwnerInfo(sessionId: string): Promise<BrowserOwnerInfo> {
+    const token = await this.ensureAuthenticated();
+    const response = await fetch(`${this.serverUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/browser-owner`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!response.ok) throw new Error(await upstreamErrorCode(response, `Browser owner request failed (${response.status})`));
+    return BrowserOwnerInfoSchema.parse(await response.json());
+  }
+
+  async terminateSession(sessionId: string): Promise<void> {
+    const token = await this.ensureAuthenticated();
+    const response = await fetch(`${this.serverUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/terminate`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!response.ok) throw new Error(await upstreamErrorCode(response, `Session terminate failed (${response.status})`));
   }
 
   async changeBrowserConversation(sessionId: string, intent: 'interrupt' | 'continue'): Promise<boolean> {

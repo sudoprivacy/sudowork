@@ -1,0 +1,17 @@
+FROM oven/bun:1 AS build
+WORKDIR /src
+COPY . .
+RUN bun install
+RUN bun run --filter='@sudowork/contracts' build && bun run --filter='@sudowork/common' build     && bun run --filter='@sudowork/moss-client' build && bun run --filter='@sudowork/ontology-common' build
+WORKDIR /src/apps/webui
+RUN bun run build
+
+FROM node:22-slim
+WORKDIR /app
+COPY --from=build /src/apps/webui/dist ./dist
+COPY --from=build /src/node_modules ./node_modules
+COPY --from=build /src/package.json /src/bun.lock ./
+WORKDIR /app/apps/webui
+ENV NODE_ENV=production
+EXPOSE 26808
+CMD ["node", "dist/server/index.js"]

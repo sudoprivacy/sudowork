@@ -40,6 +40,8 @@ import {
   invokeBrowserSession,
   receiveBrowserFile,
   readBrowserFile,
+  browserOwnerInfo,
+  BrowserUpstreamError,
 } from './browserSessionService.js'
 
 /**
@@ -98,6 +100,10 @@ export function createConversationRouter(deps: ConversationDeps): Router {
       res.status(413).json({ error: 'FILE_TOO_LARGE' })
       return
     }
+    if (err instanceof BrowserUpstreamError) {
+      res.status(err.statusCode).json({ error: err.code })
+      return
+    }
     next(err)
   }
 
@@ -150,6 +156,15 @@ export function createConversationRouter(deps: ConversationDeps): Router {
         }
         throw error
       }
+    })().catch((err: unknown) => convErrorHandler(err, res, next))
+  })
+
+  router.get('/:id/browser-owner', requireSession, (req, res, next) => {
+    void (async () => {
+      const principal = await resolvePrincipal(req as AuthedRequest)
+      if (!principal) return void res.status(401).json({ error: 'SESSION_REQUIRED' })
+      const ctx = await resolveCtx(req as AuthedRequest)
+      res.status(200).json(await browserOwnerInfo(deps, principal, String(req.params.id), ctx))
     })().catch((err: unknown) => convErrorHandler(err, res, next))
   })
 

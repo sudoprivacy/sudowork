@@ -275,6 +275,17 @@ export type BrowserSessionAction = z.infer<typeof BrowserSessionActionSchema>;
 export type BrowserSessionReply = z.infer<typeof BrowserSessionReplySchema>;
 export type BrowserInput = z.infer<typeof BrowserInputSchema>;
 
+export const BrowserOwnerInfoSchema = z.object({
+  owner: z
+    .object({
+      sessionId: z.string().min(1).max(220),
+      desiredState: z.string().nullable(),
+    })
+    .nullable(),
+  browserRunning: z.boolean(),
+});
+export type BrowserOwnerInfo = z.infer<typeof BrowserOwnerInfoSchema>;
+
 /** A frame captured before a handoff or tab switch must never replace current pixels. */
 export function isCurrentBrowserFrame(
   session: BrowserSessionState,
