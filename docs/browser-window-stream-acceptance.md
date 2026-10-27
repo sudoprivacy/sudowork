@@ -244,3 +244,34 @@ so existing profiles can retain their accepted runtime during the canary.
 Public authenticated WebUI/Moss streaming, a bound Sudograph review and measured
 production-path interaction latency, fresh model continuity, and physical phone acceptance
 remain release gates. Passing SDK or component tests does not satisfy them.
+
+## Public SDK 0.58.10 Desktop qualification (27 October)
+
+The Desktop consumer now selects public SDK `0.58.10` and source
+`c779d34c645e5f9a9ad443b12b7614092aaec4b7`. The actual Electron first-use
+installer created a fresh environment from PyPI in 58.45 seconds. All 204
+installed package files matched the public wheel with SHA-256
+`6229e4912ed2c29601b7854ceb6b3162c3009def211137a3defb866a938e4701`.
+
+Four Desktop host and stdio journeys used that exact cold-installed environment,
+covering headless and headful Chrome, acknowledged input barriers, trusted Chinese
+submission, retained cookies, uploads and downloads. Four existing-Chrome
+journeys covered both WebSocket implementations and launch modes. The original
+Chrome, cookies and human input survived host recovery and shutdown. These tests
+used isolated profiles and did not access a user's personal Chrome profile.
+
+A fresh source Desktop build also passed the repository's real Luna browser
+journey in 241.62 seconds. The normal application installed its own public worker.
+The model opened headful Chrome and filled the form; the native question,
+ordinary interrupt, persisted question cancellation, selection, clipboard,
+Chinese composition, one trusted submission and exact model readback all passed.
+The same conversation remained bound to the browser. No business handoff buttons,
+model mocks or relaxed assertions or deadlines were used. The app and its two
+owned background services shut down normally, and temporary model configurations
+were removed. The screenshots were visually inspected.
+
+This qualifies the source Desktop and public worker. The new official Desktop
+package, production worker promotion, actual Sudograph graph interaction latency
+and physical-phone browser input still need their own acceptance. The observed
+1.55–1.96 second browser-status replies do not measure graph dragging or transport
+latency. The separate Linux Chrome startup timeout remains unresolved.
