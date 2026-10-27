@@ -24,7 +24,7 @@ import type { IMossCatalogPage, IMossCatalogItem, IMossCatalogInstallation, Moss
  */
 
 import { bridge } from '@office-ai/platform';
-import type { BrowserFile, BrowserSessionAction, BrowserSessionReply } from '@sudowork/contracts/browser-session';
+import type { BrowserFile, BrowserOwnerInfo, BrowserSessionAction, BrowserSessionReply } from '@sudowork/contracts/browser-session';
 import type { InputAction, InputDelivery, InputReceipt, InputState } from '@sudowork/contracts/input-delivery';
 import type { IConfirmation, IResponseMessage } from '@sudowork/common/chatTypes';
 import type { IAssistantInfo, IAssistantMeta } from '@sudowork/common/assistantTypes';
@@ -167,6 +167,8 @@ export const conversation = {
   reaped: bridge.buildEmitter<{ id: string }>('conversation.reaped'),
   update: bridge.buildProvider<boolean, { id: string; updates: Partial<TChatConversation>; mergeExtra?: boolean }>('update-conversation'), // 更新对话信息
   reset: bridge.buildProvider<void, IResetConversationParams>('reset-conversation'), // 重置对话
+  // Terminate the conversation's Moss session (releases the shared browser profile).
+  terminateMossSession: bridge.buildProvider<IBridgeResponse<void>, { conversation_id: string }>('conversation.terminate-moss-session'),
   stop: bridge.buildProvider<IBridgeResponse<void>, { conversation_id: string }>('chat.stop.stream'), // 停止会话
   sendMessage: bridge.buildProvider<IBridgeResponse<void>, ISendMessageParams>('chat.send.message'), // 发送消息（统一接口）
   getSlashCommands: bridge.buildProvider<IBridgeResponse<{ commands: SlashCommandItem[] }>, { conversation_id: string }>('conversation.get-slash-commands'),
@@ -1563,6 +1565,8 @@ export const browserSession = {
     }
   >('browser-session:upload-file'),
   downloadFile: bridge.buildProvider<IBridgeResponse<Uint8Array>, { conversationId: string; fileId: string }>('browser-session:download-file'),
+  // Read-only: who currently holds this owner's browser profile (no claim side effects).
+  ownerInfo: bridge.buildProvider<IBridgeResponse<BrowserOwnerInfo>, { conversationId: string }>('browser-session:owner-info'),
 };
 
 export const browserPanel = {
