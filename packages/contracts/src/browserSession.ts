@@ -32,6 +32,7 @@ export const BrowserSessionStateSchema = z.object({
   transport: z.enum(["cdp", "extension", "electron"]),
   capabilities: z.object({
     authorizedPageLaunch: z.boolean().optional(),
+    nativeWindow: z.boolean().optional(),
     conversationControl: z.boolean().optional(),
     dragInput: z.boolean().optional(),
     liveDragInput: z.boolean().optional(),

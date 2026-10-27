@@ -44,7 +44,7 @@ export class MossSecretClient {
     mossServerUrl: string,
     authToken: string,
     _userId: string,
-    private readonly fetcher: typeof fetch = globalThis.fetch,
+    private readonly fetcher?: typeof fetch,
   ) {
     this.baseUrl = mossServerUrl.replace(/\/+$/, "");
     this.headers = {
@@ -62,7 +62,7 @@ export class MossSecretClient {
   }
 
   private async request<T>(url: string, options: RequestInit): Promise<T> {
-    const res = await this.fetcher(url, {
+    const res = await (this.fetcher || globalThis.fetch)(url, {
       ...options,
       headers: { ...this.headers, ...options.headers },
       signal: AbortSignal.timeout(10000),
@@ -95,11 +95,14 @@ export class MossSecretClient {
   }
 
   async deleteSecret(namespace: string, key: string): Promise<void> {
-    const res = await this.fetcher(this.url(namespace, key), {
-      method: "DELETE",
-      headers: this.headers,
-      signal: AbortSignal.timeout(10000),
-    });
+    const res = await (this.fetcher || globalThis.fetch)(
+      this.url(namespace, key),
+      {
+        method: "DELETE",
+        headers: this.headers,
+        signal: AbortSignal.timeout(10000),
+      },
+    );
     if (!res.ok && res.status !== 404) {
       const text = await res.text().catch(() => "");
       throw new Error(
@@ -121,10 +124,13 @@ export class MossSecretClient {
   }
 
   async listSecrets(): Promise<MossSecretEntry[]> {
-    const res = await this.fetcher(`${this.baseUrl}/api/v1/me/secrets`, {
-      headers: this.headers,
-      signal: AbortSignal.timeout(10000),
-    });
+    const res = await (this.fetcher || globalThis.fetch)(
+      `${this.baseUrl}/api/v1/me/secrets`,
+      {
+        headers: this.headers,
+        signal: AbortSignal.timeout(10000),
+      },
+    );
     if (!res.ok) {
       const text = await res.text().catch(() => "");
       throw new Error(`Moss LIST failed: ${res.status} ${text}`);

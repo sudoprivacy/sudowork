@@ -3,6 +3,16 @@ import { MossSecretClient } from '@sudowork/common/nexus/moss-secret-client';
 
 afterEach(() => vi.restoreAllMocks());
 
+it('retains the browser fetch receiver and observes the current host adapter', async () => {
+  const client = new MossSecretClient('https://moss.example', 'login-token', 'user-a');
+  const fetcher = vi.spyOn(globalThis, 'fetch').mockImplementation(async function (this: unknown) {
+    expect(this === undefined || this === globalThis).toBe(true);
+    return new Response(JSON.stringify({ success: true, data: { value: 'current-host-key' } }));
+  });
+  await expect(client.getSecret('user:user-a:shareone', 'X-API-Key')).resolves.toBe('current-host-key');
+  expect(fetcher).toHaveBeenCalledOnce();
+});
+
 it('uses the host transport for credential reads and keeps keys out of URLs', async () => {
   const fallback = vi.spyOn(globalThis, 'fetch');
   const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ success: true, data: { value: 'stored-key' } })));

@@ -68,6 +68,14 @@ afterEach(async () => {
 });
 
 describe('private browser host review launch', () => {
+  it('advertises a native window only for a running local browser with a window', async () => {
+    const { host } = fixture();
+    expect((await host.invoke('conversation', { kind: 'state' })).session.capabilities.nativeWindow).not.toBe(true);
+    await host.openAuthorizedPage('conversation', input);
+    expect((await host.invoke('conversation', { kind: 'state' })).session.capabilities.nativeWindow).toBe(true);
+    state.isHeadless = true;
+    expect((await host.invoke('conversation', { kind: 'state' })).session.capabilities.nativeWindow).toBe(false);
+  });
   it('closes a retired account browser before admitting the new account and keeps same-account ownership enforced', async () => {
     let isCurrent = true;
     const { host, control } = fixture(async () => isCurrent);

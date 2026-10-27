@@ -22,8 +22,16 @@ Desktop evidence, not a new WebUI production, OS IME or physical-phone result.
 The interactive preview is approved for implementation. Product activity is
 labelled "SudoWork is operating". Browser sources use plain names: cloud browser,
 new browser and use my Chrome. The embedded panel defaults to the page; the
-independent viewer exposes page and full-window surfaces when available. Opening
-separately does not promise a particular local tab/window presentation.
+independent viewer exposes page and full-window surfaces when available.
+
+The 27 October Desktop refinement uses the host's `nativeWindow` capability:
+when a running local Chrome is available, the shared panel's separate-view action
+selects its existing active target and brings that Chrome window forward. It does
+not create another application window, navigate again, or copy page state. Cloud
+and headless sessions retain the authenticated viewer. Desktop alone is not proof
+that a browser is local: a Desktop conversation can also use a cloud browser.
+The control lease and target epochs still apply to the native reveal action.
+Both ordinary chat and canonical model review use this same shared component.
 
 Conversation Stop and normal conversation continuation remain the user controls.
 There are no business-level "return to AI" or "give to human" buttons. A model
