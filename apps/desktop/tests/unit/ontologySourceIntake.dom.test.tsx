@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
+import { Message } from '@arco-design/web-react';
 import { OntologyStudio } from '@sudowork/ontology-ui';
 import type { IOntologyStudioApi } from '@sudowork/ontology-ui';
 import type { IOntologyStudioProject } from '@sudowork/ontology-common';
@@ -60,8 +61,14 @@ beforeEach(() => {
   vi.stubGlobal('localStorage', { getItem: (key: string) => storage.get(key) || null, setItem: (key: string, value: string) => storage.set(key, value), removeItem: (key: string) => storage.delete(key) });
   window.matchMedia = vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn() });
 });
-afterEach(() => {
-  cleanup();
+afterEach(async () => {
+  await act(async () => {
+    cleanup();
+    // Arco messages mount outside the Testing Library render root. Drain their
+    // exit transitions before Vitest destroys this file's jsdom environment.
+    Message.clear();
+  });
+  await waitFor(() => expect(document.querySelector('.arco-message')).toBeNull());
   vi.unstubAllGlobals();
 });
 
