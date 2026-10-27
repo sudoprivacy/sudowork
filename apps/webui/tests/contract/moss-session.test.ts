@@ -391,6 +391,33 @@ describe('ws_url validation (计划 3.5)', () => {
     ).not.toThrow()
   })
 
+  test('preserves the Moss owner routing hint on the original TLS session URL', () => {
+    const value = 'wss://moss.test/ws/sessions/s1?moss_route=owner-4949'
+    expect(validateMossWsUrl(value, 's1', 'wss://moss.test').href).toBe(value)
+  })
+
+  test.each([
+    '?moss_route=owner-a&token=secret',
+    '?moss_route=owner-a&refresh_token=secret',
+    '?moss_route=owner-a&other=value',
+    '?moss_route=owner-a&moss_route=owner-b',
+    '?moss_route=',
+  ])('rejects unexpected, credential or ambiguous query data: %s', (query) => {
+    expect(() =>
+      validateMossWsUrl('wss://moss.test/ws/sessions/s1' + query, 's1', 'wss://moss.test'),
+    ).toThrow(MossWsValidationError)
+  })
+
+  test.each([
+    'ws://moss.test/ws/sessions/s1?moss_route=owner-a',
+    'wss://user:secret@moss.test/ws/sessions/s1?moss_route=owner-a',
+    'wss://moss.test/ws/sessions/s1?moss_route=owner-a#fragment',
+    'wss://evil.test/ws/sessions/s1?moss_route=owner-a',
+    'wss://moss.test/ws/sessions/other?moss_route=owner-a',
+  ])('routing never authorizes a different connection: %s', (value) => {
+    expect(() => validateMossWsUrl(value, 's1', 'wss://moss.test')).toThrow(MossWsValidationError)
+  })
+
   test('rejects session mismatch', () => {
     expect(() =>
       validateMossWsUrl('ws://moss.test/ws/sessions/other', 's1', 'ws://moss.test'),

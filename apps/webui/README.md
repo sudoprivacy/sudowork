@@ -143,7 +143,7 @@ Compose 启动顺序（计划 3.12）：`postgres`（healthcheck）→ 一次性
 bun run typecheck && bun run lint
 bun run test:unit          # 单元（含组件）
 bun run test:contract      # Moss 请求形状契约（打桩，不依赖真实 Moss）
-bun run test:integration   # 集成（需要本地 PostgreSQL，自动建删 sudowork_webui_test 库）
+bun run test:integration   # PostgreSQL integration; each module creates and removes its own scratch database.
 bun run build
 bun run test:e2e           # 真实 Moss E2E（见下）
 ```
