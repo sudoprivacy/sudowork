@@ -22,6 +22,7 @@ import argparse
 import asyncio
 import json
 import os
+from pathlib import Path
 import subprocess
 import sys
 import threading
@@ -93,7 +94,13 @@ def _find_helper() -> str:
 
 def _run(tool: str, args: list[str] = None, timeout: float = 30) -> dict:
     helper = _find_helper()
-    cmd = ["python3", helper, tool] + (args or [])
+    tool_args = list(args or [])
+    if tool == "browser_start" and sys.platform.startswith("linux"):
+        # CfT archives lack the packaged Chrome AppArmor exemption on Ubuntu.
+        # Match the native browser fixture's Linux setup for this throwaway
+        # local-page test; this does not alter the SDK or production defaults.
+        tool_args.insert(0, "--extra-args=--no-sandbox")
+    cmd = ["python3", helper, tool] + tool_args
     env = os.environ.copy()
     env.pop("AI_DEV_BROWSER_PORT", None)
     env["AI_DEV_BROWSER_HEADLESS"] = "1"
@@ -117,11 +124,53 @@ def _cdp_tabs(port: int) -> list[str]:
         return []
 
 
+def _write_evidence(name: str, evidence: dict) -> None:
+    folder = Path(os.environ.get("BROWSER_ISOLATION_ARTIFACT_DIR", ".tmp/browser-port-isolation"))
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / name).write_text(json.dumps(evidence, indent=2), encoding="utf-8")
+
+
+async def _startup_diagnostic(payload: dict) -> dict:
+    """Observe only this failed launch's owned target; never retry startup/input."""
+    from ai_dev_browser.cdp import network, page, runtime
+    from ai_dev_browser.core._transport import CDPConnection
+
+    evidence = {"port": payload.get("port"), "pid": payload.get("pid")}
+    if payload.get("owner") != "adb" or not payload.get("automation_target_id"):
+        return evidence
+    connection = CDPConnection(
+        f"ws://127.0.0.1:{payload['port']}/devtools/page/{payload['automation_target_id']}"
+    )
+    try:
+        await asyncio.wait_for(connection.connect(), 2)
+        frame = (await connection.send(page.get_frame_tree(), timeout=2)).frame
+        evidence["frameIsBlank"] = frame.url == "about:blank"
+        value, exception = await connection.send(runtime.evaluate(
+            "JSON.stringify({state:document.readyState,isBlank:location.href==='about:blank',"
+            "navigation:performance.getEntriesByType('navigation').map(n=>({"
+            "isBlank:n.name==='about:blank',hasName:!!n.name,"
+            "domContentLoadedEventEnd:n.domContentLoadedEventEnd,domComplete:n.domComplete}))})",
+            return_by_value=True,
+        ), timeout=2)
+        evidence["document"] = json.loads(value.value) if not exception else {"scriptException": True}
+        try:
+            # Observe readiness without exposing cookie values or making a request.
+            await connection.send(network.get_cookies(urls=[f"http://127.0.0.1:{payload['port']}/"]), timeout=2)
+            evidence["networkContextReady"] = True
+        except Exception as error:
+            evidence["networkContextError"] = type(error).__name__
+    except Exception as error:
+        evidence["observationError"] = type(error).__name__
+    finally:
+        await connection.disconnect()
+    return evidence
+
+
 # ──────────────────────────────────────────────────────────────
 #  Test
 # ──────────────────────────────────────────────────────────────
 
-def run_test(sudowork_port: int = 9230) -> tuple[bool, str]:
+def run_test(sudowork_port: int = 9230, expected_chrome_version: str | None = None) -> tuple[bool, str]:
     """Run the full port isolation test. Returns (passed, message)."""
     # 0. Verify browser_helper.py can find ai_dev_browser tools
     helper = _find_helper()
@@ -134,6 +183,7 @@ def run_test(sudowork_port: int = 9230) -> tuple[bool, str]:
     server, test_port = _start_server()
     test_url = f"http://127.0.0.1:{test_port}"
     chrome_port = None
+    browser_session = None
     failures = []
 
     try:
@@ -145,9 +195,27 @@ def run_test(sudowork_port: int = 9230) -> tuple[bool, str]:
         #    Chrome came up fast, failed when it didn't). 60s gives the inner 30s
         #    budget room to either succeed or report a real error, not be preempted.
         start = _run("browser_start", timeout=60)
-        if start["exit"] != 0:
-            return False, f"browser_start failed: {start['stderr'] or start['stdout']}"
-        chrome_port = (start["json"] or {}).get("port")
+        payload = start["json"] or {}
+        # An unsuccessful startup can still own a live Chrome. Retain its exact
+        # session before checking success so the failure path also releases it.
+        if payload.get("owner") == "adb":
+            chrome_port = payload.get("port")
+            browser_session = payload.get("session_id")
+        _write_evidence("startup.json", start)
+        if start["exit"] != 0 or payload.get("connected") is not True:
+            async def observe():
+                try:
+                    return await asyncio.wait_for(_startup_diagnostic(payload), 10)
+                except TimeoutError:
+                    return {"observationError": "TimeoutError"}
+            diagnostic = asyncio.run(observe())
+            _write_evidence("startup-diagnostic.json", diagnostic)
+            print("Failed startup observation: " + json.dumps(diagnostic))
+            raise RuntimeError(f"browser_start failed: {start['stderr'] or start['stdout']}")
+        if not chrome_port or not browser_session:
+            raise RuntimeError("Successful startup did not identify its owned browser session.")
+        if expected_chrome_version and payload.get("browser_version") != f"Chrome/{expected_chrome_version}":
+            raise RuntimeError(f"Expected Chrome/{expected_chrome_version}; launched {payload.get('browser_version')}")
         if chrome_port == sudowork_port:
             failures.append(f"CRITICAL: Chrome started on Sudowork's port {sudowork_port}")
         port_args = ["--port", str(chrome_port)] if chrome_port else []
@@ -197,10 +265,16 @@ def run_test(sudowork_port: int = 9230) -> tuple[bool, str]:
             if any(str(test_port) in url for url in sudowork_tabs):
                 failures.append(f"Test page leaked into Sudowork's {sudowork_port} tabs!")
 
+    except RuntimeError as error:
+        failures.append(str(error))
     finally:
         # Cleanup
-        if chrome_port:
-            _run("browser_stop", ["--port", str(chrome_port)], timeout=10)
+        if browser_session or chrome_port:
+            identity = ["--session-id", browser_session] if browser_session else ["--port", str(chrome_port)]
+            stopped = _run("browser_stop", identity, timeout=10)
+            _write_evidence("cleanup.json", stopped)
+            if stopped["exit"] != 0 or (stopped["json"] or {}).get("count") != 1:
+                failures.append(f"Owned Chrome cleanup failed: {stopped['stderr'] or stopped['stdout']}")
         server.shutdown()
 
     if failures:
@@ -215,13 +289,14 @@ def run_test(sudowork_port: int = 9230) -> tuple[bool, str]:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Browser port isolation integration test")
     parser.add_argument("--sudowork-port", type=int, default=9230, help="Sudowork CDP port to check isolation against")
+    parser.add_argument("--expected-chrome-version", help="Refuse an unexpected browser binary instead of accepting a host fallback")
     args = parser.parse_args()
 
     print("=" * 60)
     print("  Browser Port Isolation Test")
     print("=" * 60)
 
-    passed, message = run_test(args.sudowork_port)
+    passed, message = run_test(args.sudowork_port, args.expected_chrome_version)
 
     status = "PASS" if passed else "FAIL"
     print(f"\n  {status}: {message}")
