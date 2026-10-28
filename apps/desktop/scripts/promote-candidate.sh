@@ -29,7 +29,18 @@ if [[ "$mode" == promote ]]; then
   # Refresh main after the human audit before comparing source trees.
   git fetch origin refs/heads/main:refs/remotes/origin/main
 fi
-merged_tree=$(git merge-tree --write-tree refs/remotes/origin/main "$candidate_commit") || fail 'Main conflicts with the audited candidate'
+main_commit=$(git rev-parse refs/remotes/origin/main)
+main_snapshot_ancestor=
+if ! merged_tree=$(git merge-tree --write-tree "$main_commit" "$candidate_commit") || [[ "$merged_tree" != "$candidate_tree" ]]; then
+  # Older releases copied a dev snapshot onto main without preserving ancestry.
+  # Recover that relationship only when the complete main tree, including modes
+  # and submodule pins, exactly matches an ancestor of this audited candidate.
+  main_tree=$(git rev-parse "${main_commit}^{tree}")
+  main_snapshot_ancestor=$(git log "$candidate_commit" --format='%H %T' |
+    awk -v tree="$main_tree" '$2 == tree && !found { print $1; found = 1 }')
+  [[ -n "$main_snapshot_ancestor" ]] || fail 'Main differs from the audited candidate and has no identical ancestor snapshot'
+  merged_tree=$(git merge-tree --write-tree "$main_snapshot_ancestor" "$candidate_commit") || fail 'Cannot reconcile the identical main snapshot'
+fi
 [[ "$merged_tree" == "$candidate_tree" ]] || fail 'Merging main changes the audited candidate contents'
 
 if [[ "$mode" == validate ]]; then
@@ -45,8 +56,14 @@ if [[ "$mode" == rc ]]; then
 else
   rc_commit=$(git rev-parse --verify "refs/tags/${rc_tag}^{commit}")
   [[ "$rc_commit" == "$candidate_commit" ]] || fail 'RC tag differs from the audited candidate'
-  git switch --detach refs/remotes/origin/main
-  if git merge-base --is-ancestor HEAD "$candidate_commit"; then
+  git switch --detach "$main_commit"
+  if [[ -n "$main_snapshot_ancestor" ]]; then
+    # Record both histories with exactly the tree verified above. A normal merge
+    # would repeat the conflicts caused by the missing snapshot ancestry.
+    promoted_commit=$(git commit-tree "$candidate_tree" -p "$main_commit" -p "$candidate_commit" \
+      -m "chore(release): promote audited ${candidate_tag}")
+    git switch --detach "$promoted_commit"
+  elif git merge-base --is-ancestor HEAD "$candidate_commit"; then
     git merge --ff-only "$candidate_commit"
   else
     git merge --no-ff -m "chore(release): promote audited ${candidate_tag}" "$candidate_commit"
