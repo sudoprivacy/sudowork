@@ -202,7 +202,7 @@ const Sider: React.FC = () => {
               {/* 功能菜单区域 / Function menu area */}
               <div className='mb-4 flex flex-col gap-0.5'>
                 {Menus.map((menu) => {
-                  const isSelected = pathname === menu.path || (pathname.startsWith('/guid') && new URLSearchParams(search).get('menu') === menu.id);
+                  const isSelected = pathname === menu.path || pathname.startsWith(`${menu.path}/`) || (pathname.startsWith('/guid') && new URLSearchParams(search).get('menu') === menu.id);
                   const MenuIcon = menu.icon;
                   return (
                     <SidebarNavItem
