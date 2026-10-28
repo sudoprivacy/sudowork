@@ -10,20 +10,18 @@ function okTokenSet() {
 
 describe('MossAuthPort request shapes (contract vs baseline)', () => {
   test('membership discovery uses the current credential and strips unapproved response fields', async () => {
-    const mock = vi
-      .fn()
-      .mockResolvedValue({
-        organizations: [
-          {
-            id: 'company',
-            name: 'Company',
-            userId: 'member',
-            role: 'user',
-            modelKey: 'must-not-escape',
-          },
-        ],
-        access_token: 'must-not-escape',
-      })
+    const mock = vi.fn().mockResolvedValue({
+      organizations: [
+        {
+          id: 'company',
+          name: 'Company',
+          userId: 'member',
+          role: 'user',
+          modelKey: 'must-not-escape',
+        },
+      ],
+      access_token: 'must-not-escape',
+    })
     const port = createMossAuthPort(mock)
     expect(await port.organizations!('human-token', BASE)).toEqual({
       organizations: [{ id: 'company', name: 'Company', userId: 'member', role: 'user' }],
