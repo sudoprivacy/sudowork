@@ -99,11 +99,41 @@ jobs:
           fi
           pip install "${{ github.workspace }}/vendor/ai-dev-browser"
 
-      - name: Run browser port isolation test
+      # A runner image used Chrome 156 for the failing startup and Chrome 155
+      # for the next pass. Exercise both exact binaries; host image rollouts
+      # must not silently remove coverage of the regression.
+      - uses: browser-actions/setup-chrome@v2
+        id: chrome155
+        with:
+          chrome-version: "155.0.8059.39"
+
+      - uses: browser-actions/setup-chrome@v2
+        id: chrome156
+        with:
+          chrome-version: "156.0.8078.47"
+
+      - name: Run browser port isolation on Chrome 155
         run: |
-          xvfb-run -a -s '-screen 0 1280x1024x24' python3 tests/integration/browser_port_isolation.py
+          xvfb-run -a -s '-screen 0 1280x1024x24' python3 tests/integration/browser_port_isolation.py --expected-chrome-version 155.0.8059.39
         env:
           PYTHONPATH: ${{ github.workspace }}/vendor/ai-dev-browser
+          AI_DEV_BROWSER_CHROME: ${{ steps.chrome155.outputs.chrome-path }}
+          BROWSER_ISOLATION_ARTIFACT_DIR: ${{ github.workspace }}/.tmp/browser-port-isolation/155
+
+      - name: Run browser port isolation on Chrome 156
+        if: ${{ !cancelled() && steps.chrome156.outcome == 'success' }}
+        run: |
+          xvfb-run -a -s '-screen 0 1280x1024x24' python3 tests/integration/browser_port_isolation.py --expected-chrome-version 156.0.8078.47
+        env:
+          PYTHONPATH: ${{ github.workspace }}/vendor/ai-dev-browser
+          AI_DEV_BROWSER_CHROME: ${{ steps.chrome156.outputs.chrome-path }}
+          BROWSER_ISOLATION_ARTIFACT_DIR: ${{ github.workspace }}/.tmp/browser-port-isolation/156
+
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: browser-port-isolation
+          path: .tmp/browser-port-isolation
 
   browser-panel-mcp-server:
     # Skipped on draft PRs: heavy CI starts once the PR is marked ready.
