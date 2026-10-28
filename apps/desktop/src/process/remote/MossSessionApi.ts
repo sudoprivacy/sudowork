@@ -23,7 +23,7 @@ import { ipcBridge } from '@/common';
 
 /** Keep the upstream snake_case error code instead of dropping the real cause. */
 async function upstreamErrorCode(response: Response, fallback: string): Promise<string> {
-  const body = (await response.json().catch(() => null)) as { error?: unknown } | null;
+  const body = (await response.json().catch((): null => null)) as { error?: unknown } | null;
   return typeof body?.error === 'string' && /^[a-z_]{1,80}$/.test(body.error) ? body.error : fallback;
 }
 
@@ -87,16 +87,6 @@ export class MossSessionApi {
     });
     if (!response.ok) throw new Error(await upstreamErrorCode(response, `Browser owner request failed (${response.status})`));
     return BrowserOwnerInfoSchema.parse(await response.json());
-  }
-
-  async terminateSession(sessionId: string): Promise<void> {
-    const token = await this.ensureAuthenticated();
-    const response = await fetch(`${this.serverUrl}/api/v1/sessions/${encodeURIComponent(sessionId)}/terminate`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(30_000),
-    });
-    if (!response.ok) throw new Error(await upstreamErrorCode(response, `Session terminate failed (${response.status})`));
   }
 
   async changeBrowserConversation(sessionId: string, intent: 'interrupt' | 'continue'): Promise<boolean> {
