@@ -94,7 +94,13 @@ def _find_helper() -> str:
 
 def _run(tool: str, args: list[str] = None, timeout: float = 30) -> dict:
     helper = _find_helper()
-    cmd = ["python3", helper, tool] + (args or [])
+    tool_args = list(args or [])
+    if tool == "browser_start" and sys.platform.startswith("linux"):
+        # CfT archives lack the packaged Chrome AppArmor exemption on Ubuntu.
+        # Match the native browser fixture's Linux setup for this throwaway
+        # local-page test; this does not alter the SDK or production defaults.
+        tool_args.insert(0, "--extra-args=--no-sandbox")
+    cmd = ["python3", helper, tool] + tool_args
     env = os.environ.copy()
     env.pop("AI_DEV_BROWSER_PORT", None)
     env["AI_DEV_BROWSER_HEADLESS"] = "1"
