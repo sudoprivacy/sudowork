@@ -25,6 +25,7 @@ import { maskPhone } from '@renderer/utils';
 import SidebarNavItem from '@renderer/layouts/components/SidebarNavItem';
 import SettingsSider from './SettingsSider';
 import TeamSiderSection from './TeamSiderSection';
+import OrganizationSwitcher from './OrganizationSwitcher';
 
 const Sider: React.FC = () => {
   // 侧栏收起由外层 ArcoLayout.Sider 把宽度动画到 0 整体隐藏，内容始终保持展开态，
@@ -39,7 +40,7 @@ const Sider: React.FC = () => {
 
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { logout, user: currentUser, isGuest } = useAuth();
+  const { logout, user: currentUser, enterpriseProfile, isGuest } = useAuth();
   const { isEnterprise, mode } = useAppMode();
   const { isCronVisible } = useCronAccess();
   const [isBatchMode, setIsBatchMode] = useState(false);
@@ -54,7 +55,7 @@ const Sider: React.FC = () => {
   const [activeTab, setActiveTab] = useState<SidebarTabKey>(() => {
     try {
       const stored = localStorage.getItem(SIDER_TAB_STORAGE_KEY);
-      if (stored === 'scheduled' || stored === 'agents' || stored === 'timeline') return stored;
+      if (stored === 'scheduled' || stored === 'agents' || stored === 'timeline' || stored === 'archived') return stored;
     } catch {
       // ignore
     }
@@ -81,8 +82,8 @@ const Sider: React.FC = () => {
   // 从 AuthContext 获取实际用户信息（手机号脱敏展示）
   const userInfo = {
     email: maskPhone(currentUser?.phone || ''),
-    name: currentUser?.nickname || t('settings.userProfile.defaultNickname', 'Sudowork 用户'),
-    avatar: null as string | null,
+    name: (isEnterprise ? enterpriseProfile?.nickname || enterpriseProfile?.username : undefined) || currentUser?.nickname || t('settings.userProfile.defaultNickname', 'Sudowork 用户'),
+    avatar: isEnterprise ? enterpriseProfile?.avatar : null,
   };
 
   const effectiveTab: SidebarTabKey = !isCronVisible && activeTab === 'scheduled' ? 'timeline' : activeTab;
@@ -202,7 +203,7 @@ const Sider: React.FC = () => {
               {/* 功能菜单区域 / Function menu area */}
               <div className='mb-4 flex flex-col gap-0.5'>
                 {Menus.map((menu) => {
-                  const isSelected = pathname === menu.path || (pathname.startsWith('/guid') && new URLSearchParams(search).get('menu') === menu.id);
+                  const isSelected = pathname === menu.path || pathname.startsWith(`${menu.path}/`) || (pathname.startsWith('/guid') && new URLSearchParams(search).get('menu') === menu.id);
                   const MenuIcon = menu.icon;
                   return (
                     <SidebarNavItem
@@ -237,36 +238,39 @@ const Sider: React.FC = () => {
                   }
                 }}
               />
-              {effectiveTab !== 'agents' && (
-                <Popover
-                  trigger={[]}
-                  popupVisible={isBatchMode}
-                  position='rt'
-                  className='batch-actions-popover'
-                  getPopupContainer={() => document.body}
-                  content={
-                    <div className='flex flex-col gap-1.5 w-45'>
-                      <div className='px-0.5 pb-0.5 text-12px leading-18px text-secondary'>{t('conversation.history.selectedCount', { count: batchApi?.selectedCount ?? 0 })}</div>
-                      <Button long type='secondary' className='rd-2' onClick={() => batchApi?.onToggleSelectAll()}>
-                        {batchApi?.allSelected ? t('common.cancel') : t('conversation.history.selectAll')}
-                      </Button>
-                      <Button long type='secondary' className='rd-2' disabled={!batchApi?.selectedCount} onClick={() => batchApi?.onBatchExport()}>
-                        {t('conversation.history.batchExport')}
-                      </Button>
-                      <Button long type='secondary' status='danger' className='rd-2' disabled={!batchApi?.selectedCount} onClick={() => batchApi?.onBatchDelete()}>
-                        {t('conversation.history.batchDelete')}
-                      </Button>
-                    </div>
-                  }
-                >
-                  <div
-                    className={classNames('batch-mode-trigger size-8 f-center rd-8px cursor-pointer transition-all shrink-0', isBatchMode ? 'bg-[rgba(var(--ui-accent-orange-rgb),0.12)] text-[var(--ui-accent-orange)]' : 'hover:bg-hover active:bg-fill-2 text-secondary')}
-                    onClick={() => setIsBatchMode((prev) => !prev)}
+              {/* Keep the view switcher width stable when batch actions are hidden. */}
+              <div className='size-8 shrink-0'>
+                {effectiveTab !== 'agents' && (
+                  <Popover
+                    trigger={[]}
+                    popupVisible={isBatchMode}
+                    position='rt'
+                    className='batch-actions-popover'
+                    getPopupContainer={() => document.body}
+                    content={
+                      <div className='flex flex-col gap-1.5 w-45'>
+                        <div className='px-0.5 pb-0.5 text-12px leading-18px text-secondary'>{t('conversation.history.selectedCount', { count: batchApi?.selectedCount ?? 0 })}</div>
+                        <Button long type='secondary' className='rd-2' onClick={() => batchApi?.onToggleSelectAll()}>
+                          {batchApi?.allSelected ? t('common.cancel') : t('conversation.history.selectAll')}
+                        </Button>
+                        <Button long type='secondary' className='rd-2' disabled={!batchApi?.selectedCount} onClick={() => batchApi?.onBatchExport()}>
+                          {t('conversation.history.batchExport')}
+                        </Button>
+                        <Button long type='secondary' status='danger' className='rd-2' disabled={!batchApi?.selectedCount} onClick={() => batchApi?.onBatchDelete()}>
+                          {t('conversation.history.batchDelete')}
+                        </Button>
+                      </div>
+                    }
                   >
-                    <ListChecks size={18} strokeWidth={1.8} className='block leading-none' />
-                  </div>
-                </Popover>
-              )}
+                    <div
+                      className={classNames('batch-mode-trigger size-8 f-center rd-8px cursor-pointer transition-all shrink-0', isBatchMode ? 'bg-[rgba(var(--ui-accent-orange-rgb),0.12)] text-[var(--ui-accent-orange)]' : 'hover:bg-hover active:bg-fill-2 text-secondary')}
+                      onClick={() => setIsBatchMode((prev) => !prev)}
+                    >
+                      <ListChecks size={18} strokeWidth={1.8} className='block leading-none' />
+                    </div>
+                  </Popover>
+                )}
+              </div>
             </div>
 
             <div className='flex min-h-24 flex-1 flex-col'>
@@ -279,6 +283,14 @@ const Sider: React.FC = () => {
       </div>
       {/* Footer - User info area */}
       <div className='shrink-0 mt-auto pt-2 px-0'>
+        {isEnterprise && !isGuest ? (
+          <OrganizationSwitcher
+            onReload={() => {
+              window.location.hash = '/app/agents/mine';
+              window.location.reload();
+            }}
+          />
+        ) : null}
         {!isSettings ? (
           /* 用户信息下拉菜单 */
           <Dropdown

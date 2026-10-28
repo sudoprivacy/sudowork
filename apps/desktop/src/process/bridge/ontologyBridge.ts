@@ -3,6 +3,8 @@ import { redactOntologySecrets } from '@process/services/ontology/ontologySnapsh
 import { ipcBridge } from '@/common';
 import { ontologyService } from '@process/services/ontology/OntologyService';
 import { mainError } from '@process/utils/mainLogger';
+import { SudographCompilerError } from '@process/services/ontology/SudographModelClient';
+import { getLocalBrowserSessions } from '@process/services/browserPanel/localBrowserSessionHost';
 
 function ok<T>(data: T) {
   return { success: true, data: redactOntologySecrets(data) };
@@ -18,7 +20,116 @@ function emitWorkbenchChanged(snapshot: IOntologyWorkbenchSnapshot): void {
 }
 
 export function initOntologyBridge(): void {
+  ipcBridge.ontology.previewRuntimePackage.provider(async (input) => {
+    try {
+      return ok(await ontologyService.previewRuntimePackage(input));
+    } catch (error) {
+      return fail(error);
+    }
+  });
+  ipcBridge.ontology.importRuntimePackage.provider(async (input) => {
+    try {
+      const snapshot = await ontologyService.importRuntimePackage(input);
+      ipcBridge.ontology.projectsChanged.emit({ workspaceId: snapshot.workspaceId });
+      emitWorkbenchChanged(snapshot);
+      return ok(snapshot);
+    } catch (error) {
+      return fail(error);
+    }
+  });
+  ipcBridge.ontology.getRuntimeEnvironment.provider(async (input) => {
+    try {
+      return ok(await ontologyService.getRuntimeEnvironment(input));
+    } catch (error) {
+      return fail(error);
+    }
+  });
+  ipcBridge.ontology.configureRuntimeEnvironment.provider(async (input) => {
+    try {
+      const result = await ontologyService.configureRuntimeEnvironment(input);
+      emitWorkbenchChanged(await ontologyService.getWorkbench(input));
+      return ok(result);
+    } catch (error) {
+      return fail(error);
+    }
+  });
+  ipcBridge.ontology.verifyRuntimeEnvironment.provider(async (input) => {
+    try {
+      return ok(await ontologyService.verifyRuntimeEnvironment(input));
+    } catch (error) {
+      return fail(error);
+    }
+  });
+  ipcBridge.ontology.updateAgentDefinition.provider(async (input) => {
+    try {
+      const snapshot = await ontologyService.updateAgentDefinition(input);
+      emitWorkbenchChanged(snapshot);
+      return ok(snapshot);
+    } catch (error) {
+      return fail(error);
+    }
+  });
+  ipcBridge.ontology.planRuntimePackage.provider(async (input) => {
+    try {
+      return ok(await ontologyService.planRuntimePackage(input));
+    } catch (error) {
+      return fail(error);
+    }
+  });
+  ipcBridge.ontology.exportRuntimePackage.provider(async (input) => {
+    try {
+      return ok(await ontologyService.exportRuntimePackage(input, (event) => ipcBridge.ontology.packageExportProgress.emit(event)));
+    } catch (error) {
+      return fail(error);
+    }
+  });
+  ipcBridge.ontology.cancelRuntimePackageExport.provider(async ({ requestId }) => {
+    ontologyService.cancelRuntimePackageExport(requestId);
+    return ok(undefined);
+  });
   ontologyService.onAgentRegistrationChanged(emitWorkbenchChanged);
+  ipcBridge.ontology.openReview.provider(async (input) => {
+    let launch: Awaited<ReturnType<typeof ontologyService.createStudioReviewSession>> | undefined;
+    try {
+      launch = await ontologyService.createStudioReviewSession(input);
+      return ok(await getLocalBrowserSessions().openAuthorizedPage(input.conversationId, launch));
+    } catch (error) {
+      launch?.revoke();
+      mainError('Ontology review', 'Could not open the bound review.', error instanceof Error ? error.stack : String(error));
+      return fail(error);
+    }
+  });
+  ipcBridge.ontology.listProjects.provider(async () => {
+    try {
+      return ok(await ontologyService.listStudioProjects());
+    } catch (err) {
+      return fail(err);
+    }
+  });
+  ipcBridge.ontology.getProject.provider(async (input) => {
+    try {
+      return ok(await ontologyService.getStudioProject(input));
+    } catch (err) {
+      return fail(err);
+    }
+  });
+  ipcBridge.ontology.resumeSource.provider(async (input) => {
+    try {
+      return ok(await ontologyService.resumeStudioSource(input));
+    } catch (err) {
+      return fail(err);
+    }
+  });
+  ipcBridge.ontology.connectSource.provider(async (input) => {
+    try {
+      const project = await ontologyService.connectStudioSource(input);
+      ipcBridge.ontology.projectsChanged.emit({ workspaceId: project.workspaceId });
+      return ok(project);
+    } catch (err) {
+      if (err instanceof SudographCompilerError) return { success: false, msg: `[${err.code}] ${err.message}\n${typeof err.recovery === 'string' ? err.recovery : JSON.stringify(err.recovery)}` };
+      return fail(err);
+    }
+  });
   ipcBridge.ontology.saveStudioModel.provider(async (input) => {
     try {
       const snapshot = await ontologyService.saveStudioModel(input);
@@ -92,7 +203,8 @@ export function initOntologyBridge(): void {
   ipcBridge.ontology.deleteWorkbench.provider(async (input) => {
     try {
       const result = await ontologyService.deleteWorkbench(input);
-      emitWorkbenchChanged(result.snapshot);
+      ipcBridge.ontology.projectsChanged.emit({ workspaceId: input.workspaceId });
+      if (result.activeWorkspaceId) emitWorkbenchChanged(result.snapshot);
       return ok(result);
     } catch (err) {
       return fail(err);
@@ -446,27 +558,6 @@ export function initOntologyBridge(): void {
       const snapshot = await ontologyService.rollbackToVersion(input);
       emitWorkbenchChanged(snapshot);
       return ok(snapshot);
-    } catch (err) {
-      return fail(err);
-    }
-  });
-
-  ipcBridge.ontology.createSkillBlueprint.provider(async (input) => {
-    try {
-      const result = await ontologyService.createSkillBlueprint(input);
-      emitWorkbenchChanged(result.snapshot);
-      return ok(result);
-    } catch (err) {
-      return fail(err);
-    }
-  });
-
-  ipcBridge.ontology.publishSkillBlueprint.provider(async (input) => {
-    try {
-      const result = await ontologyService.publishSkillBlueprint(input);
-      emitWorkbenchChanged(result.snapshot);
-      ipcBridge.skillHub.changed.emit({ skillName: result.blueprint.registeredSkillId, source: 'import' });
-      return ok(result);
     } catch (err) {
       return fail(err);
     }

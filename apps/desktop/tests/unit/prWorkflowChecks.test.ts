@@ -21,11 +21,36 @@ describe('required PR check reporting', () => {
     expect(workflow.on.pull_request.branches).toEqual(expect.arrayContaining(['dev', 'main']));
   });
 
-  it('every code update expands the four required platform check names', () => {
-    const build = readWorkflow('pr-checks.yml').jobs['build-test'];
+  it('every code update reports the four required platform check names', () => {
+    const jobs = readWorkflow('pr-checks.yml').jobs;
+    const build = jobs['build-test'];
     expect(build.if).toBeUndefined();
-    const names = build.strategy?.matrix.include.map(({ platform }) => build.name.replace('${{ matrix.platform }}', platform));
-    expect(names).toEqual(expect.arrayContaining(['Build Test (macos-arm64)', 'Build Test (macos-x64)', 'Build Test (windows-arm64)', 'Build Test (windows-x64)']));
+    const windows = build.strategy?.matrix.include.map(({ platform }) => build.name.replace('${{ matrix.platform }}', platform)) ?? [];
+    const macos = ['build-test-macos-arm64', 'build-test-macos-x64'].map((id) => jobs[id]);
+    for (const job of macos) {
+      // A skipped matrix job reports its unexpanded name, so a macOS job that can be
+      // skipped must be a plain job with a literal name, or its required check never reports.
+      expect(job.strategy).toBeUndefined();
+      expect(job.name).not.toContain('${{');
+      // Only pull requests into `dev` skip it: `dev` lands through the merge queue, which
+      // runs it on the exact commit that becomes `dev`. `main` has no queue behind it.
+      expect(job.if).toBe("${{ github.event_name != 'pull_request' || github.base_ref != 'dev' }}");
+      expect(job.steps).toEqual(build.steps);
+    }
+    expect([...windows, ...macos.map((job) => job.name)]).toEqual(
+      expect.arrayContaining(['Build Test (macos-arm64)', 'Build Test (macos-x64)', 'Build Test (windows-arm64)', 'Build Test (windows-x64)']),
+    );
+  });
+
+  it.each([
+    { name: 'pr-checks.yml', requiredJobs: ['build-test', 'release-script-test'] },
+    { name: 'pr-integration-smoke.yml', requiredJobs: ['browser-port-isolation'] },
+  ])('$name reports its required checks for each merge queue entry', ({ name, requiredJobs }) => {
+    const workflow = readWorkflow(name);
+    expect(Object.keys(workflow.on)).toContain('merge_group');
+    // merge_group runs have no pull_request payload; without the ref fallback every queue entry shares one group and cancels the others.
+    expect(workflow.concurrency.group).toContain('|| github.ref }}');
+    for (const job of requiredJobs) expect(workflow.jobs[job].if).toBeUndefined();
   });
 
   it('retargeting a PR still checks main in a workflow independent of build checks', () => {

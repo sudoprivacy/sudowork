@@ -1,5 +1,5 @@
 import path from 'path';
-import { renameSync, rmSync, writeFileSync } from 'node:fs';
+
 import { isDeepStrictEqual } from 'node:util';
 import { safeStorage } from 'electron';
 import BetterSqlite3 from 'better-sqlite3';
@@ -395,7 +395,6 @@ export class OntologyDatabase implements IOntologyRepository {
       this.insertAuditRecords(normalized);
     });
     writeWorkbench(snapshot);
-    this.writeMcpExport(snapshot);
   }
 
   deleteSnapshot(workspaceId: string): void {
@@ -407,7 +406,6 @@ export class OntologyDatabase implements IOntologyRepository {
       this.db.prepare('DELETE FROM scenario_dict WHERE id = ?').run(scenario.id);
     });
     deleteWorkbench();
-    rmSync(this.getMcpExportPath(workspaceId), { force: true });
   }
 
   resetSnapshot(workspaceId: string): void {
@@ -463,40 +461,6 @@ export class OntologyDatabase implements IOntologyRepository {
 
   close(): void {
     this.db.close();
-  }
-
-  getMcpExportPath(workspaceId: string): string {
-    return path.join(this.ontologyDir, `mcp-${encodeURIComponent(workspaceId)}.json`);
-  }
-
-  private writeMcpExport(snapshot: IOntologyWorkbenchSnapshot): void {
-    const exportPath = this.getMcpExportPath(snapshot.workspaceId);
-    const temporaryPath = `${exportPath}.tmp`;
-    const payload = {
-      schemaVersion: snapshot.schemaVersion,
-      workspaceId: snapshot.workspaceId,
-      title: snapshot.draft.title,
-      description: snapshot.draft.description,
-      updatedAt: snapshot.updatedAt,
-      versions: snapshot.publishedVersions.map((version) => ({
-        id: version.id,
-        version: version.version,
-        status: version.status,
-        isActive: version.isActive,
-        summary: version.summary,
-        publishedAt: version.publishedAt,
-        snapshot: {
-          objects: version.snapshot.objects,
-          relations: version.snapshot.relations,
-          mappings: version.snapshot.mappings,
-          qualityRules: version.snapshot.qualityRules,
-          logicFunctions: version.snapshot.logicFunctions.map(({ body: _body, ...logicFunction }) => logicFunction),
-          actions: version.snapshot.actions.map(({ configuration: _configuration, ...action }) => action),
-        },
-      })),
-    };
-    writeFileSync(temporaryPath, JSON.stringify(payload), { encoding: 'utf8', mode: 0o600 });
-    renameSync(temporaryPath, exportPath);
   }
 
   private initialize(): void {
@@ -1320,7 +1284,7 @@ export class OntologyDatabase implements IOntologyRepository {
       return {
         id: row.id,
         name: row.name,
-        protocol: config.protocol === 'osdk' || config.protocol === 'api' ? config.protocol : 'mcp',
+        protocol: config.protocol === 'osdk' || config.protocol === 'api' ? config.protocol : 'script',
         status: row.status === 'draft' || row.status === 'disabled' ? row.status : 'active',
         toolCount: numberValue(config.toolCount) ?? 0,
         updatedAt: fromDbTime(row.updated_at),
@@ -1557,7 +1521,6 @@ export class OntologyDatabase implements IOntologyRepository {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     );
     for (const blueprint of snapshot.agentBlueprints) {
-      const skill = snapshot.skillBlueprints.find((item) => item.id === blueprint.skillBlueprintId);
       statement.run(
         blueprint.id,
         blueprint.name,
@@ -1566,13 +1529,12 @@ export class OntologyDatabase implements IOntologyRepository {
         null,
         blueprint.promptTemplate,
         toJson([]),
-        toJson(skill?.entityIds || []),
+        toJson(blueprint.entityIds),
         blueprint.ontologyVersionId,
         0,
         toJson({}),
         toJson({
-          skillBlueprintId: blueprint.skillBlueprintId,
-          toolManifest: skill?.toolManifest || [],
+          toolManifest: blueprint.toolManifest,
           status: blueprint.status,
           registeredAssistantId: blueprint.registeredAssistantId,
           registeredAt: blueprint.registeredAt,
@@ -1597,11 +1559,12 @@ export class OntologyDatabase implements IOntologyRepository {
         id: row.id,
         name: row.name,
         status: agentBlueprintStatus(config.status),
-        skillBlueprintId: stringValue(config.skillBlueprintId) ?? '',
         ontologyVersionId: row.ontology_version_id ?? '',
         registeredAssistantId: stringValue(config.registeredAssistantId) ?? row.api_key ?? undefined,
         registeredAt: numberValue(config.registeredAt),
         promptTemplate: row.system_prompt ?? '',
+        entityIds: parseJson<string[]>(row.entity_ids, []),
+        toolManifest: Array.isArray(config.toolManifest) ? (config.toolManifest as IOntologyAgentBlueprint['toolManifest']) : parseJson<IOntologyAgentBlueprint['toolManifest']>(stringValue(config.toolManifest), []),
         createdAt: fromDbTime(row.created_at),
         updatedAt: fromDbTime(row.updated_at),
       };

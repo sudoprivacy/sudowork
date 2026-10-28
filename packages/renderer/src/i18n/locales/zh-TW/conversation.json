@@ -4,6 +4,12 @@
     "body": "在 Agent 回覆過程中傳送新訊息，會中斷目前回覆並立即處理新訊息。",
     "ok": "打斷"
   },
+  "header": {
+    "agent": "Agent",
+    "model": "模型",
+    "localExecutionHint": "任務在目前裝置執行，可使用你授權的本機檔案與工具。",
+    "remoteExecutionHint": "任務在 Moss Server 執行，執行環境與工作空間位於伺服器。"
+  },
   "welcome": {
     "title": "Hi，今天有什麼安排？",
     "placeholder": "發送訊息、上傳檔案、開啟資料夾或建立定時任務...",
@@ -19,6 +25,10 @@
     "selectModel": "選擇模型",
     "useCliModel": "選擇模型",
     "modelSwitchNotSupported": "首次連接後將顯示可用模型列表。請先發送訊息以連接並載入可用模型。",
+    "modelSwitchUnavailable": "目前的執行環境不支援切換模型。",
+    "modelsLoading": "正在載入模型…",
+    "modelsUnavailable": "模型暫時無法使用",
+    "modelServiceUnavailable": "模型服務未提供可用模型，請檢查憑證及設定後再傳送。已保留你的草稿。",
     "specifyWorkspace": "關聯資料夾對話",
     "currentWorkspace": "目前工作空間",
     "clearWorkspace": "移除資料夾",
@@ -37,6 +47,7 @@
     "earlier": "更早",
     "noHistory": "暫無對話記錄",
     "noScheduledTask": "暫無執行記錄",
+    "noArchived": "暫無已封存會話",
     "actionNewConversation": "新建任務",
     "deleteTitle": "刪除",
     "deleteConfirm": "確定要刪除此對話嗎？",
@@ -77,10 +88,16 @@
     "pinned": "Pinned",
     "pinFailed": "Pin operation failed",
     "pinnedSection": "Pinned",
+    "archive": "封存",
+    "restore": "還原",
+    "archiveSuccess": "封存成功",
+    "restoreSuccess": "還原成功",
+    "archiveFailed": "封存操作失敗",
     "deleteSuccess": "刪除成功",
     "deleteFailed": "刪除失敗",
     "timeline": "對話",
-    "scheduledTab": "排程任務"
+    "scheduledTab": "排程任務",
+    "archivedTab": "已封存"
   },
   "dropdown": {
     "cliEngines": "CLI Agents",
@@ -292,5 +309,20 @@
       "remoteUnavailable": "云端会话暂不支持交互式终端。请在对话中让智能体执行命令，或切换到本地会话使用终端。",
       "createFailed": "终端启动失败，请检查工作目录是否存在及系统 Shell 配置，然后新建终端重试。"
     }
+  },
+  "browserSession": {
+    "openConversation": "Open conversation",
+    "conversationControl": "Use the conversation to interrupt or continue. Touching the page while AI is working interrupts first; check the refreshed page before clicking again.",
+    "disconnected": "Connection lost. Browser input remains paused. Reconnect and use the conversation to continue.",
+    "stoppedHuman": "Browser stopped. Send a message in the conversation when you want AI to continue.",
+    "chooseFilesPrompt": "This page requested a file. Interrupt the task before uploading from your device.",
+    "personalConnectBody": "Connect profile {{profile}}. SudoWork pauses agent tools before connecting. You and AI share the same automation tab and login state. Chrome stays open when disconnected. Send a message in the conversation to continue.",
+    "personalDisconnectBody": "Your Chrome, tabs and login state stay open. Agent tools remain paused until you continue through the conversation.",
+    "errors": {
+      "browser_restart_requires_observation": "Restart the browser and check its page, then send a message in the conversation to continue.",
+      "browser_control_held_by_user": "Browser input is paused for you. Continue through the conversation when ready.",
+      "browser_restart_required": "Interrupt the task and restart the browser to change its launch mode."
+    },
+    "conversationUpdateRequired": "Update the server to interrupt and continue this browser through the conversation. Viewing remains available."
   }
 }

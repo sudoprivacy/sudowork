@@ -121,15 +121,17 @@ it('shows the server catalog before any download, and My contains only local rec
 });
 
 it('shows organization-published agents only in the exclusive directory', async () => {
-  render(<MossCatalogBrowser {...props} publishedContent={(query) => <div>Organization agent: {query}</div>} />);
+  render(<MossCatalogBrowser {...props} publishedContent={(query) => <div>Organization agent: {query}</div>} hostedContent={(query) => <div>Hosted agent: {query}</div>} />);
   await screen.findByText('Catalog agent');
   expect(screen.queryByText('Organization agent:')).toBeNull();
   fireEvent.click(screen.getByText('exclusiveAgents'));
   expect(screen.getByText('Organization agent:')).toBeTruthy();
   fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Dify' } });
   expect(screen.getByText('Organization agent: Dify')).toBeTruthy();
+  expect(screen.getByText('Hosted agent: Dify')).toBeTruthy();
   fireEvent.click(screen.getByText('myAgents'));
   expect(screen.queryByText(/Organization agent:/)).toBeNull();
+  expect(screen.queryByText(/Hosted agent:/)).toBeNull();
   expect(screen.getByText('Local custom')).toBeTruthy();
   expect(state.install).not.toHaveBeenCalled();
 });

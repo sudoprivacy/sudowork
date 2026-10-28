@@ -30,7 +30,7 @@ const STATUS_LABELS: Record<string, string> = {
   error: 'agentStatus.error',
 };
 
-const AgentStatusDot: React.FC<{ conversation_id: string; conversationType?: TChatConversation['type'] }> = ({ conversation_id, conversationType }) => {
+const AgentStatusDot: React.FC<{ conversation_id: string; conversationType?: TChatConversation['type']; showLabel?: boolean }> = ({ conversation_id, conversationType, showLabel = false }) => {
   const [status, setStatus] = useState('');
   const [restarting, setRestarting] = useState(false);
   const { t } = useTranslation();
@@ -112,10 +112,11 @@ const AgentStatusDot: React.FC<{ conversation_id: string; conversationType?: TCh
 
   return (
     <Dropdown droplist={dropdownMenu} trigger='click' position='bl'>
-      <Button type='text' size='small' className='!h-auto !w-auto !min-w-0 !px-0 !py-0 cursor-pointer'>
+      <Button type='text' size='small' className='!h-auto !w-auto !min-w-0 !px-0 !py-0 cursor-pointer' aria-label={t(labelKey, { defaultValue: status })}>
         <span className='inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 bg-2' title={t(labelKey, { defaultValue: status })}>
           <Connection theme='outline' size={16} fill={'var(--foreground)'} />
           <span className='ml-1 size-2 rounded-full' style={{ backgroundColor: dotColor }} />
+          {showLabel && <span className='agent-status-label ml-1 text-11px text-secondary whitespace-nowrap'>{t(labelKey, { defaultValue: status })}</span>}
         </span>
       </Button>
     </Dropdown>

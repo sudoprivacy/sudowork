@@ -24,6 +24,15 @@ export function createExternalProviderRouter(deps: { auth: AuthDeps; request: Mo
     })
   })
   const routes: Array<{ method: 'get' | 'post'; path: string }> = [
+    { method: 'get', path: '/hosted-agents' },
+    { method: 'get', path: '/hosted-agents/:id/versions' },
+    { method: 'get', path: '/hosted-sessions' },
+    { method: 'get', path: '/hosted-sessions/:id/tasks' },
+    { method: 'get', path: '/tasks/:id' },
+    { method: 'get', path: '/tasks/:id/specification' },
+    { method: 'post', path: '/tasks/:id/cancel' },
+    { method: 'post', path: '/tasks/:id/reconcile' },
+    { method: 'post', path: '/tasks/:id/close' },
     { method: 'get', path: '/external-agents/access' },
     { method: 'get', path: '/external-agents/admin/policy' },
     { method: 'get', path: '/external-agents/admin/members' },
@@ -46,6 +55,11 @@ export function createExternalProviderRouter(deps: { auth: AuthDeps; request: Mo
   ]
   for (const route of routes)
     router[route.method](route.path, requireSession, (req: AuthedRequest, res, next) => {
+      const profile = route.path === '/tasks/:id/evidence' ? req.query.profile : undefined
+      if (profile !== undefined && profile !== 'catalog-v1') {
+        res.status(400).json({ error: 'INVALID_EVIDENCE_PROFILE' })
+        return
+      }
       void withExternalRequestDeadline(async (signal) => {
         const deadline = Date.now() + EXTERNAL_REQUEST_TIMEOUT_MS
         const principalId = req.webSession!.principalId
@@ -76,14 +90,19 @@ export function createExternalProviderRouter(deps: { auth: AuthDeps; request: Mo
               path: `/api/v1${req.path}`,
               accessToken: context.accessToken,
               ...(route.method === 'post' ? { body: req.body } : {}),
-              ...(req.query.cursor === undefined && req.query.after === undefined
+              ...(req.query.cursor === undefined &&
+              req.query.after === undefined &&
+              profile === undefined
                 ? {}
                 : {
-                    searchParams: Object.fromEntries(
-                      ['cursor', 'after']
-                        .filter((key) => req.query[key] !== undefined)
-                        .map((key) => [key, String(req.query[key])]),
-                    ),
+                    searchParams: {
+                      ...Object.fromEntries(
+                        ['cursor', 'after']
+                          .filter((key) => req.query[key] !== undefined)
+                          .map((key) => [key, String(req.query[key])]),
+                      ),
+                      ...(profile === 'catalog-v1' ? { profile } : {}),
+                    },
                   }),
             },
             Math.max(1, deadline - Date.now()),

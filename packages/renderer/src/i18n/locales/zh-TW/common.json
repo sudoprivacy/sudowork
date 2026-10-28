@@ -1,4 +1,9 @@
 {
+  "organizationSwitch": {
+    "title": "切換企業",
+    "confirm": "切換後將使用所選企業的權限和模型帳戶。目前的工作階段會保留。",
+    "failed": "切換企業失敗，請重新驗證登入後重試。"
+  },
   "send": "發送",
   "cancel": "取消",
   "save": "儲存",
@@ -64,7 +69,7 @@
   "tray.showWindow": "顯示 Sudowork",
   "tray.quit": "結束",
   "siderMenu": {
-    "agent": "智能體列表",
+    "agent": "智能體庫",
     "skillStore": "技能商店",
     "security": "安全防護",
     "webui": "遠端連線",

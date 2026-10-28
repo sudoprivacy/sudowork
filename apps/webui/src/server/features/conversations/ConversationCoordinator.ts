@@ -1,20 +1,19 @@
 import { randomUUID } from 'node:crypto'
+import { buildInputControlMessage } from '@sudowork/moss-client/input-delivery'
+import {
+  inputStateSchema,
+  inputReceiptSchema,
+  type InputAction,
+  type InputState,
+} from '@sudowork/contracts/input-delivery'
 import type { Pool } from 'pg'
 import type WebSocket from 'ws'
-import type { AppConfig } from '../../config.js'
-import type { AuthDeps } from '../auth/authService.js'
-import { getMossContext, MossUnauthorizedError } from '../auth/authService.js'
-import { findPrincipalById, resolveSessionOwnerPrincipalId } from '../auth/principalRepository.js'
-import { requireAccessibleSession, SessionForbiddenError } from './conversationService.js'
-import type { WebSessionRow } from '../auth/sessionRepository.js'
-import type { MossSessionPort } from '@sudowork/moss-client'
+import type { MossSessionPort, MossCallContext } from '@sudowork/moss-client'
 import {
   MossHttpError,
   MossNetworkError,
   deriveWsBaseUrl,
   isMossRuntimeUpdateRequired,
-} from '@sudowork/moss-client'
-import {
   MossUpstreamSocket,
   buildAnswerQuestionMessage,
   buildControlResponseMessage,
@@ -28,6 +27,13 @@ import {
   ClientOutboundMessageSchema,
   type ServerInboundEvent,
 } from '@sudowork/contracts/conversations'
+import { deriveConversationTitle } from '@sudowork/common/conversationTitle'
+import type { AppConfig } from '../../config.js'
+import type { AuthDeps } from '../auth/authService.js'
+import { getMossContext, MossUnauthorizedError } from '../auth/authService.js'
+import { findPrincipalById, resolveSessionOwnerPrincipalId } from '../auth/principalRepository.js'
+import type { WebSessionRow } from '../auth/sessionRepository.js'
+import { requireAccessibleSession, SessionForbiddenError } from './conversationService.js'
 import {
   acquireWriteLock,
   acquireRecoveredWriteLock,
@@ -43,7 +49,6 @@ import {
   setConversationTitleIfUnset,
   upsertConversationModel,
 } from './conversationMetaRepository.js'
-import { deriveConversationTitle } from '@sudowork/common/conversationTitle'
 
 /**
  * 会话协调器（计划 3.3/3.8）：
@@ -75,6 +80,19 @@ interface Entry {
   pendingDelivery: PendingDelivery | null
   upstreamOpening: Promise<void> | null
   events: Promise<void>
+  browserIntent: Promise<unknown>
+  inputEpoch: number
+  inputState: InputState | null
+  inputRequests: Map<
+    string,
+    {
+      conn: BrowserConnection
+      clientRequestId: string
+      isMutation: boolean
+      isNewReservation: boolean
+      timer: ReturnType<typeof setTimeout>
+    }
+  >
 }
 
 interface PendingDelivery {
@@ -88,6 +106,11 @@ export interface CoordinatorDeps {
   config: AppConfig
   auth: AuthDeps
   moss: MossSessionPort
+  browserControl?: (
+    ctx: MossCallContext,
+    sessionId: string,
+    intent: 'interrupt' | 'continue',
+  ) => Promise<boolean>
 }
 
 export class ConversationCoordinator {
@@ -128,6 +151,10 @@ export class ConversationCoordinator {
         pendingDelivery: null,
         upstreamOpening: null,
         events: Promise.resolve(),
+        browserIntent: Promise.resolve(),
+        inputEpoch: 0,
+        inputState: null,
+        inputRequests: new Map(),
       }
       this.entries.set(k, entry)
     }
@@ -138,6 +165,20 @@ export class ConversationCoordinator {
     if (ws.readyState === ws.OPEN) {
       ws.send(JSON.stringify(event))
     }
+  }
+
+  private browserIntent(
+    entry: Entry,
+    ctx: MossCallContext,
+    intent: 'interrupt' | 'continue',
+    epoch: number,
+  ): Promise<unknown> {
+    const pending = entry.browserIntent.then(() => {
+      if (intent === 'continue' && epoch !== entry.inputEpoch) return false
+      return this.deps.browserControl?.(ctx, entry.mossSessionId, intent)
+    })
+    entry.browserIntent = pending.catch(() => {})
+    return pending
   }
 
   /** Preserve upstream event order without delaying concurrent client rejection. */
@@ -406,6 +447,8 @@ export class ConversationCoordinator {
 
     const attemptId = resumed.session.attemptId ?? null
     if (!attemptId || attemptId !== entry.upstreamAttemptId) this.clearPendingPermissions(entry)
+    if (attemptId !== entry.upstreamAttemptId && entry.upstreamAttemptId !== null)
+      this.resetInputProjection(entry)
     entry.upstreamAttemptId = attemptId
 
     const upstream = new MossUpstreamSocket(
@@ -440,6 +483,80 @@ export class ConversationCoordinator {
     for (const payload of decodeMossEventPayloads(event)) {
       const type = payload.type
       if (typeof type !== 'string' || !UPSTREAM_EVENT_TYPES.has(type)) continue
+      if (type === 'input_delivery_reply') {
+        const requestId = typeof payload.requestId === 'string' ? payload.requestId : ''
+        const request = entry.inputRequests.get(requestId)
+        if (!request) continue
+        clearTimeout(request.timer)
+        entry.inputRequests.delete(requestId)
+        const parsed = inputReceiptSchema.safeParse(payload.receipt)
+        if (parsed.success) await this.projectInputState(entry, parsed.data.state)
+        else if (
+          request.isMutation &&
+          (payload.isOutcomeUnknown || (!payload.error && payload.isSupported !== false))
+        ) {
+          await markUncertain(this.deps.pool, {
+            principalId: entry.principalId,
+            mossSessionId: entry.mossSessionId,
+            webSessionId: request.conn.webSession.id,
+          })
+          await this.broadcastLockState(entry)
+        } else if (
+          request.isMutation &&
+          request.isNewReservation &&
+          !entry.inputState?.running &&
+          !entry.inputState?.pending.length &&
+          ![...entry.inputRequests.values()].some((pending) => pending.isMutation)
+        ) {
+          await releaseToIdleIfHeld(this.deps.pool, {
+            principalId: entry.principalId,
+            mossSessionId: entry.mossSessionId,
+            webSessionId: request.conn.webSession.id,
+          })
+          await this.broadcastLockState(entry)
+        }
+        // Host-expanded prompt text is not browser editor state.
+        const receipt = parsed.success ? parsed.data : undefined
+        if (receipt?.recalled)
+          receipt.recalled = receipt.recalled.map((item) => ({
+            ...item,
+            content: item.draft
+              ? [
+                  ...item.content.filter((block) => block.type === 'image'),
+                  { type: 'text' as const, text: item.draft.text },
+                ]
+              : item.content,
+          }))
+        if (payload.error) console.warn('[coordinator] input failed:', payload.error)
+        this.sendTo(request.conn.ws, {
+          kind: 'upstream',
+          event: {
+            type,
+            requestId: request.clientRequestId,
+            ...(receipt
+              ? { receipt }
+              : payload.isSupported === false
+                ? { isSupported: false }
+                : {
+                    error:
+                      payload.error && !payload.isOutcomeUnknown
+                        ? 'INPUT_REJECTED'
+                        : 'INPUT_OUTCOME_UNKNOWN',
+                  }),
+          },
+        })
+        continue
+      }
+      if (type === 'input_delivery_update') {
+        const update = payload.update as { kind?: string; state?: unknown } | undefined
+        if (update?.kind === 'state') {
+          const state = inputStateSchema.safeParse(update.state)
+          if (!state.success) continue
+          await this.projectInputState(entry, state.data)
+        }
+        this.broadcast(entry, { kind: 'upstream', event: payload })
+        continue
+      }
       if (type === 'control_request' && typeof payload.request_id === 'string') {
         const existing = [...entry.pendingPermissions.values()].find(
           (permission) => permission.upstreamRequestId === payload.request_id,
@@ -475,6 +592,10 @@ export class ConversationCoordinator {
         }
       }
 
+      if (payload.type === 'result' && entry.inputState) {
+        this.broadcast(entry, { kind: 'upstream', event: payload })
+        continue
+      }
       if (payload.type === 'result') {
         const delivery = entry.pendingDelivery
         await releaseToIdle(this.deps.pool, {
@@ -492,6 +613,19 @@ export class ConversationCoordinator {
   private async handleUpstreamClose(entry: Entry, upstream: MossUpstreamSocket): Promise<void> {
     if (!this.isCurrentUpstream(entry, upstream)) return
     const writerWebSessionId = entry.upstreamOwnerWebSessionId
+    for (const request of entry.inputRequests.values()) {
+      clearTimeout(request.timer)
+      this.sendTo(request.conn.ws, {
+        kind: 'upstream',
+        event: {
+          type: 'input_delivery_reply',
+          requestId: request.clientRequestId,
+          error: 'INPUT_OUTCOME_UNKNOWN',
+        },
+      })
+    }
+    entry.inputRequests.clear()
+    this.resetInputProjection(entry)
     entry.upstream = null
     entry.upstreamOwnerWebSessionId = null
     const delivery = entry.pendingDelivery
@@ -515,6 +649,151 @@ export class ConversationCoordinator {
     }
   }
 
+  private resetInputProjection(entry: Entry): void {
+    entry.inputState = null
+    this.broadcast(entry, { kind: 'upstream', event: { type: 'input_delivery_reset' } })
+  }
+
+  private async projectInputState(entry: Entry, state: InputState): Promise<void> {
+    if (!entry.inputState || entry.inputState.revision < state.revision) entry.inputState = state
+    state = entry.inputState
+    if (
+      (state.running || (!state.paused && state.pending.length > 0)) &&
+      entry.upstreamOwnerWebSessionId
+    ) {
+      await acquireWriteLock(this.deps.pool, {
+        principalId: entry.principalId,
+        mossSessionId: entry.mossSessionId,
+        webSessionId: entry.upstreamOwnerWebSessionId,
+        isExistingTurnAllowed: true,
+      })
+      await this.broadcastLockState(entry)
+    }
+    if (
+      !state.running &&
+      (state.paused || state.pending.length === 0) &&
+      ![...entry.inputRequests.values()].some((request) => request.isMutation)
+    ) {
+      await releaseToIdle(this.deps.pool, {
+        principalId: entry.principalId,
+        mossSessionId: entry.mossSessionId,
+      })
+      entry.pendingDelivery = null
+      await this.broadcastLockState(entry)
+    }
+  }
+
+  private async forwardInput(
+    entry: Entry,
+    conn: BrowserConnection,
+    clientRequestId: string,
+    action: InputAction,
+    ctx: MossCallContext,
+  ): Promise<void> {
+    const isMutation = action.action !== 'snapshot'
+    const requestId = randomUUID()
+    const epoch = entry.inputEpoch
+    const replyError = (error: string) =>
+      this.sendTo(conn.ws, {
+        kind: 'upstream',
+        event: { type: 'input_delivery_reply', requestId: clientRequestId, error },
+      })
+    const previousLock = await getLock(this.deps.pool, {
+      principalId: entry.principalId,
+      mossSessionId: entry.mossSessionId,
+    })
+    const isNewReservation = !previousLock || previousLock.state === 'idle'
+    if (isMutation) {
+      const acquired = await acquireWriteLock(this.deps.pool, {
+        principalId: conn.principalId,
+        mossSessionId: entry.mossSessionId,
+        webSessionId: conn.webSession.id,
+        isExistingTurnAllowed: true,
+      })
+      if (!acquired.ok) {
+        replyError(acquired.reason === 'UNCERTAIN' ? 'LOCK_UNCERTAIN' : 'CONVERSATION_BUSY')
+        return
+      }
+    }
+    const timer = setTimeout(
+      () =>
+        this.serialEvent(entry, async () => {
+          if (!entry.inputRequests.delete(requestId)) return
+          if (isMutation) {
+            await markUncertain(this.deps.pool, {
+              principalId: entry.principalId,
+              mossSessionId: entry.mossSessionId,
+              webSessionId: conn.webSession.id,
+            })
+            await this.broadcastLockState(entry)
+          }
+          replyError('INPUT_OUTCOME_UNKNOWN')
+        }),
+      30_000,
+    )
+    timer.unref()
+    entry.inputRequests.set(requestId, {
+      conn,
+      clientRequestId,
+      isMutation,
+      isNewReservation,
+      timer,
+    })
+    try {
+      if (isMutation) await this.broadcastLockState(entry)
+      // A read-only snapshot can use the current authenticated upstream without taking its writer lease.
+      if (isMutation || !entry.upstream || entry.upstream.isClosed)
+        await this.ensureUpstream(entry, conn)
+      if (
+        isMutation &&
+        (action.action === 'submit' || action.action === 'flush') &&
+        !entry.inputState?.running
+      ) {
+        await this.browserIntent(entry, ctx, 'continue', epoch)
+      }
+      if (epoch !== entry.inputEpoch || !entry.subscribers.has(conn))
+        throw new Error('Input was cancelled before delivery')
+      if (!entry.inputRequests.has(requestId)) return
+      if (!entry.upstream?.send(buildInputControlMessage(requestId, action)))
+        throw new Error('UPSTREAM_NOT_CONNECTED')
+      if (action.action === 'submit') {
+        const text =
+          action.display ??
+          action.content
+            .filter((block) => block.type === 'text')
+            .map((block) => block.text)
+            .join('\n')
+        const title = deriveConversationTitle(text)
+        if (title)
+          void setConversationTitleIfUnset(
+            this.deps.pool,
+            conn.principalId,
+            entry.mossSessionId,
+            title,
+          ).catch(() => {})
+      }
+    } catch (error) {
+      clearTimeout(timer)
+      entry.inputRequests.delete(requestId)
+      if (
+        isMutation &&
+        isNewReservation &&
+        !entry.inputState?.running &&
+        !entry.inputState?.pending.length &&
+        ![...entry.inputRequests.values()].some((pending) => pending.isMutation)
+      ) {
+        await releaseToIdleIfHeld(this.deps.pool, {
+          principalId: conn.principalId,
+          mossSessionId: entry.mossSessionId,
+          webSessionId: conn.webSession.id,
+        })
+        await this.broadcastLockState(entry)
+      }
+      console.warn('[coordinator] input forwarding failed:', error)
+      replyError('UPSTREAM_FAILED')
+    }
+  }
+
   async handleClientMessage(conn: BrowserConnection, raw: unknown): Promise<void> {
     const parsed = ClientOutboundMessageSchema.safeParse(raw)
     if (!parsed.success) {
@@ -523,12 +802,17 @@ export class ConversationCoordinator {
     }
     const msg = parsed.data
     const entry = this.entryFor(conn.principalId, conn.mossSessionId)
+    const inputEpoch = entry.inputEpoch
     let delivery: PendingDelivery | undefined
 
     try {
       // An existing upstream socket does not retain a revoked management grant.
       const authorized = await this.authorize(conn.webSession, entry.mossSessionId)
       if (authorized.ownerPrincipalId !== conn.principalId) throw new SessionForbiddenError()
+      if (msg.kind === 'input') {
+        await this.forwardInput(entry, conn, msg.requestId, msg.action, authorized)
+        return
+      }
       if (msg.kind === 'send' || msg.kind === 'answer_question') {
         if (entry.pendingDelivery?.phase === 'cancelled')
           await this.releasePendingDelivery(entry, entry.pendingDelivery)
@@ -591,6 +875,9 @@ export class ConversationCoordinator {
         await this.broadcastLockState(entry)
 
         await this.ensureUpstream(entry, conn)
+        // A cancelled native question cannot release a later human lease.
+        // Fresh chat is the supported continuation after interruption.
+        if (msg.kind === 'send') await this.browserIntent(entry, authorized, 'continue', inputEpoch)
         const payload =
           msg.kind === 'send'
             ? buildUserMessage({
@@ -604,6 +891,10 @@ export class ConversationCoordinator {
               })
             : buildAnswerQuestionMessage(entry.mossSessionId, msg.parentToolUseId, msg.text)
 
+        if (inputEpoch !== entry.inputEpoch) {
+          if (delivery) await this.releasePendingDelivery(entry, delivery)
+          return
+        }
         if (
           delivery &&
           (entry.pendingDelivery !== delivery ||
@@ -726,14 +1017,24 @@ export class ConversationCoordinator {
           principalId: conn.principalId,
           mossSessionId: entry.mossSessionId,
         })
-        if (lock?.writerWebSessionId !== conn.webSession.id) {
+        if (lock?.state === 'uncertain') {
+          this.sendTo(conn.ws, { kind: 'error', code: 'LOCK_UNCERTAIN' })
+          return
+        }
+        if (lock?.state === 'running' && lock.writerWebSessionId !== conn.webSession.id) {
           this.sendTo(conn.ws, { kind: 'error', code: 'NOT_WRITER' })
           return
+        }
+        entry.inputEpoch++
+        if (entry.pendingDelivery && entry.pendingDelivery.phase !== 'submitted') {
+          await this.releasePendingDelivery(entry, entry.pendingDelivery)
         }
         await this.ensureUpstream(entry, conn)
         if (!entry.upstream?.send(buildInterruptMessage())) {
           this.sendTo(conn.ws, { kind: 'error', code: 'UPSTREAM_NOT_CONNECTED' })
+          return
         }
+        await this.browserIntent(entry, authorized, 'interrupt', entry.inputEpoch)
       }
     } catch (err) {
       if (delivery) {
@@ -745,6 +1046,15 @@ export class ConversationCoordinator {
             webSessionId: conn.webSession.id,
           })
       }
+      if (msg.kind === 'input')
+        this.sendTo(conn.ws, {
+          kind: 'upstream',
+          event: {
+            type: 'input_delivery_reply',
+            requestId: msg.requestId,
+            error: 'UPSTREAM_FAILED',
+          },
+        })
       if (
         err instanceof SessionForbiddenError ||
         err instanceof MossUnauthorizedError ||
@@ -788,6 +1098,8 @@ export class ConversationCoordinator {
     const k = this.key(principalId, mossSessionId)
     const entry = this.entries.get(k)
     if (entry) {
+      for (const request of entry.inputRequests.values()) clearTimeout(request.timer)
+      entry.inputRequests.clear()
       entry.upstream?.close()
       const notify = [...entry.subscribers]
       this.entries.delete(k)

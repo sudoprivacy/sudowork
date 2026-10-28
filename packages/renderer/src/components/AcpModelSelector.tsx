@@ -6,6 +6,7 @@
 
 import { Button, Dropdown, Message, Tooltip } from '@arco-design/web-react';
 import { IconRefresh } from '@arco-design/web-react/icon';
+import { Down } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -17,6 +18,7 @@ import { ConfigStorage } from '@sudowork/common/storage';
 import type { IProvider } from '@sudowork/common/storage';
 import type { AcpModelInfo } from '@sudowork/common/acpTypes';
 import { useAuth } from '@renderer/context/AuthContext';
+import ActionChip from '@renderer/components/ui/ActionChip';
 import { usePreviewContext } from '@renderer/pages/conversation/preview';
 import { getModelDisplayLabel } from '@renderer/utils/agentUiDisplay';
 import { buildProviderModelGroups } from '@renderer/utils/modelProviderGroups';
@@ -44,15 +46,7 @@ function buildFallbackModelInfo(modelId?: string | null): AcpModelInfo | null {
  * cached model info before the agent manager is created (pre-first-message).
  * When preview panel is open, shows compact version (truncated label).
  */
-const AcpModelSelector: React.FC<{
-  conversationId: string;
-  /** ACP backend name for loading cached models (e.g., 'claude', 'qwen') */
-  backend?: string;
-  /** Pre-selected model ID from Guid page */
-  initialModelId?: string;
-  /** Compact mode: force truncate the model label (e.g. team member row). */
-  isCompact?: boolean;
-}> = ({ conversationId, backend, initialModelId, isCompact = false }) => {
+const AcpModelSelector: React.FC<IAcpModelSelectorProps> = ({ conversationId, backend, initialModelId, isCompact = false, labelPrefix }) => {
   const { t } = useTranslation();
   const { isOpen: isPreviewOpen } = usePreviewContext();
   const { isGuest } = useAuth();
@@ -394,15 +388,31 @@ const AcpModelSelector: React.FC<{
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
+  function renderTrigger(label: string, isSwitchable = false, isReadOnly = false) {
+    const content = (
+      <span className='inline-flex items-center gap-1.5 min-w-0'>
+        {currentModelHealth.status !== 'unknown' && <span className={`size-1.5 rounded-full shrink-0 ${currentModelHealth.color}`} />}
+        <span className='block truncate'>{labelPrefix ? `${labelPrefix} · ${label}` : label}</span>
+        {labelPrefix && isSwitchable && <Down size={12} className='text-tertiary shrink-0' />}
+      </span>
+    );
+
+    if (labelPrefix) {
+      return <ActionChip className={compact ? '!max-w-[140px]' : undefined} label={content} title={label} aria-label={`${labelPrefix} · ${label}`} />;
+    }
+
+    return (
+      <Button className={classNames('sendbox-model-btn header-model-btn', compact && '!max-w-[120px]')} shape='round' size='small' style={isReadOnly ? { cursor: 'default' } : undefined}>
+        {content}
+      </Button>
+    );
+  }
+
   // State 1: No model info — show disabled "Use CLI model" button
   if (!modelInfo) {
     return (
       <Tooltip content={t('conversation.welcome.modelSwitchNotSupported')} position='top'>
-        <Button className={classNames('sendbox-model-btn header-model-btn', compact && '!max-w-[120px]')} shape='round' size='small' style={{ cursor: 'default' }}>
-          <span className='flex items-center gap-1.5 min-w-0'>
-            <span className={compact ? 'block truncate' : undefined}>{t('conversation.welcome.useCliModel')}</span>
-          </span>
-        </Button>
+        {renderTrigger(t('conversation.welcome.useCliModel'), false, true)}
       </Tooltip>
     );
   }
@@ -411,12 +421,7 @@ const AcpModelSelector: React.FC<{
   if (!modelInfo.canSwitch) {
     return (
       <Tooltip content={displayLabel} position='top'>
-        <Button className={classNames('sendbox-model-btn header-model-btn', compact && '!max-w-[120px]')} shape='round' size='small' style={{ cursor: 'default' }}>
-          <span className='flex items-center gap-1.5 min-w-0'>
-            {currentModelHealth.status !== 'unknown' && <div className={`size-1.5 rounded-full shrink-0 ${currentModelHealth.color}`} />}
-            <span className={compact ? 'block truncate' : undefined}>{displayLabel}</span>
-          </span>
-        </Button>
+        {renderTrigger(displayLabel, false, true)}
       </Tooltip>
     );
   }
@@ -467,14 +472,21 @@ const AcpModelSelector: React.FC<{
         </div>
       }
     >
-      <Button className={classNames('sendbox-model-btn header-model-btn', compact && '!max-w-[120px]')} shape='round' size='small'>
-        <span className='flex items-center gap-1.5 min-w-0'>
-          {currentModelHealth.status !== 'unknown' && <div className={`size-1.5 rounded-full shrink-0 ${currentModelHealth.color}`} />}
-          <span className={compact ? 'block truncate' : undefined}>{displayLabel}</span>
-        </span>
-      </Button>
+      {renderTrigger(displayLabel, true)}
     </Dropdown>
   );
 };
+
+interface IAcpModelSelectorProps {
+  conversationId: string;
+  /** ACP backend name for loading cached models (e.g., 'claude', 'qwen') */
+  backend?: string;
+  /** Pre-selected model ID from Guid page */
+  initialModelId?: string;
+  /** Compact mode: force truncate the model label (e.g. team member row). */
+  isCompact?: boolean;
+  /** Optional leading label used by compact header controls. */
+  labelPrefix?: string;
+}
 
 export default AcpModelSelector;

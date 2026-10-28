@@ -6,6 +6,14 @@ import type { ExternalConversationView } from './navigation';
 export type UnifiedHistoryConversation = TChatConversation | ExternalConversationView;
 type UnifiedTimelineItem = Omit<TimelineItem, 'conversation'> & { conversation?: UnifiedHistoryConversation };
 
+function compareTimelineItems(a: UnifiedTimelineItem, b: UnifiedTimelineItem): number {
+  const timeDiff = b.time - a.time;
+  if (timeDiff !== 0) return timeDiff;
+  const idA = a.conversation?.id || a.workspaceGroup?.workspace || '';
+  const idB = b.conversation?.id || b.workspaceGroup?.workspace || '';
+  return idB.localeCompare(idA);
+}
+
 /** Merge projections into chronological views, keeping native actions and personal-agent groups native. */
 export function mergeExternalHistory(history: GroupedHistoryResult, external: ExternalConversationView[], t: (key: string) => string) {
   const sections = new Map<string, UnifiedTimelineItem[]>(history.timelineSections.map((section) => [section.timeline, [...section.items]]));
@@ -19,6 +27,6 @@ export function mergeExternalHistory(history: GroupedHistoryResult, external: Ex
   const order = ['conversation.history.today', 'conversation.history.yesterday', 'conversation.history.recent7Days', 'conversation.history.earlier'].map(t);
   return {
     ...history,
-    timelineSections: order.filter((timeline) => sections.has(timeline)).map((timeline) => ({ timeline, items: sections.get(timeline)!.sort((a, b) => b.time - a.time) })),
+    timelineSections: order.filter((timeline) => sections.has(timeline)).map((timeline) => ({ timeline, items: sections.get(timeline)!.sort(compareTimelineItems) })),
   };
 }

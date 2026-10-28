@@ -14,6 +14,7 @@ export default function ExternalTaskEvidence({ taskId, onClose }: IExternalTaskE
     let isCancelled = false;
     setIsLoading(true);
     setIsFailed(false);
+    setEvidence(null);
     void externalProviders.evidence
       .invoke({ taskId })
       .then((result) => {
@@ -47,18 +48,60 @@ export default function ExternalTaskEvidence({ taskId, onClose }: IExternalTaskE
       {evidence && (
         <div className='flex flex-col gap-3 break-all'>
           <Typography.Text>{t('agent.external.versions.task', { id: evidence.task_id })}</Typography.Text>
+          <Typography.Text>{t('agent.external.registry.session', { id: evidence.session_id })}</Typography.Text>
+          {evidence.attempt_id && <Typography.Text>{t('agent.external.registry.attempt', { id: evidence.attempt_id })}</Typography.Text>}
+          <Typography.Text>{t(`agent.external.status.${evidence.status}`)}</Typography.Text>
+          {evidence.status === 'unknown' && <Alert type='warning' content={t('agent.external.provenance.unknown')} />}
+          {evidence.provenance ? (
+            <div className='flex flex-col gap-2 rounded border border-solid border-color-border-2 p-3'>
+              <Typography.Text bold>{t('agent.external.provenance.title')}</Typography.Text>
+              <Typography.Text>{evidence.provenance.protocol}</Typography.Text>
+              <Typography.Text>{t('agent.external.provenance.adapter', { value: evidence.provenance.adapter_version })}</Typography.Text>
+              <Typography.Text>{t('agent.external.provenance.revision', { value: evidence.provenance.source_revision ?? t('agent.external.usage.notRecorded') })}</Typography.Text>
+              <Typography.Text>{t('agent.external.provenance.recorded', { value: new Date(evidence.provenance.recorded_at).toLocaleString() })}</Typography.Text>
+              {evidence.provenance.source_id && <Typography.Text>{t('agent.external.provenance.source', { value: evidence.provenance.source_id })}</Typography.Text>}
+              {evidence.provenance.candidate_id && <Typography.Text>{t('agent.external.provenance.candidate', { value: evidence.provenance.candidate_id })}</Typography.Text>}
+              <dl className='grid grid-cols-2 gap-2'>
+                {(['streaming', 'cancel', 'resume', 'version_pin', 'idempotency', 'human_approval', 'trace_export'] as const).map((key) => (
+                  <div key={key}>
+                    <dt>{t(`agent.external.usage.${key}`)}</dt>
+                    <dd className='m-0'>{t(`agent.external.usage.${evidence.provenance?.capabilities[key] ?? 'unknown'}`)}</dd>
+                  </div>
+                ))}
+              </dl>
+              <Typography.Text type='secondary'>{t('agent.external.provenance.boundary')}</Typography.Text>
+            </div>
+          ) : (
+            <Typography.Text type='secondary'>{t('agent.external.provenance.missing')}</Typography.Text>
+          )}
           {evidence.selection ? (
             <>
               <Typography.Text bold>{t('agent.external.versions.selected', { version: evidence.selection.version })}</Typography.Text>
               {evidence.selection.resolved_from_channel && <Typography.Text>{t('agent.external.versions.channel', { channel: evidence.selection.resolved_from_channel, revision: evidence.selection.channel_revision })}</Typography.Text>}
               <Typography.Text type='secondary'>{t('agent.external.versions.source', { digest: evidence.selection.source_digest })}</Typography.Text>
+              {evidence.selection.release_digest && <Typography.Text type='secondary'>{t('agent.external.registry.release', { digest: evidence.selection.release_digest })}</Typography.Text>}
+              {evidence.selection.registry ? (
+                <>
+                  <Typography.Text bold>{t('agent.external.registry.verified')}</Typography.Text>
+                  <Typography.Text>{t('agent.external.registry.principal', { principal: `${evidence.selection.registry.principal.trust_domain}/${evidence.selection.registry.principal.agent_name}` })}</Typography.Text>
+                  <Typography.Text type='secondary'>{t('agent.external.registry.digest', { digest: evidence.selection.registry.registration_digest })}</Typography.Text>
+                  <Typography.Text type='secondary'>{t('agent.external.registry.key', { key: evidence.selection.registry.signing_key_id })}</Typography.Text>
+                  <Alert type='info' content={t('agent.external.registry.boundary')} />
+                </>
+              ) : (
+                <Typography.Text type='secondary'>{t('agent.external.registry.unrecorded')}</Typography.Text>
+              )}
             </>
           ) : (
             <Typography.Text>{t('agent.external.versions.noSelection')}</Typography.Text>
           )}
           {evidence.execution ? (
             <>
-              <Typography.Text>{t('agent.external.versions.run', { id: evidence.execution.provider_run_id })}</Typography.Text>
+              <Typography.Text>{evidence.execution.provider_run_id ? t('agent.external.versions.run', { id: evidence.execution.provider_run_id }) : t('agent.external.protocol.noRun')}</Typography.Text>
+              {evidence.execution.protocol && <Typography.Text>{evidence.execution.protocol}</Typography.Text>}
+              {evidence.execution.provider_response_id && <Typography.Text>{t('agent.external.protocol.response', { id: evidence.execution.provider_response_id })}</Typography.Text>}
+              {evidence.execution.trace_id && <Typography.Text>{t('agent.external.protocol.trace', { id: evidence.execution.trace_id })}</Typography.Text>}
+              {evidence.execution.usage && <Typography.Text>{t('agent.external.protocol.usage', { input: evidence.execution.usage.input_tokens, output: evidence.execution.usage.output_tokens })}</Typography.Text>}
               {evidence.execution.execution_revision ? <Typography.Text>{t('agent.external.versions.executed', { revision: evidence.execution.execution_revision })}</Typography.Text> : <Alert type='info' content={t('agent.external.versions.snapshotOnly')} />}
             </>
           ) : (

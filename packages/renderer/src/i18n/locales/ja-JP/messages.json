@@ -58,5 +58,13 @@
     "yesAlwaysAllowServer": "はい、サーバー \"{{serverName}}\" のすべてのツールを常に許可",
     "no": "いいえ (esc)"
   },
-  "openFileFailed": "Could not open the file. Check that it still exists in this session workspace and that you are connected."
+  "openFileFailed": "Could not open the file. Check that it still exists in this session workspace and that you are connected.",
+  "inputDelivery": {
+    "queue": "待機中",
+    "steer": "指示を追加",
+    "keys": "Enter: 指示を追加 · Tab: キュー · ↑: 入力を戻す",
+    "flushHint": "Esc: 保留中の入力を送信",
+    "cancelHint": "Esc / Ctrl+C: キャンセル",
+    "failed": "入力を送信できませんでした"
+  }
 }

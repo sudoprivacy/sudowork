@@ -91,7 +91,7 @@ describe('shared Agent entry', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Use template' }));
     await waitFor(() => expect(screen.getByLabelText('route')).toHaveTextContent('/conversation/latest'));
     expect(screen.getByLabelText('shared history')).toHaveTextContent('older,latest,foreign,scheduled');
-    expect(state.history).toHaveBeenLastCalledWith({ page: 0, pageSize: 10000, sessionMode: 'remote' });
+    expect(state.history).toHaveBeenLastCalledWith({ page: 0, pageSize: 10000, includeAllExecutionTargets: true });
     expect(getGuidDraft()).toBeUndefined();
     expect(state.emit).toHaveBeenCalledExactlyOnceWith('guid.reset');
   });
@@ -131,7 +131,7 @@ describe('shared Agent entry', () => {
     await waitFor(() => expect(screen.getByLabelText('route')).toHaveTextContent('/conversation/latest'));
     expect(state.history).toHaveBeenCalledTimes(2);
   });
-  it.each(['account', 'organization', 'role', 'mode'])('discards a late response after changing %s', async (change) => {
+  it.each(['account', 'organization', 'role'])('discards a late response after changing %s', async (change) => {
     const page = renderEntry();
     await screen.findByText('cached');
     const pending = deferred<TChatConversation[]>();
@@ -139,15 +139,10 @@ describe('shared Agent entry', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Use template' }));
     await waitFor(() => expect(state.history).toHaveBeenCalledTimes(2));
     state.history.mockResolvedValue([]);
-    if (change !== 'mode') {
-      if (change === 'account') state.userId = 'user-b';
-      else if (change === 'organization') state.organization = 'org-b';
-      else state.role = 'ADMIN';
-      page.rerender(page.element());
-    } else {
-      state.mode = 'local';
-      act(() => state.listeners.get('chat.history.refresh')?.());
-    }
+    if (change === 'account') state.userId = 'user-b';
+    else if (change === 'organization') state.organization = 'org-b';
+    else state.role = 'ADMIN';
+    page.rerender(page.element());
     await waitFor(() => expect(state.history).toHaveBeenCalledTimes(3));
     await act(async () => pending.resolve([conversation('private-old-session', 9)]));
     expect(screen.getByLabelText('route').textContent).toBe('/agents');

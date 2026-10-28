@@ -9,6 +9,9 @@ const state = vi.hoisted(() => ({
   createConversation: vi.fn(),
   updateConversation: vi.fn(),
   terminateSession: vi.fn(),
+  getSessionContext: vi.fn(),
+  insertMessage: vi.fn(),
+  deleteConversationMessages: vi.fn(),
 }));
 
 vi.mock('@process/database', () => ({
@@ -21,6 +24,9 @@ vi.mock('@process/database', () => ({
     },
     createConversation: state.createConversation,
     updateConversation: state.updateConversation,
+    getConversationMessages: () => ({ data: [], total: 0, hasMore: false }),
+    insertMessage: state.insertMessage,
+    deleteConversationMessages: state.deleteConversationMessages,
   }),
 }));
 vi.mock('@process/WorkerManage', () => ({ default: { kill: vi.fn() } }));
@@ -29,6 +35,7 @@ vi.mock('@process/remote/MossSessionApi', () => ({
     ensureAuthenticated: async () => {},
     listSessions: state.listSessions,
     terminateSession: state.terminateSession,
+    getSessionContext: state.getSessionContext,
   }),
 }));
 vi.mock('@process/initStorage', () => ({
@@ -42,6 +49,12 @@ vi.mock('@process/initStorage', () => ({
 }));
 vi.mock('@/common/enterpriseDebugConfig', () => ({ isEnterpriseMode: () => true }));
 vi.mock('@process/utils/mainLogger', () => ({ mainLog: vi.fn(), mainError: vi.fn() }));
+vi.mock('@sudowork/common/chatLib', () => ({
+  convertMossMessagesToTMessages: (_messages: unknown[], conversationId: string) => ({
+    messages: [{ id: 'message-1', conversation_id: conversationId, msg_id: 'message-1', type: 'text', content: { content: 'hello' }, createdAt: 100 }],
+    foundModel: null,
+  }),
+}));
 
 import { RemoteConversationProvider } from '@process/providers/RemoteConversationProvider';
 
@@ -69,9 +82,43 @@ beforeEach(() => {
     );
     return { success: true };
   });
+  state.getSessionContext.mockResolvedValue({ context: { messages: [{}] } });
+  state.insertMessage.mockReturnValue({ success: true });
+  state.deleteConversationMessages.mockReturnValue({ success: true });
 });
 
 describe('desktop cloud session discovery', () => {
+  it('imports and refreshes Feishu Moss identity through the shared workbench context', async () => {
+    const session = cloudSession('moss-im', {
+      source: 'lark',
+      assistantName: 'moss-agent:operator:org-owner',
+      clientMetadata: { agent_manager_actor_id: 'owner', agent_manager_agent_name: 'moss-native', agent_manager_display_name: 'Moss', agent_manager_owner_name: 'Owner' },
+    });
+    state.listSessions.mockResolvedValue([session]);
+    const client = provider();
+    expect(await client.listConversations()).toMatchObject([
+      {
+        extra: {
+          agentManagement: {
+            ownerId: 'owner',
+            ownerName: 'Owner',
+            agentName: 'moss-native',
+            displayName: 'Moss',
+          },
+        },
+      },
+    ]);
+    const activityTime = state.conversations[0].modifyTime;
+    const updated = { ...session, clientMetadata: { ...session.clientMetadata, agent_manager_owner_name: 'Updated owner' } };
+    await client.updateMossSessionInfo('moss-im', 'moss-im', 'wss://moss.test/ws/moss-im', updated);
+    expect(state.conversations[0].extra.agentManagement?.ownerName).toBe('Updated owner');
+    expect(state.conversations[0].modifyTime).toBe(activityTime);
+    // An ordinary Session must not retain a previous cached management identity.
+    state.listSessions.mockResolvedValue([cloudSession('moss-im')]);
+    await client.listConversations();
+    expect(state.conversations[0].extra.agentManagement).toBeUndefined();
+  });
+
   it('restores ordinary and managed sessions from a fresh device alongside cron history', async () => {
     state.listSessions.mockResolvedValue([
       cloudSession('ordinary', { title: 'My work', cwd: 'C:\\remote\\workspace' }),
@@ -115,15 +162,33 @@ describe('desktop cloud session discovery', () => {
   });
 
   it('preserves local ids, user titles and attachment paths and skips unchanged cache writes', async () => {
-    state.conversations = [{ id: 'local-id', type: 'remote-agent', name: 'User title', createTime: 100, extra: { mossSessionId: 'remote-id', mossServerUrl: 'https://moss.test', workspace: 'C:\\local', authToken: 'revoked-token' } } as TChatConversation];
+    state.conversations = [{ id: 'local-id', type: 'remote-agent', name: 'User title', createTime: 100, modifyTime: 150, extra: { mossSessionId: 'remote-id', mossServerUrl: 'https://moss.test', workspace: 'C:\\local', authToken: 'revoked-token' } } as TChatConversation];
     state.listSessions.mockResolvedValue([cloudSession('remote-id', { title: 'Server title' })]);
     const client = provider();
     expect(await client.listConversations()).toMatchObject([{ id: 'local-id', name: 'User title', extra: { workspace: 'C:\\local', mossAccountScope: 'scope-owner' } }]);
+    expect(state.conversations[0].modifyTime).toBe(150);
+    expect(state.conversations[0].extra.mossSessionUpdatedAt).toBe(200);
     expect(state.createConversation).not.toHaveBeenCalled();
     expect(JSON.stringify(state.conversations)).not.toContain('revoked-token');
     state.updateConversation.mockClear();
     await client.listConversations();
     expect(state.updateConversation).not.toHaveBeenCalled();
+  });
+
+  it('syncs opened cloud history without promoting it to newest activity', async () => {
+    state.conversations = [{ id: 'local-id', type: 'remote-agent', name: 'Old title', createTime: 100, modifyTime: 150, extra: { mossSessionId: 'remote-id', mossServerUrl: 'https://moss.test' } } as TChatConversation];
+    state.getSessionContext.mockResolvedValue({ context: { messages: [{}], customTitle: 'Server title' } });
+
+    await expect(provider().syncFromMossServer('local-id')).resolves.toEqual({ syncedCount: 1, nameUpdated: true });
+    expect(state.updateConversation).toHaveBeenCalledWith(
+      'local-id',
+      expect.objectContaining({
+        name: 'Server title',
+        modifyTime: 150,
+        extra: expect.objectContaining({ mossSessionUpdatedAt: expect.any(Number) }),
+      }),
+      { preserveModifyTime: true }
+    );
   });
 
   it('discards a discovery response when the user switches accounts while it is in flight', async () => {

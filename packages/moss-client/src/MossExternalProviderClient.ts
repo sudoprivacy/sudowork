@@ -135,24 +135,50 @@ const session = z.object({
   created_at: z.number(),
   updated_at: z.number(),
 });
+const standardProtocol = z.enum([
+  "openai-chat-completions/v1",
+  "mcp/2025-06-18",
+  "a2a/0.3.0",
+]);
 const capability = z.enum(["supported", "unsupported", "unknown"]);
+const capabilities = z
+  .object({
+    streaming: capability,
+    cancel: capability,
+    resume: capability,
+    version_pin: capability,
+    idempotency: capability.optional(),
+    human_approval: capability.optional(),
+    trace_export: z.enum(["full", "partial", "none", "unknown"]).optional(),
+  })
+  .strict();
+const agentUsage = z.object({
+  data_scope: z.literal("synthetic_only"),
+  input: z.literal("text_query_only"),
+  attachments: z.literal("unsupported"),
+  resource_refs: z.literal("unsupported"),
+  tools: z.literal("unsupported"),
+  content_classification: z.literal("caller_declared_only"),
+  capability_basis: z.literal("adapter_contract"),
+  evaluated_at: z.number().int().nonnegative(),
+  reviewed_at: z.number().int().nonnegative().nullable(),
+  review_state: z.enum(["not_approved", "expired", "current"]),
+});
 const agent = z.object({
   id,
   name: z.string(),
   provider: z.string(),
   execution_mode: z.literal("external_hosted"),
   profile: z.literal("synthetic_pilot"),
+  protocol: z.string().max(100).optional(),
+  conversation_mode: z.literal("single_turn").optional(),
   source_identity_evidence: z.literal("unverified"),
   source_digest: z.string(),
   decoder: z.enum(["text", "reply_actions_v1"]),
   approved: z.boolean(),
   review_expires_at: z.number(),
-  capabilities: z.object({
-    streaming: capability,
-    cancel: capability,
-    resume: capability,
-    version_pin: capability,
-  }),
+  usage: agentUsage.optional(),
+  capabilities,
 });
 const events = z.object({
   api_version: z.literal(EXTERNAL_PROVIDER_API),
@@ -201,6 +227,20 @@ const events = z.object({
 
 const releaseVersion = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/);
 const releaseDigest = z.string().regex(/^sha256:[a-f0-9]{64}$/);
+const registryEvidence = z
+  .object({
+    authority: z.literal("nexus_registry"),
+    principal: z
+      .object({
+        trust_domain: z.string().min(1).max(253),
+        agent_name: z.string().min(1).max(128),
+      })
+      .strict(),
+    registration_digest: releaseDigest,
+    signing_key_id: releaseDigest,
+    evidence: z.literal("signed_registration_only"),
+  })
+  .strict();
 const releaseOptionsSchema = z
   .object({
     api_version: z.literal(AGENT_FEDERATION_API),
@@ -221,6 +261,7 @@ const releaseOptionsSchema = z
             spec_digest: releaseDigest,
             execution_revision: releaseDigest.optional(),
             approval_expires_at: z.number().int().nonnegative(),
+            registry: registryEvidence.optional(),
           })
           .strict(),
       )
@@ -240,7 +281,22 @@ const releaseOptionsSchema = z
       .max(2),
     next_cursor: releaseVersion.nullable(),
   })
-  .strict();
+  .strict()
+  .superRefine((value, context) => {
+    if (
+      value.items.some(
+        (item) =>
+          item.registry &&
+          (item.registry.principal.trust_domain !==
+            value.principal.trust_domain ||
+            item.registry.principal.agent_name !== value.principal.agent_name),
+      )
+    )
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Registry principal mismatch",
+      });
+  });
 const versionEvidence = z.enum([
   "source_snapshot_only",
   "provider_revision_fenced",
@@ -253,6 +309,29 @@ const evidenceSchema = z
     session_id: id,
     attempt_id: id.nullable(),
     status,
+    provenance: z
+      .object({
+        recorded_at: z.number().int().nonnegative().safe(),
+        stage: z.literal("dispatch_authorized"),
+        protocol: z.enum([
+          "dify/chat-messages",
+          "agent-http.sudo.dev/v1alpha1",
+          "agent-http.sudo.dev/v1alpha2",
+          "openai-chat-completions/v1",
+          "mcp/2025-06-18",
+          "a2a/0.3.0",
+        ]),
+        adapter_version: z.string().min(1).max(200),
+        source_revision: z.string().min(1).max(200).nullable(),
+        revision_basis: z.enum(["provider_declared", "content_digest"]),
+        source_id: id.nullable(),
+        candidate_id: id.nullable(),
+        capabilities,
+        observability: z.literal("partial"),
+        source_digest: releaseDigest,
+      })
+      .strict()
+      .optional(),
     selection: z
       .object({
         version: releaseVersion,
@@ -262,12 +341,29 @@ const evidenceSchema = z
         channel_revision: z.number().int().positive().optional(),
         execution_revision: releaseDigest.optional(),
         version_evidence: versionEvidence,
+        registry: registryEvidence.optional(),
       })
       .strict()
       .optional(),
     execution: z
       .object({
-        provider_run_id: z.string().min(1).max(200),
+        adapter_version: z.string().min(1).max(200).optional(),
+        observability: z.literal("partial").optional(),
+        provider_run_id: z.string().min(1).max(200).optional(),
+        provider_response_id: z.string().min(1).max(200).optional(),
+        protocol: standardProtocol.optional(),
+        trace_id: z
+          .string()
+          .regex(/^[a-f0-9]{32}$/)
+          .optional(),
+        usage: z
+          .object({
+            source: z.literal("provider_reported"),
+            input_tokens: z.number().int().nonnegative().safe(),
+            output_tokens: z.number().int().nonnegative().safe(),
+          })
+          .strict()
+          .optional(),
         execution_revision: releaseDigest.optional(),
         version_evidence: versionEvidence,
         resume: z.enum(["unsupported", "query_only"]),
@@ -277,6 +373,52 @@ const evidenceSchema = z
   })
   .strict()
   .superRefine((value, context) => {
+    const execution = value.execution;
+    const provenance = value.provenance;
+    if (
+      provenance &&
+      (!value.attempt_id ||
+        value.status === "rejected" ||
+        (value.selection &&
+          provenance.source_digest !== value.selection.source_digest) ||
+        (execution?.adapter_version &&
+          provenance.adapter_version !== execution.adapter_version) ||
+        (execution?.protocol && provenance.protocol !== execution.protocol) ||
+        (provenance.revision_basis === "provider_declared") !==
+          Boolean(provenance.source_revision))
+    )
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Dispatch provenance mismatch",
+      });
+    if (execution) {
+      const isStandard = Boolean(execution.protocol);
+      const hasRun = Boolean(execution.provider_run_id),
+        hasResponse = Boolean(execution.provider_response_id);
+      if (
+        (!isStandard &&
+          (!hasRun || execution.trace_id || hasResponse || execution.usage)) ||
+        (isStandard &&
+          (!execution.trace_id ||
+            execution.version_evidence !== "source_snapshot_only" ||
+            execution.resume !== "unsupported")) ||
+        (execution.protocol === "mcp/2025-06-18" && (hasRun || hasResponse)) ||
+        (execution.protocol === "openai-chat-completions/v1" &&
+          (hasRun || !hasResponse)) ||
+        (execution.protocol === "a2a/0.3.0" && hasRun === hasResponse) ||
+        (execution.usage && execution.protocol !== "openai-chat-completions/v1")
+      ) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Protocol execution evidence mismatch",
+        });
+      }
+    }
+    if (value.selection?.registry && !value.selection.release_digest)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Registry selection requires a release digest",
+      });
     for (const item of [value.selection, value.execution]) {
       if (
         item &&
@@ -444,7 +586,7 @@ export function createMossExternalProviderPort(
     evidence: async (taskId) => {
       const data = await read(
         evidenceSchema,
-        `/api/v1/tasks/${id.parse(taskId)}/evidence`,
+        `/api/v1/tasks/${id.parse(taskId)}/evidence?profile=catalog-v1`,
       );
       if (data.task_id !== taskId)
         throw new Error("EXTERNAL_TASK_IDENTITY_MISMATCH");

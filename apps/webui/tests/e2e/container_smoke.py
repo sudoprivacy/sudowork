@@ -12,6 +12,8 @@ import urllib.request
 import uuid
 from pathlib import Path
 
+from gateway_assets import NGINX_IMAGE, verify_gateway_fixture
+
 
 def run(*args, **kwargs):
     return subprocess.check_output(args, text=True, **kwargs).strip()
@@ -373,6 +375,7 @@ def main(args, is_released=False):
             )
         with local_http.open(origin + "/browser-viewer/fixture", timeout=5) as response:
             assert response.read().decode() == html
+        gateway = verify_gateway_fixture(root, app_info, args.gateway_image, fixture)
         print(
             json.dumps(
                 {
@@ -390,6 +393,7 @@ def main(args, is_released=False):
                     "readOnlyAssetVolume": True,
                     "assetPublicationIdempotent": True,
                     "conflictingAssetRejectedWithoutOverwrite": True,
+                    "publicAssetGateway": gateway,
                 }
             ),
             flush=True,
@@ -436,6 +440,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--image", required=True)
     parser.add_argument("--build", action="store_true")
+    parser.add_argument("--gateway-image", default=NGINX_IMAGE)
     parser.add_argument(
         "--compose-origin", choices=("source", "release", "both"), default="both"
     )

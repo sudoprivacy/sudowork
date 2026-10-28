@@ -2,7 +2,9 @@ name: "✓PR Integration Smoke"
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [main, dev]
+  merge_group:
 
 concurrency:
   group: pr-integration-smoke-${{ github.head_ref || github.ref }}
@@ -18,6 +20,8 @@ env:
 
 jobs:
   browser-backend-live:
+    # Skipped on draft PRs: heavy CI starts once the PR is marked ready.
+    if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.draft) }}
     name: Browser Backend Live (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 25
@@ -102,6 +106,8 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}/vendor/ai-dev-browser
 
   browser-panel-mcp-server:
+    # Skipped on draft PRs: heavy CI starts once the PR is marked ready.
+    if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.draft) }}
     name: Browser-Panel MCP Server
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -133,6 +139,8 @@ jobs:
         run: python3 tests/integration/browser_panel_mcp_server.py
 
   authproxy-secrets-http-e2e:
+    # Skipped on draft PRs: heavy CI starts once the PR is marked ready.
+    if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.draft) }}
     # End-to-end of the SKILL → AuthProxyServer HTTP → handler path
     # (the bug surface user 进二 hit on v0.2.7). Boots a real
     # AuthProxyServer in-process and drives real fetch() calls against
@@ -160,18 +168,38 @@ jobs:
         with:
           bun-version-file: package.json
 
+      - name: Cache verified libvips downloads
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/npm-cache/_libvips
+          key: libvips-8.14.5-${{ runner.os }}-${{ runner.arch }}-integrity-v2
+
+      - name: Verify libvips before dependency installation
+        env:
+          npm_config_cache: ${{ runner.temp }}/npm-cache
+        run: node ../../.github/scripts/cache-sharp-libvips.mjs
+
       - name: Install dependencies
-        run: bun install --no-frozen-lockfile
+        env:
+          npm_config_cache: ${{ runner.temp }}/npm-cache
+        run: bun install --frozen-lockfile
+
+      - name: Verify sharp consumes the checked cache
+        env:
+          npm_config_cache: ${{ runner.temp }}/npm-cache
+        run: node ../../.github/scripts/verify-sharp-libvips-cache.mjs
 
       - name: Run authProxy /secrets HTTP e2e
         run: bunx vitest run tests/integration/authProxySecretsHttp.integration.test.ts
 
   vault-signed-download:
+    # Skipped on draft PRs: heavy CI starts once the PR is marked ready.
+    if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.draft) }}
     name: Runtime Release E2E (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, windows-latest, macos-14, macos-15-intel]
+        os: [ubuntu-22.04, windows-latest, macos-15, macos-15-intel]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     defaults:
@@ -231,6 +259,8 @@ jobs:
           retention-days: 7
 
   scode-config-isolation:
+    # Skipped on draft PRs: heavy CI starts once the PR is marked ready.
+    if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.draft) }}
     # Real cross-repo contract: sudowork isolates its engine-scode by spawning
     # the scode binary with SUDO_CODE_CONFIG_HOME → ~/.nexus/sudowork/sudocode.
     # This job downloads + extracts the ACTUAL scode binary and drives
@@ -265,7 +295,10 @@ jobs:
           bun-version-file: package.json
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        # This Node-only gate uses @lydell/node-pty's platform prebuild. Avoid
+        # unrelated workspace/native install scripts consuming its test budget;
+        # the test still requires the real addon and downloaded scode binary.
+        run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Download scode binary (windows archive)
         run: bun run scode:download

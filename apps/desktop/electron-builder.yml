@@ -35,8 +35,6 @@ files:
   - rules/**/*
   - skills/**/*
   - assistant/**/*
-  # ai-dev-browser Python package (browser skill runtime)
-  - vendor/ai-dev-browser/ai_dev_browser/**/*
   - package.json
   # Native modules and their runtime dependencies
   - node_modules/better-sqlite3/**/*
@@ -152,6 +150,18 @@ files:
   - '!uno.config.ts'
 
 extraResources:
+  - from: resources/shareone-review
+    to: shareone-review
+  # The SDK is a repository-root submodule, outside the Desktop app directory.
+  # Keep its Python modules and MCP catalog on disk for the shared host/skill.
+  - from: ../../vendor/ai-dev-browser/ai_dev_browser
+    to: ai-dev-browser/ai_dev_browser
+    filter:
+      - '**/*'
+      - '!**/__pycache__/**'
+      - '!**/*.pyc'
+  - from: ../../vendor/ai-dev-browser/LICENSE
+    to: ai-dev-browser/LICENSE
   - from: public
     to: .
   - from: resources/app.ico
@@ -160,7 +170,7 @@ extraResources:
     to: app.png
   - from: resources/upload_skill_default.svg
     to: upload_skill_default.svg
-  - from: THIRD_PARTY_LICENSES.txt
+  - from: ../../THIRD_PARTY_LICENSES.txt
     to: THIRD_PARTY_LICENSES.txt
   # Safety hook for Sudoclaw gateway interception
   - from: hook/node/dist/hook.js
@@ -205,10 +215,8 @@ extraResources:
   # format) for each team agent. Normal sessions never load it.
   - from: resources/team-mcp/index.js
     to: team-mcp/index.js
-  - from: resources/ontology-mcp/index.js
-    to: ontology-mcp/index.js
-  - from: resources/ontology-builder-mcp/index.js
-    to: ontology-builder-mcp/index.js
+  - from: resources/ontology-cli/ontology.cjs
+    to: ontology-cli/ontology.cjs
   # Scode binary - versioned, optional
   - from: resources
     to: .
@@ -299,12 +307,6 @@ buildDependenciesFromSource: false
 nodeGypRebuild: false
 
 asarUnpack:
-  # ai-dev-browser Python package must live on the real filesystem (not inside
-  # app.asar) so resolveAiDevBrowserPackageDir() can junction it into the browser
-  # skill dir and Python can import it. Without this it ships packed in app.asar,
-  # the junction never gets created, and `import ai_dev_browser` fails on every
-  # packaged install.
-  - 'vendor/ai-dev-browser/**/*'
   # index.js must sit next to the unpacked .node so that
   - '**/node_modules/better-sqlite3/**/*'
   - '**/node_modules/bcrypt/**/*'
@@ -329,10 +331,6 @@ asarUnpack:
   # Required for Homebrew installations where asar paths may have issues
   - 'rules/**/*'
   - 'skills/**/*'
-  # ai-dev-browser Python package must live in app.asar.unpacked: the runtime
-  # resolver (resolveAiDevBrowserPackageDir) only looks under app.asar.unpacked,
-  # and a Python package can't be executed/symlinked from inside the asar.
-  - 'vendor/ai-dev-browser/**/*'
 
 # Compression level: normal for faster builds, maximum for smallest size
 # Note: electron-builder doesn't support YAML template syntax for env vars

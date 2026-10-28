@@ -1,3 +1,4 @@
+import ExternalAgentUsageDetails from './ExternalAgentUsageDetails';
 import ExternalVersionSelector from './ExternalVersionSelector';
 import ExternalTaskEvidence from './ExternalTaskEvidence';
 import { Alert, Button, Input, Spin, Tag, Tooltip, Typography } from '@arco-design/web-react';
@@ -196,7 +197,7 @@ function ExternalChat({ sessionId: routeSessionId, agentId }: IExternalChatProps
       headerLeft={
         <div className='flex gap-2 items-center'>
           <Typography.Text bold>{title}</Typography.Text>
-          <Tag>{provider && ['dify', 'custom_http'].includes(provider) ? t(`agent.external.provider.${provider}`) : provider || t('agent.external.chat.hosted')}</Tag>
+          <Tag>{agent?.protocol || (provider && ['dify', 'custom_http'].includes(provider) ? t(`agent.external.provider.${provider}`) : provider || t('agent.external.chat.hosted'))}</Tag>
         </div>
       }
       headerExtra={
@@ -206,6 +207,7 @@ function ExternalChat({ sessionId: routeSessionId, agentId }: IExternalChatProps
       }
     >
       <div className='flex flex-col flex-1 min-h-0'>
+        {agent?.conversation_mode === 'single_turn' && <Alert type='info' content={t('agent.external.protocol.singleTurn')} />}
         <div
           ref={scroll}
           role='log'
@@ -272,7 +274,17 @@ function ExternalChat({ sessionId: routeSessionId, agentId }: IExternalChatProps
                   {task.output_status === 'invalid' && <Alert type='warning' content={t('agent.external.invalidOutput')} />}
                   {task.reconciliation && <Alert type='info' content={t('agent.external.chat.reconciled')} />}
                   {task.policy_decision?.status === 'rejected' && <Alert type='warning' content={t('agent.external.chat.policyRejected', { reason: task.policy_decision.reason })} />}
-                  {task.error_code && !task.policy_decision && <Typography.Paragraph type='secondary'>{t('agent.external.taskError', { code: task.error_code })}</Typography.Paragraph>}
+                  {task.error_code && task.policy_decision?.status !== 'rejected' && (
+                    <Typography.Paragraph type='secondary'>
+                      {task.error_code === 'EXTERNAL_EXECUTION_CLEANUP_PENDING'
+                        ? t('agent.external.taskCleanupPending')
+                        : task.error_code === 'PROVIDER_CREDENTIAL_DISCLOSURE'
+                          ? t('agent.external.credentialDisclosure')
+                          : task.status === 'failed' && ['MODEL_CONTENT_DENIED', 'MODEL_CLASSIFIER_UNAVAILABLE', 'MODEL_REDACTION_UNSAFE'].includes(task.error_code)
+                            ? t(`agent.external.modelRejection.${task.error_code}`)
+                            : t('agent.external.taskError', { code: task.error_code })}
+                    </Typography.Paragraph>
+                  )}
                 </div>
               </div>
             ))}
@@ -317,9 +329,7 @@ function ExternalChat({ sessionId: routeSessionId, agentId }: IExternalChatProps
                 </Button>
               </div>
             </div>
-            <Typography.Paragraph type='secondary' className='text-xs mt-2 mb-0'>
-              {t(agent?.capabilities?.version_pin === 'supported' ? 'agent.external.versions.durableCapabilities' : 'agent.external.chat.capabilities')}
-            </Typography.Paragraph>
+            {agent && <ExternalAgentUsageDetails agent={agent} />}
           </div>
         </div>
       </div>

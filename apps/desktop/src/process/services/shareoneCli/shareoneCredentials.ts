@@ -1,10 +1,19 @@
+import { net } from 'electron';
 import { buildNamespace } from '@sudowork/common/nexus/namespace';
 import { MossSecretClient } from '@sudowork/common/nexus/moss-secret-client';
 import { getMossServerUrl, getUserId, isEnterpriseMode } from '@/common/enterpriseDebugConfig';
 import { mainLog, mainWarn } from '@process/utils/mainLogger';
 
+export class ShareoneCredentialUnavailableError extends Error {
+  readonly code = 'SHAREONE_CREDENTIAL_UNAVAILABLE';
+
+  constructor() {
+    super('Existing ShareOne credentials are temporarily unavailable. Retry when the connection recovers.');
+  }
+}
+
 /** Resolve the current enterprise user's ShareOne credential without caching plaintext. */
-export async function getShareoneApiKeyEnterprise(): Promise<string | null> {
+export async function getShareoneApiKeyEnterprise(options: { isRequired?: boolean } = {}): Promise<string | null> {
   if (!isEnterpriseMode()) return null;
 
   const userId = getUserId();
@@ -14,7 +23,7 @@ export async function getShareoneApiKeyEnterprise(): Promise<string | null> {
   try {
     const { getValidToken } = await import('@process/bridge/eeclawBridge');
     const authToken = await getValidToken();
-    const client = new MossSecretClient(serverUrl, authToken, userId);
+    const client = new MossSecretClient(serverUrl, authToken, userId, net.fetch.bind(net));
     const namespace = buildNamespace('shareone', userId);
 
     for (const key of ['shareone_key', 'api_key', 'X-API-Key']) {
@@ -29,6 +38,24 @@ export async function getShareoneApiKeyEnterprise(): Promise<string | null> {
     return null;
   } catch {
     mainWarn('ShareOne', 'Could not load current user API key from Moss');
+    if (options.isRequired) throw new ShareoneCredentialUnavailableError();
     return null;
   }
+}
+
+/** Explicit account pairing; keep the key in the current user's existing Vault. */
+export async function saveShareoneApiKeyEnterprise(apiKey: string | null): Promise<boolean> {
+  if (!isEnterpriseMode()) return false;
+  const userId = getUserId();
+  const serverUrl = getMossServerUrl();
+  if (!userId || !serverUrl) throw new Error('Sign in before connecting ShareOne.');
+  const { getValidToken } = await import('@process/bridge/eeclawBridge');
+  const authToken = await getValidToken();
+  if (getUserId() !== userId || getMossServerUrl() !== serverUrl) throw new Error('Account changed during ShareOne pairing.');
+  const client = new MossSecretClient(serverUrl, authToken, userId, net.fetch.bind(net));
+  const namespace = buildNamespace('shareone', userId);
+  if (apiKey) await client.putSecret(namespace, 'shareone_key', apiKey);
+  else for (const key of ['shareone_key', 'api_key', 'X-API-Key']) await client.deleteSecret(namespace, key);
+  if (getUserId() !== userId || getMossServerUrl() !== serverUrl) throw new Error('Account changed during ShareOne pairing.');
+  return true;
 }

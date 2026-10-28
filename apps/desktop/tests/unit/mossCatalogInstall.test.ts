@@ -18,8 +18,13 @@ vi.mock('@process/constants/enterpriseStorage', () => ({
 }));
 vi.mock('@process/bridge/eeclawBridge', () => ({ getValidToken: async () => state.token }));
 vi.mock('@process/task/AcpSkillManager', () => ({ AcpSkillManager: { resetInstance: vi.fn() } }));
+// Keep workspace scanning real without booting Electron storage and log upload.
+vi.mock('@process/utils/mainLogger', () => ({ mainLog: vi.fn(), mainWarn: vi.fn() }));
 import { getMossCatalogInstallations, installMossCatalog, changeCatalogInstallation, isCatalogPathVisible, detailLocalMossCatalog } from '@process/services/mossCatalogInstall';
 import { listMossCatalog } from '@process/services/mossCatalogApi';
+import { prepareLocalCatalogSelection } from '@process/services/mossCatalogSelection';
+import { listWorkspaceSkillTargets } from '@process/utils/workspaceSkillTargets';
+import { ENTERPRISE_SKILL_SUBDIRS } from '@process/constants/skillStorage';
 
 const request = vi.fn();
 const agent = { kind: 'agents' as const, source: 'tenant' as const, id: 'agent-1' };
@@ -197,7 +202,6 @@ describe('organization catalog and local installations', () => {
     expect(repaired.preparationId).toBe(installed.preparationId);
     expect(repaired.version).toBe('1');
     expect(request.mock.calls.filter(([url]) => url.endsWith('/client/catalog/install'))).toHaveLength(installRequests);
-    const { prepareLocalCatalogSelection } = await import('@process/services/mossCatalogSelection');
     const context = await prepareLocalCatalogSelection(repaired.id);
     expect(context?.enabledSkills).toHaveLength(1);
     for (const resource of context!.resources) {
@@ -208,16 +212,15 @@ describe('organization catalog and local installations', () => {
       expect(await fs.stat(oldPath)).toBeTruthy();
       expect(await isCatalogPathVisible(oldPath)).toBe(false);
     }
-    const { listWorkspaceSkillTargets } = await import('@process/utils/workspaceSkillTargets');
-    const { ENTERPRISE_SKILL_SUBDIRS } = await import('@process/constants/skillStorage');
     const skillsRoot = path.join(state.root, state.scope, 'skills');
     const workspaceSkills = await listWorkspaceSkillTargets(skillsRoot, undefined, path.join(state.root, 'builtin'), ENTERPRISE_SKILL_SUBDIRS);
     expect([...workspaceSkills.keys()]).toEqual(context?.enabledSkills);
   });
 });
 
-it('pins an agent dependency across a standalone skill update and rejects incompatible selections', async () => {
-  const { prepareLocalCatalogSelection } = await import('@process/services/mossCatalogSelection');
+// This journey writes and validates several real archive versions on disk.
+// Cold Windows filesystem scans can exceed the default 10s unit-test deadline.
+it('pins an agent dependency across a standalone skill update and rejects incompatible selections', { timeout: 30_000 }, async () => {
   const installed = await installMossCatalog(agent);
   const before = await prepareLocalCatalogSelection(installed.id);
   state.version = '2';

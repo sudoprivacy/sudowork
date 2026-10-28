@@ -177,11 +177,14 @@ interface AuthContextValue {
   authFetch: (url: string, options?: RequestInit) => Promise<Response>;
   login: (params: LoginParams) => Promise<LoginResult>;
   register: (params: RegisterParams) => Promise<RegisterResult>;
-  logout: () => Promise<void>;
+  logout: (options?: { isLocalOnly: boolean }) => Promise<void>;
+  enterpriseProfile: ipcBridge.UserProfileData | null;
+  refreshEnterpriseProfile: () => Promise<void>;
   refresh: () => Promise<void>;
   ensureValidToken: (forceRefresh?: boolean) => Promise<string | null>;
   forceRefreshToken: () => Promise<string | null>;
   enterpriseLogin: (params: EnterpriseLoginParams | EnterpriseLoginParamsByKey) => Promise<LoginResult>;
+  switchOrganization: (orgId: string) => Promise<LoginResult>;
   enterpriseLoginWithOAuth2: (params: Record<string, string>) => Promise<LoginResult>;
   loginByPassword: (params: PasswordLoginParams) => Promise<PasswordAuthResult>;
   registerByPassword: (params: PasswordRegisterParams) => Promise<PasswordAuthResult>;
@@ -644,7 +647,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         ConfigStorage.set('eeclaw.userInfo', undefined),
         ConfigStorage.set('eeclaw.localModeAvailable', undefined),
         ipcBridge.sudoworkAuth.clearConsumerUserId.invoke(),
-        ipcBridge.eeclaw.logout.invoke(),
+        ipcBridge.eeclaw.logout.invoke({}),
       ]);
     } finally {
       isExpiringAuthRef.current = false;
@@ -666,7 +669,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         ConfigStorage.set('eeclaw.localModeAvailable', undefined),
         ConfigStorage.set('guid.sessionMode', 'local'),
         ipcBridge.sudoworkAuth.clearConsumerUserId.invoke(),
-        ipcBridge.eeclaw.logout.invoke(),
+        ipcBridge.eeclaw.logout.invoke({}),
         ipcBridge.eeclaw.setSessionMode.invoke({ mode: 'local' }),
       ]);
     }
@@ -1312,6 +1315,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   );
 
   const login = useCallback(({ phone, code, mossBaseUrl }: LoginParams): Promise<LoginResult> => performLogin({ grant_type: 'phone', phone, code, mossBaseUrl }), [performLogin]);
+  const switchOrganization = useCallback((orgId: string): Promise<LoginResult> => performLogin({ grant_type: 'organization', orgId }), [performLogin]);
 
   const register = useCallback(({ phone, code, nickname, invitation_code, mossBaseUrl }: RegisterParams): Promise<RegisterResult> => performLogin({ grant_type: 'phone_register', phone, code, nickname, invitation_code, mossBaseUrl }), [performLogin]);
 
@@ -1412,6 +1416,10 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   // 修改密码（login_method=1 的用户改自己的密码）；token 过期时由调用方提示重登
   const changePassword = useCallback(
     async ({ oldPassword, newPassword }: ChangePasswordParams): Promise<PasswordAuthResult> => {
+      if (isWebRuntime || localStorage.getItem(EECLAW_AUTH_STORAGE_KEY)) {
+        const result = await ipcBridge.eeclaw.changePassword.invoke({ oldPassword, newPassword });
+        return { success: result.success, message: result.msg };
+      }
       const token = await ensureValidToken();
       if (!token) {
         return { success: false, message: '登录状态已过期，请重新登录' };
@@ -1446,7 +1454,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
   const enterpriseLoginWithOAuth2 = useCallback((params: Record<string, string>): Promise<LoginResult> => performLogin({ grant_type: 'oauth2', params }), [performLogin]);
 
-  const logout = useCallback(async () => {
+  const logout = useCallback(async (options?: { isLocalOnly: boolean }) => {
     localStorage.removeItem(GUEST_FLAG_KEY);
 
     // Web host: destroy the webui cookie session; no eeclaw IPC involved.
@@ -1471,7 +1479,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         const { access_token, refresh_token } = authStorage;
         const serverUrl = await ConfigStorage.get('eeclaw.serverUrl');
 
-        if (serverUrl && access_token) {
+        if (!options?.isLocalOnly && serverUrl && access_token) {
           try {
             await fetch(`${serverUrl}/api/v1/auth/logout`, {
               method: 'POST',
@@ -1496,7 +1504,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
       // Also trigger main-process logout to clear its storage and cache
       try {
-        await ipcBridge.eeclaw.logout.invoke();
+        await ipcBridge.eeclaw.logout.invoke(options || {});
       } catch (e) {
         console.warn('[Auth] Failed to invoke main-process logout:', e);
       }
@@ -1596,9 +1604,44 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     }
   }, []);
 
+  const profileIdentity = user && status === 'authenticated' ? `${user.id}:${user.enterprise_code || ''}` : '';
+  const activeProfileIdentity = useRef(profileIdentity);
+  activeProfileIdentity.current = profileIdentity;
+  const profileRequest = useRef(0);
+  const [profileSnapshot, setProfileSnapshot] = useState<{ identity: string; data: ipcBridge.UserProfileData } | null>(null);
+  const enterpriseProfile = profileSnapshot?.identity === profileIdentity ? profileSnapshot.data : null;
+  const refreshEnterpriseProfile = useCallback(async () => {
+    if (!profileIdentity || (!isWebRuntime && !localStorage.getItem(EECLAW_AUTH_STORAGE_KEY))) return;
+    const request = ++profileRequest.current;
+    const result = await ipcBridge.eeclaw.getUserProfile.invoke();
+    if (activeProfileIdentity.current !== profileIdentity || request !== profileRequest.current) return;
+    if (!result.success || !result.data) throw new Error(result.msg || 'profile_request_failed');
+    setProfileSnapshot({ identity: profileIdentity, data: result.data });
+    const nickname = result.data.nickname || result.data.username;
+    setUser((previous) => (previous ? { ...previous, nickname } : previous));
+    // Preserve tokens and login identity; cache only the server-confirmed display name.
+    const stored = localStorage.getItem(EECLAW_AUTH_STORAGE_KEY);
+    if (stored) {
+      const record = JSON.parse(stored) as EeclawAuthStorage;
+      if (record.user.id === result.data.user_id) {
+        record.user.nickname = nickname;
+        localStorage.setItem(EECLAW_AUTH_STORAGE_KEY, JSON.stringify(record));
+      }
+    }
+  }, [profileIdentity]);
+  useEffect(() => {
+    setProfileSnapshot(null);
+    void refreshEnterpriseProfile().catch(() => {});
+    return () => {
+      profileRequest.current++;
+    };
+  }, [refreshEnterpriseProfile]);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       ready,
+      enterpriseProfile,
+      refreshEnterpriseProfile,
       user,
       status,
       isGuest: status === 'guest',
@@ -1611,6 +1654,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       ensureValidToken,
       forceRefreshToken,
       enterpriseLogin,
+      switchOrganization,
       enterpriseLoginWithOAuth2,
       loginByPassword,
       registerByPassword,
@@ -1619,7 +1663,30 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       changePassword,
       enterGuest,
     }),
-    [authFetch, login, register, logout, ready, refresh, status, syncMessage, user, ensureValidToken, forceRefreshToken, enterpriseLogin, enterpriseLoginWithOAuth2, loginByPassword, registerByPassword, loginWithThirdPartyAuth, exchangeThirdPartyAuthCode, changePassword, enterGuest]
+    [
+      enterpriseProfile,
+      refreshEnterpriseProfile,
+      authFetch,
+      login,
+      register,
+      logout,
+      ready,
+      refresh,
+      status,
+      syncMessage,
+      user,
+      ensureValidToken,
+      forceRefreshToken,
+      enterpriseLogin,
+      switchOrganization,
+      enterpriseLoginWithOAuth2,
+      loginByPassword,
+      registerByPassword,
+      loginWithThirdPartyAuth,
+      exchangeThirdPartyAuthCode,
+      changePassword,
+      enterGuest,
+    ]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

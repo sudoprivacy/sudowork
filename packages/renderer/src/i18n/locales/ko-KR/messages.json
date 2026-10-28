@@ -58,5 +58,13 @@
     "yesAlwaysAllowServer": "예, 서버 \"{{serverName}}\"의 모든 도구 항상 허용",
     "no": "아니요 (esc)"
   },
-  "openFileFailed": "Could not open the file. Check that it still exists in this session workspace and that you are connected."
+  "openFileFailed": "Could not open the file. Check that it still exists in this session workspace and that you are connected.",
+  "inputDelivery": {
+    "queue": "대기 중",
+    "steer": "지시 전달 중",
+    "keys": "Enter: 지시 전달 · Tab: 대기열 · ↑: 대기 입력 가져오기",
+    "flushHint": "Esc: 대기 입력 전송",
+    "cancelHint": "Esc / Ctrl+C: 취소",
+    "failed": "입력을 전달하지 못했습니다"
+  }
 }

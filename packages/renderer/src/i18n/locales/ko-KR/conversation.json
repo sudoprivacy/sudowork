@@ -4,6 +4,12 @@
     "body": "에이전트가 응답하는 중에 새 메시지를 보내면 현재 응답을 중단하고 새 메시지를 즉시 처리합니다.",
     "ok": "중단"
   },
+  "header": {
+    "agent": "에이전트",
+    "model": "모델",
+    "localExecutionHint": "이 작업은 현재 기기에서 실행되며 허용된 로컬 파일과 도구를 사용할 수 있습니다.",
+    "remoteExecutionHint": "이 작업은 Moss Server에서 실행되며 실행 환경과 워크스페이스는 서버에 있습니다."
+  },
   "welcome": {
     "title": "안녕하세요, 오늘의 계획은 무엇인가요?",
     "placeholder": "메시지 전송, 파일 업로드, 폴더 열기 또는 예약 작업 만들기...",
@@ -19,6 +25,10 @@
     "selectModel": "모델 선택",
     "useCliModel": "모델 선택",
     "modelSwitchNotSupported": "첫 연결 후 사용 가능한 모델 목록이 표시됩니다. 먼저 메시지를 보내 연결하고 사용 가능한 모델을 로드하세요.",
+    "modelSwitchUnavailable": "이 실행 환경에서는 모델을 전환할 수 없습니다.",
+    "modelsLoading": "모델을 불러오는 중…",
+    "modelsUnavailable": "모델을 사용할 수 없음",
+    "modelServiceUnavailable": "모델 서비스에 사용 가능한 모델이 없습니다. 인증 정보와 설정을 확인하세요. 작성한 내용은 유지됩니다.",
     "specifyWorkspace": "폴더에서 채팅",
     "currentWorkspace": "현재 워크스페이스",
     "clearWorkspace": "폴더 제거",
@@ -37,6 +47,7 @@
     "earlier": "이전",
     "noHistory": "채팅 기록 없음",
     "noScheduledTask": "실행 기록 없음",
+    "noArchived": "보관된 대화가 없습니다",
     "actionNewConversation": "새 작업",
     "deleteTitle": "삭제",
     "deleteConfirm": "이 채팅을 삭제하시겠습니까?",
@@ -77,10 +88,16 @@
     "pinned": "Pinned",
     "pinFailed": "Pin operation failed",
     "pinnedSection": "Pinned",
+    "archive": "보관",
+    "restore": "복원",
+    "archiveSuccess": "보관했습니다",
+    "restoreSuccess": "복원했습니다",
+    "archiveFailed": "보관 작업에 실패했습니다",
     "deleteSuccess": "삭제되었습니다",
     "deleteFailed": "삭제에 실패했습니다",
     "timeline": "대화",
-    "scheduledTab": "예약 작업"
+    "scheduledTab": "예약 작업",
+    "archivedTab": "보관됨"
   },
   "dropdown": {
     "cliEngines": "CLI Agents",
@@ -292,5 +309,20 @@
       "remoteUnavailable": "Interactive terminals are not available for cloud sessions. Ask the agent to run commands in chat, or use a local session.",
       "createFailed": "Could not start the terminal. Check the working directory and system shell, then create a new terminal."
     }
+  },
+  "browserSession": {
+    "openConversation": "Open conversation",
+    "conversationControl": "Use the conversation to interrupt or continue. Touching the page while AI is working interrupts first; check the refreshed page before clicking again.",
+    "disconnected": "Connection lost. Browser input remains paused. Reconnect and use the conversation to continue.",
+    "stoppedHuman": "Browser stopped. Send a message in the conversation when you want AI to continue.",
+    "chooseFilesPrompt": "This page requested a file. Interrupt the task before uploading from your device.",
+    "personalConnectBody": "Connect profile {{profile}}. SudoWork pauses agent tools before connecting. You and AI share the same automation tab and login state. Chrome stays open when disconnected. Send a message in the conversation to continue.",
+    "personalDisconnectBody": "Your Chrome, tabs and login state stay open. Agent tools remain paused until you continue through the conversation.",
+    "errors": {
+      "browser_restart_requires_observation": "Restart the browser and check its page, then send a message in the conversation to continue.",
+      "browser_control_held_by_user": "Browser input is paused for you. Continue through the conversation when ready.",
+      "browser_restart_required": "Interrupt the task and restart the browser to change its launch mode."
+    },
+    "conversationUpdateRequired": "Update the server to interrupt and continue this browser through the conversation. Viewing remains available."
   }
 }

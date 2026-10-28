@@ -5,8 +5,9 @@
  */
 
 import { net } from 'electron';
+import { AccountOrganizationsSchema } from '@sudowork/contracts/auth';
 import { hasValidLoginIdentity } from '@sudowork/common/authLogin';
-import { externalProviderPort } from '@process/services/mossExternalProviders';
+import { hostedTaskPort, externalProviderPort } from '@process/services/mossExternalProviders';
 import { ipcBridge } from '@/common';
 // Match renderer SMS requests: Chromium honors system proxies and certificate settings.
 import { ProcessConfig } from '@process/initStorage';
@@ -54,9 +55,9 @@ export function withAuthStorageLock<T>(fn: () => Promise<T>): Promise<T> {
 let lastAuthRequiredAt = 0;
 const AUTH_REQUIRED_EMIT_INTERVAL_MS = 30_000;
 
-function emitAuthRequired(reason: 'no_refresh_token' | 'refresh_failed'): void {
+function emitAuthRequired(reason: 'no_refresh_token' | 'refresh_failed' | 'organization_switch_failed'): void {
   const now = Date.now();
-  if (now - lastAuthRequiredAt < AUTH_REQUIRED_EMIT_INTERVAL_MS) return;
+  if (reason !== 'organization_switch_failed' && now - lastAuthRequiredAt < AUTH_REQUIRED_EMIT_INTERVAL_MS) return;
   lastAuthRequiredAt = now;
   mainWarn('eeclawBridge', `Auth required (${reason}) — prompting re-login`);
   try {
@@ -367,13 +368,35 @@ export function initEeclawBridge(): void {
     let stage: 'request' | 'response' | 'persistence' | 'local-runtime' = 'request';
     try {
       const isPhoneRegistration = body.grant_type === 'phone_register';
-      const response = await net.fetch(`${serverUrl}${isPhoneRegistration ? '/api/v1/auth/register' : '/api/v1/auth/login'}`, {
+      const isOrganizationSwitch = body.grant_type === 'organization';
+      let expectedAccessToken: string | undefined;
+      let expectedMember: { userId: string; id: string } | undefined;
+      const previousSessionType = ProcessConfig.getSync('eeclaw.authStorage')?.session_type;
+      if (isOrganizationSwitch) {
+        const currentServer = ProcessConfig.getSync('eeclaw.serverUrl');
+        if (!currentServer || !body.orgId) return { success: false, error: 'auth_request_rejected', data: undefined };
+        // An organization change stays on the authenticated host. A renderer
+        // cannot send its existing credential to a different server.
+        serverUrl = currentServer;
+        expectedAccessToken = await getValidToken();
+        const availableResponse = await net.fetch(`${serverUrl}/api/v1/auth/organizations`, {
+          headers: { Authorization: `Bearer ${expectedAccessToken}` },
+          signal: AbortSignal.timeout(15000),
+        });
+        if (!availableResponse.ok) return { success: false, error: 'auth_request_rejected', data: undefined };
+        const available = AccountOrganizationsSchema.parse(await availableResponse.json());
+        expectedMember = available.organizations.find((org) => org.id === body.orgId);
+        if (!expectedMember) return { success: false, error: 'auth_request_rejected', data: undefined };
+      }
+      const path = isOrganizationSwitch ? '/api/v1/auth/switch-org' : isPhoneRegistration ? '/api/v1/auth/register' : '/api/v1/auth/login';
+      const response = await net.fetch(`${serverUrl}${path}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-Device-Id': deviceId,
+          ...(expectedAccessToken ? { Authorization: `Bearer ${expectedAccessToken}` } : {}),
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify(isOrganizationSwitch ? { org_id: body.orgId } : body),
         signal: AbortSignal.timeout(15000),
       });
 
@@ -395,28 +418,67 @@ export function initEeclawBridge(): void {
         mainWarn('eeclawBridge', 'login error:', { stage, name: 'InvalidLoginIdentity' });
         return { success: false, error: 'invalid_response', data: undefined };
       }
+      const selectedOrgId = authData.organization?.id || authData.user.orgId;
+      if (expectedMember && (authData.user.id !== expectedMember.userId || selectedOrgId !== expectedMember.id)) {
+        return { success: false, error: 'auth_request_rejected', data: undefined };
+      }
+      if (expectedMember) authData.user = { ...authData.user, orgId: selectedOrgId };
 
       const localModeAvailable = authData.execution?.isLocalAllowed ?? !!(authData.user.localAuth && authData.sudorouter_key && authData.model_service_url && Array.isArray(authData.models) && authData.models.length > 0);
 
       // Save server URL and auth storage to ProcessConfig
       // 将服务器 URL 和认证存储保存到 ProcessConfig
-      const sessionType: 'password' | 'api_key' | 'oauth2' | 'phone' = body.grant_type === 'oauth2' ? 'oauth2' : body.grant_type === 'api_key' ? 'api_key' : body.grant_type === 'phone' || body.grant_type === 'phone_register' ? 'phone' : 'password';
+      const sessionType: 'password' | 'api_key' | 'oauth2' | 'phone' = isOrganizationSwitch
+        ? previousSessionType || 'phone'
+        : body.grant_type === 'oauth2'
+          ? 'oauth2'
+          : body.grant_type === 'api_key'
+            ? 'api_key'
+            : body.grant_type === 'phone' || body.grant_type === 'phone_register'
+              ? 'phone'
+              : 'password';
       let runtime: Awaited<ReturnType<typeof applyMossLocalRuntime>> | undefined;
+      let defaultMode: 'local' | 'remote' = localModeAvailable ? 'local' : 'remote';
       stage = 'persistence';
       await withAuthStorageLock(async () => {
-        await ProcessConfig.set('eeclaw.serverUrl', serverUrl);
-        await ProcessConfig.set('eeclaw.authStorage', {
-          access_token: authData.access_token,
-          refresh_token: authData.refresh_token,
-          expires_at: Date.now() + (authData.expires_in || 3600) * 1000,
-          device_id: deviceId,
-          session_type: sessionType,
-        });
-        await ProcessConfig.set('eeclaw.localModeAvailable', localModeAvailable);
-        stage = 'local-runtime';
-        runtime = authData.execution && authData.localRuntime ? await applyMossLocalRuntime(authData, serverUrl) : undefined;
-        stage = 'persistence';
-        await ProcessConfig.set('eeclaw.userInfo', { id: authData.user.id, username: authData.user.name, role: authData.user.role, orgId: authData.user.orgId });
+        if (expectedAccessToken && (ProcessConfig.getSync('eeclaw.serverUrl') !== serverUrl || ProcessConfig.getSync('eeclaw.authStorage')?.access_token !== expectedAccessToken)) {
+          throw new Error('Authentication changed during organization selection');
+        }
+        try {
+          await ProcessConfig.set('eeclaw.serverUrl', serverUrl);
+          await ProcessConfig.set('eeclaw.authStorage', {
+            access_token: authData.access_token,
+            refresh_token: authData.refresh_token,
+            expires_at: Date.now() + (authData.expires_in || 3600) * 1000,
+            device_id: deviceId,
+            session_type: sessionType,
+          });
+          await ProcessConfig.set('eeclaw.localModeAvailable', localModeAvailable);
+          stage = 'local-runtime';
+          runtime = authData.execution && authData.localRuntime ? await applyMossLocalRuntime(authData, serverUrl) : undefined;
+          stage = 'persistence';
+          await ProcessConfig.set('eeclaw.userInfo', { id: authData.user.id, username: authData.user.name, role: authData.user.role, orgId: authData.user.orgId });
+          defaultMode = runtime?.execution.defaultTarget || (localModeAvailable ? 'local' : 'remote');
+          await ProcessConfig.set('guid.sessionMode', defaultMode);
+        } catch (error) {
+          if (isOrganizationSwitch) {
+            // Model setup may already have changed the managed execution scope.
+            // Require a fresh login instead of retaining the old UI identity
+            // beside partially installed credentials for the selected member.
+            try {
+              await ProcessConfig.set('eeclaw.authStorage', null);
+              await ProcessConfig.set('eeclaw.userInfo', null);
+              await ProcessConfig.set('eeclaw.localModeAvailable', null);
+              await clearMossLocalRuntime();
+            } finally {
+              setCachedAuthToken('');
+              setCachedLocalModeAvailable(null);
+              resetConversationProvider();
+              emitAuthRequired('organization_switch_failed');
+            }
+          }
+          throw error;
+        }
       });
 
       // Update enterprise cache for synchronous access
@@ -433,8 +495,6 @@ export function initEeclawBridge(): void {
       mainLog('eeclawBridge', 'Login successful, cache updated, provider reset');
 
       // Managed credentials and model configuration stay in the main process.
-      const defaultMode = runtime?.execution.defaultTarget || (localModeAvailable ? 'local' : 'remote');
-      await ProcessConfig.set('guid.sessionMode', defaultMode);
       setCachedSessionMode(defaultMode);
 
       return {
@@ -470,6 +530,46 @@ export function initEeclawBridge(): void {
       return { success: false, error: isTimeout ? 'request_timeout' : stage === 'request' ? 'network_error' : stage === 'response' ? 'invalid_response' : 'local_setup_failed', data: undefined };
     }
   });
+
+  ipcBridge.eeclaw.getOrganizations.provider(async () => {
+    try {
+      const serverUrl = ProcessConfig.getSync('eeclaw.serverUrl');
+      if (!serverUrl) return { success: false, data: undefined };
+      const response = await net.fetch(`${serverUrl}/api/v1/auth/organizations`, {
+        headers: { Authorization: `Bearer ${await getValidToken()}` },
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!response.ok) return { success: false, data: undefined };
+      return { success: true, data: AccountOrganizationsSchema.parse(await response.json()) };
+    } catch {
+      return { success: false, data: undefined };
+    }
+  });
+
+  // The renderer supplies only profile fields, never an upstream URL or credential.
+  async function mutateOwnProfile(path: string, body: object) {
+    try {
+      const serverUrl = ProcessConfig.getSync('eeclaw.serverUrl');
+      if (!serverUrl) return { success: false, msg: 'no_server_url' };
+      const send = async (isRefresh = false) =>
+        net.fetch(`${serverUrl}/api/v1/${path}`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${await getValidToken(isRefresh)}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(15000),
+        });
+      let response = await send();
+      if (response.status === 401) response = await send(true);
+      if (response.status === 401) await markAuthRequired('refresh_failed');
+      const result = await response.json();
+      return { success: response.ok && result.success === true, msg: result.msg || result.message || result.error, data: result.data };
+    } catch {
+      return { success: false, msg: 'profile_request_failed' };
+    }
+  }
+  ipcBridge.eeclaw.updateUserProfile.provider(({ nickname }) => mutateOwnProfile('user/update-profile', { nickname }));
+  ipcBridge.eeclaw.updateUserAvatar.provider(({ avatar }) => mutateOwnProfile('user/avatar', { avatar }));
+  ipcBridge.eeclaw.changePassword.provider(({ oldPassword, newPassword }) => mutateOwnProfile('auth/change-password', { oldPassword, newPassword }));
 
   ipcBridge.eeclaw.getUserProfile.provider(async () => {
     try {
@@ -533,6 +633,69 @@ export function initEeclawBridge(): void {
    * it knows which of the three kinds a stored reference is and where each
    * kind's name lives.
    */
+  ipcBridge.hostedTasks.agents.provider(async () => {
+    try {
+      return { success: true, data: await hostedTaskPort.agents() };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'HOSTED_TASK_REQUEST_FAILED' };
+    }
+  });
+  ipcBridge.hostedTasks.sessions.provider(async () => {
+    try {
+      return { success: true, data: await hostedTaskPort.sessions() };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'HOSTED_TASK_REQUEST_FAILED' };
+    }
+  });
+  ipcBridge.hostedTasks.history.provider(async (input) => {
+    try {
+      return { success: true, data: await hostedTaskPort.history(input.sessionId) };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'HOSTED_TASK_REQUEST_FAILED' };
+    }
+  });
+  ipcBridge.hostedTasks.create.provider(async (input) => {
+    try {
+      return { success: true, data: await hostedTaskPort.create(input) };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'HOSTED_TASK_REQUEST_FAILED' };
+    }
+  });
+  ipcBridge.hostedTasks.events.provider(async (input) => {
+    try {
+      return { success: true, data: await hostedTaskPort.events(input.taskId, input.cursor) };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'HOSTED_TASK_REQUEST_FAILED' };
+    }
+  });
+  ipcBridge.hostedTasks.evidence.provider(async (input) => {
+    try {
+      return { success: true, data: await hostedTaskPort.evidence(input.taskId, input.cursor) };
+    } catch {
+      return { success: false, msg: 'HOSTED_EVIDENCE_UNAVAILABLE' };
+    }
+  });
+  ipcBridge.hostedTasks.cancel.provider(async (input) => {
+    try {
+      return { success: true, data: await hostedTaskPort.cancel(input.taskId) };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'HOSTED_TASK_REQUEST_FAILED' };
+    }
+  });
+  ipcBridge.hostedTasks.reconcile.provider(async (input) => {
+    try {
+      return { success: true, data: await hostedTaskPort.reconcile(input.taskId) };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'HOSTED_TASK_REQUEST_FAILED' };
+    }
+  });
+  ipcBridge.hostedTasks.close.provider(async (input) => {
+    try {
+      return { success: true, data: await hostedTaskPort.close(input.taskId, input.note) };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error && /^[A-Z_]+$/.test(error.message) ? error.message : 'HOSTED_TASK_REQUEST_FAILED' };
+    }
+  });
   ipcBridge.externalProviders.context.provider(async () => {
     const server = ProcessConfig.getSync('eeclaw.serverUrl');
     const scope = ProcessConfig.getSync('eeclaw.accountScope');
@@ -768,7 +931,7 @@ export function initEeclawBridge(): void {
     }
   });
 
-  ipcBridge.eeclaw.logout.provider(async () => {
+  ipcBridge.eeclaw.logout.provider(async (options) => {
     // The whole revoke-then-clear sequence holds the auth storage lock: the
     // token snapshot, the server-side revocation and the local clear must not
     // interleave with a concurrent login/refresh write, otherwise a revoked
@@ -778,7 +941,7 @@ export function initEeclawBridge(): void {
         const serverUrl = ProcessConfig.getSync('eeclaw.serverUrl');
         const authStorage = ProcessConfig.getSync('eeclaw.authStorage');
 
-        if (serverUrl && authStorage?.access_token) {
+        if (!options?.isLocalOnly && serverUrl && authStorage?.access_token) {
           await net
             .fetch(`${serverUrl}/api/v1/auth/logout`, {
               method: 'POST',

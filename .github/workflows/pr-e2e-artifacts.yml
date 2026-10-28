@@ -42,6 +42,11 @@ jobs:
         with:
           node-version: "22"
 
+      - name: Prepare pinned ShareOne review source
+        uses: ./.github/actions/checkout-shareone-review
+        with:
+          ssh-key: ${{ secrets.SHAREONE_REVIEW_DEPLOY_KEY }}
+
       - name: Setup bun
         uses: oven-sh/setup-bun@v2
         with:

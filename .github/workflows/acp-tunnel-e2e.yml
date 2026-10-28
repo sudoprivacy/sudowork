@@ -2,6 +2,7 @@ name: ACP tunnel E2E
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [main, dev]
   workflow_dispatch:
     inputs:
@@ -19,6 +20,8 @@ concurrency:
 
 jobs:
   published-pair:
+    # Skipped on draft PRs: heavy CI starts once the PR is marked ready.
+    if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.draft) }}
     name: Published ACP pair (${{ matrix.os }})
     strategy:
       fail-fast: false

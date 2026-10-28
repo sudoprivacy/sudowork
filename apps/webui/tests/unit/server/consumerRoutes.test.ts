@@ -16,10 +16,11 @@ function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status })
 }
 
-function setupApp(): express.Express {
+function setupApp(isAuthenticated = true): express.Express {
   const app = express()
   app.use(express.json())
   app.use((req, _res, next) => {
+    if (!isAuthenticated) return next()
     ;(req as AuthedRequest).webSession = {
       id: 1,
       principalId: 'p-1',
@@ -160,6 +161,115 @@ describe('consumer 转发：recharge 路径', () => {
   })
 })
 
+describe('model account and organization billing forwarding', () => {
+  test.each([
+    '/model-account/access',
+    '/model-account',
+    '/model-account/logs?page=2&page_size=10',
+    '/model-billing/packages',
+    '/model-billing/orders?page=2&page_size=10',
+  ])('loads %s using the session credential and preserves query parameters', async (path) => {
+    const body = { success: true, data: { items: [], total: 0 } }
+    fetchMock.mockResolvedValueOnce(jsonResponse(body))
+    const response = await request(setupApp())
+      .get(`/api/v1${path}`)
+      .set('Authorization', 'Bearer forged')
+      .set('Idempotency-Key', 'not-for-reads')
+    expect(response.status).toBe(200)
+    expect(response.type).toBe('application/json')
+    expect(response.body).toEqual(body)
+    expect(fetchMock).toHaveBeenCalledExactlyOnceWith(`http://moss.test/api/v1${path}`, {
+      method: 'GET',
+      headers: { Authorization: 'Bearer tok-1' },
+    })
+  })
+
+  test.each([
+    {
+      path: '/model-billing/orders',
+      body: { purchase_amount_usd: '5.00', payment_method: 'WECHAT' },
+    },
+    { path: '/model-billing/orders/ORDER-9/pay', body: {} },
+    { path: '/model-billing/orders/ORDER-9/sync', body: {} },
+    { path: '/model-billing/orders/ORDER-9/cancel', body: {} },
+  ])('forwards POST $path with its body and actual order number', async ({ path, body }) => {
+    const response = await request(setupApp())
+      .post(`/api/v1${path}`)
+      .set('Authorization', 'Bearer forged')
+      .send(body)
+    expect(response.status).toBe(200)
+    expect(fetchMock).toHaveBeenCalledExactlyOnceWith(`http://moss.test/api/v1${path}`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer tok-1', 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+  })
+
+  test('preserves the order creation idempotency key across retries', async () => {
+    const app = setupApp()
+    const body = { purchase_amount_usd: '5.00', payment_method: 'WECHAT' }
+    for (let attempt = 0; attempt < 2; attempt++) {
+      fetchMock.mockResolvedValueOnce(
+        jsonResponse({ success: true, data: { order_no: 'ORDER-9' } }),
+      )
+      const response = await request(app)
+        .post('/api/v1/model-billing/orders')
+        .set('Idempotency-Key', 'purchase-9')
+        .send(body)
+      expect(response.body.data.order_no).toBe('ORDER-9')
+      expect(fetchMock).toHaveBeenNthCalledWith(
+        attempt + 1,
+        'http://moss.test/api/v1/model-billing/orders',
+        expect.objectContaining({
+          headers: {
+            Authorization: 'Bearer tok-1',
+            'Content-Type': 'application/json',
+            'Idempotency-Key': 'purchase-9',
+          },
+          body: JSON.stringify(body),
+        }),
+      )
+    }
+  })
+
+  test.each([401, 403, 409])(
+    'preserves Moss authorization and billing errors (%s)',
+    async (status) => {
+      const body = { success: false, error: { code: 'billing_rejected', message: 'Not allowed' } }
+      fetchMock.mockResolvedValueOnce(jsonResponse(body, status))
+      const response = await request(setupApp()).post('/api/v1/model-billing/orders').send({})
+      expect(response.status).toBe(status)
+      expect(response.body).toEqual(body)
+    },
+  )
+
+  test('rejects unauthenticated account reads and order writes before contacting Moss', async () => {
+    const app = setupApp(false)
+    for (const response of [
+      await request(app).get('/api/v1/model-account/access'),
+      await request(app).post('/api/v1/model-billing/orders').send({}),
+    ]) {
+      expect(response.status).toBe(401)
+      expect(response.body).toEqual({ error: 'SESSION_REQUIRED' })
+    }
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  test('does not expose model administration, callbacks or unsupported methods', async () => {
+    const app = setupApp()
+    const responses = [
+      await request(app).get('/api/v1/model-account/members'),
+      await request(app).patch('/api/v1/model-account/status').send({ status: 'disabled' }),
+      await request(app).get('/api/v1/model-billing/admin/orders'),
+      await request(app).post('/api/v1/model-billing/admin/credits').send({}),
+      await request(app).post('/api/v1/model-billing/callback').send({}),
+      await request(app).delete('/api/v1/model-billing/orders/ORDER-9'),
+    ]
+    expect(responses.map((response) => response.status)).toEqual(responses.map(() => 404))
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
 describe('personal Agent forwarding', () => {
   test.each(['/agents/mine', '/user-agents'])(
     'forwards only the current session token for %s',
@@ -194,6 +304,8 @@ describe('personal Agent forwarding', () => {
     { displayName: 'x'.repeat(61) },
     { displayName: 'Project', userId: 'other' },
     { displayName: 'Project', orgId: 'other' },
+    { displayName: 'Project', executionType: 'server' },
+    { displayName: 'Project', executionType: 'local' },
   ])('rejects invalid names and caller-supplied ownership: %j', async (body) => {
     const response = await request(setupApp()).post('/api/v1/user-agents').send(body)
     expect(response.status).toBe(400)
@@ -238,4 +350,33 @@ describe('consumer 转发：既有路径回归', () => {
     expect(res.body).toEqual({ error: 'SESSION_REQUIRED' })
     expect(fetchMock).not.toHaveBeenCalled()
   })
+})
+
+describe('account profile forwarding', () => {
+  test.each(['/user/update-profile', '/user/avatar', '/auth/change-password'])(
+    'requires a session and uses its identity for %s',
+    async (path) => {
+      expect((await request(setupApp(false)).post(`/api/v1${path}`).send({})).status).toBe(401)
+      expect(fetchMock).not.toHaveBeenCalled()
+      fetchMock.mockResolvedValueOnce(
+        jsonResponse({ success: false, msg: 'old password invalid' }, 403),
+      )
+      const response = await request(setupApp())
+        .post(`/api/v1${path}`)
+        .set('Authorization', 'Bearer forged')
+        .send({ nickname: 'Display' })
+      expect(response.status).toBe(403)
+      expect(response.body.msg).toBe('old password invalid')
+      expect(fetchMock).toHaveBeenCalledWith(
+        `http://moss.test/api/v1${path}`,
+        expect.objectContaining({
+          method: 'POST',
+          headers: expect.objectContaining({ Authorization: 'Bearer tok-1' }),
+        }),
+      )
+      expect((await request(setupApp()).post(`/api/v1${path}/other-user`).send({})).status).toBe(
+        404,
+      )
+    },
+  )
 })

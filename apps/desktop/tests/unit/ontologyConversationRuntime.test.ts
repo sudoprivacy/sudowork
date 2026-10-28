@@ -1,75 +1,79 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { prepareOntologyConversationRuntime } from '@process/services/ontology/ontologyConversationRuntime';
 
-const mocks = vi.hoisted(() => ({ getWorkbench: vi.fn(), getRuntime: vi.fn(), builder: vi.fn(), runtime: vi.fn(), repair: vi.fn() }));
-vi.mock('@process/services/ontology/OntologyService', () => ({ ontologyService: { getWorkbench: mocks.getWorkbench, getRegisteredAgentRuntime: mocks.getRuntime } }));
-vi.mock('@process/services/ontology/OntologyMcpRegistration', () => ({ ensureOntologyBuilderMcpServer: mocks.builder, createOntologyRuntimeMcpConfig: mocks.runtime }));
-vi.mock('@process/services/ontology/ontologyToolHistory', () => ({ repairOntologyToolHistory: mocks.repair }));
+const mocks = vi.hoisted(() => ({ authority: vi.fn(), invoke: vi.fn(), getRuntime: vi.fn(), project: vi.fn() }));
+vi.mock('@process/services/ontology/OntologyService', () => ({ ontologyService: { getModelAuthority: mocks.authority, invokeSudograph: mocks.invoke, getRegisteredAgentRuntime: mocks.getRuntime } }));
+vi.mock('@process/services/ontology/ontologyProjectRuntime', () => ({ prepareOntologyProject: mocks.project }));
 
 beforeEach(() => {
   vi.resetAllMocks();
-  mocks.getWorkbench.mockResolvedValue({ workspaceId: 'northwind' });
-  mocks.builder.mockResolvedValue({ name: 'ontology-builder', command: '/node', args: ['builder.js'], env: [{ name: 'ONTOLOGY_WRITE_TOKEN', value: 'fresh-builder-token' }] });
-  mocks.getRuntime.mockResolvedValue({ presetContext: 'Northwind v1: Products, Inventory, low_stock.', mcpRegistration: { workspaceId: 'northwind', versionId: 'v1', blueprintId: 'agent', exportFile: '/published.json' }, toolNameAliases: { ontology_list_logic: 'ontology_list_logic' } });
-  mocks.runtime.mockResolvedValue({ name: 'ontology', command: '/node', args: ['runtime.js'], env: [{ name: 'ONTOLOGY_VERSION_ID', value: 'v1' }] });
+  mocks.authority.mockReturnValue('rdf');
+  mocks.project.mockResolvedValue({ instructions: 'Run node ontology.cjs project list --context project.json' });
+  mocks.getRuntime.mockResolvedValue({ presetContext: 'Northwind v1: run node ontology.cjs list --package /published' });
 });
 
-describe('ontology conversation runtime', () => {
-  it('leaves ordinary and personal-agent conversations untouched', async () => {
+describe('ontology script conversation runtime', () => {
+  it('leaves ordinary and personal conversations and their MCP configuration untouched', async () => {
     for (const presetAssistantId of [undefined, 'builtin-agent', 'moss-agent:user:owner']) {
-      expect(await prepareOntologyConversationRuntime({ presetAssistantId })).toBeUndefined();
+      const extraMcpConfigs = [{ name: 'browser', command: '/browser' }];
+      expect(await prepareOntologyConversationRuntime({ presetAssistantId, extraMcpConfigs })).toBeUndefined();
+      expect(extraMcpConfigs).toEqual([{ name: 'browser', command: '/browser' }]);
     }
-    expect(mocks.getWorkbench).not.toHaveBeenCalled();
+    expect(mocks.project).not.toHaveBeenCalled();
     expect(mocks.getRuntime).not.toHaveBeenCalled();
-    expect(mocks.runtime).not.toHaveBeenCalled();
-    expect(mocks.repair).not.toHaveBeenCalled();
   });
 
-  it('restores builder tools with fresh credentials instead of inheriting a personal identity', async () => {
+  it('prepares authoring scripts while retaining unrelated and custom ontology-prefixed MCP servers', async () => {
     const result = await prepareOntologyConversationRuntime({
       purpose: 'ontology',
       ontologyId: 'northwind',
       presetAssistantId: 'moss-agent:user:owner',
       extraMcpConfigs: [
-        { name: 'ontology-builder', command: '/old' },
-        { name: 'team', command: '/team' },
+        { name: 'ontology-builder', command: '/retired' },
+        { name: 'browser', command: '/browser' },
+        { name: 'ontology-custom', command: '/custom' },
       ],
     });
-    expect(mocks.builder).toHaveBeenCalledWith('northwind');
+    expect(mocks.project).toHaveBeenCalledExactlyOnceWith('northwind');
+    expect(result?.presetContext).toContain('ontology.cjs project list');
+    expect(result?.extraMcpConfigs).toEqual([
+      { name: 'browser', command: '/browser' },
+      { name: 'ontology-custom', command: '/custom' },
+    ]);
     expect(mocks.getRuntime).not.toHaveBeenCalled();
-    expect(result?.presetContext).toContain('ontology workspace northwind');
-    expect(result?.presetContext).toContain('Read ontology_get_snapshot');
-    expect(result?.extraMcpConfigs).toEqual([{ name: 'team', command: '/team' }, await mocks.builder.mock.results[0].value]);
   });
 
-  it('loads published rules and connects the matching business tools for new and restored agent chats', async () => {
-    const input = {
-      presetAssistantId: 'ontology-agent',
-      workspace: '/original',
-      acpSessionId: 'original-session',
-      extraMcpConfigs: [
-        { name: 'ontology-other-version', command: '/stale' },
-        { name: 'ontology', command: '/previous' },
-      ],
-    };
+  it('preserves canonical model context with the shared project command transport', async () => {
+    mocks.authority.mockReturnValue('sudograph');
+    mocks.invoke.mockResolvedValue({ text: 'Exact compiled revision A' });
+    const result = await prepareOntologyConversationRuntime({ purpose: 'ontology', ontologyId: 'canonical' });
+    expect(result?.presetContext).toContain('Exact compiled revision A');
+    expect(result?.presetContext).toContain('ontology.cjs project list');
+    expect(mocks.invoke).toHaveBeenCalledWith('canonical', { operation: 'read', product: 'context' });
+    expect(result?.extraMcpConfigs).toEqual([]);
+  });
+
+  it('loads published scripts for new and resumed chats without adding ontology MCP servers', async () => {
     for (let attempt = 0; attempt < 2; attempt++) {
-      const result = await prepareOntologyConversationRuntime(input);
-      expect(result?.presetContext).toContain('Northwind v1');
-      expect(result?.presetContext).toContain('ontology_get_overview');
-      expect(result?.extraMcpConfigs).toEqual([await mocks.runtime.mock.results[attempt].value]);
+      const result = await prepareOntologyConversationRuntime({
+        presetAssistantId: 'ontology-agent',
+        extraMcpConfigs: [
+          { name: 'ontology', command: '/retired' },
+          { name: 'team', command: '/team' },
+        ],
+      });
+      expect(result?.presetContext).toContain('node ontology.cjs list --package /published');
+      expect(result?.extraMcpConfigs).toEqual([{ name: 'team', command: '/team' }]);
     }
-    expect(mocks.runtime).toHaveBeenCalledTimes(2);
-    expect(mocks.runtime).toHaveBeenLastCalledWith({ workspaceId: 'northwind', versionId: 'v1', blueprintId: 'agent', exportFile: '/published.json' });
-    expect(mocks.repair).toHaveBeenLastCalledWith(input, 'agent', { ontology_list_logic: 'ontology_list_logic' });
+    expect(mocks.getRuntime).toHaveBeenCalledTimes(2);
+    expect(mocks.project).not.toHaveBeenCalled();
   });
 
-  it('fails explicitly when ownership or tools cannot be resolved', async () => {
+  it('fails explicitly for missing projects and registered agents', async () => {
     await expect(prepareOntologyConversationRuntime({ purpose: 'ontology' })).rejects.toThrow('builderUnavailable');
     mocks.getRuntime.mockResolvedValue(undefined);
     await expect(prepareOntologyConversationRuntime({ presetAssistantId: 'ontology-missing' })).rejects.toThrow('notFound');
-    mocks.getWorkbench.mockRejectedValue(new Error('Deleted ontology'));
-    await expect(prepareOntologyConversationRuntime({ purpose: 'ontology', ontologyId: 'deleted' })).rejects.toThrow('Deleted ontology');
-    expect(mocks.builder).not.toHaveBeenCalled();
-    expect(mocks.runtime).not.toHaveBeenCalled();
+    mocks.project.mockRejectedValue(new Error('Project unavailable'));
+    await expect(prepareOntologyConversationRuntime({ purpose: 'ontology', ontologyId: 'missing' })).rejects.toThrow('Project unavailable');
   });
 });

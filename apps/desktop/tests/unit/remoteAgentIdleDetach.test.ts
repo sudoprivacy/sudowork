@@ -46,7 +46,7 @@ vi.mock('@/process/utils/mainLogger', () => ({
 
 vi.mock('@/process/database/export', () => ({
   getDatabase: () => ({
-    getConversation: () => ({ success: true, data: { id: 'conv-1', extra: {} } }),
+    getConversation: () => ({ success: true, data: { id: 'conv-1', modifyTime: 123, status: 'running', extra: {} } }),
     updateConversation: updateConversationSpy,
     createConversation: vi.fn(),
     deleteConversation: vi.fn(() => ({ success: true })),
@@ -234,6 +234,7 @@ describe('RemoteAgent idle detach', () => {
     confirmationRemoveEmit.mockClear();
     conversationChangedEmit.mockClear();
     updateConversationSpy.mockClear();
+    updateConversationSpy.mockReturnValue({ success: true });
     terminateSessionSpy.mockClear();
     resumeSessionSpy.mockReset();
     processConfigGetSync.mockReset();
@@ -263,6 +264,8 @@ describe('RemoteAgent idle detach', () => {
       })
     );
     expect(responseStreamEmit).toHaveBeenCalledWith(expect.objectContaining({ type: 'user_content', msg_id: 'user-1' }));
+    expect(updateConversationSpy).toHaveBeenCalledWith('conv-1', { modifyTime: expect.any(Number) });
+    expect(conversationChangedEmit).toHaveBeenCalledWith({ conversationId: 'conv-1', source: 'sudowork', action: 'updated' });
     const connection = FakeMossWsConnection.instances[0];
     expect(connection.sendMessageCalls).toBe(1);
     connection.callbacks.onMessage?.({ type: 'content', conversation_id: 'moss-session-1', msg_id: 'assistant-1', data: 'Saved reply' });
@@ -286,9 +289,37 @@ describe('RemoteAgent idle detach', () => {
       )
     );
     expect((await agent.sendMessage({ content: 'must not be delivered', msg_id: 'refused' })).success).toBe(false);
+    expect(updateConversationSpy.mock.calls.some((call) => call.length === 2 && typeof call[1]?.modifyTime === 'number')).toBe(false);
     expect(FakeMossWsConnection.instances).toHaveLength(0);
     expect(responseStreamEmit).toHaveBeenCalledWith(expect.objectContaining({ type: 'error', data: 'RUNTIME_UPDATE_REQUIRED', errorClass: 'runtime_update_required' }));
     expect(JSON.stringify(responseStreamEmit.mock.calls)).not.toContain('private');
+  });
+
+  it('keeps the Moss workbench identity and cached activity when resuming the existing Feishu Session', async () => {
+    const RemoteAgent = await loadRemoteAgent();
+    const agent = makeAgent(RemoteAgent);
+    resumeSessionSpy.mockResolvedValueOnce({
+      wsUrl: 'ws://moss.example/session',
+      session: {
+        userId: 'owner',
+        source: 'lark',
+        assistantName: 'moss-agent:operator:org-owner',
+        clientMetadata: { agent_manager_actor_id: 'owner', agent_manager_agent_name: 'moss-native', agent_manager_display_name: 'Moss', agent_manager_owner_name: 'Owner' },
+      },
+    });
+    await agent.sendMessage({ content: 'Continue my Moss Session', msg_id: 'moss-resume' });
+    expect(resumeSessionSpy).toHaveBeenCalledExactlyOnceWith('moss-session-1');
+    expect(updateConversationSpy).toHaveBeenCalledWith(
+      'conv-1',
+      expect.objectContaining({
+        extra: expect.objectContaining({
+          agentManagement: { ownerId: 'owner', ownerName: 'Owner', agentName: 'moss-native', displayName: 'Moss' },
+        }),
+      }),
+      { preserveModifyTime: true }
+    );
+    const metadataWrite = updateConversationSpy.mock.calls.find(([, update]) => update?.extra);
+    expect(metadataWrite?.[1]).not.toHaveProperty('status');
   });
 
   it('persists a newly committed Session when initial attach fails and resumes it on the next explicit send', async () => {
@@ -306,7 +337,9 @@ describe('RemoteAgent idle detach', () => {
       'conv-1',
       expect.objectContaining({
         extra: expect.objectContaining({ mossSessionId: 'moss-session-1', mossSessionPending: false }),
-      })
+        modifyTime: 123,
+      }),
+      { preserveModifyTime: true }
     );
     expect(FakeMossWsConnection.instances[0]!.sendMessageCalls).toBe(0);
     resumeSessionSpy.mockResolvedValueOnce({ wsUrl: 'ws://moss.example/session', session: {} });
@@ -356,6 +389,19 @@ describe('RemoteAgent idle detach', () => {
     vi.advanceTimersByTime(60_000 + 10);
     expect(conn.disconnectCalls).toBe(0);
     expect(internals(agent).connection).not.toBeNull();
+  });
+
+  it('clears incomplete tool cards when a remote turn is cancelled', async () => {
+    const RemoteAgent = await loadRemoteAgent();
+    const agent = makeAgent(RemoteAgent);
+
+    await agent.sendMessage({ content: 'run a long command', msg_id: 'm1' });
+    responseStreamEmit.mockClear();
+    await agent.stop();
+
+    const types = responseStreamEmit.mock.calls.map(([message]) => message.type);
+    expect(types).toEqual(['clear_incomplete_tools', 'content', 'finish']);
+    expect(internals(agent).turnActive).toBe(false);
   });
 
   it('cancels the timer when a new stream message arrives', async () => {

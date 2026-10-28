@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { OntologyStudio } from '@sudowork/ontology-ui';
-import type { IOntologyStudioApi, IStudioChatContext } from '@sudowork/ontology-ui';
+import type { IOntologyStudioApi, IStudioChatContext, IStudioChatOptions } from '@sudowork/ontology-ui';
 import { ONTOLOGY_DOCUMENT_EXTENSIONS } from '@sudowork/ontology-common';
 import type { OntologyStudioPage } from '@sudowork/ontology-common';
 import { requestStudioAiRepair } from './studioConversation';
@@ -20,13 +20,41 @@ export default function OntologyPage() {
   const { ontologyId, view } = useParams<{ ontologyId: string; view: string }>();
   const api = useMemo<IOntologyStudioApi>(
     () => ({
+      projects: ipcBridge.ontology.listProjects
+        ? {
+            list: async () => unwrap(await ipcBridge.ontology.listProjects.invoke(), t('ontology.errors.loadFailed')),
+            get: async (input) => unwrap(await ipcBridge.ontology.getProject.invoke(input), t('ontology.errors.loadFailed')),
+            connectSource: async (input) => unwrap(await ipcBridge.ontology.connectSource.invoke(input), t('ontology.errors.importFailed')),
+            resumeSource: async (input) => unwrap(await ipcBridge.ontology.resumeSource.invoke(input), t('ontology.errors.loadFailed')),
+            onChanged: (onChanged) => {
+              const subscriptions = [ipcBridge.ontology.modelChanged.on(onChanged), ipcBridge.ontology.projectsChanged.on(onChanged)];
+              return () => subscriptions.forEach((off) => off());
+            },
+          }
+        : undefined,
       requestAiRepair: requestStudioAiRepair,
       saveStudioModel: async (input) => unwrap(await ipcBridge.ontology.saveStudioModel.invoke(input), t('ontology.errors.saveFailed')),
       previewStandardFile: async (input) => unwrap(await ipcBridge.ontology.previewStandardFile.invoke(input), t('ontology.errors.importFailed')),
       importStandardFile: async (input) => unwrap(await ipcBridge.ontology.importStandardFile.invoke(input), t('ontology.errors.importFailed')),
       exportStandardFile: async (input) => unwrap(await ipcBridge.ontology.exportStandardFile.invoke(input), t('ontology.errors.operationFailed')),
+      runtimePackage: {
+        plan: async (input) => unwrap(await ipcBridge.ontology.planRuntimePackage.invoke(input), t('ontology.errors.operationFailed')),
+        export: async (input) => unwrap(await ipcBridge.ontology.exportRuntimePackage.invoke(input), t('ontology.errors.operationFailed')),
+        cancel: async (input) => unwrap(await ipcBridge.ontology.cancelRuntimePackageExport.invoke(input), t('ontology.errors.operationFailed')),
+        onProgress: (onChanged) => ipcBridge.ontology.packageExportProgress.on(onChanged),
+      },
+      packageImport: {
+        preview: async (input) => unwrap(await ipcBridge.ontology.previewRuntimePackage.invoke(input), t('ontology.errors.importFailed')),
+        import: async (input) => unwrap(await ipcBridge.ontology.importRuntimePackage.invoke(input), t('ontology.errors.importFailed')),
+      },
+      runtimeEnvironment: {
+        get: async (input) => unwrap(await ipcBridge.ontology.getRuntimeEnvironment.invoke(input), t('ontology.errors.loadFailed')),
+        configure: async (input) => unwrap(await ipcBridge.ontology.configureRuntimeEnvironment.invoke(input), t('ontology.errors.saveFailed')),
+        verify: async (input) => unwrap(await ipcBridge.ontology.verifyRuntimeEnvironment.invoke(input), t('ontology.errors.checkFailed')),
+      },
+      updateAgentDefinition: async (input) => unwrap(await ipcBridge.ontology.updateAgentDefinition.invoke(input), t('ontology.errors.saveFailed')),
       pickStandardFile: async () => {
-        const result = unwrap(await ipcBridge.dialog.showOpen.invoke({ properties: ['openFile'], filters: [{ name: t('ontology.studio.importFileFilter'), extensions: ['rdf', 'owl', 'xml'] }] }), t('ontology.errors.importFailed'));
+        const result = unwrap(await ipcBridge.dialog.showOpen.invoke({ properties: ['openFile'], filters: [{ name: t('ontology.studio.importFileFilter'), extensions: ['rdf', 'owl', 'xml', 'sudoonto'] }] }), t('ontology.errors.importFailed'));
         return result.canceled ? undefined : result.filePaths[0];
       },
       pickDataFiles: async () => {
@@ -97,8 +125,6 @@ export default function OntologyPage() {
       approvePublishedVersion: async (input) => unwrap(await ipcBridge.ontology.approvePublishedVersion.invoke(input), t('ontology.errors.publishFailed')),
       rejectPublishedVersion: async (input) => unwrap(await ipcBridge.ontology.rejectPublishedVersion.invoke(input), t('ontology.errors.publishFailed')),
       rollbackToVersion: async (input) => unwrap(await ipcBridge.ontology.rollbackToVersion.invoke(input), t('ontology.errors.publishFailed')),
-      createSkillBlueprint: async (input) => unwrap(await ipcBridge.ontology.createSkillBlueprint.invoke(input), t('ontology.errors.skillFailed')),
-      publishSkillBlueprint: async (input) => unwrap(await ipcBridge.ontology.publishSkillBlueprint.invoke(input), t('ontology.errors.skillFailed')),
       createAgentBlueprint: async (input) => unwrap(await ipcBridge.ontology.createAgentBlueprint.invoke(input), t('ontology.errors.agentFailed')),
       registerAgentBlueprint: async (input) => unwrap(await ipcBridge.ontology.registerAgentBlueprint.invoke(input), t('ontology.errors.agentFailed')),
       deleteAgentBlueprint: async (input) => unwrap(await ipcBridge.ontology.deleteAgentBlueprint.invoke(input), t('ontology.errors.agentFailed')),
@@ -109,7 +135,9 @@ export default function OntologyPage() {
   );
 
   const renderChat = useCallback(
-    (workspaceId: string, workspaceName: string, context?: IStudioChatContext, requestedConversationId?: string) => <StudioConversationPanel key={workspaceId} workspaceId={workspaceId} workspaceName={workspaceName} context={context} requestedConversationId={requestedConversationId} />,
+    (workspaceId: string, workspaceName: string, context?: IStudioChatContext, requestedConversationId?: string, options?: IStudioChatOptions) => (
+      <StudioConversationPanel key={workspaceId} workspaceId={workspaceId} workspaceName={workspaceName} context={context} requestedConversationId={requestedConversationId} isCanonicalReview={options?.modelAuthority === 'sudograph'} />
+    ),
     []
   );
   const onNavigate = useCallback(

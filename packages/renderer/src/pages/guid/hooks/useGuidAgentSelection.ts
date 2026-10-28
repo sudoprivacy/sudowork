@@ -13,7 +13,7 @@ import { DEFAULT_CODEX_MODELS } from '@sudowork/common/codex/codexModels';
 import type { IProvider } from '@sudowork/common/storage';
 import { ConfigStorage } from '@sudowork/common/storage';
 import { DEFAULT_PRESET_AGENT_TYPE, resolvePresetAgentBackend } from '@sudowork/common/acpTypes';
-import { isPersonalAgentRef } from '@sudowork/common/personalAgents';
+import { isLocalPersonalAgentRef, isPersonalAgentRef } from '@sudowork/common/personalAgents';
 import { resolveAssistantReference } from '@renderer/shared/agents/assistantReference';
 import type { IMyAgent } from '@sudowork/common/personalAgents';
 import { fetchAssistantsAsConfigs } from '@renderer/shared/agents/assistantAdapter';
@@ -22,7 +22,7 @@ import { useAppMode } from '@renderer/hooks/useAppMode';
 import { isWebBridgeAvailable } from '@renderer/utils/platform';
 import { emitter } from '@renderer/utils/emitter';
 import { EECLAW_AUTH_STORAGE_KEY } from '@renderer/context/AuthContext';
-import type { AcpBackend, AcpBackendConfig, AcpModelInfo, AvailableAgent, EffectiveAgentInfo, PresetAgentType } from '../types';
+import type { AcpBackend, AcpBackendConfig, AcpModelInfo, AvailableAgent, EffectiveAgentInfo, PresetAgentType, RemoteModelStatus } from '../types';
 import { resolveGuidModelBackendKey } from '../utils/modelBackendKey';
 import { personalAgentConfigs } from '../utils/personalAgentSelection';
 
@@ -177,6 +177,7 @@ export type GuidAgentSelectionResult = {
   selectedAcpModel: string | null;
   setSelectedAcpModel: React.Dispatch<React.SetStateAction<string | null>>;
   currentAcpCachedModelInfo: AcpModelInfo | null;
+  remoteModelStatus?: RemoteModelStatus;
   modelBackendKey: string;
   currentEffectiveAgentInfo: EffectiveAgentInfo;
   getAgentKey: (agent: { backend: AcpBackend; customAgentId?: string }) => string;
@@ -200,14 +201,16 @@ type UseGuidAgentSelectionOptions = {
   localeKey: string;
   /** Stable assistant reference; older links may contain an unambiguous name. */
   assistantFromUrl?: string | null;
+  initialSessionMode?: 'remote' | 'local';
   isOntologyEntry?: boolean;
 };
 
 /**
  * Hook that manages agent selection, availability, and preset assistant logic.
  */
-export const useGuidAgentSelection = ({ localeKey, assistantFromUrl, isOntologyEntry = false }: UseGuidAgentSelectionOptions): GuidAgentSelectionResult => {
+export const useGuidAgentSelection = ({ localeKey, assistantFromUrl, initialSessionMode, isOntologyEntry = false }: UseGuidAgentSelectionOptions): GuidAgentSelectionResult => {
   const { isEnterprise } = useAppMode();
+  const requestedSessionMode = initialSessionMode ?? (isLocalPersonalAgentRef(assistantFromUrl ?? undefined) ? 'local' : undefined);
   const ontologyAssistantId = isOntologyEntry ? assistantFromUrl : undefined;
   const ontologyEntryRef = useRef(ontologyAssistantId);
   const ontologyEntryEpochRef = useRef(0);
@@ -230,7 +233,7 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl, isOntologyE
   const [customAgents, setCustomAgents] = useState<AcpBackendConfig[]>([]);
   // Session mode state (remote/local) - SSOT for enterprise mode
   // sessionMode 状态（remote/local）— 企业模式的唯一权威来源
-  const [preferredSessionMode, _setSessionMode] = useState<'remote' | 'local'>('remote');
+  const [preferredSessionMode, _setSessionMode] = useState<'remote' | 'local'>(requestedSessionMode ?? 'remote');
   // The ontology entry uses local execution for this page without changing stored preferences.
   const sessionMode = isOntologyEntry ? 'local' : preferredSessionMode;
   const [selectedMode, _setSelectedMode] = useState<string>('default');
@@ -244,6 +247,7 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl, isOntologyE
   const lastAvailableAgentsKeyRef = useRef<string>('');
   const [acpCachedModels, setAcpCachedModels] = useState<Record<string, AcpModelInfo>>({});
   const [selectedAcpModel, _setSelectedAcpModel] = useState<string | null>(null);
+  const [remoteModelStatus, setRemoteModelStatus] = useState<RemoteModelStatus>('loading');
 
   // Wrap setSelectedAgentKey to also save to storage and sync ref
   const setSelectedAgentKey = useCallback((key: string) => {
@@ -299,7 +303,7 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl, isOntologyE
     const entryEpoch = ontologyEntryEpochRef.current;
     void ConfigStorage.get('guid.sessionMode').then(async (stored) => {
       if (ontologyEntryEpochRef.current !== entryEpoch) return;
-      let mode = stored ?? 'remote';
+      let mode = requestedSessionMode ?? stored ?? 'remote';
       // Validate localModeAvailable: fallback to remote if 'local' persisted but user lacks permission
       if (mode === 'local') {
         try {
@@ -326,7 +330,7 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl, isOntologyE
       }
       emitter.emit('chat.history.refresh');
     });
-  }, [isEnterprise, isOntologyEntry]);
+  }, [requestedSessionMode, isEnterprise, isOntologyEntry]);
 
   // --- sessionMode: setSessionMode wrapper with side effects ---
   // setSessionMode 封装：同步模块缓存 + 持久化 + IPC + 刷新历史 + 重置 agent 选择
@@ -662,7 +666,11 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl, isOntologyE
     const candidates = customAgents.filter((agent) => agent.enabled !== false && (!isOntologyEntry || !!agent.ontologyBinding));
     return isOntologyEntry ? candidates.find((agent) => agent.id === assistantFromUrl) : resolveAssistantReference(candidates, assistantFromUrl);
   }, [assistantFromUrl, customAgents, isOntologyEntry]);
-  const isAgentSelectionPending = Boolean(assistantFromUrl && (!requestedAssistant || selectedAgentInfo?.customAgentId !== requestedAssistant.id));
+  // A personal Agent from the URL is the durable session identity. Its task
+  // template is selected independently, so selectedAgentInfo may intentionally
+  // point at that template after the identity has resolved.
+  const isPersonalAgentRequest = isPersonalAgentRef(assistantFromUrl);
+  const isAgentSelectionPending = Boolean(assistantFromUrl && (!requestedAssistant || (!isPersonalAgentRequest && selectedAgentInfo?.customAgentId !== requestedAssistant.id)));
 
   // Pre-select the resolved identity when its catalog entry becomes available.
   useEffect(() => {
@@ -748,6 +756,7 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl, isOntologyE
 
     let cancelled = false;
     probedModelBackendsRef.current.add('remote-agent');
+    setRemoteModelStatus('loading');
 
     console.log('[Guid][remote-agent] Probing Moss Server model info...');
 
@@ -757,6 +766,7 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl, isOntologyE
         if (cancelled) return;
         if (!modelsResult.success || !modelsResult.data) {
           probedModelBackendsRef.current.delete('remote-agent');
+          setRemoteModelStatus('error');
           return;
         }
 
@@ -765,17 +775,28 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl, isOntologyE
           label: m.label || m.name || m.id,
         }));
 
+        if (availableModels.length === 0) {
+          setAcpCachedModels((prev) => ({ ...prev, ['remote-agent']: { source: 'models', currentModelId: null, currentModelLabel: null, availableModels: [], canSwitch: false } }));
+          _setSelectedAcpModel(null);
+          setRemoteModelStatus('empty');
+          return;
+        }
+
         // Also get user preference and system default
         const userPrefResult = await ipcBridge.moss.getUserModel.invoke();
         if (cancelled) return;
 
-        let currentModelId = '';
-        if (userPrefResult.success && userPrefResult.data?.modelId) {
-          currentModelId = userPrefResult.data.modelId;
-        } else if (userPrefResult.success && userPrefResult.data?.systemDefaultModel) {
-          currentModelId = userPrefResult.data.systemDefaultModel;
-        } else if (availableModels.length > 0) {
-          currentModelId = availableModels[0].id;
+        // Preferences can outlive catalog entries. The system default may
+        // also be an unqualified name, while creation requires a catalog ID.
+        const preferences = userPrefResult.success ? [userPrefResult.data?.modelId, userPrefResult.data?.systemDefaultModel] : [];
+        let currentModelId = availableModels[0].id;
+        for (const preference of preferences) {
+          if (!preference) continue;
+          const matches = availableModels.filter((model) => model.id === preference || (!preference.includes(':') && model.id.slice(model.id.indexOf(':') + 1) === preference));
+          if (matches.length === 1) {
+            currentModelId = matches[0].id;
+            break;
+          }
         }
 
         const modelInfo: AcpModelInfo = {
@@ -795,10 +816,12 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl, isOntologyE
 
         // Set selected model
         _setSelectedAcpModel(currentModelId);
+        setRemoteModelStatus('available');
       })
       .catch((error) => {
         if (cancelled) return;
         probedModelBackendsRef.current.delete('remote-agent');
+        setRemoteModelStatus('error');
         console.warn('[Guid][remote-agent] Failed to probe Moss model info:', error);
       });
 
@@ -1245,6 +1268,7 @@ This identity statement takes priority over the default identity in USER.md.
     selectedAcpModel,
     setSelectedAcpModel,
     currentAcpCachedModelInfo,
+    remoteModelStatus: modelBackendKey === 'remote-agent' && sessionMode === 'remote' ? remoteModelStatus : undefined,
     modelBackendKey,
     currentEffectiveAgentInfo,
     getAgentKey,

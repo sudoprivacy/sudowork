@@ -40,3 +40,14 @@ export const copyText = async (text: string): Promise<void> => {
     }
   }
 };
+
+/** Begin the clipboard write during the user gesture, before remote text arrives.
+ * WebKit requires activation at write(), so defer the ClipboardItem data itself.
+ * https://webkit.org/blog/10855/async-clipboard-api/
+ */
+export function copyTextFromPromise(text: Promise<string>): Promise<void> {
+  if (typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write && window.isSecureContext) {
+    return navigator.clipboard.write([new ClipboardItem({ 'text/plain': text.then((value) => new Blob([value], { type: 'text/plain' })) })]);
+  }
+  return text.then(copyText);
+}

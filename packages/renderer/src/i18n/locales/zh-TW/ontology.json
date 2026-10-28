@@ -26,6 +26,28 @@
   "objectEditor.deleteAttributeTitle": "刪除屬性",
   "objectEditor.deleteAttributeContent": "確定要刪除屬性 {{name}} 嗎？相關的欄位對應也會一併刪除。",
   "studio": {
+    "sourceLibraryDescription": "連接業務資料，或繼續既有本體",
+    "sourceEmptyLibrary": "連接資料庫，產生經過檢查的資料投影",
+    "sourceRuntimeUnavailable": "此部署尚未啟用資料來源建模，請聯絡管理員。",
+    "sourceOverview": "資料投影",
+    "sourceReceiptMissing": "未記錄來源掃描證明",
+    "sourceRefresh": "重新整理",
+    "openReview": "開啟審閱",
+    "openReviewViewer": "審閱瀏覽器",
+    "reviewRuntimeUnavailable": "目前受管瀏覽器版本尚不支援安全開啟審閱頁，請更新瀏覽器執行環境。",
+    "reviewTransportUnsupported": "安全開啟審閱頁需要使用受管 Chrome（CDP）。",
+    "reviewUnavailable": "無法開啟審閱頁，請重試。",
+    "sourceStructureComplete": "上次結構掃描完整",
+    "sourceStructureIncomplete": "結構掃描不完整",
+    "sourceLiveRecords": "按需讀取記錄",
+    "sourceSnapshotRecords": "凍結記錄快照",
+    "sourceRecordsUnavailable": "記錄暫不可用",
+    "sourceCounts": "{{tables}} 個來源資料表 · {{views}} 個資料庫檢視 · {{fields}} 個欄位",
+    "sourceObservation": "來源觀察時間",
+    "sourceObservationUnknown": "未記錄",
+    "sourceRevision": "模型版本",
+    "sourceObservationHint": "這裡顯示上次通過檢查的掃描結果，不代表目前連線仍然可用；讀取記錄時會重新檢查來源。",
+    "sourceConversationHint": "可繼續使用既有本體對話。對話中的模型工具讀取和修改同一份經過檢查的模型。",
     "issues": {
       "noServiceEndpoint": "尚未向智能体提供本体工具。请前往“发布”页发布本体并注册智能体。"
     }

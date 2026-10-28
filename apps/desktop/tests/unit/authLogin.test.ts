@@ -23,6 +23,49 @@ const grants: Array<{ request: LoginRequest; path: string; body: Record<string, 
   { request: { grant_type: 'api_key', api_key: 'key' }, path: '/api/auth/login/api-key', body: { apiKey: 'key' }, sessionType: 'api_key' },
 ];
 
+it.each(['desktop', 'web'])('enterprise selection reuses the %s login transaction with the selected identity', async (host) => {
+  const selected = { ...data, user: { ...data.user, id: 'company-member', orgId: 'company', role: 'user' } };
+  mocks.login.mockResolvedValue({ success: true, data: selected });
+  const fetch = vi
+    .fn()
+    .mockResolvedValueOnce(new Response('{"ok":true}'))
+    .mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          user: { id: 'company-member', name: 'Human' },
+          role: 'user',
+          organization: { id: 'company' },
+        })
+      )
+    );
+  vi.stubGlobal('fetch', fetch);
+  const commit = vi.fn();
+  const request: LoginRequest = { grant_type: 'organization', orgId: 'company', mossBaseUrl: 'https://other.example' };
+  expect(await runLogin(request, 'device', host === 'web' ? webLoginPort : desktopLoginPort, commit)).toEqual({ success: true });
+  expect(commit.mock.calls[0][0]).toMatchObject({ sessionType: 'phone', data: { user: { id: 'company-member', orgId: 'company', role: 'user' } } });
+  if (host === 'web') {
+    expect(fetch.mock.calls[0][0]).toBe('/api/auth/switch-org');
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ orgId: 'company' });
+    expect(commit.mock.calls[0][0].data.access_token).toBe('web-session');
+  } else {
+    expect(mocks.login).toHaveBeenCalledWith({ serverUrl: 'https://moss.example', body: { grant_type: 'organization', orgId: 'company' }, deviceId: 'device' });
+  }
+});
+
+it('does not reopen the previous enterprise Agent workspace after selecting a different enterprise', async () => {
+  vi.stubGlobal('window', { location: { hash: '#/conversation/opc-session?org_id=opc' }, history: { state: null } });
+  const fetch = vi.fn().mockImplementation(async (path: string) => {
+    if (path === '/api/auth/switch-org') return new Response('{"ok":true}');
+    if (path === '/api/auth/session') return new Response(JSON.stringify({ user: { id: 'company-member', name: 'Human' }, role: 'user', organization: { id: 'company' } }));
+    throw new Error('Unexpected workspace request: ' + path);
+  });
+  vi.stubGlobal('fetch', fetch);
+  const commit = vi.fn();
+  expect(await runLogin({ grant_type: 'organization', orgId: 'company' }, 'device', webLoginPort, commit)).toEqual({ success: true });
+  expect(fetch.mock.calls.map(([path]) => path)).toEqual(['/api/auth/switch-org', '/api/auth/session']);
+  expect(commit.mock.calls[0][0].data.user).toMatchObject({ id: 'company-member', orgId: 'company' });
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.server.mockResolvedValue('https://moss.example');

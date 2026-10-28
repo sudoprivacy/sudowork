@@ -10,7 +10,7 @@
  * - Packaging only: use --pack-only to skip electron-builder distributable creation
  */
 
-const { execSync, spawnSync } = require('child_process');
+const { execSync, spawnSync, execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -495,6 +495,7 @@ function buildTeamMcp() {
 /** A clean checkout has no generated browser adapters; every package needs both. */
 function buildBrowserMcp() {
   const projectRoot = path.resolve(__dirname, '..');
+  execFileSync(process.execPath, [path.join(__dirname, 'prepare-shareone-review.js')], { cwd: projectRoot, stdio: 'inherit' });
   console.log('🔨 Building browser MCP transports...');
   execSync('node scripts/build-browser-mcp.js', {
     cwd: projectRoot,

@@ -7,7 +7,7 @@
 import WebSocket from 'ws';
 import type { IResponseMessage, MossSessionAvailableSkill, MossWorkspaceFilePreview, MossWorkspaceNode } from '@sudowork/host-bridge/ipcBridge';
 import { BrowserSessionActionSchema, BrowserSessionReplySchema, type BrowserSessionAction, type BrowserSessionReply } from '@sudowork/contracts/browser-session';
-import { uploadBrowserFile, downloadBrowserFile, upgradeMossRuntime, MossHttpError, isMossRuntimeUpdateRequired } from '@sudowork/moss-client';
+import { changeMossBrowserConversation, uploadBrowserFile, downloadBrowserFile, upgradeMossRuntime, MossHttpError, isMossRuntimeUpdateRequired } from '@sudowork/moss-client';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 import { getValidToken } from '@process/bridge/eeclawBridge';
 import { ProcessConfig } from '@process/initStorage';
@@ -70,6 +70,25 @@ export class MossSessionApi {
     });
     if (!response.ok) throw new Error(`Browser session request failed (${response.status})`);
     return BrowserSessionReplySchema.parse(await response.json());
+  }
+
+  async changeBrowserConversation(sessionId: string, intent: 'interrupt' | 'continue'): Promise<boolean> {
+    return changeMossBrowserConversation(
+      async (baseUrl, request, timeoutMs) => {
+        const response = await fetch(new URL(request.path, baseUrl), {
+          method: request.method,
+          headers: { Authorization: `Bearer ${request.accessToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(request.body),
+          signal: AbortSignal.timeout(timeoutMs ?? 30_000),
+        });
+        const text = await response.text();
+        if (!response.ok) throw new MossHttpError(response.status, text, request.path);
+        return JSON.parse(text) as unknown;
+      },
+      { baseUrl: this.serverUrl, accessToken: await this.ensureAuthenticated() },
+      sessionId,
+      intent
+    );
   }
 
   /**

@@ -89,6 +89,14 @@ afterEach(() => {
 });
 
 describe('Agent session navigation', () => {
+  it('keeps model conversations in the shared history while omitting health checks', async () => {
+    const model = { ...conversation('model'), type: 'acp', extra: { purpose: 'ontology', ontologyId: 'northwind', backend: 'scode' } };
+    state.history.mockResolvedValue([conversation('current'), model, conversation('health', reference, { isHealthCheck: true })]);
+    renderPage();
+    await waitFor(() => expect(screen.getByLabelText('sidebar history')).toHaveTextContent('current,model'));
+    expect(screen.getByLabelText('tab history')).toHaveTextContent('current,model');
+    expect(screen.getByLabelText('sidebar history')).not.toHaveTextContent('health');
+  });
   it('keeps unclassified history readable without inventing an Agent identity', async () => {
     state.history.mockResolvedValue([conversation('current', 'template-a')]);
     renderPage();
@@ -186,6 +194,7 @@ describe('Agent session navigation', () => {
     renderPage();
     await screen.findByText('Renamed Agent');
     expect(state.history).toHaveBeenCalledTimes(1);
+    expect(state.history).toHaveBeenCalledWith({ page: 0, pageSize: 10000, includeAllExecutionTargets: true });
     expect(state.agents).toHaveBeenCalledTimes(1);
     expect(state.onChanged).toHaveBeenCalledTimes(1);
     expect(screen.getByLabelText('sidebar history')).toHaveTextContent('current,pinned,other,scheduled');
@@ -215,11 +224,12 @@ describe('Agent session navigation', () => {
     expect(screen.queryByText('Renamed Agent')).toBeNull();
   });
 
-  it('changes the query scope when the local or remote mode changes', async () => {
+  it('refreshes the same unified history when the local or remote creation mode changes', async () => {
     renderPage();
     await screen.findByText('Renamed Agent');
     state.sessionMode = 'local';
     act(() => state.listeners.get('chat.history.refresh')?.());
-    await waitFor(() => expect(state.history).toHaveBeenLastCalledWith({ page: 0, pageSize: 10000, sessionMode: 'local' }));
+    await waitFor(() => expect(state.history).toHaveBeenCalledTimes(2));
+    expect(state.history).toHaveBeenLastCalledWith({ page: 0, pageSize: 10000, includeAllExecutionTargets: true });
   });
 });

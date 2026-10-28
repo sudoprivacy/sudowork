@@ -10,6 +10,8 @@ function webRequest(request: LoginRequest): { path: string; body: Record<string,
   const { mossBaseUrl } = request;
   const server = mossBaseUrl ? { mossBaseUrl } : {};
   switch (request.grant_type) {
+    case 'organization':
+      return { path: '/api/auth/switch-org', body: { orgId: request.orgId } };
     case 'phone':
       return { path: '/api/auth/login/phone', body: { phone: request.phone, code: request.code, ...server } };
     case 'phone_register':
@@ -40,7 +42,9 @@ export const webLoginPort: ILoginPort = {
     });
     if (!result) throw new LoginError('invalidResponse');
     resetWebAgentWorkspace();
-    await attempt.step('web-agent-workspace', () => prepareWebAgentWorkspace());
+    // Enterprise selection leaves the old workspace. Reopening its deep link
+    // here would authenticate back into the organization the user just left.
+    if (request.grant_type !== 'organization') await attempt.step('web-agent-workspace', () => prepareWebAgentWorkspace());
     const data = await attempt.step('web-session', async (signal) => {
       const response = await fetch('/api/auth/session', { method: 'GET', credentials: 'include', signal });
       if (!response.ok) throw new LoginError('invalidResponse');

@@ -1,3 +1,4 @@
+import { useHostedHistory } from '@renderer/pages/hosted-agents/useHostedHistory';
 import { useExternalHistory } from '@renderer/pages/external-agents/useExternalHistory';
 import { mergeExternalHistory } from '@renderer/pages/external-agents/history';
 /**
@@ -13,7 +14,7 @@ import { useAllCronJobs } from '@renderer/pages/cron/hooks/useCronJobs';
 import { useConversationHistory } from '../../context/ConversationHistoryContext';
 
 import type { GroupedHistoryResult } from '../types';
-import { buildGroupedHistory } from '../utils/groupingHelpers';
+import { buildGroupedHistory, isConversationArchived } from '../utils/groupingHelpers';
 
 const EXPANSION_STORAGE_KEY = 'sudowork_workspace_expansion';
 
@@ -61,13 +62,17 @@ export const useConversations = () => {
 
   const { jobs: cronJobs } = useAllCronJobs();
   const externalHistory = useExternalHistory();
+  const hostedHistory = useHostedHistory();
+
+  const activeConversations = useMemo(() => conversations.filter((conversation) => !isConversationArchived(conversation)), [conversations]);
+  const archivedConversations = useMemo(() => conversations.filter(isConversationArchived).sort((a, b) => (b.extra?.archivedAt ?? b.modifyTime) - (a.extra?.archivedAt ?? a.modifyTime)), [conversations]);
 
   const groupedHistory: GroupedHistoryResult = useMemo(() => {
-    const result = buildGroupedHistory(conversations, t, cronJobs, myAgents);
+    const result = buildGroupedHistory(activeConversations, t, cronJobs, myAgents);
     return result;
-  }, [conversations, t, cronJobs, myAgents]);
+  }, [activeConversations, t, cronJobs, myAgents]);
 
-  const { pinnedTimeline, pinnedScheduled, timelineSections, scheduledGroups, agentGroups } = useMemo(() => mergeExternalHistory(groupedHistory, externalHistory.conversations, t), [groupedHistory, externalHistory.conversations, t]);
+  const { pinnedTimeline, pinnedScheduled, timelineSections, scheduledGroups, agentGroups } = useMemo(() => mergeExternalHistory(groupedHistory, [...externalHistory.conversations, ...hostedHistory.conversations], t), [groupedHistory, externalHistory.conversations, hostedHistory.conversations, t]);
 
   // Auto-expand all workspaces on first load only (#1156)
   useEffect(() => {
@@ -118,6 +123,7 @@ export const useConversations = () => {
 
   return {
     conversations,
+    archivedConversations,
     externalHistoryFailed: externalHistory.isFailed,
     onRefreshExternalHistory: externalHistory.onRefresh,
     expandedWorkspaces,

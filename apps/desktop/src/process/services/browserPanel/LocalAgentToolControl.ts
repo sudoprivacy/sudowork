@@ -69,12 +69,42 @@ export class LocalAgentToolControl {
     return current.epoch;
   }
 
-  take(owner: string, acquireBrowser: () => Promise<void>): Promise<ILocalToolControlState> {
+  /** Account transitions revoke resources; they never hand an old browser to a new actor. */
+  retireAfterShutdown(closeResources: () => Promise<void>): Promise<ILocalToolControlState> {
+    if (this.operation) return Promise.reject(new Error('Browser control transfer is already running'));
+    if (this.actors.size) return Promise.reject(new Error('Stop all local agents before retiring browser control'));
+    const current = this.status();
+    this.save({ epoch: current.epoch + 1, owner: current.owner, state: 'pausing' });
+    const pending = (async () => {
+      try {
+        await closeResources();
+        if (this.actors.size) throw new Error('A local agent started during browser shutdown');
+        this.paused.clear();
+        this.save({ epoch: current.epoch + 1, state: 'ai' });
+      } catch (error) {
+        this.save({ epoch: current.epoch + 1, owner: current.owner, state: 'error', error: error instanceof Error ? error.message : String(error) });
+        throw error;
+      }
+      return this.status();
+    })();
+    this.operation = pending;
+    void pending
+      .finally(() => {
+        if (this.operation === pending) this.operation = undefined;
+      })
+      .catch(() => {});
+    return pending;
+  }
+
+  take(owner: string, acquireBrowser: () => Promise<void>, isReviewSwitch = false): Promise<ILocalToolControlState> {
     if (this.operation) return Promise.reject(new Error('Browser control transfer is already running'));
     const current = this.status();
     if ([...this.actors.values()].some((actor) => actor.connection.hasActiveSession && actor.connection.isToolPauseSupported === false)) return Promise.reject(new Error('An active agent cannot acknowledge tool takeover. Update or stop it before taking browser control.'));
     const isRecovery = current.state === 'error' && current.owner === owner;
-    if (!owner || (current.state !== 'ai' && !isRecovery)) return Promise.reject(new Error('Browser control must be returned before another takeover'));
+    // An explicit host review action may also recover a persisted takeover.
+    // Recovery still reacquires every engine ticket before opening the page.
+    const isExplicitReviewSwitch = isReviewSwitch && ['human', 'error'].includes(current.state);
+    if (!owner || (current.state !== 'ai' && !isRecovery && !isExplicitReviewSwitch)) return Promise.reject(new Error('Browser control must be returned before another takeover'));
     this.save({ epoch: current.epoch + 1, owner, state: 'pausing' });
     const pending = (async () => {
       try {
@@ -82,6 +112,7 @@ export class LocalAgentToolControl {
         // prompt paths are refused, so none can bypass the acknowledgement.
         for (const [id, actor] of this.actors) {
           await actor.ready();
+          if (isExplicitReviewSwitch && current.state === 'human' && this.paused.has(id)) continue;
           if (actor.connection.hasActiveSession) this.paused.set(id, await actor.connection.pauseTools());
         }
         await acquireBrowser();

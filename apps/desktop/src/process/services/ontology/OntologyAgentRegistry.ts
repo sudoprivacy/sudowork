@@ -58,14 +58,13 @@ export class OntologyAgentRegistry {
     const initial = await this.read(workspaceId);
     const requested = input.blueprintId ? initial.agentBlueprints.find((item) => item.id === input.blueprintId || item.retiredRegistrations?.some((old) => old.id === input.blueprintId)) : initial.agentBlueprints.at(-1);
     if (!requested) throw new Error('ontology.studio.agentErrors.notFound');
-    const key = JSON.stringify([workspaceId, requested.skillBlueprintId]);
+    const key = JSON.stringify([workspaceId, requested.ontologyVersionId]);
     const pending = this.pending.get(key);
     if (pending) return pending;
     const operation = this.withLock(workspaceId, async () => {
       const snapshot = await this.reconcile(workspaceId);
-      const blueprint = snapshot.agentBlueprints.find((item) => item.skillBlueprintId === requested.skillBlueprintId);
+      const blueprint = snapshot.agentBlueprints.find((item) => item.ontologyVersionId === requested.ontologyVersionId);
       if (!blueprint) throw new Error('ontology.studio.agentErrors.notFound');
-      if (!snapshot.skillBlueprints.some((skill) => skill.id === blueprint.skillBlueprintId && skill.status === 'published' && skill.registeredSkillId)) throw new Error('ontology.studio.agentErrors.skillUnavailable');
       if (!snapshot.publishedVersions.some((version) => version.id === blueprint.ontologyVersionId && version.status === 'published')) throw new Error('ontology.studio.agentErrors.versionUnavailable');
       const assistantId = blueprint.registeredAssistantId || `ontology-${blueprint.id}`;
       if (input.assistantId && input.assistantId.trim() !== assistantId) throw new Error('ontology.studio.agentErrors.identityConflict');
@@ -123,7 +122,7 @@ export class OntologyAgentRegistry {
   private async read(workspaceId: string): Promise<IOntologyWorkbenchSnapshot> {
     const snapshot = await this.repository.getSnapshot(workspaceId);
     if (!snapshot) throw new Error('ontology.studio.errors.notFound');
-    return snapshot;
+    return this.engine.getWorkbench(workspaceId);
   }
 
   private async update(workspaceId: string, blueprintId: string, changes: Partial<IOntologyAgentBlueprint>) {
@@ -141,7 +140,7 @@ export class OntologyAgentRegistry {
     if (!before.agentBlueprints.length) return before;
     const installed = new Map(await Promise.all(before.agentBlueprints.map(async (item) => [item.id, !!item.registeredAssistantId && (await this.runtime.isInstalled(item.registeredAssistantId))] as const)));
     const groups = new Map<string, IOntologyAgentBlueprint[]>();
-    for (const item of before.agentBlueprints) groups.set(item.skillBlueprintId, [...(groups.get(item.skillBlueprintId) || []), item]);
+    for (const item of before.agentBlueprints) groups.set(item.ontologyVersionId, [...(groups.get(item.ontologyVersionId) || []), item]);
     const blueprints: IOntologyAgentBlueprint[] = [];
     let isRuntimeChanged = false;
     for (const group of groups.values()) {

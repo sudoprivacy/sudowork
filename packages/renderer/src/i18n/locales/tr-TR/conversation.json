@@ -4,6 +4,12 @@
     "body": "Ajan yanıt verirken bir mesaj göndermek geçerli yanıtı keser ve yeni mesajınızı hemen işler.",
     "ok": "Kes"
   },
+  "header": {
+    "agent": "Ajan",
+    "model": "Model",
+    "localExecutionHint": "Bu görev mevcut cihazda çalışır ve izin verilen yerel dosyaları ve araçları kullanabilir.",
+    "remoteExecutionHint": "Bu görev Moss Server üzerinde çalışır; çalışma ortamı ve çalışma alanı sunucudadır."
+  },
   "welcome": {
     "title": "Merhaba, bugünkü planın nedir?",
     "placeholder": "Mesaj gönder, dosya yükle veya klasör aç...",
@@ -19,6 +25,10 @@
     "selectModel": "Model Seç",
     "useCliModel": "Model Seç",
     "modelSwitchNotSupported": "Model listesi ilk bağlantıdan sonra kullanılabilir olacaktır. Bağlanmak ve mevcut modelleri yüklemek için önce bir mesaj gönderin.",
+    "modelSwitchUnavailable": "Bu çalışma ortamı model değiştirmeyi desteklemiyor.",
+    "modelsLoading": "Modeller yükleniyor…",
+    "modelsUnavailable": "Modeller kullanılamıyor",
+    "modelServiceUnavailable": "Model hizmetinde kullanılabilir model yok. Kimlik bilgilerini ve yapılandırmayı kontrol edin. Taslağınız korunur.",
     "specifyWorkspace": "Klasörde Sohbet Et",
     "currentWorkspace": "Mevcut Çalışma Alanı",
     "clearWorkspace": "Klasörü kaldır",
@@ -37,6 +47,7 @@
     "earlier": "Daha Önce",
     "noHistory": "Sohbet geçmişi yok",
     "noScheduledTask": "Yürütme kaydı yok",
+    "noArchived": "Arşivlenmiş konuşma yok",
     "actionNewConversation": "Yeni görev",
     "deleteTitle": "Sil",
     "deleteConfirm": "Bu sohbeti silmek istediğinizden emin misiniz?",
@@ -77,10 +88,16 @@
     "pinned": "Pinned",
     "pinFailed": "Pin operation failed",
     "pinnedSection": "Pinned",
+    "archive": "Arşivle",
+    "restore": "Geri yükle",
+    "archiveSuccess": "Başarıyla arşivlendi",
+    "restoreSuccess": "Başarıyla geri yüklendi",
+    "archiveFailed": "Arşiv işlemi başarısız",
     "deleteSuccess": "Başarıyla silindi",
     "deleteFailed": "Silme başarısız oldu",
     "timeline": "Sohbet",
-    "scheduledTab": "Zamanlanmış Görevler"
+    "scheduledTab": "Zamanlanmış Görevler",
+    "archivedTab": "Arşivlenmiş"
   },
   "tabs": {
     "closeAll": "Tümünü Kapat",
@@ -294,5 +311,20 @@
       "remoteUnavailable": "Interactive terminals are not available for cloud sessions. Ask the agent to run commands in chat, or use a local session.",
       "createFailed": "Could not start the terminal. Check the working directory and system shell, then create a new terminal."
     }
+  },
+  "browserSession": {
+    "openConversation": "Open conversation",
+    "conversationControl": "Use the conversation to interrupt or continue. Touching the page while AI is working interrupts first; check the refreshed page before clicking again.",
+    "disconnected": "Connection lost. Browser input remains paused. Reconnect and use the conversation to continue.",
+    "stoppedHuman": "Browser stopped. Send a message in the conversation when you want AI to continue.",
+    "chooseFilesPrompt": "This page requested a file. Interrupt the task before uploading from your device.",
+    "personalConnectBody": "Connect profile {{profile}}. SudoWork pauses agent tools before connecting. You and AI share the same automation tab and login state. Chrome stays open when disconnected. Send a message in the conversation to continue.",
+    "personalDisconnectBody": "Your Chrome, tabs and login state stay open. Agent tools remain paused until you continue through the conversation.",
+    "errors": {
+      "browser_restart_requires_observation": "Restart the browser and check its page, then send a message in the conversation to continue.",
+      "browser_control_held_by_user": "Browser input is paused for you. Continue through the conversation when ready.",
+      "browser_restart_required": "Interrupt the task and restart the browser to change its launch mode."
+    },
+    "conversationUpdateRequired": "Update the server to interrupt and continue this browser through the conversation. Viewing remains available."
   }
 }

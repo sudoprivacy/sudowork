@@ -2,6 +2,30 @@ import { expect, it, vi } from 'vitest';
 import { applyExternalEventsPage, createMossExternalProviderPort } from '@sudowork/moss-client/external-providers';
 import { EXTERNAL_PROVIDER_API, type ExternalTask, type ExternalTaskEvent } from '@sudowork/contracts/external-provider';
 
+it('accepts standard protocol evidence without inventing MCP task handles and rejects inconsistent claims', async () => {
+  const execution = { protocol: 'mcp/2025-06-18', trace_id: 'a'.repeat(32), version_evidence: 'source_snapshot_only', resume: 'unsupported' };
+  const evidence = { api_version: EXTERNAL_PROVIDER_API, kind: 'ExternalTaskEvidence', task_id: 'task-1', session_id: 'session-1', attempt_id: 'attempt-1', status: 'succeeded', execution };
+  const request = vi.fn().mockResolvedValue({ success: true, data: evidence });
+  const port = createMossExternalProviderPort(request);
+  expect((await port.evidence('task-1')).execution?.provider_run_id).toBeUndefined();
+  for (const invalid of [
+    { ...execution, provider_run_id: 'invented' },
+    { ...execution, trace_id: undefined },
+    { ...execution, protocol: undefined },
+    { ...execution, usage: { source: 'provider_reported', input_tokens: 1, output_tokens: 2 } },
+  ]) {
+    request.mockResolvedValue({ success: true, data: { ...evidence, execution: invalid } });
+    await expect(port.evidence('task-1')).rejects.toThrow();
+  }
+  const openai = { ...execution, protocol: 'openai-chat-completions/v1', provider_response_id: 'chatcmpl-1', usage: { source: 'provider_reported', input_tokens: 3, output_tokens: 1 } };
+  request.mockResolvedValue({ success: true, data: { ...evidence, execution: openai } });
+  expect((await port.evidence('task-1')).execution?.usage?.source).toBe('provider_reported');
+  request.mockResolvedValue({ success: true, data: { ...evidence, execution: { ...openai, usage: { ...openai.usage, input_tokens: -1 } } } });
+  await expect(port.evidence('task-1')).rejects.toThrow();
+  request.mockResolvedValue({ success: true, data: { ...evidence, execution: { ...execution, protocol: 'a2a/0.3.0', provider_run_id: 'remote-task' } } });
+  expect((await port.evidence('task-1')).execution?.provider_run_id).toBe('remote-task');
+});
+
 it('rejects invalid task input and path injection before transport', async () => {
   const request = vi.fn(),
     port = createMossExternalProviderPort(request);
@@ -184,4 +208,102 @@ it('submits a typed TaskSpec request once and retains rejection decisions in his
   request.mockRejectedValue(new Error('connection lost'));
   await expect(port.create({ agent_id: 'agent-1', query: '6 * 7', idempotency_key: 'request-1234' })).rejects.toThrow('connection lost');
   expect(request).toHaveBeenCalledTimes(3);
+});
+
+const usageAgent = {
+  id: 'usage-agent',
+  name: 'Usage',
+  provider: 'dify',
+  execution_mode: 'external_hosted',
+  profile: 'synthetic_pilot',
+  source_identity_evidence: 'unverified',
+  source_digest: 'digest',
+  decoder: 'text',
+  approved: true,
+  review_expires_at: 1000,
+  capabilities: { streaming: 'supported', cancel: 'unsupported', resume: 'unsupported', version_pin: 'unsupported' },
+};
+const usage = {
+  data_scope: 'synthetic_only',
+  input: 'text_query_only',
+  attachments: 'unsupported',
+  resource_refs: 'unsupported',
+  tools: 'unsupported',
+  content_classification: 'caller_declared_only',
+  capability_basis: 'adapter_contract',
+  evaluated_at: 100,
+  reviewed_at: null,
+  review_state: 'current',
+};
+it('retains optional usage from new servers and accepts old servers without fabricating it', async () => {
+  const request = vi.fn().mockResolvedValue({ success: true, data: [usageAgent] });
+  const port = createMossExternalProviderPort(request);
+  expect((await port.agents())[0].usage).toBeUndefined();
+  request.mockResolvedValue({ success: true, data: [{ ...usageAgent, usage }] });
+  expect((await port.agents())[0].usage).toEqual(usage);
+});
+it.each([{ data_scope: 'internal' }, { attachments: 'supported' }, { tools: 'supported' }, { content_classification: 'verified' }, { capability_basis: 'remote_attestation' }, { evaluated_at: -1 }, { reviewed_at: 'yesterday' }])('rejects unsupported or malformed usage claims: %j', async (patch) => {
+  const request = vi.fn().mockResolvedValue({ success: true, data: [{ ...usageAgent, usage: { ...usage, ...patch } }] });
+  await expect(createMossExternalProviderPort(request).agents()).rejects.toThrow();
+});
+
+it('keeps Registry provenance distinct from execution evidence and rejects mismatched identities', async () => {
+  const digest = `sha256:${'a'.repeat(64)}`;
+  const principal = { trust_domain: 'agents.example', agent_name: 'external-agent-1' };
+  const registry = { authority: 'nexus_registry', principal, registration_digest: digest, signing_key_id: digest, evidence: 'signed_registration_only' };
+  const options = { api_version: 'agent-federation.sudo.dev/v1alpha1', kind: 'AgentReleaseOptions', catalog_id: 'agent-1', principal, items: [{ version: 'v1', source_digest: digest, spec_digest: digest, registry, approval_expires_at: 9000 }], channels: [], next_cursor: null };
+  const request = vi.fn().mockResolvedValue({ success: true, data: options });
+  const port = createMossExternalProviderPort(request);
+  expect((await port.versions('agent-1')).items[0].registry).toEqual(registry);
+  request.mockResolvedValue({ success: true, data: { ...options, principal: { ...principal, trust_domain: 'another.example' } } });
+  await expect(port.versions('agent-1')).rejects.toThrow();
+  const evidence = {
+    api_version: EXTERNAL_PROVIDER_API,
+    kind: 'ExternalTaskEvidence',
+    task_id: 'task-1',
+    session_id: 'session-1',
+    attempt_id: 'attempt-1',
+    status: 'succeeded',
+    selection: { version: 'v1', source_digest: digest, release_digest: digest, registry, version_evidence: 'source_snapshot_only' },
+  };
+  request.mockResolvedValue({ success: true, data: evidence });
+  expect((await port.evidence('task-1')).selection?.registry).toEqual(registry);
+  request.mockResolvedValue({ success: true, data: { ...evidence, selection: { ...evidence.selection, release_digest: undefined } } });
+  await expect(port.evidence('task-1')).rejects.toThrow();
+  request.mockResolvedValue({ success: true, data: { ...evidence, selection: { ...evidence.selection, registry: { ...registry, evidence: 'verified_execution' } } } });
+  await expect(port.evidence('task-1')).rejects.toThrow();
+});
+
+it('requests catalog evidence explicitly and rejects contradictory or secret-bearing provenance', async () => {
+  const digest = `sha256:${'a'.repeat(64)}`;
+  const provenance = {
+    recorded_at: 1,
+    stage: 'dispatch_authorized',
+    protocol: 'a2a/0.3.0',
+    adapter_version: 'a2a@1',
+    source_revision: null,
+    revision_basis: 'content_digest',
+    source_id: 'source-1',
+    candidate_id: 'candidate-1',
+    capabilities: { streaming: 'unsupported', cancel: 'unsupported', resume: 'unsupported', version_pin: 'unsupported', idempotency: 'unsupported', human_approval: 'unsupported', trace_export: 'partial' },
+    observability: 'partial',
+    source_digest: digest,
+  };
+  const evidence = { api_version: EXTERNAL_PROVIDER_API, kind: 'ExternalTaskEvidence', task_id: 'task-1', session_id: 'session-1', attempt_id: 'attempt-1', status: 'unknown', provenance, selection: { version: 'v1', source_digest: digest, version_evidence: 'source_snapshot_only' } };
+  const request = vi.fn().mockResolvedValue({ success: true, data: evidence });
+  const port = createMossExternalProviderPort(request);
+  expect((await port.evidence('task-1')).provenance).toEqual(provenance);
+  expect(request).toHaveBeenLastCalledWith({ method: 'GET', path: '/api/v1/tasks/task-1/evidence?profile=catalog-v1' });
+  for (const invalid of [
+    { ...provenance, api_key: 'must-not-enter-renderer' },
+    { ...provenance, source_digest: `sha256:${'b'.repeat(64)}` },
+    { ...provenance, revision_basis: 'provider_declared' },
+    { ...provenance, observability: 'full' },
+    { ...provenance, capabilities: { ...provenance.capabilities, cancel: 'guaranteed' } },
+  ]) {
+    request.mockResolvedValue({ success: true, data: { ...evidence, provenance: invalid } });
+    await expect(port.evidence('task-1')).rejects.toThrow();
+  }
+  request.mockResolvedValue({ success: true, data: { ...evidence, provenance: undefined } });
+  expect((await port.evidence('task-1')).provenance).toBeUndefined();
 });

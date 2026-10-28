@@ -27,6 +27,10 @@ on:
         description: "Prevent users from overriding the injected Moss address"
         type: boolean
         default: false
+      strict_macos_candidate:
+        description: "Require Developer ID and notarization checks on the actual DMG and ZIP"
+        type: boolean
+        default: false
 
 env:
   BUN_INSTALL_REGISTRY: "https://registry.npmjs.org/"
@@ -80,6 +84,9 @@ jobs:
 
       - name: Run unit tests
         run: bun run test
+
+      - name: Test macOS candidate verification
+        run: python3 -m unittest discover -s scripts -p 'test_*macos*.py'
 
   build:
     name: Build ${{ matrix.platform }}
@@ -140,6 +147,11 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: "22"
+
+      - name: Prepare pinned ShareOne review source
+        uses: ./.github/actions/checkout-shareone-review
+        with:
+          ssh-key: ${{ secrets.SHAREONE_REVIEW_DEPLOY_KEY }}
 
       - name: Setup bun
         uses: oven-sh/setup-bun@v2
@@ -274,7 +286,20 @@ jobs:
           BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
           P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD || 'temp-keychain-password' }}
+          STRICT_CANDIDATE: ${{ inputs.strict_macos_candidate }}
+          CANDIDATE_TEAM: ${{ secrets.TEAM_ID }}
+          CANDIDATE_IDENTITY: ${{ secrets.IDENTITY }}
+          CANDIDATE_APPLE_ID: ${{ secrets.APPLE_ID }}
+          CANDIDATE_APPLE_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
         run: |
+          if [ "$STRICT_CANDIDATE" = true ]; then
+            for name in BUILD_CERTIFICATE_BASE64 P12_PASSWORD CANDIDATE_TEAM CANDIDATE_IDENTITY CANDIDATE_APPLE_ID CANDIDATE_APPLE_PASSWORD; do
+              if [ -z "${!name}" ]; then
+                echo "::error::Required signing configuration is missing: $name"
+                exit 1
+              fi
+            done
+          fi
           if [ -n "$BUILD_CERTIFICATE_BASE64" ]; then
             echo "Installing code signing certificate..."
 
@@ -595,7 +620,7 @@ jobs:
           CI: true
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
-      - name: Verify packaged i18n assets
+      - name: Verify packaged renderer and browser assets
         if: >-
           !startsWith(matrix.platform, 'windows') ||
           steps.windows-build.outputs.result == 'success'
@@ -646,6 +671,19 @@ jobs:
             echo "No out directory found!"
           fi
 
+      - name: Verify signed macOS candidate distributions
+        if: startsWith(matrix.platform, 'macos') && inputs.strict_macos_candidate
+        env:
+          CANDIDATE_TEAM: ${{ secrets.TEAM_ID }}
+          CANDIDATE_ARCH: ${{ matrix.arch }}
+        shell: bash
+        run: |
+          ARCH="$CANDIDATE_ARCH"
+          if [ "$ARCH" = x64 ]; then ARCH=x86_64; fi
+          python3 ../../scripts/verify_macos_candidate.py \
+            --directory out --team "$CANDIDATE_TEAM" \
+            --architecture "$ARCH" --revision "$(git rev-parse HEAD)"
+
       # Upload artifacts when:
       # - Build succeeded (all platforms)
       # - macOS: notarization timeout but artifacts exist (handled in build step)
@@ -669,6 +707,7 @@ jobs:
             apps/desktop/out/*.zip
             apps/desktop/out/*.yml
             apps/desktop/out/*.blockmap
+            apps/desktop/out/macos-candidate.json
           if-no-files-found: warn
           retention-days: 7
 

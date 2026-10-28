@@ -11,6 +11,7 @@ export type LoginGrant =
     }
   | { grant_type: 'password'; username: string; password: string }
   | { grant_type: 'api_key'; api_key: string }
+  | { grant_type: 'organization'; orgId: string }
   | { grant_type: 'oauth2'; params: Record<string, string> };
 
 export type LoginRequest = LoginGrant & { mossBaseUrl?: string };
@@ -20,6 +21,7 @@ export interface IAuthenticatedLogin {
   access_token: string;
   refresh_token?: string;
   expires_in: number;
+  organization?: { id: string; name: string } | null;
   user: {
     id: string;
     name: string;
@@ -139,7 +141,18 @@ export async function runLogin(
   try {
     const result = await attempt.step('authenticate', () => port.authenticate(request, deviceId, attempt));
     if (!result.success) {
-      const code: LoginFailureCode = result.error === 'network_error' ? 'networkError' : result.error === 'request_timeout' ? 'timeout' : result.error === 'invalid_response' ? 'invalidResponse' : result.error === 'local_setup_failed' ? 'setupError' : result.error === 'auth_request_rejected' ? 'authRejected' : 'invalidCredentials';
+      const code: LoginFailureCode =
+        result.error === 'network_error'
+          ? 'networkError'
+          : result.error === 'request_timeout'
+            ? 'timeout'
+            : result.error === 'invalid_response'
+              ? 'invalidResponse'
+              : result.error === 'local_setup_failed'
+                ? 'setupError'
+                : result.error === 'auth_request_rejected'
+                  ? 'authRejected'
+                  : 'invalidCredentials';
       throw new LoginError(code, result.error, result.msg);
     }
     const data = result.data;
@@ -147,7 +160,7 @@ export async function runLogin(
     const session: ILoginSession = {
       data,
       deviceId,
-      sessionType: request.grant_type === 'phone_register' ? 'phone' : request.grant_type,
+      sessionType: request.grant_type === 'phone_register' || request.grant_type === 'organization' ? 'phone' : request.grant_type,
       expiresAt: Date.now() + (data.expires_in || 3600) * 1000,
       isLocalAvailable: data.execution?.isLocalAllowed ?? !!(data.user.localAuth && data.sudorouter_key && data.model_service_url && data.models?.length),
     };

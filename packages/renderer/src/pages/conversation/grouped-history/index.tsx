@@ -8,17 +8,16 @@ import type { UnifiedHistoryConversation } from '@renderer/pages/external-agents
 
 import { DndContext, DragOverlay, closestCenter } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { Button, Empty, Input, Message, Modal } from '@arco-design/web-react';
+import { Button, Empty, Input, Message, Modal, Tag, Tooltip } from '@arco-design/web-react';
 import { Down, FolderOpen } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import type { TChatConversation } from '@sudowork/common/storage';
 import { emitter } from '@renderer/utils/emitter';
-import { resetGuidDraft } from '@renderer/pages/guid/hooks/useGuidDraft';
 import { useCronJobsMap } from '@renderer/pages/cron/hooks/useCronJobs';
 import FlexFullContainer from '@renderer/components/FlexFullContainer';
 import DirectorySelectionModal from '@renderer/components/DirectorySelectionModal';
@@ -31,12 +30,10 @@ import { useConversationActions } from './hooks/useConversationActions';
 import { useConversations } from './hooks/useConversations';
 import { useDragAndDrop } from './hooks/useDragAndDrop';
 import { useExport } from './hooks/useExport';
-import type { AgentGroup, ConversationRowProps, ConversationItem, WorkspaceGroupedHistoryProps } from './types';
-import { getLatestAgentConversation } from '../utils/agentIdentity';
+import type { ConversationRowProps, ConversationItem, WorkspaceGroupedHistoryProps } from './types';
 
 const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSessionClick, collapsed = false, tooltipEnabled = false, batchMode = false, onBatchModeChange, activeTab = 'timeline', onBatchApiChange }) => {
   const { id } = useParams();
-  const navigate = useNavigate();
   const { t } = useTranslation();
   const { getJobStatus, markAsRead, setActiveConversation } = useCronJobsMap();
 
@@ -48,10 +45,11 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
     }
   }, [id, setActiveConversation]);
 
-  const { conversations, externalHistoryFailed, onRefreshExternalHistory, expandedWorkspaces, pinnedTimeline, pinnedScheduled, timelineSections, scheduledGroups, agentGroups, handleToggleWorkspace } = useConversations();
+  const { conversations, archivedConversations, externalHistoryFailed, onRefreshExternalHistory, expandedWorkspaces, pinnedTimeline, pinnedScheduled, timelineSections, scheduledGroups, agentGroups, handleToggleWorkspace } = useConversations();
 
   // Select pinned list based on active tab
-  const pinnedConversations = activeTab === 'agents' ? [] : activeTab === 'scheduled' ? pinnedScheduled : pinnedTimeline;
+  const pinnedConversations = activeTab === 'archived' ? [] : activeTab === 'scheduled' ? pinnedScheduled : pinnedTimeline;
+  const displayedPinnedIds = useMemo(() => new Set(pinnedConversations.map((conversation) => conversation.id)), [pinnedConversations]);
 
   // Filter out pinned conversations from scheduled groups to avoid duplicates
   // Only filter based on pinnedScheduled (pinned in scheduled tab)
@@ -201,28 +199,32 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
 
   const { selectedConversationIds, setSelectedConversationIds, selectedCount, allSelected, toggleSelectedConversation, handleToggleSelectAll } = useBatchSelection(batchMode, conversations);
 
-  const { renameModalVisible, renameModalName, setRenameModalName, renameLoading, dropdownVisibleId, handleConversationClick, handleDeleteClick, handleBatchDelete, handleEditStart, handleRenameConfirm, handleRenameCancel, handleTogglePin, handleMenuVisibleChange, handleOpenMenu } =
-    useConversationActions({
-      batchMode,
-      activeTab: activeTab === 'agents' ? 'timeline' : activeTab,
-      onSessionClick,
-      onBatchModeChange,
-      selectedConversationIds,
-      setSelectedConversationIds,
-      toggleSelectedConversation,
-      markAsRead,
-    });
-
-  function onAgentOpen(group: AgentGroup) {
-    const latest = getLatestAgentConversation(conversations, group.ref);
-    if (latest) {
-      void handleConversationClick(latest);
-      return;
-    }
-    resetGuidDraft();
-    void navigate(`/guid?assistant=${encodeURIComponent(group.ref)}`);
-    onSessionClick?.();
-  }
+  const {
+    renameModalVisible,
+    renameModalName,
+    setRenameModalName,
+    renameLoading,
+    dropdownVisibleId,
+    handleConversationClick,
+    handleDeleteClick,
+    handleBatchDelete,
+    handleEditStart,
+    handleRenameConfirm,
+    handleRenameCancel,
+    handleTogglePin,
+    handleToggleArchive,
+    handleMenuVisibleChange,
+    handleOpenMenu,
+  } = useConversationActions({
+    batchMode,
+    activeTab: activeTab === 'agents' || activeTab === 'archived' ? 'timeline' : activeTab,
+    onSessionClick,
+    onBatchModeChange,
+    selectedConversationIds,
+    setSelectedConversationIds,
+    toggleSelectedConversation,
+    markAsRead,
+  });
 
   const {
     exportTask,
@@ -286,13 +288,15 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
       onDelete: handleDeleteClick,
       onExport: handleExportConversation,
       onTogglePin: handleTogglePin,
+      onToggleArchive: handleToggleArchive,
       getJobStatus,
     }),
-    [collapsed, tooltipEnabled, batchMode, selectedConversationIds, id, dropdownVisibleId, toggleSelectedConversation, handleConversationClick, handleOpenMenu, handleMenuVisibleChange, handleEditStart, handleDeleteClick, handleExportConversation, handleTogglePin, getJobStatus]
+    [collapsed, tooltipEnabled, batchMode, selectedConversationIds, id, dropdownVisibleId, toggleSelectedConversation, handleConversationClick, handleOpenMenu, handleMenuVisibleChange, handleEditStart, handleDeleteClick, handleExportConversation, handleTogglePin, handleToggleArchive, getJobStatus]
   );
 
   const renderConversation = (conversation: UnifiedHistoryConversation, scope?: string) => {
-    if (conversation.type === 'external-provider') return <ExternalConversationRow key={`${scope || ''}:${conversation.id}`} conversation={conversation} isSelected={id === conversation.id} isBatchMode={batchMode} isCollapsed={collapsed} onOpen={onSessionClick} />;
+    if (conversation.type === 'external-provider' || conversation.type === 'hosted-artifact')
+      return <ExternalConversationRow key={`${scope || ''}:${conversation.id}`} conversation={conversation} isSelected={id === conversation.id} isBatchMode={batchMode} isCollapsed={collapsed} onOpen={onSessionClick} />;
     return <ConversationRow key={scope ? `${scope}:${conversation.id}` : conversation.id} {...getConversationRowProps(conversation)} />;
   };
 
@@ -314,6 +318,16 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
       <FlexFullContainer>
         <div className='f-center'>
           <Empty icon={null} description={t('conversation.history.noScheduledTask')} className='mt-80px' />
+        </div>
+      </FlexFullContainer>
+    );
+  }
+
+  if (activeTab === 'archived' && archivedConversations.length === 0) {
+    return (
+      <FlexFullContainer>
+        <div className='f-center'>
+          <Empty description={t('conversation.history.noArchived')} />
         </div>
       </FlexFullContainer>
     );
@@ -497,6 +511,8 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
           </div>
         )}
 
+        {activeTab === 'archived' && <div className='flex flex-col gap-2px min-w-0'>{archivedConversations.map((conversation) => renderConversation(conversation))}</div>}
+
         {/*
           The agent layer, once the server has said which agents this person has.
           A conversation belongs to an agent, and until now the sidebar had
@@ -510,10 +526,13 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
           <>
             {agentGroups.map((group) => {
               const isExpanded = isTimelineSectionExpanded(group.ref, false);
+              const unpinnedConversations = group.conversations.filter((conversation) => !displayedPinnedIds.has(conversation.id));
               // The implicit default agent is named after the person; an account
               // with no name falls back to a label rather than showing a blank
               // row or the internal reference.
               const label = group.displayName || t('conversation.sidebar.myAgent', '我的智能体');
+              const executionType = group.executionType ?? 'unknown';
+              const executionLabel = t(`agent.execution.${executionType}`);
               return (
                 <div key={group.ref} className='mb-8px min-w-0'>
                   {!collapsed && (
@@ -526,15 +545,22 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
                         onClick={() => onToggleTimeline(group.ref, false)}
                         icon={<Down size={12} className={classNames('line-height-0 transition-transform duration-200', isExpanded ? 'rotate-0' : '-rotate-90')} />}
                       />
-                      <Button type='text' size='mini' className='flex-1 min-w-0 text-left !justify-start !text-inherit !font-bold' disabled={batchMode} onClick={() => onAgentOpen(group)}>
-                        <span className='truncate'>{label}</span>
-                      </Button>
+                      <Tooltip content={label} position='right' unmountOnExit popupHoverStay={false}>
+                        <Button type='text' size='mini' className='flex-1 min-w-0 text-left !justify-start !text-inherit !font-bold' aria-expanded={isExpanded} onClick={() => onToggleTimeline(group.ref, false)}>
+                          <span className='truncate'>{label}</span>
+                        </Button>
+                      </Tooltip>
+                      <Tooltip mini content={executionLabel}>
+                        <Tag size='small' color={executionType === 'local' ? 'blue' : executionType === 'server' ? 'orange' : undefined} className='shrink-0 min-w-11 justify-center !px-1.5 !text-xs !font-normal' aria-label={executionLabel}>
+                          {t(`agent.execution.${executionType}Short`)}
+                        </Tag>
+                      </Tooltip>
                     </div>
                   )}
                   {(collapsed || isExpanded) && (
-                    <div className='flex flex-col gap-2px min-w-0'>
-                      {group.conversations.length > 0
-                        ? group.conversations.map((conversation) => renderConversation(conversation as ConversationItem, group.ref))
+                    <div className={classNames('flex flex-col gap-0.5 min-w-0', { 'ml-8 pl-2 border-l border-solid border-light': !collapsed })}>
+                      {unpinnedConversations.length > 0
+                        ? unpinnedConversations.map((conversation) => renderConversation(conversation as ConversationItem, group.ref))
                         : !collapsed && <div className='px-12px py-6px text-12px text-secondary'>{t('conversation.sidebar.agentHasNoConversations', '还没有对话')}</div>}
                     </div>
                   )}

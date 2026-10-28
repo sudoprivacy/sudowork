@@ -59,6 +59,57 @@ describe('mossAdapter: session streams', () => {
     vi.unstubAllGlobals()
   })
 
+  it('recalls queued images after browser staging is lost and starts each turn only once', async () => {
+    const updates: string[] = []
+    const off = ipc.conversation.responseStream.on((event) => updates.push(event.type))
+    const response = ipc.conversation.inputControl.invoke({
+      conversation_id: 'recall-images',
+      action: { action: 'recall' },
+    })
+    await vi.waitFor(() => expect(ViewerSocket.instances).toHaveLength(1))
+    const socket = ViewerSocket.instances[0]!
+    socket.frame({ kind: 'writer', isWriter: true })
+    await vi.waitFor(() => expect(socket.sent).toHaveLength(1))
+    const request = socket.sent[0] as { requestId: string }
+    const state = { revision: 10, activeTurnId: 2, running: true, paused: false, pending: [] }
+    window.__sudoworkWebFileStaging = new Map()
+    socket.frame({
+      kind: 'upstream',
+      event: { type: 'input_delivery_update', update: { kind: 'state', state } },
+    })
+    socket.frame({
+      kind: 'upstream',
+      event: {
+        type: 'input_delivery_reply',
+        requestId: request.requestId,
+        receipt: {
+          state: { ...state, revision: 11 },
+          recalled: [
+            {
+              clientId: 'image',
+              draft: {
+                text: '@notes.txt review',
+                files: ['/webupload/old/image.png'],
+                skills: ['review'],
+              },
+              content: [{ type: 'image', mimeType: 'image/png', data: 'YWJj' }],
+            },
+          ],
+        },
+      },
+    })
+    const result = await response
+    const item = result.data!.receipt!.recalled![0]!
+    expect(item.draft?.text).toBe('@notes.txt review')
+    expect(item.draft?.skills).toEqual(['review'])
+    const path = item.draft!.files![0]!
+    expect(window.__sudoworkWebFileStaging?.get(path)?.size).toBe(3)
+    expect(await ipc.fs.getImageBase64.invoke({ path })).toBe('data:image/png;base64,YWJj')
+    expect(updates.filter((type) => type === 'start')).toHaveLength(1)
+    off()
+    window.__sudoworkWebFileStaging = undefined
+  })
+
   it('updates the selected Session runtime without opening a stream or resending input', async () => {
     const fetch = stubFetch({ '/runtime/upgrade': { success: true } })
     expect(await ipc.moss.upgradeRuntime.invoke({ conversationId: 'session/a' })).toMatchObject({
@@ -451,28 +502,47 @@ describe('mossAdapter: personal Agent conversation names', () => {
 
 describe('mossAdapter: personal Agents', () => {
   afterEach(() => vi.unstubAllGlobals())
-  it('creates with cookie authority and a trimmed name only', async () => {
-    const agent = {
-      id: '22222222-2222-4222-8222-222222222222',
-      displayName: 'My Agent',
-      createdAt: 100,
-    }
-    const request = vi.fn(async () =>
-      Response.json({ success: true, data: agent }, { status: 201 }),
-    )
+  it.each([undefined, 'server'] as const)(
+    'creates with cookie authority and a trimmed name only (executionType=%s)',
+    async (executionType) => {
+      const agent = {
+        id: '22222222-2222-4222-8222-222222222222',
+        displayName: 'My Agent',
+        createdAt: 100,
+      }
+      const request = vi.fn(async () =>
+        Response.json({ success: true, data: agent }, { status: 201 }),
+      )
+      vi.stubGlobal('fetch', request)
+      expect(
+        await ipcBridge.eeclaw.createUserAgent.invoke({
+          displayName: '  My Agent  ',
+          executionType,
+        }),
+      ).toEqual({
+        success: true,
+        data: agent,
+      })
+      expect(request).toHaveBeenCalledWith(
+        '/api/v1/user-agents',
+        expect.objectContaining({
+          method: 'POST',
+          credentials: 'include',
+          body: JSON.stringify({ displayName: 'My Agent' }),
+        }),
+      )
+    },
+  )
+  it('rejects local creation without making a browser request', async () => {
+    const request = vi.fn()
     vi.stubGlobal('fetch', request)
-    expect(await ipcBridge.eeclaw.createUserAgent.invoke({ displayName: '  My Agent  ' })).toEqual({
-      success: true,
-      data: agent,
-    })
-    expect(request).toHaveBeenCalledWith(
-      '/api/v1/user-agents',
-      expect.objectContaining({
-        method: 'POST',
-        credentials: 'include',
-        body: JSON.stringify({ displayName: 'My Agent' }),
+    expect(
+      await ipcBridge.eeclaw.createUserAgent.invoke({
+        displayName: 'Local',
+        executionType: 'local',
       }),
-    )
+    ).toMatchObject({ success: false, msg: 'not-supported-on-web' })
+    expect(request).not.toHaveBeenCalled()
   })
   it('exposes list failures so the management page can offer retry', async () => {
     vi.stubGlobal(
@@ -635,6 +705,13 @@ describe('mossAdapter: eeclaw tenancy channels', () => {
       '/api/settings/profile': {
         data: {
           username: 'alice',
+          user_id: 'alice-id',
+          login_name: 'alice-login',
+          nickname: 'Alice Display',
+          avatar: 'data:image/webp;base64,AA==',
+          can_change_password: true,
+          organization_id: 'org-1',
+          organization_name: 'Company',
           departmentName: 'R&D',
           role: 'admin',
           usage: { input_tokens: 10, output_tokens: 5, totalTokens: 15, sessionCount: 2 },
@@ -646,6 +723,13 @@ describe('mossAdapter: eeclaw tenancy channels', () => {
     expect(result.success).toBe(true)
     expect(result.data).toEqual({
       username: 'alice',
+      user_id: 'alice-id',
+      login_name: 'alice-login',
+      nickname: 'Alice Display',
+      avatar: 'data:image/webp;base64,AA==',
+      can_change_password: true,
+      organization_id: 'org-1',
+      organization_name: 'Company',
       department: 'R&D',
       role: 'admin',
       usage: {
@@ -1486,6 +1570,23 @@ describe('mossAdapter: create-conversation binds the selected assistant', () => 
     })
   })
 
+  it('binds the selected qualified model when creating a task without a preference write', async () => {
+    const fetchMock = stubFetch({ '/api/conversations': { id: 'sess-selected-model' } })
+    await ipcBridge.conversation.create.invoke({
+      type: 'remote-agent',
+      name: 'hello',
+      model: {},
+      extra: { currentModelId: 'legacy-default:gpt-6-luna' },
+    } as never)
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(readBody(fetchMock)).toEqual({
+      assistantName: '',
+      enabledSkills: [],
+      modelId: 'legacy-default:gpt-6-luna',
+    })
+  })
+
   it('drops UI placeholder names so moss falls back to its default agent', async () => {
     const fetchMock = stubFetch({ '/api/conversations': { id: 'sess-3' } })
     await ipcBridge.conversation.create.invoke({
@@ -1618,6 +1719,67 @@ describe('mossAdapter: newly created conversation list reads', () => {
     expect(conversation).toMatchObject({ id: 'sess-pending', name: 'Pending title' })
   })
 
+  it('opens an authorized browser conversation in a fresh viewer when history omits it', async () => {
+    const fetch = stubFetch({
+      '/api/conversations/browser-empty/model': { modelId: 'review-model' },
+      '/api/conversations/browser-empty': {
+        status: 200,
+        body: {
+          id: 'browser-empty',
+          taskId: 'review-task',
+          status: 'active',
+          assistantName: 'reviewer',
+          templateRef: 'review-template',
+          title: 'Browser review',
+        },
+      },
+      '/api/conversations': { conversations: [] },
+      '/api/agent-templates': [],
+    })
+
+    expect(await ipc.conversation.get.invoke({ id: 'browser-empty' })).toMatchObject({
+      id: 'browser-empty',
+      name: 'Browser review',
+      extra: {
+        mossSessionId: 'browser-empty',
+        mossAssistantRef: 'reviewer',
+        templateRef: 'review-template',
+        currentModelId: 'review-model',
+      },
+    })
+    expect(fetch).toHaveBeenCalledWith('/api/conversations/browser-empty', expect.anything())
+    expect(await ipc.moss.getSession.invoke({ sessionId: 'browser-empty' })).toMatchObject({
+      success: true,
+      data: { sessionId: 'browser-empty', taskId: 'review-task' },
+    })
+    expect(fetch.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false)
+  })
+
+  it.each([403, 503])(
+    'preserves detail refusal %s instead of opening a new task',
+    async (status) => {
+      stubFetch({
+        '/api/conversations/denied-empty': { status, body: { error: 'DETAIL_REFUSED' } },
+        '/api/conversations': { conversations: [] },
+      })
+      expect(await ipc.conversation.get.invoke({ id: 'denied-empty' })).toMatchObject({
+        success: false,
+        msg: 'DETAIL_REFUSED',
+      })
+    },
+  )
+
+  it('keeps an actually missing conversation distinct from a refused detail read', async () => {
+    stubFetch({
+      '/api/conversations/missing-empty': {
+        status: 404,
+        body: { error: 'SESSION_NOT_FOUND' },
+      },
+      '/api/conversations': { conversations: [] },
+    })
+    expect(await ipc.conversation.get.invoke({ id: 'missing-empty' })).toBeUndefined()
+  })
+
   it('keeps the selected Agent identity through creation and pending history reads', async () => {
     const reference = 'moss-agent:own:22222222-2222-4222-8222-222222222222'
     stubFetch({ '/api/conversations': { id: 'identity-pending', conversations: [] } })
@@ -1634,6 +1796,36 @@ describe('mossAdapter: newly created conversation list reads', () => {
     expect(await ipc.conversation.get.invoke({ id: 'identity-pending' })).toMatchObject({
       extra: { mossAssistantRef: reference },
     })
+  })
+
+  it('opens a Feishu Moss Session in the shared managed workbench without template lookup', async () => {
+    const managementContext = {
+      ownerId: 'alice',
+      ownerName: 'Alice',
+      agentName: 'moss-native-alice',
+      displayName: 'Moss',
+    }
+    const fetch = stubFetch({
+      '/api/conversations': {
+        conversations: [
+          {
+            id: 'moss-im',
+            assistantName: 'moss-agent:operator:org-alice',
+            source: 'lark',
+            managementContext,
+          },
+        ],
+      },
+      '/model': { modelId: null },
+    })
+    expect(await ipc.conversation.get.invoke({ id: 'moss-im' })).toMatchObject({
+      id: 'moss-im',
+      extra: { agentName: 'Moss', agentManagement: managementContext },
+    })
+    expect(fetch.mock.calls.some(([url]) => String(url).includes('/api/agent-templates'))).toBe(
+      false,
+    )
+    expect(fetch.mock.calls.some(([url]) => String(url).includes('/api/agents/mine'))).toBe(false)
   })
 
   it('opens a newly triggered cron conversation without reusing the previous list', async () => {
@@ -1739,6 +1931,47 @@ describe('mossAdapter: newly created conversation list reads', () => {
     ])
     await ipc.moss.deleteSession.invoke({ sessionId: 'sess-delete' })
     expect(await ipc.database.getUserConversations.invoke({})).toEqual([])
+  })
+
+  it('projects archived metadata and forwards reversible archive updates', async () => {
+    stubFetch({
+      '/api/conversations': {
+        conversations: [{ id: 'archived-session', archived: true, archivedAt: 42 }],
+      },
+    })
+    expect(await ipc.database.getUserConversations.invoke({})).toMatchObject([
+      { id: 'archived-session', extra: { archived: true, archivedAt: 42 } },
+    ])
+
+    const fetchMock = stubFetch({ '/meta': { ok: true } })
+    expect(
+      await ipc.conversation.update.invoke({
+        id: 'archived-session',
+        updates: { extra: { archived: false } } as never,
+        mergeExtra: true,
+      }),
+    ).toBe(true)
+    const request = fetchMock.mock.calls[0]?.[1] as RequestInit
+    expect(request.method).toBe('PATCH')
+    expect(JSON.parse(String(request.body))).toEqual({ archived: false })
+  })
+
+  it('returns false when conversation metadata or deletion is rejected', async () => {
+    stubFetch({
+      '/meta': { status: 500, body: { error: 'META_WRITE_FAILED' } },
+      '/api/conversations/rejected-delete': {
+        status: 503,
+        body: { error: 'DELETE_UNAVAILABLE' },
+      },
+    })
+
+    await expect(
+      ipc.conversation.update.invoke({
+        id: 'rejected-update',
+        updates: { name: 'Not saved' },
+      }),
+    ).resolves.toBe(false)
+    await expect(ipc.conversation.remove.invoke({ id: 'rejected-delete' })).resolves.toBe(false)
   })
 })
 

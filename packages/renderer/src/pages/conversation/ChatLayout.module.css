@@ -1,0 +1,147 @@
+.phoneChat textarea {
+  font-size: 16px;
+}
+
+.phoneChat :global(.sendbox-actions) {
+  align-items: flex-end;
+}
+
+.phoneChat :global(.sendbox-actions .sendbox-tools) {
+  flex: 1;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.phoneChat :global(.sendbox-actions .sendbox-tools) > * {
+  max-width: 100%;
+}
+
+.phoneChat :global(.sendbox-actions .sendbox-tools) > div {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.phoneChat :global(.sendbox-actions) > div:last-child {
+  flex-shrink: 0;
+}
+
+.phoneChat :global(.sendbox-actions) button {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.phonePanel :global(.arco-drawer-close-icon) {
+  top: 2px;
+  right: 8px;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.conversationHeader {
+  min-width: 0;
+}
+
+.headerPrimary {
+  overflow: hidden;
+}
+
+.headerActions {
+  max-width: 56%;
+  overflow: hidden;
+}
+
+.headerControl {
+  max-width: 220px;
+}
+
+:global(.conversation-execution-badge--local) {
+  color: rgb(var(--primary-6));
+  background: var(--color-primary-light-1);
+  border: 1px solid var(--color-primary-light-3);
+}
+
+:global(.conversation-execution-badge--remote) {
+  color: rgb(var(--warning-6));
+  background: var(--color-warning-light-1);
+  border: 1px solid var(--color-warning-light-3);
+}
+
+:global(.conversation-header-session-select) {
+  flex: 0 1 360px;
+  width: min(360px, 36vw);
+  min-width: 120px;
+}
+
+:global(.conversation-header-session-select .arco-select-view-value) {
+  color: var(--color-text-1);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+:global(.conversation-agent-identity) {
+  color: color-mix(in srgb, var(--foreground) 35%, var(--text-secondary));
+  font-weight: 500;
+}
+
+@media (max-width: 1100px) {
+  :global(.agent-status-label) {
+    display: none;
+  }
+
+  .headerActions {
+    max-width: 50%;
+  }
+
+  :global(.conversation-header-session-select) {
+    width: min(240px, 24vw);
+    min-width: 80px;
+  }
+
+  :global(.conversation-agent-session-header) {
+    gap: 4px;
+  }
+
+  :global(.conversation-agent-label-prefix),
+  :global(.conversation-agent-owner) {
+    display: none;
+  }
+
+  :global(.conversation-agent-identity) {
+    max-width: 64px;
+    flex-shrink: 0;
+  }
+}
+
+@media (max-width: 900px) {
+  .headerActions {
+    max-width: 45%;
+  }
+
+  :global(.conversation-execution-badge) {
+    padding-inline: 8px;
+  }
+
+  :global(.conversation-execution-badge__label),
+  :global(.conversation-agent-identity),
+  :global(.conversation-session-actions) {
+    display: none;
+  }
+
+  :global(.conversation-header-session-select) {
+    min-width: 60px;
+  }
+}
+
+@media (max-width: 767px) {
+  .headerPrimary {
+    gap: 8px !important;
+  }
+
+  :global(.conversation-execution-badge) {
+    padding-inline: 8px;
+  }
+}

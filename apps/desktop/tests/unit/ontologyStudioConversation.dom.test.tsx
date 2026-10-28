@@ -15,7 +15,7 @@ const bridge = vi.hoisted(() => ({
   listWorkbenches: vi.fn(),
   getWorkbench: vi.fn(),
   listSessions: vi.fn(),
-  ensureBuilderMcp: vi.fn(),
+  prepareProject: vi.fn(),
   createConversation: vi.fn(),
   createSession: vi.fn(),
   getConversation: vi.fn(),
@@ -37,7 +37,7 @@ vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
   conversation: { create: { invoke: bridge.createConversation }, get: { invoke: bridge.getConversation }, update: { invoke: bridge.updateConversation }, sendMessage: { invoke: bridge.sendMessage } },
   ontologyAiBuilder: {
     listSessions: { invoke: bridge.listSessions },
-    ensureBuilderMcp: { invoke: bridge.ensureBuilderMcp },
+    prepareProject: { invoke: bridge.prepareProject },
     createSession: { invoke: bridge.createSession },
   },
 }));
@@ -88,7 +88,7 @@ beforeEach(() => {
   bridge.createWorkbench.mockResolvedValue({ success: true, data: { snapshot } });
   bridge.getWorkbench.mockResolvedValue({ success: true, data: snapshot });
   bridge.listSessions.mockResolvedValue({ success: true, data: { items: [] } });
-  bridge.ensureBuilderMcp.mockResolvedValue({ success: true, data: { mcpConfig: { name: 'ontology-builder' } } });
+  bridge.prepareProject.mockResolvedValue({ success: true, data: { isReady: true, instructions: 'Use ontology project scripts' } });
   bridge.createConversation.mockResolvedValue({ id: 'chat-1' });
   bridge.createSession.mockResolvedValue({ success: true, data: session });
   bridge.getConversation.mockResolvedValue({ id: 'chat-1', type: 'acp', status: 'finished', extra: { purpose: 'ontology', ontologyId: 'orders' } });
@@ -103,7 +103,7 @@ afterEach(() => {
 
 describe('ontology default conversation', () => {
   it('opens the persisted ontology without waiting for conversation initialization', async () => {
-    bridge.ensureBuilderMcp.mockImplementation(() => new Promise(() => {}));
+    bridge.prepareProject.mockImplementation(() => new Promise(() => {}));
     mount();
     await onCreateOntology();
     await screen.findByTestId('studio-chat');
@@ -113,7 +113,7 @@ describe('ontology default conversation', () => {
     });
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(bridge.createWorkbench).toHaveBeenCalledTimes(1);
-    expect(bridge.ensureBuilderMcp).not.toHaveBeenCalled();
+    expect(bridge.prepareProject).not.toHaveBeenCalled();
     expect(bridge.createConversation).not.toHaveBeenCalled();
   });
 
@@ -179,7 +179,7 @@ describe('ontology AI check repairs', () => {
     const onReady = vi.fn();
     await requestStudioAiRepair({ ...input, prompt: 'Repair the checked relation' }, onReady);
     expect(bridge.createConversation).not.toHaveBeenCalled();
-    expect(bridge.updateConversation).toHaveBeenCalledWith(expect.objectContaining({ id: 'chat-1', mergeExtra: true, updates: { extra: expect.objectContaining({ extraMcpConfigs: [{ name: 'ontology-builder' }] }) } }));
+    expect(bridge.updateConversation).toHaveBeenCalledWith(expect.objectContaining({ id: 'chat-1', mergeExtra: true, updates: { extra: expect.objectContaining({ presetContext: 'Use ontology project scripts' }) } }));
     expect(onReady).toHaveBeenCalledExactlyOnceWith('chat-1');
     expect(bridge.sendMessage).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ conversation_id: 'chat-1', input: 'Repair the checked relation', msg_id: expect.any(String) }));
     expect(onReady.mock.invocationCallOrder[0]).toBeLessThan(bridge.sendMessage.mock.invocationCallOrder[0]);
@@ -205,22 +205,7 @@ describe('ontology registered agent conversation navigation', () => {
     const assistantId = 'ontology-version & 1';
     const current = structuredClone(snapshot);
     current.publishedVersions = [{ id: 'version-1', version: 'v1', status: 'published', snapshot: { objects: [], relations: [] } }] as any;
-    current.skillBlueprints = [
-      {
-        id: 'skill-1',
-        name: 'Orders skill',
-        description: 'Order queries',
-        status: 'published',
-        ontologyVersionId: 'version-1',
-        version: '1.0.0',
-        entityIds: [],
-        toolManifest: [],
-        registeredSkillId: 'ontology-skill-1',
-        createdAt: 1,
-        updatedAt: 1,
-      },
-    ] as any;
-    current.agentBlueprints = [{ id: 'blueprint-1', name: 'Orders agent', skillBlueprintId: 'skill-1', ontologyVersionId: 'version-1', status: 'registered', registeredAssistantId: assistantId }] as any;
+    current.agentBlueprints = [{ id: 'blueprint-1', name: 'Orders agent', ontologyVersionId: 'version-1', status: 'registered', registeredAssistantId: assistantId, entityIds: [], toolManifest: [], promptTemplate: '', createdAt: 1, updatedAt: 1 }] as any;
     bridge.getWorkbench.mockResolvedValue({ success: true, data: current });
     mount('/app/ontology/orders/release');
     fireEvent.click(await screen.findByRole('button', { name: '新会话' }));

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { resetGuidDraft } from '@renderer/pages/guid/hooks/useGuidDraft';
+import type { AgentExecutionType } from '@sudowork/common/personalAgents';
 import { useConversationHistory } from '../context/ConversationHistoryContext';
 import { getLatestAgentConversation } from '../utils/agentIdentity';
 
@@ -24,7 +25,7 @@ export function useAgentEntry() {
   }, [scopeKey]);
 
   const onOpenAgent = useCallback(
-    async (reference: string, onPrepare?: () => Promise<unknown>) => {
+    async (reference: string, onPrepare?: () => Promise<unknown>, executionType?: AgentExecutionType) => {
       if (pending.current) return;
       pending.current = reference;
       setOpeningReference(reference);
@@ -36,7 +37,8 @@ export function useAgentEntry() {
         if (epoch !== request.current) return;
         const latest = getLatestAgentConversation(conversations, reference);
         resetGuidDraft();
-        void navigate(latest ? `/conversation/${encodeURIComponent(latest.id)}` : `/guid?assistant=${encodeURIComponent(reference)}`);
+        const modeQuery = executionType ? `&mode=${executionType === 'local' ? 'local' : 'remote'}` : '';
+        void navigate(latest ? `/conversation/${encodeURIComponent(latest.id)}` : `/guid?assistant=${encodeURIComponent(reference)}${modeQuery}`);
       } catch {
         if (epoch === request.current) Message.error(t('agent.mine.openFailed'));
       } finally {

@@ -26,6 +26,28 @@
   "objectEditor.deleteAttributeTitle": "Özniteliği sil",
   "objectEditor.deleteAttributeContent": "{{name}} özniteliği silinsin mi? İlişkili alan eşlemeleri de silinecektir.",
   "studio": {
+    "sourceLibraryDescription": "İş verilerini bağlayın veya mevcut ontolojinize devam edin",
+    "sourceEmptyLibrary": "Doğrulanmış veri izdüşümü oluşturmak için bir veritabanı bağlayın",
+    "sourceRuntimeUnavailable": "Bu dağıtımda kaynak modelleme etkin değil. Yöneticinize başvurun.",
+    "sourceOverview": "Veri izdüşümü",
+    "sourceReceiptMissing": "Kaynak tarama kanıtı kaydedilmedi",
+    "sourceRefresh": "Yenile",
+    "openReview": "İncelemeyi aç",
+    "openReviewViewer": "İnceleme görüntüleyicisi",
+    "reviewRuntimeUnavailable": "Bu yönetilen tarayıcı güvenli incelemeyi desteklemiyor. Tarayıcı çalışma ortamını güncelleyin.",
+    "reviewTransportUnsupported": "Güvenli inceleme için yönetilen bir Chrome (CDP) oturumu gereklidir.",
+    "reviewUnavailable": "İnceleme açılamadı. Lütfen yeniden deneyin.",
+    "sourceStructureComplete": "Son yapı taraması tamamlandı",
+    "sourceStructureIncomplete": "Yapı taraması tamamlanmadı",
+    "sourceLiveRecords": "Kayıtları gerektiğinde oku",
+    "sourceSnapshotRecords": "Sabit kayıt anlık görüntüsü",
+    "sourceRecordsUnavailable": "Kayıtlar kullanılamıyor",
+    "sourceCounts": "{{tables}} tablo · {{views}} veritabanı görünümü · {{fields}} alan",
+    "sourceObservation": "Kaynağın gözlemlendiği zaman",
+    "sourceObservationUnknown": "Kaydedilmedi",
+    "sourceRevision": "Model sürümü",
+    "sourceObservationHint": "Bunlar son doğrulanmış tarama sonuçlarıdır; güncel bağlantı testi değildir. Kayıtlar okunurken kaynak yeniden denetlenir.",
+    "sourceConversationHint": "Mevcut ontoloji konuşmasına devam edin. Model araçları aynı doğrulanmış modeli okur ve günceller.",
     "issues": {
       "noServiceEndpoint": "Ontology tools are not available to agents yet. Open Release to publish the ontology and register an agent."
     }

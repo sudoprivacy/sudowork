@@ -1,7 +1,7 @@
 import { isDeepStrictEqual } from 'node:util';
 import { describe, expect, it, vi } from 'vitest';
 import { OntologyEngine } from '@sudowork/ontology-engine';
-import { summarizeOntologyWorkbenchSnapshot } from '@sudowork/ontology-common';
+import { createDefaultOntologyWorkbenchSnapshot, summarizeOntologyWorkbenchSnapshot } from '@sudowork/ontology-common';
 import type { IOntologyRepository } from '@sudowork/ontology-engine';
 import type { IOntologyDocumentExtraction, IOntologyGenerateDraftInput, IOntologyWorkbenchSnapshot } from '@sudowork/ontology-common';
 
@@ -250,7 +250,7 @@ describe('OntologyEngine document extraction', () => {
 
     const normalized = await new OntologyEngine(repository).getWorkbench();
 
-    expect(normalized.schemaVersion).toBe(4);
+    expect(normalized.schemaVersion).toBe(5);
     expect(normalized.relations[0].dataBinding).toMatchObject({
       mode: 'direct',
       origin: 'inferred',
@@ -261,7 +261,25 @@ describe('OntologyEngine document extraction', () => {
         },
       ],
     });
-    expect(repository.getSnapshot('default')?.schemaVersion).toBe(4);
+    expect(repository.getSnapshot('default')?.schemaVersion).toBe(5);
+  });
+
+  it('migrates legacy skill-backed agents to direct ontology version bindings', async () => {
+    const repository = new MemoryOntologyRepository();
+    const legacy = {
+      ...createDefaultOntologyWorkbenchSnapshot(1),
+      schemaVersion: 4,
+      skillBlueprints: [{ id: 'skill-v1', name: 'Orders skill', ontologyVersionId: 'v1', entityIds: ['order'], toolManifest: [{ name: 'inspect', description: 'Lookup ontology data.', category: 'ontology' }] }],
+      agentBlueprints: [{ id: 'agent-v1', name: 'Orders agent', status: 'draft', skillBlueprintId: 'skill-v1', ontologyVersionId: 'v1', promptTemplate: 'Use Orders skill to answer domain questions and operate only on its approved tools.', createdAt: 1, updatedAt: 1 }],
+    };
+    repository.saveSnapshot(legacy as unknown as IOntologyWorkbenchSnapshot);
+
+    const normalized = await new OntologyEngine(repository).getWorkbench();
+
+    expect(normalized).not.toHaveProperty('skillBlueprints');
+    expect(normalized.agentBlueprints[0]).toMatchObject({ ontologyVersionId: 'v1', entityIds: ['order'], toolManifest: [{ name: 'inspect' }] });
+    expect(normalized.agentBlueprints[0]).not.toHaveProperty('skillBlueprintId');
+    expect(normalized.agentBlueprints[0].promptTemplate).toBe('Use ontology v1 to answer domain questions and operate on approved ontology tools.');
   });
 
   it('uses different extracted models for the same assets without filename-based fields or relations', async () => {
@@ -765,15 +783,6 @@ describe('OntologyEngine', () => {
 
     const approvedVersion = await engine.approvePublishedVersion({ versionId: published.version.id, reviewerId: 'test-reviewer' });
     expect(approvedVersion.publishedVersions[0]).toMatchObject({ status: 'published', isActive: true, approvedBy: 'test-reviewer' });
-    expect(approvedVersion.skillBlueprints[0]).toMatchObject({ status: 'draft', ontologyVersionId: published.version.id });
-    expect(approvedVersion.skillBlueprints[0].toolManifest[0]).toEqual({
-      name: 'ontology.lookup',
-      description: 'Lookup ontology objects, attributes, and relations.',
-      displayName: '本体综合查询',
-      displayDescription: '查询本体中的业务对象、属性和关系。',
-      category: 'ontology',
-    });
-    expect(approvedVersion.skillBlueprints[0].toolManifest.every((tool) => tool.displayName && tool.displayDescription)).toBe(true);
     expect(summarizeOntologyWorkbenchSnapshot(approvedVersion).publishedVersionCount).toBe(1);
 
     const changed = await engine.upsertObject({ name: 'Temporary Object' });
@@ -781,12 +790,19 @@ describe('OntologyEngine', () => {
     const rolledBack = await engine.rollbackToVersion({ versionId: published.version.id });
     expect(rolledBack.objects.some((item) => item.name === 'Temporary Object')).toBe(false);
 
-    const publishedSkill = await engine.publishSkillBlueprint({ skillBlueprintId: approvedVersion.skillBlueprints[0].id, registeredSkillId: 'ontology-skill-customer', name: 'Customer skill', description: 'Customer operations' });
     const agent = await engine.createAgentBlueprint({
       name: 'Customer Service Agent',
-      skillBlueprintId: publishedSkill.blueprint.id,
+      ontologyVersionId: published.version.id,
     });
-    expect(publishedSkill.blueprint.entityIds.length).toBeGreaterThan(0);
+    expect(agent.blueprint.entityIds.length).toBeGreaterThan(0);
+    expect(agent.blueprint.toolManifest[0]).toEqual({
+      name: 'inspect',
+      description: 'Lookup ontology objects, attributes, and relations.',
+      displayName: '本体综合查询',
+      displayDescription: '查询本体中的业务对象、属性和关系。',
+      category: 'ontology',
+    });
+    expect(agent.blueprint.toolManifest.every((tool) => tool.displayName && tool.displayDescription)).toBe(true);
     expect(agent.snapshot.agentBlueprints).toHaveLength(1);
     const registered = await engine.registerAgentBlueprint({
       blueprintId: agent.blueprint.id,
@@ -798,7 +814,7 @@ describe('OntologyEngine', () => {
     const withoutAgent = await engine.deleteAgentBlueprint({ id: registered.blueprint.id });
     expect(withoutAgent.agentBlueprints).toHaveLength(1);
     expect(withoutAgent.agentBlueprints[0]).toMatchObject({ id: registered.blueprint.id, status: 'deleted', registeredAssistantId: 'ontology-customer-agent' });
-    const restored = await engine.createAgentBlueprint({ name: 'Customer Service Agent', skillBlueprintId: publishedSkill.blueprint.id });
+    const restored = await engine.createAgentBlueprint({ name: 'Customer Service Agent', ontologyVersionId: published.version.id });
     expect(restored.blueprint.id).toBe(registered.blueprint.id);
   });
 
@@ -937,9 +953,9 @@ describe('OntologyEngine', () => {
     await expect(
       engine.createAgentBlueprint({
         name: 'Too Early',
-        skillBlueprintId: 'unpublished-skill',
+        ontologyVersionId: submitted.version.id,
       })
-    ).rejects.toThrow(/published ontology skill/i);
+    ).rejects.toThrow(/published ontology version/i);
     const rejected = await engine.rejectPublishedVersion({ versionId: submitted.version.id, reason: 'Missing owner metadata.' });
     expect(rejected.publishedVersions[0]).toMatchObject({ status: 'rejected', isActive: false });
     await expect(engine.approvePublishedVersion({ versionId: submitted.version.id })).rejects.toThrow(/submitted/i);
@@ -963,6 +979,42 @@ describe('OntologyEngine', () => {
     const orderSnapshot = await engine.getWorkbench(order.snapshot.workspaceId);
     expect(customerSnapshot.publishedVersions).toEqual([expect.objectContaining({ id: customerVersion.version.id, status: 'published', isActive: true })]);
     expect(orderSnapshot.publishedVersions).toEqual([expect.objectContaining({ id: orderVersion.version.id, status: 'published', isActive: true })]);
+  });
+
+  it('lists workbenches by creation time even when an older workbench was edited more recently', async () => {
+    const repository = new MemoryOntologyRepository();
+    const older = createDefaultOntologyWorkbenchSnapshot(100, { workspaceId: 'a-older', title: 'A older' });
+    const newer = createDefaultOntologyWorkbenchSnapshot(200, { workspaceId: 'z-newer', title: 'Z newer' });
+    older.updatedAt = 300;
+    repository.saveSnapshot(older);
+    repository.saveSnapshot(newer);
+    const engine = new OntologyEngine(repository);
+    expect((await engine.listWorkbenches()).items.map((item) => item.workspaceId)).toEqual(['z-newer', 'a-older']);
+    await engine.updateDraft({ title: 'Renamed older' }, 'a-older');
+    expect((await engine.listWorkbenches()).items.map((item) => item.workspaceId)).toEqual(['z-newer', 'a-older']);
+  });
+
+  it('leaves an empty repository unchanged when listing workbenches', async () => {
+    const repository = new MemoryOntologyRepository();
+    const engine = new OntologyEngine(repository);
+    expect(await engine.listWorkbenches()).toEqual({ activeWorkspaceId: '', items: [] });
+    expect(await engine.listWorkbenches('deleted-workspace')).toEqual({ activeWorkspaceId: '', items: [] });
+    expect(repository.listSnapshots()).toEqual([]);
+  });
+
+  it.each(['default', 'last-ontology'])('deletes the final %s workbench without recreating a default project', async (workspaceId) => {
+    const repository = new MemoryOntologyRepository();
+    repository.saveSnapshot(createDefaultOntologyWorkbenchSnapshot(100, { workspaceId }));
+    const engine = new OntologyEngine(repository);
+    expect(await engine.deleteWorkbench({ workspaceId }, workspaceId)).toMatchObject({ activeWorkspaceId: '', summaries: [] });
+    expect(repository.listSnapshots()).toEqual([]);
+    await engine.listWorkbenches();
+    await engine.deleteWorkbench({ workspaceId }, workspaceId);
+    expect(repository.listSnapshots()).toEqual([]);
+    expect(await engine.listWorkbenches()).toEqual({ activeWorkspaceId: '', items: [] });
+    const created = await engine.createWorkbench({ name: 'New ontology', code: 'new-ontology' }, '');
+    expect(created.summaries.map((item) => item.workspaceId)).toEqual(['new_ontology']);
+    expect(repository.listSnapshots()).toHaveLength(1);
   });
 
   it('manages multiple ontology workbenches independently', async () => {

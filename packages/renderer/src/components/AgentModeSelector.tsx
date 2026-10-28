@@ -11,7 +11,7 @@ import React, { forwardRef, useCallback, useEffect, useLayoutEffect, useRef, use
 import { useTranslation } from 'react-i18next';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import ActionChip from '@renderer/components/ui/ActionChip';
-import { getAgentModes, supportsModeSwitch, type AgentModeOption } from '@renderer/utils/agentModes';
+import { getAgentModes, supportsLiveModeSwitch, supportsModeSwitch, type AgentModeOption } from '@renderer/utils/agentModes';
 import { getAgentLogo } from '@renderer/utils/agentLogo';
 
 /**
@@ -102,7 +102,7 @@ const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({
   const [dropdownVisible, setDropdownVisible] = useState(false);
   const getDisplayModeLabel = useCallback((mode: AgentModeOption) => modeLabelFormatter?.(mode) ?? mode.label, [modeLabelFormatter]);
 
-  const canSwitchMode = supportsModeSwitch(backend) && (conversationId || onModeSelect);
+  const canSwitchMode = conversationId ? supportsLiveModeSwitch(backend) : supportsModeSwitch(backend) && Boolean(onModeSelect);
   // Mobile conversation header agent pill is display-only by design.
   const canInteract = canSwitchMode && !(compact && compactLabelType === 'agent');
 
@@ -227,9 +227,10 @@ const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({
   // Compact mode: render only mode label chip in sendbox area
   if (compact) {
     const legacyCompactBehavior = !showLogoInCompact && compactLabelType === 'mode';
-    const baseCompactLabel = compactLabelType === 'agent' ? agentName || backend || 'Agent' : canSwitchMode ? getCurrentModeLabel() : agentName || backend || 'Agent';
+    const isReadonlyRemoteMode = Boolean(conversationId && backend === 'remote-agent' && modes.length > 0);
+    const baseCompactLabel = compactLabelType === 'agent' ? agentName || backend || 'Agent' : modes.length > 0 ? getCurrentModeLabel() : agentName || backend || 'Agent';
     const compactLabel = compactLabelOverride || (compactLabelPrefix && compactLabelType !== 'agent' ? `${compactLabelPrefix} · ${baseCompactLabel}` : baseCompactLabel);
-    if (!canInteract && legacyCompactBehavior) {
+    if (!canInteract && legacyCompactBehavior && !isReadonlyRemoteMode) {
       return null;
     }
 

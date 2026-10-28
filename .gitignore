@@ -252,3 +252,9 @@ nexus-data/
 
 # Pix Agent
 .pi-lens/
+
+# Generated ontology script runtime
+apps/desktop/resources/ontology-cli/ontology.cjs
+# Pinned ShareOne sources and generated shell assets are installed by the build.
+apps/desktop/.cache/shareone-review-src/
+apps/desktop/resources/shareone-review/

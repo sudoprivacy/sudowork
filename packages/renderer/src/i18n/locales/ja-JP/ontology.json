@@ -26,6 +26,28 @@
   "objectEditor.deleteAttributeTitle": "属性を削除",
   "objectEditor.deleteAttributeContent": "属性「{{name}}」を削除しますか？関連するフィールドマッピングも削除されます。",
   "studio": {
+    "sourceLibraryDescription": "業務データに接続するか、既存のオントロジーを続けます",
+    "sourceEmptyLibrary": "データベースに接続して検証済みのデータ投影を作成します",
+    "sourceRuntimeUnavailable": "この環境ではデータソースのモデリングが有効ではありません。管理者に連絡してください。",
+    "sourceOverview": "データ投影",
+    "sourceReceiptMissing": "ソーススキャンの証跡は未記録です",
+    "sourceRefresh": "更新",
+    "openReview": "レビューを開く",
+    "openReviewViewer": "レビュービューアー",
+    "reviewRuntimeUnavailable": "この管理対象ブラウザーは安全なレビュー起動に対応していません。ブラウザー実行環境を更新してください。",
+    "reviewTransportUnsupported": "安全なレビュー起動には管理対象の Chrome（CDP）が必要です。",
+    "reviewUnavailable": "レビューを開けません。もう一度お試しください。",
+    "sourceStructureComplete": "前回の構造スキャンは完全です",
+    "sourceStructureIncomplete": "構造スキャンが不完全です",
+    "sourceLiveRecords": "必要に応じてレコードを読み取る",
+    "sourceSnapshotRecords": "固定レコードスナップショット",
+    "sourceRecordsUnavailable": "レコードを利用できません",
+    "sourceCounts": "テーブル {{tables}} 件 · データベースビュー {{views}} 件 · フィールド {{fields}} 件",
+    "sourceObservation": "ソース確認日時",
+    "sourceObservationUnknown": "未記録",
+    "sourceRevision": "モデルのバージョン",
+    "sourceObservationHint": "前回の検証済みスキャン結果であり、現在の接続テストではありません。レコードを読む際にソースを再検証します。",
+    "sourceConversationHint": "既存のオントロジー会話を続けられます。モデルツールは同じ検証済みモデルを読み取り、更新します。",
     "issues": {
       "noServiceEndpoint": "Ontology tools are not available to agents yet. Open Release to publish the ontology and register an agent."
     }

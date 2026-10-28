@@ -1,14 +1,99 @@
 # Live shared-browser acceptance
 
+## Exact conversation links
+
+`live_conversation_links.py` creates an empty session outside the renderer's
+history cache, opens that exact conversation link, sends two real model turns
+across a reload, and requires the URL and WebSocket to keep the original session
+ID. An implicit replacement conversation fails the test. It records authoritative
+detail reads and terminates every session created by its isolated browser,
+including unexpected replacements. Renderer pages close before termination so
+background polling cannot reopen a fixture. Success requires cleanup as well as
+both model replies.
+
+Use a private JSON config containing `origin` and `apiKey`; `modelId` is optional.
+The configured account must have a real model balance. A deployment canary can
+also supply `deploymentCookie` and its expected `deploymentReceipt`.
+
+```sh
+python apps/webui/tests/e2e/live_conversation_links.py \
+  --config /private/conversation-link.json \
+  --output /private/evidence/conversation-link-001
+```
+
+`--container-fixture` adds the Chrome argument needed by the restricted Docker
+acceptance client. This test records its client location separately from physical
+phone acceptance.
+
+## Mobile task creation and model selection
+
+Add `--exercise-model-unavailable` to verify the unavailable-model entry before
+the normal live journey. It replaces only the model list in a successful real
+catalog response with an empty list. The phone-width UI must show the service
+error, disable model selection and Send, and keep the draft after Enter without
+creating a session. The test removes that fault, reloads, and completes the
+usual two real model turns and history readback. Evidence explicitly labels
+this failure phase as fault injection; login, APIs and the subsequent model
+turns remain real. Keep the interceptor registered throughout the journey and
+disable only its fault flag before reloading. Removing the last route changes
+Chromium's interception/cache state while requests are in flight. Public
+acceptance also exposed an uncompressed 5.4 MB entry module and `no-store`
+responses for immutable assets. The gateway snippets under `deploy/nginx/`
+compress public assets and cache successful responses; HTML, API responses and
+missing assets retain `no-store`. Navigation deadlines remain unchanged.
+Failed-request paths and pending request types are recorded without credentials
+or request bodies. This does not claim to validate a rejected provider key.
+
+`live_mobile_onboarding.py` starts at the real password or API-key login screen with an
+isolated acceptance account. At 320, 375 and 390 CSS pixels, it opens the phone
+navigation, starts a new task on the same route, checks the composer width and
+the readable 44px model control, and chooses an actual available model by touch.
+The selection must survive a reload. One visible Send then creates one real
+conversation, the selected model returns a fresh marker, and another reload
+must restore that exact assistant response. The owned test conversation is
+terminated even when a later assertion fails.
+It also checks the desktop composer, verifies that the phone conversation stays
+wide after reload, and opens the workspace and Browser tabs in a full-width
+drawer before returning to chat. It first selects a different available model
+and reloads, then selects the requested model, so a pre-existing preference
+cannot satisfy the selection check. The creation request must include the
+selected qualified model, and the same model must be read back from the new
+conversation and the real model-preference API. ACP currently omits model identity from its stream
+and history; this UI test records that limit and verifies a real completed turn.
+It then uses the phone conversation's visible 44px Send control for a second
+fresh turn and checks that both replies survive another reload in the same session.
+
+Use a private configuration with `origin` and either `username`/`password` or
+`apiKey`, a real model account, and a new evidence directory. API-key acceptance
+uses the ordinary login UI and supports temporary scoped acceptance keys.
+
+```sh
+python apps/webui/tests/e2e/live_mobile_onboarding.py \
+  --config /private/mobile-acceptance.json \
+  --model gpt-6-luna \
+  --output /private/evidence/mobile-onboarding-001
+```
+
+`--assets-dir apps/webui/dist/client` checks a compiled candidate SPA before
+deployment. It replaces only that browser's document and static asset responses;
+authentication, model preferences, session APIs and WebSockets still use the
+configured real origin. This option does not establish a production deployment.
+Run the same journey without the option after deployment. The script changes
+the isolated account's model preference and sends two real model turns, which
+may incur charges.
+It closes its own viewing browser and retains screenshots and failure evidence.
+An iPhone-sized Chromium context is recorded as emulation; physical iOS Chrome
+and Safari results require their own device runs.
+
 `live_browser_handoff.py` drives the actual WebUI, its real Moss conversation,
 the configured model account, and the browser shared with the user. It does not
 replace the agent or browser with a test double.
 
 The journey opens a synthetic review page through chat, opens the authenticated
 viewer tab, takes control, enters a random value through the viewer, and checks
-that an AI write is rejected. Clicking Return to AI sends the handoff note to
-the real conversation automatically. The AI reads the same page and clicks
-Submit exactly once, without another chat instruction. The fixture verifies
+that an AI write is rejected. A normal message in the original conversation
+continues the real agent after the authenticated host transition. The AI reads
+the same page and clicks Submit exactly once. The fixture verifies
 the random value, original cookie, and trusted browser click. Both views must
 retain the same browser and profile identities. Finally, the journey reloads
 the conversation and checks that its completed model history and random human
@@ -64,20 +149,68 @@ UI screenshots and usage summaries before the viewing Chrome closes.
 Turn completion is accepted only after a causal tool result for the current
 fixture, rejected write or random human input. Historical event replay cannot
 satisfy the test. Use `--manual-continuation` only when separately exercising
-explicit chat continuation; the default protects automatic handoff notification.
+explicit chat continuation in older scripts; it is now a compatibility flag
+because continuation always uses normal chat. No browser business handoff
+buttons are required.
 
-This journey covers the browser write gate and automatic return notification.
+This journey covers the browser write gate and normal conversation continuation.
 Headful window views are covered when `--headful` is selected.
 Runtime-wide pause/resume, child agents, file transfer,
 local extension relay, and phone input require their separate live journeys.
 
+## Remote window responsiveness and human login
+
+`live_browser_view_performance.py` measures the actual shared viewer through
+authenticated production or staging APIs. It creates a fresh conversation,
+launches headful extension Chrome through the UI, samples changing window
+pixels, switches to Page view, and submits an exact random Unicode value with
+a trusted browser click. It verifies the visible login result and exactly one
+server receipt. The fixture must be reachable from the cloud browser; use the
+same private tunnel/fixture-origin setup as the handoff journey above.
+
+Cleanup explicitly stops the owned browser, returns its persistent human lease,
+waits for a real model acknowledgement, and terminates the fixture conversation.
+This requires a real configured model account. Merely terminating a conversation
+does not prove that a persistent browser's human lease was returned.
+
+The private config accepts the existing `origin`/`username`/`password` form or
+`origin`/`apiKey` for the normal API-key login form. Use an isolated test owner.
+An already-running browser is rejected unless every tab belongs to an explicitly
+configured `allowedExistingFixtureOrigins` entry. Candidate SPA files may be
+served using `--assets-dir`; authentication, session APIs, browser and model
+remain real, and the receipt identifies this as candidate acceptance.
+
+```sh
+python apps/webui/tests/e2e/live_browser_view_performance.py \
+  --config /private/browser-live.json \
+  --output /private/evidence/window-response-001 \
+  --fixture-origin http://private-fixture-host:port
+```
+
+Receipts contain rendered/distinct frame rates, frame intervals, click-to-visible
+feedback, exact trusted Unicode submission, model usage and cleanup status.
+Screenshots show the native Chrome window and successful human login. Raw
+credentials, browser cookies and base64 frame contents are excluded. The
+functional assertions always run; `--minimum-fps` adds an environment-specific
+rate requirement when the deployment has a stable measured network budget.
+
+Add `--verify-profile-persistence` to complete the isolated sign-in workflow:
+stop through the real confirmation dialog, start the same profile again, verify
+its login cookie reaches the fixture, then send a normal message asking AI to
+inspect the current page. The expected human value is not supplied in that
+message. The test handles scoped one-time browser permissions with the same
+helper as the other live journeys and requires exact model readback from actual
+browser tools. A proxy used for this fixture must forward its `Cookie` request
+header as well as the `Set-Cookie` response header. Cleanup also overlaps metadata
+reads with termination and checks that subsequent reads do not resurrect it.
+
 ## Browser lifecycle controls
 
 `live_browser_lifecycle.py` covers the actual shared panel's Start, Restart,
-Stop and Return to AI controls. Use a fresh real-model conversation with a
+Stop controls and ordinary conversation continuation. Use a fresh real-model conversation with a
 stopped managed worker, both extension/CDP transports and the window surface.
 The test sends no initial chat message: the first AI turn must come from the
-browser handoff, and its new random receipt must appear in the conversation.
+normal continuation message, and its new random receipt must appear in the conversation.
 
 ```sh
 python apps/webui/tests/e2e/live_browser_lifecycle.py \
@@ -93,7 +226,8 @@ listener. The journey starts headful extension Chrome, restarts it headless,
 then explicitly changes to headful CDP. A unique login cookie is issued once;
 both restarts must preserve it in the same persistent profile. Every restart
 must create a different browser session. Stop must keep the human control lease
-until Return to AI; the real model must finish without reopening Chrome.
+until an ordinary conversation message continues the agent; the real model
+must finish without reopening Chrome.
 
 Evidence includes five UI screenshots, profile/browser identities, a random
 assistant receipt, usage and page errors. Output directories must be new.
@@ -113,8 +247,9 @@ the real model's completion.
 `live_browser_handoff.py --manual-human` prepares the same real model journey
 and writes `manual-human-ready.json` with the authenticated viewer URL, random
 expected value and handoff note. A person opens that viewer on another device,
-takes control, enters the value through the panel and returns control with the
-provided note. The harness performs the scoped one-time approvals in its chat,
+takes control through the existing task interrupt, enters the value through the
+panel and sends the provided note as a normal message in that conversation.
+The harness performs the scoped one-time approvals in its chat,
 then requires exact AI readback, one trusted submission, persistent identity and
 restored conversation history. It does not type or return control for the person.
 
@@ -152,7 +287,7 @@ python apps/webui/tests/e2e/live_browser_files.py \
 The AI launches headful extension Chrome and opens a native file chooser. The
 user takes control and selects a generated local file through the actual
 viewer file picker. The website verifies its Unicode filename, exact contents,
-trusted change event and login cookie. Return to AI triggers fresh observation
+trusted change event and login cookie. Normal chat continuation triggers fresh observation
 and a real download; the viewer saves and verifies its exact bytes and SHA-256.
 The same browser/profile identity must persist. Stale uploads return 409 and
 anonymous uploads return 401. The chat must settle after both real AI turns.
@@ -218,3 +353,93 @@ and browser input requests so a failure can be investigated without replaying it
 If the fixture origin uses a reverse proxy or tunnel, forward `/note` together
 with `/review`, `/submit` and `/receipts`. `fixture-summary.json` records the
 actual trusted note and upload events even when the journey fails.
+
+## Mobile remote-view scale and touch
+
+`live_browser_view_performance.py --verify-mobile-view` uses an actual Chromium
+touch context at 390 by 844 against the authenticated application and real
+managed Chrome. Its fixture puts a login form near the right edge. The viewer
+selects 100% scale and drags the local image with trusted touch gestures. It
+requires unchanged remote viewport dimensions and zero remote inputs during
+that pan, then explicitly selects Interact with page, enters exact Unicode
+text and submits once. The shared component provides this behavior in Desktop
+and WebUI; the test does not alter the browser's viewport to fit the phone.
+
+```sh
+python apps/webui/tests/e2e/live_browser_view_performance.py \
+  --config /private/browser-live.json \
+  --verify-mobile-view --verify-profile-persistence \
+  --fixture-origin http://worker-reachable-fixture:50181 \
+  --output /private/evidence/mobile-browser-view-001
+```
+
+The profile option also proves the website login survives a real Chrome
+restart and that a real model reads the identity through browser tools after
+normal conversation continuation. The permission helper resolves scode's explicit `MCPTool` qualified
+target before answering a visible one-time browser permission. It rejects
+unrelated wrapper targets, even if their arguments mention the browser.
+This is desktop Chromium touch emulation. Physical iPhone interaction remains
+a separate acceptance step, and every receipt records `actualPhone: false`.
+
+## Remote selection, clipboard and composition
+
+Add `--verify-selection-clipboard --verify-profile-persistence` to
+`live_browser_view_performance.py` for the shared production input journey.
+Use public `ai-dev-browser[remote]==0.58.2` and a viewer/server/worker that all
+support its optional selection, clipboard and drag capabilities. Replacing only
+candidate frontend assets does not upgrade a server's input schema.
+
+The real viewer drags an exact phrase, copies it through the local clipboard
+API, pastes random Chinese multiline text into the remote textarea, checks
+Chromium composition confirmation does not insert unfinished text remotely,
+and submits the completed text once. The fixture records trusted input and
+submission events. A pixel marker in the actual streamed frame verifies final
+submission feedback before the screenshot is taken. The fixture then completes
+the usual persisted-login and real-model conversation journey. Clipboard
+permission is granted only to the isolated test context at the viewer origin;
+cleanup restores its own clipboard value while preserving newer user content.
+
+```sh
+python apps/webui/tests/e2e/live_browser_view_performance.py \
+  --config /private/browser-live.json \
+  --verify-selection-clipboard --verify-profile-persistence \
+  --fixture-origin http://worker-reachable-fixture:50181 \
+  --output /private/evidence/browser-clipboard-001
+```
+
+The private relay must forward `/selection-layout`, `/clipboard-input` and
+`/clipboard-submit` in addition to the usual review/login paths. Run this
+desktop clipboard journey separately from `--verify-mobile-view`. It passed
+through the real public WebUI, Moss 0.1.77 and public worker 0.58.2 on 21 October.
+Chromium composition is not physical operating-system IME or iPhone evidence.
+Mouse/pen drag is sent on release. Form measurements do not establish graph fluidity.
+
+### Explicit touch selection
+
+Add `--verify-touch-selection` to the mobile journey to exercise the touch-only
+Scroll page / Select text or drag toggle. The client needs the shared
+`PageSurface` `touchDrag` capability; public worker 0.58.2 already understands
+the unchanged bounded drag operation. The SDK client addition is tracked in
+[ai-dev-browser PR #35](https://github.com/sudoprivacy/ai-dev-browser/pull/35).
+
+```sh
+python apps/webui/tests/e2e/live_browser_view_performance.py \
+  --config /private/browser-live.json \
+  --verify-mobile-view --verify-touch-selection --verify-profile-persistence \
+  --fixture-origin http://worker-reachable-fixture:50181 \
+  --output /private/evidence/mobile-browser-selection-001
+```
+
+The real viewer pans without remote input, switches gesture mode, drags the
+exact remote phrase and copies it through the local clipboard API. It restores
+its clipboard, then completes trusted Unicode login, browser restart, two real
+model turns and normal conversation interruption/continuation. Interrupt input
+targets the intersection of the enlarged image, its clipping viewport and the
+device screen. Touch moves use a physical gesture cadence: instantaneous CDP
+swipes suppress the following compatibility click even in a neutral browser.
+
+This complete journey passed on 21 October with candidate frontend assets and
+the production WebUI/Moss 0.1.77/public worker 0.58.2. Its owned session was
+durably terminated and temporary key revoked. It establishes Chromium touch
+emulation; physical iPhone/Safari selection, OS IME, actual graph dragging and
+continuous drag preview remain separate acceptance requirements.

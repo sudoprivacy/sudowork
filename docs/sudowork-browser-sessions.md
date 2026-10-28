@@ -1,6 +1,127 @@
 # Shared browser sessions for Desktop and WebUI
 
-Status: cloud browser control, the shared panel, Desktop integration and compact takeover controls are merged. The tested v0.2.33 WebUI source was deployed with production Moss 0.1.59, public browser SDK v0.57.5 and user-runtime SDK v0.1.2. Actual Electron, Chromium and Firefox clients passed real model/browser journeys; both public viewing browsers and the full public lifecycle journey also passed. Formal v0.2.33 artifacts are published. Existing personal Chrome attachment, the optional local extension relay and physical phone/Safari acceptance remain open. This document is the source for [the shared design page](https://s.shareone.vip/md/sudowork-browser-sessions).
+Status, 28 October: production runs official Moss `0.1.84` and public browser SDK `0.58.10`. The verified worker is the default within the existing three-owner rollout. Other owners have not been enabled. The compatible native execution image remains `0.1.83`, with scode `0.2.36`, Nexus `0.8.23` and plugin ABI `7`; its authenticated model flow passed after the controller upgrade. The default WebUI is the official image from `9c559fe61fb5d016e387cedf452ed7618082d33f`. No database restore or profile reset was performed.
+
+The production WebUI journey passed authenticated full-window streaming and refresh, exact remote selection, Unicode clipboard and Chromium composition, one trusted submission, retained login after browser restart, and real-model observation and ordinary chat continuation in the same conversation. It passed both before and after the controller upgrade. The source Desktop also passed its original real-model browser journey with a normal cold installation of public SDK `0.58.10`. Its new official package still needs acceptance. See [the streaming implementation and acceptance gates](browser-window-stream-acceptance.md).
+
+## Current acceptance summary
+
+| Area                                         | Evidence and remaining gate                                                                                                                                                                                                                                                                                                                                |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Desktop standalone and shared viewer         | Source Desktop with public SDK `0.58.10` passed AI launch, native question, ordinary interrupt, persisted cancellation, clipboard/composition, one submission and exact model readback. Official packaging remains open.                                                                                                                                   |
+| Desktop existing personal Chrome             | Real SDK/host recovery cases and earlier packaged model journeys passed with isolated profiles. The final package must retain the existing Chrome and its cookies after disconnect.                                                                                                                                                                        |
+| WebUI cloud extension and full-window viewer | Production Moss `0.1.84` and SDK `0.58.10` passed the complete public profile/model journey. Refresh retained the input lease; explicit browser restart retained login.                                                                                                                                                                                    |
+| Headless and CDP combinations                | Real SDK and host cases exist. Each final application combination still needs its own acceptance; a source or transport test does not establish production coverage.                                                                                                                                                                                       |
+| Phone layout and browser input               | The complete public flow passed in a 390 by 844 Chromium touch viewport, including local pan, exact touch-pointer selection/copy, one trusted Unicode login, retained login after restart and real-model continuation. Basic chat on the user's iPhone passed earlier. Physical iPhone browser TouchEvent, keyboard/IME and Safari acceptance remain open. |
+| Bound Sudograph review                       | Native adapter SudoWork #1304 is merged with its own authenticated comment/edit/reply evidence. Cloud project/view/revision binding, private comments and stable anchors still require joint acceptance.                                                                                                                                                   |
+| Actual graph responsiveness                  | Earlier graph and noVNC measurements remain a baseline. The final public route still needs graph pan, zoom, selection and comment feedback measurements that distinguish page work, transmission and network delay. Pixel changes on the neutral login fixture are not graph FPS.                                                                          |
+| External empty conversation links            | SudoWork #1316 is merged and delivered in the official production WebUI. Two real model turns retained the exact externally created conversation ID and recovered its context after reload, both in the isolated canary and on the default public route.                                                                                                   |
+
+The complete matrix is still open. The optional cloud-to-local extension relay remains unimplemented. Conversation Stop and normal conversation continuation are the user controls; there are no business-level handoff buttons. This document is the source for [the shared design page](https://s.shareone.vip/md/sudowork-browser-sessions).
+
+### Public mobile viewport acceptance, 28 October
+
+`live_browser_view_performance.py --require-window-stream --verify-mobile-view --verify-touch-selection --verify-profile-persistence` passed through the default public HTTPS WebUI and the actual managed Chrome worker. The reviewer used public SDK `0.58.9` and Playwright `1.64.1`; the managed browser used SDK `0.58.10` and Moss `0.1.84`. No candidate assets or browser API responses were substituted.
+
+The same conversation passed window-stream refresh without losing its human lease, 100% local zoom and pan without remote input, precise touch-pointer selection and exact clipboard copy, one trusted Unicode login submission, browser restart with retained login, exact real-model observation, and ordinary Stop/chat continuation. Cleanup stopped the owned browser, returned its lease, terminated the fixture session, revoked its temporary key and removed the reviewer container. The profile was preserved.
+
+Earlier failed receipts remain available. Fixed-case probes in the same Linux reviewer image reproduced raw touch injection suppressing a later compatibility click. Native scroll gestures completed local panning, but added touch slop unsuitable for exact text endpoints. Selection now uses Chrome's precise emulated touch-pointer input and requires trusted pointer down/up plus an actual remote mouseup with the exact selected phrase. The CDP connection remains alive until that acknowledgement: disconnecting earlier discarded queued compositor input in both negative control cases. The final public run preserved the existing timeouts, one-tap copy action and exact-string assertions.
+
+This is browser and viewport acceptance. Emulated touch-pointer input does not prove physical-device TouchEvent behavior or the iOS keyboard/IME. Graph responsiveness and actual ShareOne comment anchors require their separate real-page journey.
+
+The official WebUI image from `9c559fe6` subsequently passed both this complete journey and the exact-ID two-turn/reload case in an isolated canary. Production promotion preserved the environment and asset volume, verified a private database backup with `pg_restore --list`, and checked that database/migration modules were unchanged. The canary route, container and isolated database were removed. The exact-ID case and complete mobile/profile/model flow then passed on the default public route with normal routing restored.
+
+## Accepted UX and review-context integration, 24 October
+
+The updated shared component passed two isolated, normally built Desktop journeys
+with real GPT 6 Luna, scode 0.2.36 and the normally installed public browser SDK
+0.58.3. Each journey selected an existing extension profile, opened a native
+question, interrupted through the existing conversation mechanism, opened the
+independent viewer, copied an exact selected phrase, pasted multiline Unicode,
+checked Chromium IME composition, submitted once, and continued the same model
+conversation with exact human-edited readback. Disconnect and application shutdown
+preserved personal Chrome. The stricter second journey also waited for the
+viewer's actual styled layout before mapping coordinates. Its helper is
+`apps/desktop/tests/e2e/live_shared_browser.py`; temporary homes, credentials and
+services were cleaned while receipts and screenshots were retained. This is
+Desktop evidence, not a new WebUI production, OS IME or physical-phone result.
+
+The interactive preview is approved for implementation. Product activity is
+labelled "SudoWork is operating". Browser sources use plain names: cloud browser,
+new browser and use my Chrome. The embedded panel defaults to the page; the
+independent viewer exposes page and full-window surfaces when available.
+
+The 27 October Desktop refinement uses the host's `nativeWindow` capability:
+when a running local Chrome is available, the shared panel's separate-view action
+selects its existing active target and brings that Chrome window forward. It does
+not create another application window, navigate again, or copy page state. Cloud
+and headless sessions retain the authenticated viewer. Desktop alone is not proof
+that a browser is local: a Desktop conversation can also use a cloud browser.
+The control lease and target epochs still apply to the native reveal action.
+Both ordinary chat and canonical model review use this same shared component.
+
+Conversation Stop and normal conversation continuation remain the user controls.
+There are no business-level "return to AI" or "give to human" buttons. A model
+can ask for assistance through its native question or conversation mechanism.
+Input leases, target/control epochs and the main/child execution barrier remain
+host-enforced. A notification, idle timeout, viewer reload or reconnect cannot
+release a human lease. Review events received during that lease stay queued.
+
+### Reuse existing event delivery
+
+ShareOne already provides durable notification consumers, leases, renewal,
+ACK/release and redelivery. Use its existing command receiver to durably enqueue
+references in the bound host inbox; do not use the skill's separate scode-process
+launcher for an active conversation. Deliver human owner and visitor comments,
+excluding agent reply loops. Fetch current parent/reply threads with the existing
+ShareOne skill before acting. Stable event/binding IDs guard repeat delivery and
+tool side effects.
+
+Scode's session mailbox transports ACP RPC, including tool-result notifications.
+Its A2A business inbox supplies durable cursors and a turn scheduler. Reuse those
+contracts; a review notification is an external event, not a fabricated result
+of a nonexistent tool call. Route to the explicit originating/subscribed session.
+Ordinary peer routing can fall back to another session of the same agent, which
+is unsuitable for a project review. Do not choose the newest conversation, start
+another process, or use the user-send path that implicitly continues browser
+control. Host routing and the live ShareOne receiver are still implementation
+and acceptance work; this section does not claim that they are deployed.
+
+### Canonical model and context
+
+Reuse [Sudograph's context design](https://github.com/sudoprivacy/sudograph/blob/main/docs/agent-context.md)
+and [the existing ontology-host audit](https://github.com/sudoprivacy/sudograph/blob/main/docs/sudowork-ontology-adapter-audit.md).
+An operator-owned project binding chooses the model authority and scoped tools.
+For a Sudograph-managed project, every mutation route must use the canonical
+model submission/compile boundary. Legacy RDF upserts, imports and saves must
+reject that authority; prompts are not the enforcement mechanism. No writable
+RDF mirror or editable generated HTML is created. A submission must carry its
+base revision and stable operation ID, validate the source/identity contracts,
+and return compiler diagnostics or a revision-bound receipt. The existing managed
+publisher still needs the host adapter and submission concurrency/idempotency
+contract; those are required delivery gates.
+
+Preload the deterministic, authorised source structure and SQL, canonical IDs,
+current business definitions, review state and useful rationale, plus the view
+catalogue/current view and versioned project binding. Full threads, large evidence
+documents and record/query results are read through pointers and scoped tools.
+Credentials, drawing code, compressed record pages, abandoned drafts and transient
+debug state are excluded. The initial packet must report its revision, content
+digest and coverage; do not silently truncate larger models.
+
+Append the initial packet through scode's existing prompt builder at creation or
+explicit reconstruction. During a running conversation, append changed model
+context at the conversation/tool-result tail at a safe turn boundary. Do not
+rewrite an earlier system block on every turn, add timestamps before a stable
+prefix, or inject the same snapshot repeatedly. Compaction/restoration must retain
+the binding and rebuild the correct checked snapshot. Verify both prefix byte
+stability and actual provider cache-usage evidence; byte equality alone is not
+proof of a provider cache hit.
+
+Acceptance must show the same project, selected view and model revision to the
+user and agent, and route a real comment back to its original task after restart,
+duplicate delivery and concurrent human browser input. The local preview's graph
+and notifications remain labelled simulations until that live journey passes.
 
 ## 1. Decisions
 
@@ -30,14 +151,15 @@ An Electron `<webview>` is a Chromium guest, not a DOM component available in or
 
 ### Implementation and acceptance coverage
 
-| Browser path                     | Delivery and evidence                                                                                                                                                                                       |
-| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Desktop local standalone CDP     | Implemented in [SudoWork #1250](https://github.com/sudoprivacy/sudowork/pull/1250); actual Electron/model takeover, compact controls and same-session commands passed.                                      |
-| Desktop app-managed extension    | Implemented; actual signed/native Chrome HTTP and stdio lifecycle journeys cover the public worker.                                                                                                         |
-| Desktop existing personal Chrome | Explicit attachment and its profile UX remain planned. Managed extension acceptance does not establish personal-profile attachment.                                                                         |
-| Shared cloud extension and CDP   | Implemented in the public worker, Moss and shared panel. Real model/file/reconnect and explicit transport-switch journeys passed against the production backend; public frontend rollout is recorded below. |
-| WebUI local extension relay      | Optional planned capability with explicit pairing and revocation.                                                                                                                                           |
-| Viewing clients                  | Real Chromium and Firefox 155 on Windows passed. Physical phone and Safari acceptance remain open; desktop testing does not establish either result.                                                        |
+| Browser path                     | Delivery and evidence                                                                                                                                                                                                                                                                                                         |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Desktop local standalone CDP     | Implemented in [SudoWork #1250](https://github.com/sudoprivacy/sudowork/pull/1250); actual Electron/model takeover, compact controls and same-session commands passed.                                                                                                                                                        |
+| Desktop app-managed extension    | Not exposed as a third Desktop launch path. Desktop starts a standalone CDP profile or explicitly connects an existing extension profile; managed extension startup belongs to the cloud deployment.                                                                                                                          |
+| Desktop existing personal Chrome | Explicit selection, real host/crash-recovery and Electron/model journeys passed. The official corrected Windows nightly passed clipboard/composition, normal runtime installation and profile preservation with SDK 0.58.2; the touch source also passed the real model journey and cold installation with public SDK 0.58.3. |
+| Desktop cloud Chrome             | Actual Electron cloud login, model task, shared panel, independent viewer and exact AI readback passed; deployed release acceptance remains open.                                                                                                                                                                             |
+| Shared cloud extension and CDP   | Implemented in the public worker, Moss and shared panel. Real model/file/reconnect and explicit transport-switch journeys passed against the production backend; public frontend rollout is recorded below.                                                                                                                   |
+| WebUI local extension relay      | Optional planned capability with explicit pairing and revocation.                                                                                                                                                                                                                                                             |
+| Viewing clients                  | Real Chromium and Firefox 155 on Windows passed. The touch UI candidate passed a 390 by 844 Chromium touch journey; physical phone and Safari browser acceptance remain open.                                                                                                                                                 |
 
 ## 3. Architecture
 
@@ -76,6 +198,21 @@ Bounded frame rates, shared frame production, backpressure and visible-tab subsc
 
 ### Production extension compatibility
 
+CDP and extension are control transports; Chrome and Chromium are browser
+distributions. Branded Chrome supports CDP when explicitly launched with a
+separate profile directory and remote debugging enabled. Since Chrome 136,
+remote-debugging switches are ignored for the default Chrome data directory;
+see the [official Chrome change](https://developer.chrome.com/blog/remote-debugging-port).
+Desktop standalone uses an application-owned profile. Connecting an existing
+personal profile follows the explicit extension consent flow. These paths must
+not be presented as access to the same profile.
+
+An isolated production-image probe on 20 October used Google Chrome
+155.0.8059.79, an independent profile and no extension. CDP performed exact
+Unicode input, one trusted mouse submission and exact readback, then shut down
+Chrome normally. This establishes the managed-profile CDP path; it does not
+establish access to a user's already running default profile.
+
 Recent headless Chrome can run extensions, but packaged Chrome installation must be verified separately from Chrome for Testing. Branded Chrome 137+ removed `--load-extension`; production needs a supported installation method and a successful extension handshake. Do not silently label a CDP-only browser as extension-connected.
 
 Expose browser version, actual transport, headless state, `pageView`, `windowView`, extension connection and profile persistence in capabilities. A missing extension produces an actionable reconnect/install error. CDP fallback requires explicit selection.
@@ -92,6 +229,15 @@ Offer two explicit choices:
 - **Connect my Chrome**: pair the local extension through an authenticated outbound relay when exact local login/device context is needed.
 
 Cloud sign-in is a useful first path, not a replacement for the local relay.
+
+The user signs in through the authenticated window viewer while holding human
+control. Use the VM's persistent isolated profile, and offer the same panel and
+separate viewer tab. A separate native VNC client is not required. VNC is an
+available display adapter; a production host must authenticate the viewer and
+encrypt and authorize its connection rather than expose a raw desktop port.
+The current managed deployment already transports window frames and input
+through the existing authenticated session API. Chrome account sign-in and
+website sign-in remain separate user choices; neither imports all local state.
 
 ## 6. Local extension relay
 
@@ -116,58 +262,109 @@ sequenceDiagram
 
 Pairing binds tenant, user, device, execution session, allowed browser/tab scope and expiry. Revocation is immediate. The extension makes an outbound connection; no public local CDP listener or inbound router configuration is required. Existing Chrome keeps its headless/headful mode. Reconnecting proves the same browser identity or asks the user to pair again.
 
-## 7. User handoff UX
+## 7. Conversation controls the workflow
 
-The panel and viewer tab share the same status and actions. A compact session control also remains available outside BrowserPanel so users of native Chrome can hand off explicitly.
+The agent decides when human help is needed and asks through its native
+question/options or ordinary conversation. There are no mandatory **Take
+control**, **Return to AI**, or separate handoff-note controls in the browser.
+The existing conversation interrupt and a fresh user message are the workflow.
 
-| State                                 | What the user sees                             | Controls                                              | What AI receives                                        |
-| ------------------------------------- | ---------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------- |
-| Stopped                               | Browser is not running                         | Start; transport and mode selection                   | Start capabilities and no active target                 |
-| AI control                            | AI is controlling this browser                 | Take control; observe; open viewer                    | Current lease and target identity                       |
-| Pausing                               | Waiting for the current operation to stop      | Cancel request if no lease has transferred; view only | New writes blocked; in-flight completion required       |
-| Human control                         | You are controlling this browser; AI is paused | Navigation, typing, tabs, uploads; Return to AI       | Waiting state, reason and control epoch; no retry loop  |
-| Returning                             | Reconnecting and observing the current page    | View only; cancel continuation                        | Fresh observation required; prior queued writes invalid |
-| Disconnected while human owns control | Connection lost; AI remains paused             | Reconnect; explicit end or return after reconnection  | No automatic lease transfer                             |
-| Error or uncertain execution          | Operation status could not be confirmed        | Inspect/reconnect/end; no unsafe automatic retry      | Structured failure and observation requirement          |
+| User intent                                     | Host behavior                                                                                   | Browser input                                                           |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Open, refresh, reconnect, pan or zoom a viewer  | Preserve its authorised conversation/session binding                                            | View only; no lease transfer                                            |
+| Interrupt from the conversation                 | Stop the current task and acknowledge its browser/tool barrier                                  | Enable only after acknowledgement                                       |
+| Touch the remote page while AI owns it          | Invoke the same conversation interrupt                                                          | Discard the initiating gesture; require a fresh frame and a new gesture |
+| Work in an attached personal Chrome window      | Interrupt in the conversation before native input                                               | No claim that arbitrary OS input is detected                            |
+| Send a fresh message or supported native answer | Drain input, advance epochs, observe and release the browser lease before that message proceeds | Stale queued gestures are rejected                                      |
+| Lose the viewer connection                      | Preserve human intent and the persistent profile                                                | Never resume from an idle timer or disconnect                           |
 
-### Taking control
+Desktop keeps the acknowledged main/child tool barrier because local agents may
+have shell access. Cloud browsers retain the server lease across every agent
+and viewer. A failed barrier or observation keeps input blocked and reports the
+failure. Conversation continuation does not create a synthetic second user turn.
+Input admitted before an interrupt cannot later resume a paused browser.
 
-1. The user clicks **Take control** in the panel, viewer or session control.
-2. The server advances the control epoch and blocks new AI operations from the main agent and children. Queued actions from the earlier epoch are discarded.
-3. An already-running atomic input sequence finishes, including mouse/key release. For unisolated Desktop shell access, the runtime must stop all affected tool execution and verify no browser operation remains active. A UI-only pause cannot grant the human lease.
-4. Only after that barrier succeeds does the UI show **You are controlling** and enable human input. Failure leaves input disabled with a clear retry/end action.
-5. The user completes login, consent, CAPTCHA or another manual step in the same tab and profile. Native windows and window-view Chrome settings are covered by the same explicit lease.
+The independent viewer links to its bound conversation. It does not guess the
+latest active task or introduce a second handoff UI. Selecting a personal
+Chrome profile remains an explicit connection/consent action.
 
-### Returning to AI
+### Delivery and acceptance of this correction
 
-1. The user clicks **Return to AI**; optional text explains what they changed.
-2. Human input is disabled and the control epoch changes again.
-3. The runtime obtains current tabs, active target, URL and a fresh screenshot/DOM observation. It rejects actions planned against the old target or epoch.
-4. The agent receives a continuation message: human control ended, what the user reported, current target identity and an instruction to observe before acting.
-5. Execution resumes after the observation barrier. It does not replay a stale submit, purchase, navigation or click.
+This contract was clarified on 2026-10-20. Earlier evidence below describes the
+previous button-based workflow and does not establish acceptance of this one.
+The first actual Electron/Sonnet 4.6 journey passed with the public SDK 0.58.1:
+native question cancellation survived renderer reload, a trusted Unicode edit
+was submitted once, and the normal chat message continued the same browser.
+The model reported the exact edited value. Personal Chrome stayed open after
+disconnect and application shutdown. A repeated live VM registry journey also
+passed owner isolation, allocation-free conversation controls, persisted
+cookies/leases and recovery using signed extension 0.4.4. The correction is
+merged in SudoWork #1281 and Moss #421. The exact WebUI image and production
+Moss 0.1.77 also passed a real headful extension/model journey: trusted Unicode
+login once, login retained after a browser restart, model readback from that
+page, ordinary chat continuation and owned fixture cleanup. Final Desktop
+artifact and real-phone browser acceptance remain separate gates.
 
-Closing a tab/window, losing connectivity or a browser timeout never silently returns control to AI. Another viewer can observe but cannot replace the human controller without explicit authenticated transfer. Manual input outside the panel requires the same explicit handoff; do not imply that arbitrary OS input is automatically detected.
+The host advertises `capabilities.conversationControl`. Older servers remain
+usable for normal chat when this endpoint is absent, but browser interaction
+requires a server upgrade; their viewer remains available. Actual 401/403,
+missing-session and uncertain errors are preserved. There is no retry through
+another route. Interrupted native questions stay cancelled; use a fresh chat
+message to continue after an interrupt.
 
-```mermaid
-stateDiagram-v2
-  [*] --> AI
-  AI --> Pausing: Take control
-  Pausing --> Human: Operations drained
-  Pausing --> Error: Barrier failed
-  Human --> Disconnected: Viewer lost
-  Disconnected --> Human: Controller reconnects
-  Human --> Observing: Return to AI
-  Observing --> AI: Fresh observation confirmed
-  Observing --> Error: Observation failed
-  Error --> Human: Explicit recovery
-```
+The [Sudograph integration review](https://github.com/sudoprivacy/sudograph/blob/main/docs/review-session-events.md#browser-acceptance-to-share-with-its-owner)
+adds the following application acceptance requirements:
+
+- Recover the exact task, tenant, source revision and browser binding after
+  refresh/reconnect in Desktop and authenticated WebUI.
+- In the real remote graph, select an exact phrase, comment on its canonical
+  object, and reopen that thread after zoom, expansion and language changes.
+- Verify local/remote clipboard, Unicode/IME composition and selection gestures.
+  A pixel stream does not provide DOM selection or clipboard semantics itself.
+- Complete review through the bound conversation/comments without business
+  handoff buttons; retain the lease and reject stale queued input.
+- Measure pan/zoom and comment feedback using the actual graph and transport.
+  A source-reading or model-readback test does not establish those results.
+- Keep view-only review available without a local extension and document
+  unsupported devices/transports. A phone viewport is not a physical phone test.
+
+Comment routing and semantic model-change delivery belong to the bound review
+adapter. Opening this design does not authorize deploying background consumers.
+
+### Joint acceptance checklist, 21 October
+
+The browser side owns sessions, viewers, input arbitration and transport.
+The SudoWork/Sudograph adapter owns conversation/project/model-revision/share
+binding and trusted event routing. Sudograph owns canonical comment targets;
+ShareOne supplies the existing comment and notification contracts. Acceptance
+must join these pieces without creating a second editable model or inbox.
+
+| Requirement                                 | Current status                                                                                          | Actual evidence and remaining work                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1. Independent review surface and reconnect | Browser session/viewer supported; joint binding acceptance required                                     | Real Desktop local Chrome and cloud panel/viewer journeys passed. The Electron viewer opens its exact bound conversation; real renderer reload retained the interrupted question and human lease. A Desktop Electron viewer is distinct from a native Chrome review window. The Sudograph adapter must establish the requested native review entry and project/model/share binding, then verify refresh/reconnect end to end on both hosts.                                                                                                                                                                                                                                                                        |
+| 2. Exact graph text and canonical comments  | Input support in SDK 0.58.2; application adaptation and joint acceptance required                       | Actual CDP and signed-extension selection tests read the exact dragged phrase over real frame transport. This does not establish authenticated Sudograph comments, stable targets or thread recovery after graph zoom, expansion and language changes; those require the real shared graph and comment adapter.                                                                                                                                                                                                                                                                                                                                                                                                    |
+| 3. Clipboard, composition and gestures      | SDK, Desktop and production WebUI accepted; physical IME and touch selection need acceptance/adaptation | Public-wheel tests passed page/window selection and Unicode multiline paste. Real Electron/public 0.58.2/Sonnet and production WebUI/Moss 0.1.77/public 0.58.2 journeys passed exact phrase copy, trusted multiline paste, Chromium composition without premature insertion, one final submission and real model continuation. Shared UI regressions reject a paste delayed across a tab change. Physical OS/device IME remains unverified. Mouse/pen drag is bounded and sent on release; continuous drag preview is not implemented. Touch supports taps, remote scrolling and local viewport movement; remote text selection and graph dragging need an explicit touch gesture mode and real-device acceptance. |
+| 4. Human/AI collaboration                   | Ordinary conversation supported and production accepted; comment continuation needs adapter             | No browser business handoff buttons. Existing interrupt acknowledges the barrier and rejects stale queued input; fresh normal chat observes and continues the owned browser. Desktop main/child barriers and cloud owner isolation passed. Comment delivery must resolve the registered binding before enqueuing a normal host event; it must not grant browser input during human interaction. Idle/disconnect never resumes AI.                                                                                                                                                                                                                                                                                  |
+| 5. Actual graph interaction latency         | Joint acceptance required                                                                               | The production headful form measured 3.05 rendered frames/s, 234.2 ms median and 740.6 ms p95 frame interval, and 1083.12 ms click feedback. This is a form measurement, not graph acceptance. Measure page processing, frame production/transport and network delay separately for actual graph pan/zoom, selection and comments.                                                                                                                                                                                                                                                                                                                                                                                 |
+| 6. Supported hosts/transports/devices       | Core paths supported; additional combinations need adaptation or device acceptance                      | Local standalone CDP, explicit personal extension and cloud CDP/managed extension have real browser evidence. A cloud viewer needs no local extension or Chrome installation. View-only native review must remain extension free; the native review entry and revision binding belong to the adapter. The cloud-to-local extension relay is optional and unimplemented. Physical iPhone browser input/IME and Safari transport acceptance remain pending; desktop touch emulation does not establish them.                                                                                                                                                                                                         |
+
+Desktop standalone can launch branded Chrome with an independent profile and
+CDP. An existing personal default profile uses explicit extension consent;
+these are not equivalent profiles. Cloud standalone and extension both display
+the same VM browser through the shared panel or independent authenticated
+viewer. Headful window frames currently use the SDK X11 adapter through the
+same authenticated input channel. Although Ladder's noVNC adapter is extracted
+and live tested in the public SDK, SudoWork's production window viewer currently
+uses the JPEG/native-input path. Graph fluidity therefore still needs actual
+measurement and any resulting transport work.
 
 ## 8. LLM and tool contract
 
 Tools return structured state with `browserSessionId`, browser identity, `profileId`, active `targetId`, `controlEpoch`, `targetEpoch`, controller and capabilities. Each write must match the current lease and epochs.
 
 - During human control, tool requests return `browser_control_held_by_user` with a wait instruction. They do not poll, recreate the browser, switch profiles or use a different transport to bypass the lease.
-- The agent may request handoff with a short explanation, such as needing login. The UI presents the request and the user explicitly accepts it.
+- The agent explains why human input is needed through its native question/options or ordinary conversation. For example: "Please sign in using the shared browser and tell me when you are ready." Use the native conversation; do not invent browser handoff buttons.
+- Conversation intent is routed through authenticated host transitions. A prompt or chat string alone never bypasses the server lease or the acknowledged input/tool barrier.
 - After return, the first operation is a fresh observation. A child agent cannot use a cached screenshot from before handoff.
 - Read-only access is an exact allowlist. Arbitrary JavaScript evaluation is a write because it can change page state. Closing, restarting, navigating and changing tabs are also writes.
 - Cancellation and session termination remain available while paused. They do not transfer control or imply that an uncertain write had no effect.
@@ -181,6 +378,7 @@ Agent shell access must not expose an unrestricted browser endpoint or the human
 - Desktop standalone Chrome and cloud Chrome use the same public page surface. The native Desktop Chrome window remains available when headful. Cloud headful window view exposes Chrome UI when needed, including profile sign-in and extension management.
 - Opening a viewer tab uses the existing authenticated session. Credentials are not placed in the URL. A copied link requires login and current session permission.
 - Target changes advance `targetEpoch`; stale frames and input are rejected. Coordinates are calculated from the actual remote viewport, including resizing and mobile touch input.
+- View scale is local to each panel or viewer. Fit preserves the overview; explicit scales make small controls readable without resizing Chrome or changing its profile. Selecting a scale enters Move view. Pointer dragging scrolls only the local image, and remote pointer, wheel and keyboard events are blocked until the user selects Interact with page. Ownership follows the acknowledged conversation interrupt.
 - Reconnection verifies browser identity. It never attaches silently to another user's browser or starts a replacement because a transient connection failed.
 - Uploads and downloads belong to the same authenticated session. Desktop picks local files; WebUI stages files through authorized upload/download routes. Cloud pages cannot read arbitrary viewer-device paths.
 - Page view and window view are two surfaces of the same headful browser. Headless has page view only; requesting Chrome UI requires an explicit headful restart.
@@ -201,6 +399,165 @@ Acceptance covers actual browser behavior and actual AI execution. A fake model 
 | Mobile and browser compatibility | Real phone interaction plus Safari/Firefox/Chrome viewers; desktop emulation alone is insufficient                                |
 
 Use the repository live workflow and real model credentials. Prefer live PTY for model/runtime journeys, real Chrome for UI, and local Docker or the restricted production VM for infrastructure. Commit locally-run live tests and add suitable regression coverage to CI. Preserve failed evidence, clean only owned fixtures, and report any remaining acceptance gap explicitly.
+
+### Completion checklist, 19 October 2026
+
+This checklist tracks implementation and actual application acceptance separately.
+An older passing journey is not counted as a new release's complete acceptance.
+
+| Work                           | Current status                                                                                  | Required evidence before closing                                                                                     |
+| ------------------------------ | ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Headful viewer responsiveness  | PR #1273 merged; public candidate and durable termination passed against production Moss 0.1.73 | Deploy the accepted SPA and repeat against production assets; further smoothness improvements remain measurable work |
+| Native handoff communication   | Desktop real native question, pause, persisted cancellation and return passed                   | Real agent explains handoff, acknowledged host pause, user return and fresh model observation                        |
+| Desktop managed extension      | Application acceptance open                                                                     | Electron application with actual installed extension, same profile and handoff                                       |
+| Desktop personal Chrome        | Actual Electron/model journey and public SDK host cases passed; application delivery open       | Deliver the application pinned to the verified public SDK                                                            |
+| Desktop cloud Chrome           | Actual application and repository live journey passed                                           | Repeat after delivery of the accepted application and cloud worker                                                   |
+| Cloud profile login            | Scoped public candidate sign-in, restart and exact AI tool readback passed                      | Repeat with the delivered SPA and upgraded worker; this fixture does not establish Google Chrome Sync compatibility  |
+| Other agent hosts              | Capability-specific acceptance open                                                             | Each supported host acknowledges its tool barrier; unsupported active hosts cannot grant human control               |
+| Physical iPhone remote browser | Open                                                                                            | Real device take, Unicode input, return and exact model readback; prior phone screenshot only proves model/send      |
+| General production rollout     | Scoped to three owners, including the nominated owner                                           | Complete scoped acceptance and verify deployment-wide owner isolation before expansion                               |
+| WebUI local extension relay    | Optional capability, still open                                                                 | Pairing consent, same actual local profile, scope, revoke/disconnect and real cloud-agent acceptance                 |
+
+The 19 October isolated production-image measurement used actual managed
+headful extension Chrome at 1280 by 900. VM-local frame latency was 42.14 ms
+median and 158.69 ms P95 across 12 samples; native address-bar focus, text and
+Enter took 268.5 ms together. These are backend measurements, not end-user
+render latency or proof of smooth interactive viewing. The owned container was
+removed. Current native window frames use the public X11/JPEG/input adapter;
+they do not start Ladder's noVNC server.
+
+The public WebUI baseline then passed the actual fixture login workflow at
+0.77 rendered/distinct frames per second, with a 1346.2 ms median frame interval
+and 1645.71 ms click-to-visible login feedback. The candidate SPA, against the
+same real production APIs and Chrome, reached 2.63 rendered and 2.44 distinct
+frames per second, a 345.8 ms median interval and 820.41 ms login feedback.
+Unicode input was exact and submitted once. Stop released the owned Chrome,
+Return released the persistent human lease and a real model acknowledged the
+return note. The temporary key was revoked. Follow-up verification found that
+an acknowledged conversation termination could race with recovery and reactivate
+the old session. [Moss #410](https://github.com/sudoprivacy/moss/pull/410) repairs
+that durable termination guard. Production Moss was upgraded to 0.1.73 on
+20 October with the published, checksum-verified server package and its tagged
+host installer. Browser policy, Nexus connections and existing users were
+preserved. The initial cleanup attempt used a raw API key as a bearer token,
+returned HTTP 401 and stopped; its temporary key was revoked. After the user's
+review, the same restricted owner obtained an access token through the normal
+API-key login grant and durably terminated the old fixture.
+
+The 20 October public candidate journey then passed at 3.55 rendered and 2.31
+distinct frames per second, with a 302 ms median interval, 671.9 ms P95 and
+708.15 ms click-to-visible login feedback. Exact trusted Unicode input was
+submitted once, and a real model acknowledged Return. Concurrent metadata reads
+and three subsequent reads did not resurrect the terminated session. The owned
+Chrome stopped and the temporary key was revoked. This checks durable cleanup;
+the separate profile-restart and AI sign-in observation journey is recorded below.
+This improves the polling path but does not establish smooth full-motion
+viewing. The live journey is `live_browser_view_performance.py`; the candidate
+measurement is not a claim that this change has already been deployed.
+
+### Personal Chrome application acceptance, 19 October
+
+The full Electron application used a normally built SDK 0.58.0 candidate wheel
+and an actual SudoRouter Sonnet 4.6 account. The user explicitly selected the
+running extension's profile through BrowserPanel, then returned control with the
+task. The model observed and edited that exact browser. Human takeover paused
+agent tools, and the separate viewer accepted Unicode input and one trusted
+submission. After Return, the finished assistant reply reported the exact human
+value and page status. Shared browser commands reached the same page. Explicit
+disconnect and normal application shutdown left Chrome running with its state.
+
+The live journey also found and repaired a shared layout bug: a panel at 100%
+height added its padding outside that height, clipping its bottom input. Both
+the panel and compact controls now include padding in their declared height;
+the handoff note sits next to the return controls. The live UI driver requires
+enabled, hit-tested fields fully inside the viewport, and reads actual assistant
+messages rather than echoed prompts or tool results.
+
+[SDK 0.58.0](https://github.com/sudoprivacy/ai-dev-browser/releases/tag/v0.58.0)
+is now published on GitHub and PyPI. All 199 packaged runtime files match the
+tested candidate byte for byte. Four host journeys then passed against the
+actual public PyPI distribution in an isolated environment, without source-path
+overrides. The application pins the matching public tag; its release remains
+open.
+
+### Native question takeover acceptance, 20 October
+
+A real Electron/Sonnet journey reproduced a stale question after acknowledged
+takeover: the composer kept treating new chat input as the abandoned answer.
+Takeover now uses the same pending-request cancellation as Stop. The host's
+question cancellation reaches persistence and the renderer after turn
+cancellation; late agent output remains suppressed. Partial cancellation
+updates preserve the original question and its options.
+
+The repeated real journey passed a native question, acknowledged takeover,
+persisted cancellation across a full renderer reload, trusted Unicode input
+and one submission through the independent viewer, then an exact model readback
+after Return. Chrome remained alive after explicit disconnection and normal
+application shutdown. Two ordinary CI regressions protect cancellation
+persistence and the suppression of late agent messages. The live journey uses
+`live_shared_browser.py --pending-native-question`.
+
+### First-use runtime acceptance, 20 October
+
+Actual Electron called the product's browser runtime service from three fresh
+isolated user-data directories. It created its own virtual environment and
+installed public ai-dev-browser 0.58.0 from PyPI in approximately 25–28 seconds.
+The installed module was inside that environment, with no source override; the
+second call reused the same interpreter. No model key or personal profile was
+used. The reusable `live_browser_runtime_install.py` driver and
+`browserRuntimeInstall.live.ts` entry protect this installation path separately
+from the Windows/Linux host tests that start with an installed worker.
+
+### Cloud profile sign-in acceptance, 20 October
+
+An authenticated public candidate journey used the production managed extension
+Chrome and the same restricted fixture owner. A human entered a random Unicode
+identity through the shared remote panel and clicked the real sign-in button.
+After confirming Stop and starting the same profile again, the fixture received
+the persistent login cookie. The profile ID stayed the same, the target epoch
+advanced and the server saw only one sign-in submission.
+
+Return through the panel asked the actual Luna model to inspect the current
+page without supplying the expected identity. Normal one-time permission cards
+were approved through the common live-test helper. Browser observation and
+action tools read the signed-in page, and the finished assistant reply contained
+the exact identity and sign-in status. The test then took control again, stopped
+Chrome, returned the human lease, durably terminated its conversation and
+revoked its temporary key. This passed against production Moss 0.1.73 and the
+existing 0.57.5 cloud worker with candidate SPA assets. The accepted application
+and cloud SDK upgrade still need deployed regression acceptance.
+
+The reusable journey is `live_browser_view_performance.py` with
+`--verify-profile-persistence`. Earlier driver failures are retained: takeover
+frame readiness, the Stop confirmation, an unsupported bound-method callback
+and an unhandled model permission card. Assertions and operation deadlines were
+preserved. This is a real isolated website login and profile persistence check;
+Google Chrome Sync and device-bound local identities require separate evidence.
+
+### Desktop cloud application acceptance, 20 October
+
+The actual built Electron app logged into the restricted owner through its
+normal API Key form and selected Server execution. A real Luna turn completed;
+the local conversation record confirmed an actual remote-agent/Moss binding.
+BrowserPanel started headful cloud Chrome and acknowledged takeover. A separate
+Electron viewer operated that same VM browser and delivered exact trusted
+Unicode input with one submission. After Return, the actual assistant read the
+same page and reported the exact human value and saved status. That value was
+not included in the handoff note.
+
+The final repository journey, `live_cloud_browser.py`, passed in a new isolated
+app home. It confirmed Stop and Return, allocated no local browser worker,
+verified the cloud session's owner and organization, terminated it through the
+normal owner API and checked termination three times. Its temporary key was
+revoked by the fixture caller. The first prototype failed before sending and
+created no cloud conversation; that failed receipt and its normal app/service
+shutdown are retained. The reusable driver uses the visible enabled Send
+button and waits for the real login route before operating the fresh instance.
+
+This is candidate application acceptance against production Moss 0.1.73 and
+the existing 0.57.5 worker. Production application and worker upgrades still
+need the same regression checks. SudoWork #1275 is merged after all 38 checks
+completed and a fresh rebase; Moss #413 is merged after all applicable checks.
 
 ### Delivery already completed
 
@@ -386,11 +743,12 @@ The reusable live test selects the client with `--client-browser`.
 
 ### Desktop acceptance and remaining scope
 
-The Desktop integration uses the public v0.57.5 worker behind authenticated
+The released v0.2.33 Desktop integration used the public v0.57.5 worker behind authenticated
 HTTP MCP, with a stdio adapter for engines without HTTP MCP support. Tool
 discovery and an idle panel allocate neither Python nor Chrome. The first
 browser operation prepares an app-owned Python environment. Desktop defaults
-to standalone CDP and lets the model choose headless/headful.
+to standalone CDP and lets the model choose headless/headful. The next
+application delivery pins public v0.58.0.
 
 A real gpt-6-luna conversation in the built Electron app passed headful launch,
 shared panel and separate native viewer, acknowledged human takeover, exact
@@ -424,8 +782,27 @@ trusted Unicode replacement, one submission and exact model readback.
 
 Desktop managed profiles currently persist per conversation; cloud profiles
 persist per user with exclusive ownership. Desktop connection to an existing
-user Chrome profile, the authorized local extension relay and actual
-phone/Safari acceptance remain open. These capabilities must each have their own
+user Chrome profile uses the published [SDK #32](https://github.com/sudoprivacy/ai-dev-browser/pull/32),
+with application delivery tracked in [SudoWork #1275](https://github.com/sudoprivacy/sudowork/pull/1275).
+The host offers **Connect my Chrome**, inspects the currently connected extension,
+shows its opaque profile identity and waits for explicit confirmation. It pauses
+all registered agent tools before connecting. The shared panel and native viewer
+use that same session. Launch mode can be unknown and is preserved; personal
+attachment cannot restart Chrome or reconfigure its downloads. Disconnect retains
+Chrome, tabs and cookies, and keeps agent tools paused until explicit Return.
+
+Four real Desktop host journeys passed with both extension WebSocket backends
+and headless/headful fixture Chrome. A cookie seeded before host attachment,
+trusted Unicode input, one submission, observation after Return and preserved
+Chrome/cookie/input after host shutdown were verified. The fixtures reuse the
+pinned public SDK's actual extension setup. They do not run a model or Electron
+renderer. The full `live_shared_browser.py --existing-profile` application
+journey also passed with real Sonnet 4.6, including native question cancellation
+across renderer reload and exact model readback after Return. Application
+release and deployed acceptance remain open.
+
+The authorized local extension relay and actual phone/Safari acceptance remain
+open. These capabilities must each have their own
 implementation and evidence before this design is considered fully delivered.
 
 ### Public WebUI deployment and acceptance
@@ -491,3 +868,237 @@ Each live run uses a unique fixture query so a persistent profile cannot reuse
 an earlier page. The setup waits for actual browser observation and completion,
 then verifies the requested tab, rather than requiring a redundant navigation
 tool call when the browser is already on the requested page.
+
+### Mobile view scale and touch preflight
+
+On October 20, 2026, the shared panel passed a real public-origin journey with
+candidate assets, production Moss 0.1.74 and managed extension Chrome. A
+390 by 844 Chromium touch viewer selected 100% scale, dragged to a form near
+the right edge, switched from Move view to Interact with page, entered exact
+Unicode text and submitted once through trusted touch input. Moving the view
+sent no remote input, and the browser viewport stayed unchanged. The same
+profile retained its website login after an explicit browser restart. Real
+gpt-6-luna observed and reported that persisted identity after Return to AI.
+The run then stopped Chrome, returned the lease, received the model's cleanup
+acknowledgement, durably terminated its conversation and revoked its temporary key.
+
+The measurement was 3.37 rendered frames/s, 2.66 distinct frames/s, 292.9 ms
+median render interval, 606.6 ms p95 and 740.9 ms click-to-visible feedback.
+This is usable for deliberate form interaction; it does not establish smooth
+animation. The live case is `live_browser_view_performance.py` with
+`--verify-mobile-view --verify-profile-persistence`. This candidate preflight
+does not establish deployment or physical iPhone/Safari acceptance.
+
+### Public SDK 0.58.1 acceptance, 20 October
+
+The candidate pins the official PyPI package and public SDK commit
+`1e538e2bba771c6e26ff709ec498faab6d5dce4b`. All 199 installed runtime files
+matched the public wheel, whose SHA-256 matched PyPI metadata. Four actual
+Desktop host journeys passed across both extension WebSocket backends and
+headless/headful existing profiles, with no source override or skipped case.
+
+A separate real Electron and Sonnet 4.6 journey passed with the public worker
+and extension 0.4.4. It selected the existing profile explicitly, cancelled a
+pending native question only after acknowledged takeover, retained that
+cancellation through a renderer reload, submitted exact Unicode once, returned
+control and obtained exact model readback. Disconnect and normal application
+shutdown left personal Chrome alive. The repository journey is
+`live_shared_browser.py --existing-profile --pending-native-question`.
+
+The full application regression run passed 358 files and 3,299 tests, with
+28 existing skips. Desktop and shared renderer type checks passed. The new
+cloud image separately passed six actual Chrome worker lifecycle and file
+journeys, including both transports; signed persistent-profile upgrade and
+final production acceptance remain separate requirements.
+
+### Public SDK 0.58.2 input acceptance, 21 October
+
+The shared application consumer pins public SDK commit
+`9337b07c6af7961d50883088ed79cce34b81c1f0`. All 199 installed package files
+matched the public wheel, whose SHA-256 is
+`45dc9585cb812cc3c0b7494ed8b059aa76ef89e951fe4a03d44971156feeee3e`.
+An isolated cloud worker retained Google Chrome 155.0.8059.84 and the same
+signed extension 0.4.4. Six consumer tests and ten selection/native/noVNC tests
+passed without SDK source overrides. Profile crash recovery and the exact new
+Moss CI launcher also passed and removed their owned resources.
+
+The actual Electron, personal extension Chrome and Sonnet 4.6 journey passed:
+
+- Exact phrase drag selection and copying to the real local clipboard.
+- Trusted Unicode multiline paste into the same remote page. Windows CRLF
+  clipboard text is normalized before insertion so input listeners receive LF.
+- Chromium composition and confirmation without sending unfinished text.
+- One completed multiline submission, followed by the ordinary human edit and
+  normal chat continuation with exact model readback.
+- Persisted cancellation of the native question after interrupt and reload,
+  exact bound-conversation opening from the viewer, and preserved personal
+  Chrome after disconnect and normal app shutdown.
+
+The live entry is `live_shared_browser.py --existing-profile
+--pending-native-question --verify-selection-clipboard`. The fixture restores
+its owned clipboard value and preserves a newer user value. It measures the
+Chromium composition path; physical operating-system IME and phone acceptance
+remain separate. Fourteen focused input/barrier tests and the canonical suite
+of 358 files and 3,305 tests passed, with 28 existing skips. Desktop, shared
+renderer and WebUI type checks and both application builds passed. These
+results establish the Desktop candidate; final packaged-artifact acceptance
+remains separate.
+
+Production Moss 0.1.77 now runs the verified public 0.58.2 worker. Its guarded
+upgrade retained all 122 users, the three-owner browser scope, profile volumes,
+cookies and the other owner's human lease. A post-upgrade public journey passed
+before the WebUI change. The exact-source WebUI image from
+`007c45050f115dd250132c66241e4e562c8542da` was then delivered through the normal
+deployment route, preserving PostgreSQL, gateway, login keys and old immutable
+assets. No database migration or restore was needed.
+
+The production WebUI live journey passed exact remote phrase selection and
+clipboard copy, trusted Chinese multiline paste, Chromium composition without
+premature insertion, one completed submission, persisted login across Chrome
+restart, actual model observation and ordinary chat continuation. It restored
+its clipboard, stopped and durably terminated its own fixture and revoked its
+temporary key. The changing form measured 3.91 rendered frames/s, 249.5 ms
+median and 349.0 ms p95 frame interval, and 773.95 ms click feedback. These are
+form measurements, not actual graph performance or physical phone acceptance.
+The checked-in live entry is `live_browser_view_performance.py
+--verify-selection-clipboard --verify-profile-persistence`; both the fixture
+and the final application APIs remain real.
+
+### Packaged Desktop correction and first-use acceptance, 21 October
+
+The official Windows artifact from `007c4505` contained the browser skill but
+omitted the SDK Python modules and MCP catalog. Its app-relative vendor glob
+did not reach the repository-root submodule. Packaged hosts could therefore
+install the public runtime yet fail to locate their tool catalog. The actual
+artifact failed the new missing-assets check before this correction.
+
+The Desktop packaging configuration now copies the pinned SDK and its license
+to `resources/ai-dev-browser`, a location already supported by the host and
+skill resolver. The repository license notice also uses its actual root path.
+The existing packaged-integrity CI step now checks every delivered SDK file
+against its pinned source, the public MCP tool names and the SDK license, in
+addition to all renderer assets. Both checks passed on a normally built Windows
+candidate. This is a candidate result; a newly published official artifact must
+still pass delivery acceptance before stable promotion.
+
+The actual packaged executable, with `app.isPackaged` true and a private empty
+data directory, then passed the complete real-model journey using gpt-6-luna.
+Its normal first-use installer provisioned public SDK 0.58.2 in 21.92 seconds.
+The live test observes this installation as a separate setup phase; the existing
+20-second explicit-profile-consent check is unchanged. No runtime preinstallation,
+source override or application archive modification was used.
+
+The journey verified explicit personal-profile selection, a pending native
+question cancelled through the existing interrupt and still cancelled after
+reload, exact remote phrase copy, trusted multiline paste and Chromium
+composition, one final submission, ordinary chat continuation with exact model
+readback, and opening the exact conversation from its viewer. Disconnect and
+normal app shutdown preserved the selected personal Chrome. Both temporary
+model configuration copies and all owned app services were cleaned.
+
+### Actual shared graph exploration, 21 October
+
+An authenticated production WebUI viewer displayed the real
+[`sudograph-northwind` review](https://s.shareone.vip/s/sudograph-northwind)
+from Sudograph revision `8876b6885c25386e0310b8bf954dd9e08aa87282`.
+Visible viewer gestures zoomed and panned the graph, opened a text-comment
+popup for Sales by Category, expanded its four fields and switched language
+while retaining the expansion and selection. No local extension was needed.
+The same live run restored its owned fixture, completed profile/model checks,
+and cleaned its browser, conversation and temporary key.
+
+This exploration did not post a comment: the isolated cloud profile reached
+ShareOne's normal login dialog and needs a reviewer login. Exact canonical
+quote/target identity, reopening the same submitted thread and the adapter's
+project/revision/share binding still require joint acceptance. The recorded
+gesture-driver durations do not measure page-to-frame or network latency;
+actual graph feedback and transport segmentation remain open.
+
+### Private noVNC graph baseline, 21 October
+
+A separate temporary VM container ran public SDK 0.58.2, Chrome 155.0.8059.84
+and the extracted noVNC adapter against that same published graph. Its local
+viewer used an existing private SSH tunnel and a separate browser profile.
+The final measurement observed the native RFB WebSocket and sampled the real
+canvas without replacing browser APIs or synthesizing frame content.
+
+One native pan sent input for 1.18 seconds and produced 14 distinct canvas
+updates. Its first changed frame arrived after 369 ms; the last arrived
+132 ms after input dispatch ended. Another pan produced four updates, with
+460 ms first feedback and 220 ms final feedback after dispatch. One wheel
+zoom produced visible feedback after 691 ms. A reverse wheel produced no
+captured change during its 750 ms observation window. These samples establish
+continuous pan feedback, while responsiveness still needs improvement and
+repeatable acceptance on the final public route.
+
+WebSocket message arrival to sampled canvas change ranged from 6 to 20 ms
+for the first pan. Sampling has animation-frame granularity; it is not an
+exact compositor-present timestamp. The baseline does not separate server
+capture from network time. The root-document probe observed no graph input
+events, so graph page processing remains unmeasured. Submitted comment feedback
+also remains unmeasured.
+
+The VM fixture expired normally at its 15-minute deadline and removed its
+Chrome, display, VNC processes, temporary profile and password. The local viewing
+Chrome closed normally. This is a private transport baseline. Production
+integration must retain authenticated task/session binding and enforce the
+existing input lease for every native operation; the public WebUI continues
+to use its existing JPEG/native-input path.
+
+### SDK release and official Desktop artifact, 22 October
+
+SDK 0.58.3 was tagged from the merged, identical tested tree after all ten
+applicable CI jobs passed. It adds explicit touch selection and dragging,
+retains the owned extension launch page until the caller navigates, and bounds
+Chrome endpoint discovery. Real Chrome 156 acceptance includes both Windows
+and a managed Linux browser with the existing memory and process limits.
+Production still runs Chrome 155 and SDK 0.58.2 until the new worker passes its
+own VM canary; the Linux 256-process test has little remaining headroom.
+
+SudoWork #1283 is merged. The official Windows nightly from `d0d70b9` now
+contains the exact pinned SDK files, license and MCP browser tool catalog.
+The downloaded release ZIP matches its published SHA256 and passed the same
+packaged browser asset check used in CI. That unmodified official executable
+then passed the complete real-model journey with gpt-6-luna: its normal cold
+installer provisioned SDK 0.58.2 in 38.05 seconds; explicit personal-profile
+selection, clipboard, Chinese composition, one trusted submission, native
+question cancellation, reload, conversation interrupt and exact model readback
+all passed. Disconnect and normal app shutdown preserved personal Chrome;
+temporary model configuration and owned services were cleaned. An earlier
+truncated Actions download was retained as failed evidence and never executed.
+
+The shared touch UI now targets SDK 0.58.3 for both its bundled surface code
+and installed browser worker. Its combined suite passed 3,325 tests with 29
+conditional skips; Desktop and WebUI type checks and the Desktop build passed.
+The built source then passed the real gpt-6-luna journey, including its normal
+cold runtime installer, native question cancellation, clipboard/composition,
+same-session model continuation and personal-profile preservation. Final CI,
+delivery, actual graph comments and physical phone input remain open. Touch selection is an explicit
+viewing gesture mode; normal touch scrolling stays local until that mode is
+selected. Conversation interrupt and native agent communication remain the
+user-facing coordination flow.
+
+### Public graph transport and native drag correction, 22 October
+
+The actual published graph was observed through the production WebUI viewer
+and the same managed Chrome session. It loaded slowly. After confirming that
+the Chrome menu was closed, two wheel zooms produced changed viewer frames
+after 1,212.6 and 1,331.7 milliseconds. Two native window drags produced no
+visible graph movement. Earlier samples taken with the Chrome menu still open
+are excluded. The image-load observations and screenshots remain evidence;
+the HTTP observer had a shutdown error, so its durations do not establish full
+transfer latency or separate page processing from network time.
+
+An isolated branded Chrome 156 container then reproduced the original native
+failure against the same graph source while the page transport panned correctly.
+The X11 motion batch could collapse into one movement, which only crossed the
+canvas editor's drag threshold. Pacing the native press and successive motions
+made two window gestures move the actual graph by their exact 100 by 50 pixel
+displacement. This candidate passed with 256 PIDs, 1536 MiB and 1.5 CPUs, using
+four-CPU affinity to match the production VM's CPU count. It has not been
+released or deployed. A new real-canvas CI regression checks the first and
+second gestures with CDP and the signed extension; both fail against the
+original runtime and pass with the candidate. All 11 selection/clipboard cases
+also passed at the SDK's existing 384 PID test budget. The smaller 256 PID
+experiment exhausted its limit when a two-browser test started; its failed
+receipt is retained. Production worker limits are unchanged.

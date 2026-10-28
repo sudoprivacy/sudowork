@@ -125,7 +125,7 @@ Run this command from the repository root. The output directory must be new.
 The test creates a real task and local HTTP page, asks the actual model to
 launch headful Chrome, takes control through BrowserPanel, opens the separate
 viewer, replaces an AI-populated field with Unicode text and submits once.
-After Return to AI, it waits for the finished model turn to report the exact
+After ordinary conversation continuation, it waits for the finished model turn to report the exact
 human value and page status. It also checks the existing `/browser` commands
 against the same session. Screenshots and `evidence.json` retain the result.
 
@@ -150,6 +150,49 @@ They verify authenticated discovery without allocation, takeover fences,
 session identity, exact trusted input, cookies, file bytes and shutdown. They
 complement the actual model/UI test above.
 
+### Existing personal Chrome
+
+Use `live_shared_browser.py --existing-profile` with a dedicated running fixture
+Chrome and its installed extension bridge. The test bootstraps an actual model
+session, selects **Connect my Chrome** through the real panel confirmation,
+returns control with the browser task, and exercises the ordinary viewer/input/
+model-readback journey. It explicitly disconnects the personal profile at the
+end. Keep the fixture Chrome open while the app shuts down and verify that the
+app did not close it. Do not point acceptance at an everyday personal profile.
+
+For a fresh local app, `--offline-entry` chooses the normal offline login entry.
+That entry clears online-account residue, so `--model-config <private-json>` can
+configure the acceptance account through the ordinary settings editor afterward.
+Keep this file outside the repository and remove its copies and backups after
+the owned instance stops. The driver verifies actual assistant text, the
+composer's finished state, fully visible inputs and one trusted submission.
+Failed runs retain command acknowledgements and viewer geometry without logging
+CDP input values or credentials.
+
+`test_personal_chrome_host.py` separately tests the actual Desktop host and public
+worker, without a model or Electron renderer. It reuses the pinned SDK's real
+extension fixture, seeds a login cookie before attachment, and verifies exact
+input, one submission, observation after Return and Chrome/cookie/input survival
+after host shutdown. The PR workflow runs all four combinations of headless/
+headful Chrome and both supported extension WebSocket backends on Linux/Windows.
+The fixture requires Chrome for Testing or Chromium with extension loading.
+
+```powershell
+bun run --filter=@sudowork/contracts build
+bun build apps/desktop/tests/integration/localBrowserWorker.live.ts --target=node --format=esm --outfile=desktop-browser-live.mjs
+$env:AI_DEV_BROWSER_TEST_EXTENSION_CHROME = 'C:/path/to/isolated-fixture-chrome.exe'
+$env:SUDOWORK_PERSONAL_HOST_JOURNEY = (Resolve-Path desktop-browser-live.mjs).Path
+python -m pytest -v apps/desktop/tests/e2e/test_personal_chrome_host.py --basetemp C:/path/to/new-evidence
+```
+
+The default SDK fixture source is `vendor/ai-dev-browser`. Local SDK development
+can explicitly select another checkout with `SUDOWORK_BROWSER_SDK_SOURCE`; the
+installed worker and fixture source must match. This selects fixture helpers
+only; the host still loads the installed distribution without a source-path
+override. Install a matching wheel or editable package in the test environment.
+The test leaves its evidence and
+only closes its own temporary Chrome, bridge and host processes.
+
 The native journey can also exercise the adapter from an actual unpacked
 installation. Build `localBrowserWorker.live.ts` as in the PR workflow, then run
 it with `--stdio --packaged-resources <installation/resources>` and optionally
@@ -158,6 +201,81 @@ Node mode, matching the application's fallback when a standalone Node runtime
 is unavailable. Set `SUDOWORK_BROWSER_LIVE_PYTHON` to the official public worker
 environment. This verifies packaged resources instead of the repository copy.
 The packaging hook rejects a missing or empty browser adapter on every platform.
+
+Pass `--pending-native-question` to `live_shared_browser.py` to take control
+while the actual model is waiting on its native question card. The journey
+requires the card to show cancellation, stops treating chat input as an answer,
+and completes the same trusted human edit and fresh model readback after return.
+
+Add `--verify-selection-clipboard` for the shared viewer's real drag selection,
+local clipboard, multiline paste and Chromium composition path. The fixture
+requires the exact selected phrase, Unicode text received through trusted input,
+no submission during IME confirmation, and one final submission. Clipboard
+content written by the fixture is restored only if it still belongs to the
+fixture; a newer user clipboard value is preserved. The Chromium composition
+check does not establish physical operating-system IME or iPhone acceptance.
+
+After the model readback, the journey requires three consecutive `/browser
+status` commands to produce distinct completed responses. This catches stalled
+local commands without accepting an earlier status message. Use
+`--status-repetitions 20` for the longer stability check; each command keeps the
+same 20-second response deadline. Failure receipts retain the original error
+even if the renderer cannot provide a screenshot.
+
+### First-use browser runtime installation
+
+`live_browser_runtime_install.py` launches actual Electron with a fresh isolated
+home and user-data directory. Its bundled entry calls the product's
+`PythonRuntimeService.prepareBrowserWorkerRuntime()`, creates the app-owned venv
+and installs the pinned worker from public PyPI. It checks the installed package
+path, version, absence of a source override and reuse on the second call. It
+uses no model credentials and leaves the user's Python packages unchanged.
+The Windows/Linux PR workflow runs this separately from the preinstalled-worker
+journeys and uploads its receipt and Electron log.
+
+```powershell
+bun build apps/desktop/tests/integration/browserRuntimeInstall.live.ts --tsconfig-override=apps/desktop/tsconfig.json --target=node --format=cjs --external electron --outfile=desktop-browser-install-live.cjs
+python apps/desktop/tests/e2e/live_browser_runtime_install.py --bundle desktop-browser-install-live.cjs --output C:/path/to/new-installer-evidence --version 0.58.2
+```
+
+Use `xvfb-run -a` for this command on Linux without a display. A working Python
+installation must be available, as required by the product's normal setup flow.
+
+### Desktop connected to the managed cloud browser
+
+`live_cloud_browser.py` drives an isolated, built Electron app from its fresh
+Chinese login screen. It uses the ordinary API Key login and Server execution
+controls, requires a real completed cloud model turn, and verifies the local
+conversation record binds to an actual Moss session. BrowserPanel launches
+headful managed Chrome; a separate Electron viewer delivers trusted Unicode
+input and one submission. Return asks AI to read the current page without
+providing the expected human value. Scoped browser permissions use the normal
+visible Allow Once cards.
+
+Use a dedicated owner with working cloud model billing. Keep this configuration
+outside the repository and use a restricted key:
+
+```json
+{
+  "mossBaseUrl": "https://agent.sudoprivacy.com",
+  "apiKey": "<dedicated-owner-key>",
+  "ownerId": "<fixture-owner-id>",
+  "orgId": "<fixture-organization-id>"
+}
+```
+
+```powershell
+python apps/desktop/tests/e2e/live_cloud_browser.py --port 9232 --config C:/private/cloud-test.json --home C:/private/isolated-home --user-data C:/private/isolated-user-data --output C:/private/new-cloud-evidence --fixture-port 50181 --fixture-origin http://private-vm-fixture-host:port
+```
+
+The fixture must be reachable from VM Chrome through an authorized private
+tunnel. The test uses no local browser worker or local model account, confirms
+Stop and Return, and terminates only its exact cloud session through that owner's
+normal API after checking organization and ownership. Three subsequent reads
+must preserve termination. It leaves the app open for inspection; close that
+owned app normally and remove its temporary credential/profile copies afterward.
+The caller owns the supplied key's lifecycle. This live test needs real account
+credentials and is run locally before commit.
 
 ## Rules
 

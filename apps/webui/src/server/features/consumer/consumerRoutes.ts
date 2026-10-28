@@ -41,9 +41,22 @@ const FORWARDED = [
   { method: 'POST', path: '/user-agents' },
   { method: 'GET', path: '/user/dashboard' },
   { method: 'GET', path: '/user/profile' },
+  { method: 'POST', path: '/user/update-profile' },
+  { method: 'POST', path: '/user/avatar' },
+  { method: 'POST', path: '/auth/change-password' },
   { method: 'GET', path: '/user/model-usage-stats' },
   { method: 'GET', path: '/credit-applications' },
   { method: 'POST', path: '/credit-applications' },
+  // Shared model account and organization recharge screens.
+  { method: 'GET', path: '/model-account/access' },
+  { method: 'GET', path: '/model-account' },
+  { method: 'GET', path: '/model-account/logs' },
+  { method: 'GET', path: '/model-billing/packages' },
+  { method: 'GET', path: '/model-billing/orders' },
+  { method: 'POST', path: '/model-billing/orders' },
+  { method: 'POST', path: '/model-billing/orders/:orderNo/pay' },
+  { method: 'POST', path: '/model-billing/orders/:orderNo/sync' },
+  { method: 'POST', path: '/model-billing/orders/:orderNo/cancel' },
   // Recharge center: the shared renderer sends the full order flow to
   // getConfig().baseUrl, which on the web is this origin.
   { method: 'GET', path: '/recharge/packages' },
@@ -77,6 +90,11 @@ export function createConsumerRouter(deps: { auth: AuthDeps }): Router {
           body = parsed.data
         }
         const ctx = await getMossContext(deps.auth, req.webSession!)
+        // Retrying a purchase must retain the renderer's order identity at Moss.
+        const idempotencyKey =
+          route.method === 'POST' && route.path === '/model-billing/orders'
+            ? req.get('Idempotency-Key')
+            : undefined
         // `originalUrl` keeps the mount prefix, the real path params and the
         // query string, so param routes like /recharge/query/:orderNo forward
         // with the actual order number and paged lists keep their query.
@@ -85,6 +103,7 @@ export function createConsumerRouter(deps: { auth: AuthDeps }): Router {
           headers: {
             Authorization: `Bearer ${ctx.accessToken}`,
             ...(isBodyMethod ? { 'Content-Type': 'application/json' } : {}),
+            ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
           },
           ...(isBodyMethod ? { body: JSON.stringify(body) } : {}),
         })

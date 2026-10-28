@@ -2,6 +2,7 @@ name: Desktop shared browser acceptance
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [dev, main]
   workflow_dispatch:
 
@@ -13,7 +14,146 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  sudograph-review:
+    name: Native Sudograph review (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v6
+      # Pin the compiler source and use the production installer's public SDK
+      # version, so review acceptance cannot depend on a candidate-only worker.
+      - uses: actions/checkout@v6
+        with:
+          repository: sudoprivacy/sudograph
+          ref: 8e56b55d2358ac672db021ae00c03c5d2a2863e0
+          path: .native-review-acceptance/compiler
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      - uses: browser-actions/setup-chrome@v2
+        id: chrome
+        with:
+          chrome-version: stable
+      - name: Install checked compiler, official browser SDK and application dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          bun install --frozen-lockfile
+          version="$(bun -e "import { BROWSER_WORKER_VERSION } from './apps/desktop/src/process/services/python/browserRuntimeVersion.ts'; console.log(BROWSER_WORKER_VERSION)")"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          python -m pip --isolated install --index-url https://pypi.org/simple -r .native-review-acceptance/compiler/requirements.txt "ai-dev-browser[remote]==$version"
+          bun run --filter=@sudowork/contracts build
+          bun build ./apps/desktop/tests/integration/sudographReviewLaunch.live.ts --target=node --format=esm --outfile=./sudograph-review-live.mjs
+      - name: Verify actual protected HTML and controlled browser handoff
+        shell: bash
+        env:
+          AI_DEV_BROWSER_CHROME: ${{ steps.chrome.outputs.chrome-path }}
+          SUDOGRAPH_COMPILER_ROOT: ${{ github.workspace }}/.native-review-acceptance/compiler
+          SUDOWORK_BROWSER_LIVE_PYTHONPATH: ""
+          SUDOWORK_REVIEW_LIVE_EVIDENCE: ${{ runner.temp }}/sudograph-review
+        run: |
+          set -euo pipefail
+          export SUDOGRAPH_PYTHON="$(python -c 'import sys; print(sys.executable)')"
+          export SUDOWORK_BROWSER_LIVE_PYTHON="$SUDOGRAPH_PYTHON"
+          node ./sudograph-review-live.mjs
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            xvfb-run -a node ./sudograph-review-live.mjs --headful
+          else
+            node ./sudograph-review-live.mjs --headful
+          fi
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: native-sudograph-review-${{ matrix.os }}
+          path: |
+            ${{ runner.temp }}/sudograph-review/**/receipt.json
+            ${{ runner.temp }}/sudograph-review/**/native-review.png
+            ${{ runner.temp }}/sudograph-review/**/worker.log
+          if-no-files-found: warn
+
+  streamed-window:
+    # Skipped on draft PRs: heavy CI starts once the PR is marked ready.
+    if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.draft) }}
+    name: Shared React window stream (Linux)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - name: Checkout the pinned public browser core
+        run: git submodule update --init vendor/ai-dev-browser
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      - name: Install the locked application dependencies
+        run: bun install --frozen-lockfile
+      - name: Build the actual shared React and noVNC surface
+        env:
+          GOMAXPROCS: "1"
+        run: node apps/desktop/node_modules/vite/bin/vite.js build --config apps/desktop/tests/e2e/browser_stream_surface/vite.config.ts
+      - name: Build the isolated managed Chrome fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$RUNNER_TEMP/browser-stream-fixture.pem"
+          revision="$(git -C vendor/ai-dev-browser rev-parse HEAD)"
+          docker build -f vendor/ai-dev-browser/deploy/managed-chrome/Dockerfile \
+            --secret "id=extension_key,src=$RUNNER_TEMP/browser-stream-fixture.pem" \
+            --build-arg "SOURCE_REVISION=$revision" \
+            -t sudowork-browser-stream:ci vendor/ai-dev-browser
+      - name: Verify real pixels, checked input, zoom, gestures and reconnect
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --init --name "sudowork-browser-stream-$GITHUB_RUN_ID" \
+            --label "sudo.acceptance.owner=sudowork-browser-stream-$GITHUB_RUN_ID" \
+            --network none --memory=1536m --shm-size=256m --pids-limit=384 --cpus=1 \
+            --cap-drop ALL --security-opt no-new-privileges \
+            --mount "type=bind,source=$PWD,target=/consumer,readonly" \
+            sudowork-browser-stream:ci /opt/browser/venv/bin/python \
+            /consumer/apps/desktop/tests/e2e/live_window_stream_surface.py \
+            --assets /consumer/apps/desktop/tests/e2e/browser_stream_surface/dist \
+            --evidence /tmp/browser-stream-evidence
+      - name: Collect actual Chrome evidence
+        if: always()
+        shell: bash
+        run: |
+          if docker inspect "sudowork-browser-stream-$GITHUB_RUN_ID" >/dev/null 2>&1; then
+            docker cp "sudowork-browser-stream-$GITHUB_RUN_ID:/tmp/browser-stream-evidence" "$RUNNER_TEMP/browser-stream-evidence"
+          fi
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: shared-react-window-stream
+          path: ${{ runner.temp }}/browser-stream-evidence/**
+          if-no-files-found: warn
+      - name: Remove the owned fixture and signing key
+        if: always()
+        shell: bash
+        run: |
+          if docker inspect "sudowork-browser-stream-$GITHUB_RUN_ID" >/dev/null 2>&1; then
+            owner="$(docker inspect --format '{{ index .Config.Labels "sudo.acceptance.owner" }}' "sudowork-browser-stream-$GITHUB_RUN_ID")"
+            test "$owner" = "sudowork-browser-stream-$GITHUB_RUN_ID"
+            docker rm -f "sudowork-browser-stream-$GITHUB_RUN_ID"
+          fi
+          rm -f "$RUNNER_TEMP/browser-stream-fixture.pem"
+
   native-browser:
+    # Skipped on draft PRs: heavy CI starts once the PR is marked ready.
+    if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.draft) }}
     name: Real Chrome (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
@@ -34,17 +174,58 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: package.json
+      - uses: browser-actions/setup-chrome@v2
+        id: chrome
+        with:
+          chrome-version: stable
       - name: Install dependencies
         run: bun install --no-frozen-lockfile
+      - name: Read the pinned public browser version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(bun -e "import { BROWSER_WORKER_VERSION } from './apps/desktop/src/process/services/python/browserRuntimeVersion.ts'; console.log(BROWSER_WORKER_VERSION)")"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          echo "BROWSER_WORKER_VERSION=$version" >> "$GITHUB_ENV"
       - name: Install the official public worker
-        run: python -m pip --isolated install --index-url https://pypi.org/simple "ai-dev-browser[remote]==0.57.5"
+        shell: bash
+        run: python -m pip --isolated install --index-url https://pypi.org/simple "ai-dev-browser[remote]==$BROWSER_WORKER_VERSION" pytest pytest-asyncio
       - name: Build the shared contracts and stdio transport
         run: |
           bun run --filter=@sudowork/contracts build
           node apps/desktop/scripts/build-browser-mcp.js
           bun build ./apps/desktop/tests/integration/localBrowserWorker.live.ts --target=node --format=esm --outfile=./desktop-browser-live.mjs
+          bun build ./apps/desktop/tests/integration/browserRuntimeInstall.live.ts --tsconfig-override=./apps/desktop/tsconfig.json --target=node --format=cjs --external electron --outfile=./desktop-browser-install-live.cjs
+          python -m py_compile apps/desktop/tests/e2e/live_cloud_browser.py
+          python -m py_compile apps/webui/tests/e2e/live_browser_view_performance.py apps/webui/tests/e2e/live_browser_clipboard.py
+          python -m unittest discover -s apps/webui/tests/e2e -p test_live_browser_permissions.py
+      - name: Prepare Electron's Linux sandbox
+        if: runner.os == 'Linux'
+        shell: bash
+        working-directory: apps/desktop
+        run: |
+          set -euo pipefail
+          electron="$(node -p 'require("electron")')"
+          sandbox="$(dirname "$electron")/chrome-sandbox"
+          sudo chown root:root "$sandbox"
+          sudo chmod 4755 "$sandbox"
+      - name: Verify the real first-use browser installer
+        shell: bash
+        run: |
+          set -euo pipefail
+          installer_test=(python apps/desktop/tests/e2e/live_browser_runtime_install.py
+            --bundle desktop-browser-install-live.cjs
+            --output "$RUNNER_TEMP/browser-runtime-cold-install"
+            --version "$BROWSER_WORKER_VERSION")
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            xvfb-run -a "${installer_test[@]}"
+          else
+            "${installer_test[@]}"
+          fi
       - name: Run actual browser journeys
         shell: bash
+        env:
+          AI_DEV_BROWSER_CHROME: ${{ steps.chrome.outputs.chrome-path }}
         run: |
           set -euo pipefail
           export SUDOWORK_BROWSER_LIVE_PYTHON="$(python -c 'import sys; print(sys.executable)')"
@@ -57,6 +238,18 @@ jobs:
               node ./desktop-browser-live.mjs "$transport" --headful
             fi
           done
+      - name: Verify existing personal Chrome through the Desktop host
+        shell: bash
+        env:
+          AI_DEV_BROWSER_TEST_EXTENSION_CHROME: ${{ steps.chrome.outputs.chrome-path }}
+          SUDOWORK_PERSONAL_HOST_JOURNEY: ${{ github.workspace }}/desktop-browser-live.mjs
+        run: |
+          set -euo pipefail
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            xvfb-run -a python -m pytest -v apps/desktop/tests/e2e/test_personal_chrome_host.py --basetemp "$RUNNER_TEMP/personal-chrome"
+          else
+            python -m pytest -v apps/desktop/tests/e2e/test_personal_chrome_host.py --basetemp "$RUNNER_TEMP/personal-chrome"
+          fi
       - name: Preserve actual browser evidence
         if: always()
         uses: actions/upload-artifact@v6
@@ -65,4 +258,7 @@ jobs:
           path: |
             ${{ runner.temp }}/desktop-browser-worker-*/evidence.json
             ${{ runner.temp }}/desktop-browser-worker-*/**/worker.log
+            ${{ runner.temp }}/personal-chrome/**
+            ${{ runner.temp }}/browser-runtime-cold-install/evidence.json
+            ${{ runner.temp }}/browser-runtime-cold-install/electron.log
           if-no-files-found: warn

@@ -10,7 +10,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from ai_dev_browser.core.browser import browser_start, browser_stop
 from live_browser_permissions import approve_browser_permission
-from live_browser_ui import open_browser_panel
+from live_browser_ui import open_browser_panel, interrupt_shared_browser, continue_from_conversation
 from playwright.async_api import async_playwright, expect
 
 
@@ -163,12 +163,9 @@ async def main(args):
         await panel.get_by_role(
             "button", name=browser_labels["start"], exact=True
         ).click()
-        await wait_state(
-            lambda value: value["state"] == "ai" and not value["isHeadless"]
-        )
-        await panel.get_by_role(
-            "button", name=browser_labels["take"], exact=True
-        ).click()
+        launched = await wait_state(lambda value: value["state"] in ('ai', 'human') and not value["isHeadless"])
+        if launched['state'] == 'ai':
+            await interrupt_shared_browser(page, panel, browser_labels)
         original = await wait_state(lambda value: value["state"] == "human")
         assert original["transport"] == "extension" and original["profileId"] == profile
         await navigate()
@@ -223,14 +220,11 @@ async def main(args):
         ).to_be_visible()
         await page.screenshot(path=str(output / "lifecycle-stopped-human.png"))
         print("Chrome stopped while the human lease stayed active", flush=True)
-        await panel.get_by_label(browser_labels["note"], exact=True).fill(
+        start = len(messages)
+        await continue_from_conversation(page,
             "The browser is intentionally stopped. Keep it stopped; do not launch Chrome or use shell. "
             f"Observe its current stopped state, then reply {ready_marker}."
         )
-        start = len(messages)
-        await panel.get_by_role(
-            "button", name=browser_labels["return"], exact=True
-        ).click()
         returned = await wait_state(
             lambda value: (
                 value["state"] == "stopped" and not value["isHumanControlHeld"]

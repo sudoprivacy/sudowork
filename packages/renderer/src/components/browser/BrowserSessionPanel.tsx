@@ -1,9 +1,17 @@
-import { Button, Empty, Input, Message, Modal, Select, Spin } from '@arco-design/web-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Button, Collapse, Empty, Input, Message, Modal, Select, Spin } from '@arco-design/web-react';
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { BrowserFileSchema, BrowserInputSchema, BrowserSessionReplySchema, isCurrentBrowserFrame, type BrowserFile, type BrowserInput, type BrowserSessionAction, type BrowserSessionReply, type BrowserSessionState } from '@sudowork/contracts/browser-session';
 import { PageSurface } from '@ai-dev-browser/remote-page';
+import { copyTextFromPromise } from '../../utils/clipboard';
+import WindowStreamSurface, { type IWindowStreamContext } from './WindowStreamSurface';
+import { openBrowserSessionWindow } from './openBrowserSessionWindow';
+import { isElectronDesktop } from '../../utils/platform';
+
+function isLiveDragCancellation(input: BrowserInput) {
+  return input.kind === 'drag-stream' && input.phase === 'cancel';
+}
 
 /** Shared remote browser UI. The host authenticates and enforces every action. */
 export default function BrowserSessionPanel({ conversationId, isActive = true, isViewer = false, isControlsOnly = false, initialTransport = 'extension' }: IBrowserSessionPanelProps) {
@@ -11,15 +19,26 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
   const [session, setSession] = useState<BrowserSessionState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isTransferring, setIsTransferring] = useState(false);
+  const [isOpeningSeparate, setIsOpeningSeparate] = useState(false);
   const [isFileTransferring, setIsFileTransferring] = useState(false);
+  const [isClipboardBusy, setIsClipboardBusy] = useState(false);
+  const [isTextComposing, setIsTextComposing] = useState(false);
   const [url, setUrl] = useState('');
   const [text, setText] = useState('');
-  const [note, setNote] = useState('');
   const [dialogText, setDialogText] = useState('');
   const [isFrameReady, setIsFrameReady] = useState(false);
   const [isHeadless, setIsHeadless] = useState(true);
   const [transport, setTransport] = useState<'extension' | 'cdp'>(initialTransport);
   const [selectedSurface, setSelectedSurface] = useState<'page' | 'window' | null>(null);
+  const [imageZoom, setImageZoom] = useState<number | null>(null);
+  const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const [isTouchDragging, setIsTouchDragging] = useState(false);
+  const [windowStream, setWindowStream] = useState<IWindowStreamContext | null>(null);
+  const windowStreamRef = useRef<IWindowStreamContext | null>(null);
+  const isTouchInputAvailable = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const panRef = useRef<{ id: number; x: number; y: number; left: number; top: number } | null>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const fileChoiceRef = useRef<{ generation: number; chooserId: string; controlEpoch: number; targetEpoch: number } | null>(null);
@@ -27,6 +46,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
   const sessionRef = useRef<BrowserSessionState | null>(null);
   const invokeRef = useRef<((action: BrowserSessionAction) => Promise<BrowserSessionReply>) | undefined>(undefined);
   const isInteractiveRef = useRef(false);
+  const isFrameReadyRef = useRef(false);
   const surfaceModeRef = useRef<'page' | 'window'>('page');
   const generationRef = useRef(0);
   const pendingInputsRef = useRef<Promise<void>>(Promise.resolve());
@@ -50,16 +70,20 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     const isSameProfile = previous?.profileId === next.profileId;
     if (previous && isSameProfile && (next.controlEpoch < previous.controlEpoch || (next.controlEpoch === previous.controlEpoch && next.targetEpoch < previous.targetEpoch))) return;
     if (previous && (!isSameBrowser || next.controlEpoch !== previous.controlEpoch || next.targetEpoch !== previous.targetEpoch)) {
+      windowStreamRef.current = null;
+      setWindowStream(null);
       surfaceRef.current?.clear();
+      isFrameReadyRef.current = false;
+      isInteractiveRef.current = false;
       setIsFrameReady(false);
     }
     sessionRef.current = next;
     setSession(next);
     if ((!previous || !isSameBrowser) && next.state !== 'stopped') {
-      setIsHeadless(next.isHeadless);
+      if (next.isHeadless !== null) setIsHeadless(next.isHeadless);
       if (next.transport !== 'electron') setTransport(next.transport);
     }
-    if (!previous && next.state === 'stopped' && next.transport !== 'electron') setTransport(next.transport);
+    if (!previous && next.state === 'stopped' && next.transport !== 'electron') setTransport(next.capabilities.existingExtension ? 'cdp' : next.transport);
     const target = next.tabs.find((tab) => tab.id === next.activeTargetId);
     if (!previous || previous.activeTargetId !== next.activeTargetId || previous.tabs.find((tab) => tab.id === previous.activeTargetId)?.url !== target?.url) setUrl(target?.url || '');
     setError(null);
@@ -71,46 +95,106 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     const generation = ++generationRef.current;
     let isClosed = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let attachedBrowserId: string | undefined;
+    let attachedSurface: 'page' | 'window' | undefined;
+    let isStateNeeded = true;
+    let unsupportedStreamBrowserId: string | undefined;
     const viewerId = crypto.randomUUID();
     sessionRef.current = null;
+    windowStreamRef.current = null;
+    setWindowStream(null);
     setTransport(initialTransport);
     setSession(null);
     setError(null);
+    isFrameReadyRef.current = false;
+    isInteractiveRef.current = false;
     setIsFrameReady(false);
     setIsFileTransferring(false);
+    setIsOpeningSeparate(false);
+    setIsClipboardBusy(false);
+    setIsTextComposing(false);
     fileChoiceRef.current = null;
     if (!isActive || !conversationId) return;
 
     async function poll() {
+      const startedAt = performance.now();
       try {
-        const stateReply = await invoke({ kind: 'state' });
-        if (isClosed) return;
-        update(stateReply.session);
-        const viewMode = selectedSurface === 'page' || !stateReply.session.capabilities.windowView ? 'page' : 'window';
+        // Frame replies already carry authoritative session state. Fetching
+        // state and attaching again before every frame adds two cloud round
+        // trips without improving ownership checks on the host.
+        const previous = sessionRef.current;
+        if (isStateNeeded || !previous || windowStreamRef.current || isControlsOnly || document.visibilityState !== 'visible' || previous.state === 'stopped') {
+          const stateReply = await invoke({ kind: 'state' });
+          if (isClosed) return;
+          update(stateReply.session);
+          isStateNeeded = false;
+        }
+        const current = sessionRef.current!;
+        const viewMode = isViewer && selectedSurface !== 'page' && current.capabilities.windowView ? 'window' : 'page';
         surfaceModeRef.current = viewMode;
         if (isControlsOnly) {
           // This window observes the lease without attaching a pixel viewer.
-        } else if (document.visibilityState === 'visible' && stateReply.session.state !== 'stopped' && stateReply.session.capabilities.pageView && stateReply.session.activeTargetId) {
-          await invoke({ kind: 'attach', viewerId, surface: viewMode });
-          if (isClosed) return;
+        } else if (document.visibilityState === 'visible' && current.state !== 'stopped' && current.capabilities.pageView && current.activeTargetId) {
+          if (attachedBrowserId !== current.browserSessionId || attachedSurface !== viewMode) {
+            const attached = await invoke({ kind: 'attach', viewerId, surface: viewMode });
+            if (isClosed) return;
+            update(attached.session);
+            attachedBrowserId = attached.session.browserSessionId;
+            attachedSurface = viewMode;
+          }
           const state = sessionRef.current!;
-          const reply = await invoke({ kind: 'frame', viewerId, surface: viewMode, controlEpoch: state.controlEpoch, targetEpoch: state.targetEpoch });
-          if (isClosed || generationRef.current !== generation) return;
-          update(reply.session);
-          if (reply.frame && (reply.frame.surface || 'page') === viewMode && sessionRef.current && isCurrentBrowserFrame(sessionRef.current, reply.frame)) {
-            surfaceRef.current?.frame(reply.frame);
+          const isStreamingSupported = viewMode === 'window' && state.capabilities.windowStream === true && unsupportedStreamBrowserId !== state.browserSessionId;
+          if (isStreamingSupported && !windowStreamRef.current) {
+            const reply = await invoke({ kind: 'window-stream', viewerId, controlEpoch: state.controlEpoch, targetEpoch: state.targetEpoch });
+            if (isClosed || generationRef.current !== generation) return;
+            update(reply.session);
+            const latest = sessionRef.current;
+            const isCurrentStream = latest?.browserSessionId === reply.session.browserSessionId && latest.profileId === reply.session.profileId && latest.controlEpoch === reply.session.controlEpoch && latest.targetEpoch === reply.session.targetEpoch;
+            if (reply.stream?.socketPath && isCurrentStream) {
+              const stream = { viewerId, password: reply.stream.password, socketPath: reply.stream.socketPath, browserSessionId: reply.session.browserSessionId, controlEpoch: reply.session.controlEpoch, targetEpoch: reply.session.targetEpoch };
+              windowStreamRef.current = stream;
+              setWindowStream(stream);
+            } else if (!reply.stream?.socketPath) {
+              // A host without a socket adapter retains the existing frame API.
+              unsupportedStreamBrowserId = state.browserSessionId;
+            }
+          }
+          if (!windowStreamRef.current) {
+            const reply = await invoke({ kind: 'frame', viewerId, surface: viewMode, controlEpoch: state.controlEpoch, targetEpoch: state.targetEpoch });
+            if (isClosed || generationRef.current !== generation) return;
+            update(reply.session);
+            if (reply.frame && (reply.frame.surface || 'page') === viewMode && sessionRef.current && isCurrentBrowserFrame(sessionRef.current, reply.frame)) {
+              surfaceRef.current?.frame(reply.frame);
+            }
           }
         } else {
-          await invoke({ kind: 'detach', viewerId });
+          if (attachedBrowserId) await invoke({ kind: 'detach', viewerId });
+          attachedBrowserId = undefined;
+          attachedSurface = undefined;
+          isStateNeeded = true;
+          windowStreamRef.current = null;
+          setWindowStream(null);
         }
       } catch (failure) {
+        // A restarted browser, expired attachment or changed target requires
+        // fresh state and an explicit reattachment. Never replay user input.
+        isStateNeeded = true;
+        attachedBrowserId = undefined;
+        attachedSurface = undefined;
+        windowStreamRef.current = null;
+        setWindowStream(null);
         if (!isClosed) {
           setError(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
           surfaceRef.current?.clear();
+          isFrameReadyRef.current = false;
+          isInteractiveRef.current = false;
           setIsFrameReady(false);
         }
       }
-      if (!isClosed) timer = setTimeout(() => void poll(), isControlsOnly || document.visibilityState !== 'visible' ? 2000 : 350);
+      if (!isClosed) {
+        const interval = isControlsOnly || document.visibilityState !== 'visible' ? 2000 : sessionRef.current?.state === 'stopped' || windowStreamRef.current ? 1000 : 250;
+        timer = setTimeout(() => void poll(), Math.max(0, interval - (performance.now() - startedAt)));
+      }
     }
     void poll();
     return () => {
@@ -118,26 +202,111 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
       generationRef.current += 1;
       if (timer) clearTimeout(timer);
       surfaceRef.current?.clear();
+      windowStreamRef.current = null;
       // Detach only the view. The server retains the browser and human lease.
       void invoke({ kind: 'detach', viewerId }).catch(() => {});
     };
-  }, [conversationId, initialTransport, invoke, isActive, isControlsOnly, selectedSurface, t, update]);
+  }, [conversationId, initialTransport, invoke, isActive, isControlsOnly, isViewer, selectedSurface, t, update]);
 
-  const isController = session?.state === 'human' && session.isController && !isTransferring && !isFileTransferring && !error;
-  const isStoppedController = session?.state === 'stopped' && session.isController && session.isHumanControlHeld && !isTransferring && !error;
-  const isReturnAvailable = !!(isController || isStoppedController);
-  isInteractiveRef.current = !!isController;
+  const isConversationControlSupported = session?.capabilities.conversationControl === true;
+  const isSessionKnown = session !== null;
+  const isDragSupported = session?.capabilities.dragInput === true;
+  const isController = isConversationControlSupported && session?.state === 'human' && session.isController && !isTransferring && !isFileTransferring && !error;
+  const isStoppedController = isConversationControlSupported && session?.state === 'stopped' && session.isController && session.isHumanControlHeld && !isTransferring && !error;
+  isInteractiveRef.current = !!isController && isFrameReady && !isPanning;
+
+  const onStreamInput = (value: unknown) => {
+    const input = BrowserInputSchema.safeParse(value);
+    if (!input.success || (!isInteractiveRef.current && !isLiveDragCancellation(input.data))) return Promise.reject(new Error(t('conversation.browserSession.unavailable')));
+    const generation = generationRef.current;
+    return queueInput(input.data)
+      .then((reply) => {
+        if (generationRef.current === generation) updateRef.current(reply.session);
+      })
+      .catch((failure: unknown) => {
+        if (generationRef.current === generation) Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
+        throw failure;
+      });
+  };
+
+  const onStreamReady = (size: { width: number; height: number }) => {
+    const state = sessionRef.current;
+    const stream = windowStreamRef.current;
+    if (!state || !stream || stream.browserSessionId !== state.browserSessionId || stream.controlEpoch !== state.controlEpoch || stream.targetEpoch !== state.targetEpoch) return;
+    setImageSize(size);
+    isFrameReadyRef.current = true;
+    setIsFrameReady(true);
+  };
+
+  const onStreamDisconnect = () => {
+    windowStreamRef.current = null;
+    setWindowStream(null);
+    isFrameReadyRef.current = false;
+    isInteractiveRef.current = false;
+    setIsFrameReady(false);
+  };
+
+  useEffect(() => {
+    setImageZoom(null);
+    setIsPanning(false);
+    panRef.current = null;
+    const viewport = viewportRef.current;
+    if (viewport) viewport.scrollLeft = viewport.scrollTop = 0;
+  }, [conversationId]);
+
+  const onImageLoad = () => {
+    const image = imageRef.current;
+    if (!image?.getAttribute('src')) return;
+    setImageSize((previous) => (previous.width === image.naturalWidth && previous.height === image.naturalHeight ? previous : { width: image.naturalWidth, height: image.naturalHeight }));
+    isFrameReadyRef.current = true;
+    setIsFrameReady(true);
+  };
+
+  const onImageZoom = (value: string | number) => {
+    const zoom = value === 'fit' ? null : Number(value);
+    if (zoom !== null && (!Number.isFinite(zoom) || zoom < 0.25 || zoom > 2)) return;
+    setImageZoom(zoom);
+    setIsPanning(zoom !== null);
+    panRef.current = null;
+    const viewport = viewportRef.current;
+    if (viewport) viewport.scrollLeft = viewport.scrollTop = 0;
+    viewportRef.current?.focus({ preventScroll: true });
+  };
+
+  const onPanStart = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!isPanning || panRef.current || event.button !== 0) return;
+    const viewport = event.currentTarget;
+    panRef.current = { id: event.pointerId, x: event.clientX, y: event.clientY, left: viewport.scrollLeft, top: viewport.scrollTop };
+    viewport.setPointerCapture?.(event.pointerId);
+    viewport.focus({ preventScroll: true });
+    event.preventDefault();
+  };
+
+  const onPanMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const pan = panRef.current;
+    if (!isPanning || pan?.id !== event.pointerId) return;
+    event.currentTarget.scrollLeft = pan.left + pan.x - event.clientX;
+    event.currentTarget.scrollTop = pan.top + pan.y - event.clientY;
+    event.preventDefault();
+  };
+
+  const onPanEnd = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (panRef.current?.id !== event.pointerId) return;
+    panRef.current = null;
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  };
 
   const queueInput = useCallback(
-    (input: BrowserInput) => {
-      const observed = sessionRef.current;
-      const generation = generationRef.current;
-      const surface = surfaceModeRef.current;
+    (input: BrowserInput, context?: IBrowserInputContext) => {
+      const observed = context ? context.session : sessionRef.current;
+      const generation = context ? context.generation : generationRef.current;
+      const surface = context ? context.surface : surfaceModeRef.current;
       const operation = pendingInputsRef.current.then(() => {
         const current = sessionRef.current;
         if (
           !observed ||
           !current ||
+          (!isFrameReadyRef.current && !isLiveDragCancellation(input)) ||
           generationRef.current !== generation ||
           current.browserSessionId !== observed.browserSessionId ||
           current.profileId !== observed.profileId ||
@@ -162,52 +331,94 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
   );
 
   const onAction = useCallback(
-    async (kind: 'take' | 'return' | 'navigate' | 'back' | 'forward' | 'reload' | 'new-tab' | 'select-tab' | 'close-tab', targetId?: string) => {
+    async (kind: 'navigate' | 'back' | 'forward' | 'reload' | 'new-tab' | 'select-tab' | 'close-tab', targetId?: string) => {
       const generation = generationRef.current;
-      if (kind === 'take' || kind === 'return') setIsTransferring(true);
-      if (kind === 'return') isInteractiveRef.current = false;
       try {
-        if (kind !== 'take') await pendingInputsRef.current;
+        await pendingInputsRef.current;
         if (generationRef.current !== generation) return;
         const current = sessionRef.current;
         if (!current) return;
         const epochs = { controlEpoch: current.controlEpoch, targetEpoch: current.targetEpoch };
-        const action: BrowserSessionAction = kind === 'navigate' ? { kind, url, ...epochs } : kind === 'return' ? { kind, note, ...epochs } : kind === 'select-tab' || kind === 'close-tab' ? { kind, targetId: targetId!, ...epochs } : { kind, ...epochs };
+        const action: BrowserSessionAction = kind === 'navigate' ? { kind, url, ...epochs } : kind === 'select-tab' || kind === 'close-tab' ? { kind, targetId: targetId!, ...epochs } : { kind, ...epochs };
         const reply = await invoke(action);
         if (generationRef.current !== generation) return;
         update(reply.session);
-        if (kind === 'return') setNote('');
       } catch (failure) {
         if (generationRef.current === generation) Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
       } finally {
         if (generationRef.current === generation) setIsTransferring(false);
       }
     },
-    [invoke, note, t, update, url]
+    [invoke, t, update, url]
   );
 
+  const interruptRef = useRef(false);
+  const onBrowserInterrupt = async () => {
+    if (interruptRef.current || isPanning || !isFrameReady || sessionRef.current?.state !== 'ai' || !isConversationControlSupported) return;
+    const generation = generationRef.current;
+    interruptRef.current = true;
+    setIsTransferring(true);
+    try {
+      // This is the existing task interrupt, including host acknowledgements.
+      // The initiating gesture is discarded: it was aimed at an older frame.
+      const reply = await ipcBridge.conversation.stop.invoke({ conversation_id: conversationId });
+      if (!reply?.success) throw new Error(reply?.msg || t('conversation.browserSession.unavailable'));
+      const deadline = performance.now() + 30_000;
+      while (generationRef.current === generation) {
+        const next = await invoke({ kind: 'state' });
+        if (generationRef.current !== generation) return;
+        update(next.session);
+        if (next.session.state === 'human' && next.session.isController) return;
+        if (next.session.state === 'error' || performance.now() >= deadline) throw new Error(t('conversation.browserSession.unavailable'));
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+    } catch (failure) {
+      if (generationRef.current === generation) Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
+    } finally {
+      interruptRef.current = false;
+      if (generationRef.current === generation) setIsTransferring(false);
+    }
+  };
+
   useEffect(() => {
-    if (!imageRef.current) return;
-    const surface = new PageSurface(imageRef.current, (value: unknown) => {
-      const current = sessionRef.current;
-      if (!isInteractiveRef.current || !current || current.state !== 'human' || !current.isController) return;
-      const input = BrowserInputSchema.safeParse(value);
-      if (!input.success) return;
-      const generation = generationRef.current;
-      void queueInput(input.data)
-        .then((reply) => {
-          if (generationRef.current === generation) updateRef.current(reply.session);
-        })
-        .catch((failure: unknown) => {
-          if (generationRef.current === generation) Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
-        });
-    });
+    if (!imageRef.current || !isSessionKnown) return;
+    const surface = new PageSurface(
+      imageRef.current,
+      (value: unknown) => {
+        const current = sessionRef.current;
+        if (!isInteractiveRef.current || !current || current.state !== 'human' || !current.isController) return;
+        const input = BrowserInputSchema.safeParse(value);
+        if (!input.success) return;
+        const generation = generationRef.current;
+        void queueInput(input.data)
+          .then((reply) => {
+            if (generationRef.current === generation) updateRef.current(reply.session);
+          })
+          .catch((failure: unknown) => {
+            if (generationRef.current === generation) Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
+          });
+      },
+      { drag: isDragSupported, touchDrag: isTouchDragging }
+    );
     surfaceRef.current = surface;
     return () => {
       surface.dispose();
+      isFrameReadyRef.current = false;
+      isInteractiveRef.current = false;
+      setIsFrameReady(false);
       surfaceRef.current = null;
     };
-  }, [queueInput, t, isControlsOnly]);
+  }, [queueInput, t, isControlsOnly, isSessionKnown, isDragSupported, isTouchDragging, windowStream]);
+
+  const onTouchGestureChange = (value: string) => {
+    // A second finger can change this control during an unfinished gesture.
+    // Discard that gesture synchronously and wait for a fresh frame.
+    surfaceRef.current?.clear();
+    isFrameReadyRef.current = false;
+    isInteractiveRef.current = false;
+    setIsFrameReady(false);
+    setIsTouchDragging(value === 'drag');
+  };
 
   const onInsertText = async () => {
     const current = sessionRef.current;
@@ -215,12 +426,74 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     const generation = generationRef.current;
     const submitted = text;
     try {
-      const reply = await queueInput({ kind: 'text', text: submitted });
+      const input = BrowserInputSchema.safeParse({ kind: current.capabilities.clipboardText ? 'paste' : 'text', text: submitted });
+      if (!input.success) throw new Error(t('conversation.browserSession.clipboardTooLong'));
+      const reply = await queueInput(input.data);
       if (generationRef.current !== generation) return;
       update(reply.session);
       setText((value) => (value === submitted ? '' : value));
     } catch (failure) {
       Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
+    }
+  };
+
+  const onCopySelection = async () => {
+    const current = sessionRef.current;
+    if (!isController || !current?.capabilities.selectionRead || current.state !== 'human' || !current.isController || !isFrameReadyRef.current || isClipboardBusy) return;
+    const context = { session: current, generation: generationRef.current, surface: surfaceModeRef.current };
+    setIsClipboardBusy(true);
+    try {
+      const selection = queueInput({ kind: 'copy-selection' }, context).then((reply) => {
+        const active = sessionRef.current;
+        if (
+          generationRef.current !== context.generation ||
+          !active ||
+          active.browserSessionId !== current.browserSessionId ||
+          active.profileId !== current.profileId ||
+          active.controlEpoch !== current.controlEpoch ||
+          active.targetEpoch !== current.targetEpoch ||
+          active.state !== 'human' ||
+          !active.isController ||
+          reply.session.browserSessionId !== current.browserSessionId ||
+          reply.session.profileId !== current.profileId ||
+          reply.session.controlEpoch !== current.controlEpoch ||
+          reply.session.targetEpoch !== current.targetEpoch
+        )
+          throw new Error(t('conversation.browserSession.unavailable'));
+        update(reply.session);
+        if (!reply.selection?.isAvailable || !reply.selection.text) throw new Error(t('conversation.browserSession.selectionUnavailable'));
+        return reply.selection.text;
+      });
+      // Begin the write in this gesture; WebKit receives remote data as a promise.
+      await copyTextFromPromise(selection);
+    } catch (failure) {
+      if (generationRef.current === context.generation) Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.clipboardUnavailable'));
+    } finally {
+      if (generationRef.current === context.generation) setIsClipboardBusy(false);
+    }
+  };
+
+  const onPasteClipboard = async () => {
+    const current = sessionRef.current;
+    if (!isController || !current?.capabilities.clipboardText || current.state !== 'human' || !current.isController || !isFrameReadyRef.current || isClipboardBusy) return;
+    const context = { session: current, generation: generationRef.current, surface: surfaceModeRef.current };
+    setIsClipboardBusy(true);
+    try {
+      if (!navigator.clipboard?.readText) throw new Error(t('conversation.browserSession.clipboardUnavailable'));
+      // Read only on this explicit user gesture. Freeze the destination before
+      // the browser's clipboard permission UI can yield to another task/tab.
+      // Windows clipboard reads use CRLF. Normalize before trusted insertion
+      // so remote input listeners see the same text as native browser paste.
+      const pasted = (await navigator.clipboard.readText()).replace(/\r\n/g, '\n');
+      if (!pasted) return;
+      const input = BrowserInputSchema.safeParse({ kind: 'paste', text: pasted });
+      if (!input.success) throw new Error(t('conversation.browserSession.clipboardTooLong'));
+      const reply = await queueInput(input.data, context);
+      if (generationRef.current === context.generation) update(reply.session);
+    } catch (failure) {
+      if (generationRef.current === context.generation) Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.clipboardUnavailable'));
+    } finally {
+      if (generationRef.current === context.generation) setIsClipboardBusy(false);
     }
   };
 
@@ -235,6 +508,70 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     } finally {
       if (generationRef.current === generation) setIsTransferring(false);
     }
+  };
+
+  const onInspectExisting = async () => {
+    const generation = generationRef.current;
+    setIsTransferring(true);
+    try {
+      const inspected = await invoke({ kind: 'inspect-existing-extension' });
+      if (generationRef.current !== generation) return;
+      update(inspected.session);
+      const selected = inspected.existingExtension;
+      if (!selected) {
+        Modal.info({ title: t('conversation.browserSession.personalSetupTitle'), content: <div className='whitespace-pre-wrap break-words'>{inspected.setupInstructions || t('conversation.browserSession.personalSetup')}</div> });
+        return;
+      }
+      Modal.confirm({
+        title: t('conversation.browserSession.personalConnectTitle'),
+        content: t('conversation.browserSession.personalConnectBody', { profile: selected.profileId }),
+        okText: t('conversation.browserSession.personalConnect'),
+        cancelText: t('common.cancel'),
+        onOk: async () => {
+          if (generationRef.current !== generation) return;
+          setIsTransferring(true);
+          try {
+            const connected = await invoke({ kind: 'connect-existing-extension', ...selected });
+            if (generationRef.current === generation) update(connected.session);
+          } catch (failure) {
+            if (generationRef.current === generation) Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
+            throw failure;
+          } finally {
+            if (generationRef.current === generation) setIsTransferring(false);
+          }
+        },
+      });
+    } catch (failure) {
+      if (generationRef.current === generation) Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
+    } finally {
+      if (generationRef.current === generation) setIsTransferring(false);
+    }
+  };
+
+  const onDisconnectExisting = () => {
+    const generation = generationRef.current;
+    Modal.confirm({
+      title: t('conversation.browserSession.personalDisconnectTitle'),
+      content: t('conversation.browserSession.personalDisconnectBody'),
+      okText: t('conversation.browserSession.personalDisconnect'),
+      cancelText: t('common.cancel'),
+      onOk: async () => {
+        if (generationRef.current !== generation) return;
+        setIsTransferring(true);
+        try {
+          await pendingInputsRef.current;
+          const current = sessionRef.current;
+          if (generationRef.current !== generation || !current || (!current.isController && current.state !== 'stopped')) return;
+          const disconnected = await invoke({ kind: 'disconnect-existing-extension', controlEpoch: current.controlEpoch, targetEpoch: current.targetEpoch });
+          if (generationRef.current === generation) update(disconnected.session);
+        } catch (failure) {
+          if (generationRef.current === generation) Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
+          throw failure;
+        } finally {
+          if (generationRef.current === generation) setIsTransferring(false);
+        }
+      },
+    });
   };
 
   const onRespondDialog = async (isAccepted: boolean) => {
@@ -262,6 +599,8 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
         if (generationRef.current !== generation || !current || current.state !== 'human' || !current.isController) return;
         setIsTransferring(true);
         surfaceRef.current?.clear();
+        isFrameReadyRef.current = false;
+        isInteractiveRef.current = false;
         setIsFrameReady(false);
         try {
           const epochs = { controlEpoch: current.controlEpoch, targetEpoch: current.targetEpoch };
@@ -345,23 +684,49 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     }
   };
 
-  const handoffNote = isReturnAvailable ? <Input aria-label={t('conversation.browserSession.note')} placeholder={t('conversation.browserSession.note')} value={note} maxLength={2000} onChange={setNote} /> : null;
+  const isNativeWindowAvailable = isElectronDesktop() && session?.capabilities.nativeWindow === true;
+  const onOpenSeparate = async () => {
+    if (!isNativeWindowAvailable) {
+      openBrowserSessionWindow(conversationId);
+      return;
+    }
+    const generation = generationRef.current;
+    setIsOpeningSeparate(true);
+    try {
+      await pendingInputsRef.current;
+      if (generationRef.current !== generation) return;
+      let current = sessionRef.current;
+      if (!current?.activeTargetId || !current.capabilities.nativeWindow) throw new Error(t('conversation.browserSession.unavailable'));
+      if (current.state !== 'human' || !current.isController) {
+        const acquired = await invoke({ kind: 'take', controlEpoch: current.controlEpoch, targetEpoch: current.targetEpoch });
+        if (generationRef.current !== generation) return;
+        update(acquired.session);
+        current = acquired.session;
+      }
+      if (!current.activeTargetId || !current.capabilities.nativeWindow || current.state !== 'human' || !current.isController) throw new Error(t('conversation.browserSession.unavailable'));
+      // Selecting the existing target brings its native Chrome window forward.
+      // It keeps the page, cookies, drafts and shared panel on that same target.
+      const reply = await invoke({ kind: 'select-tab', targetId: current.activeTargetId, controlEpoch: current.controlEpoch, targetEpoch: current.targetEpoch });
+      if (generationRef.current === generation) update(reply.session);
+    } catch (failure) {
+      if (generationRef.current === generation) Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
+    } finally {
+      if (generationRef.current === generation) setIsOpeningSeparate(false);
+    }
+  };
+
   const controls = (
     <div className='flex flex-wrap items-center gap-2'>
       <span role='status'>{isTransferring ? t('conversation.browserSession.transferring') : t(`conversation.browserSession.state.${session?.state || 'stopped'}`)}</span>
-      {session ? <span className='text-xs text-t-secondary'>{t(`conversation.browserSession.${session.isHeadless ? 'headless' : 'headful'}`)}</span> : null}
-      <Button size='mini' disabled={!session || session.state !== 'ai' || isTransferring || !!error} onClick={() => void onAction('take')}>
-        {t('conversation.browserSession.take')}
-      </Button>
-      <Button size='mini' disabled={!isReturnAvailable} onClick={() => void onAction('return')}>
-        {t('conversation.browserSession.return')}
-      </Button>
+      {session ? <span className='text-xs text-t-secondary'>{t(`conversation.browserSession.${session.isHeadless === null ? 'modeUnknown' : session.isHeadless ? 'headless' : 'headful'}`)}</span> : null}
+      {session?.personalExtension ? <span>{t('conversation.browserSession.personalBrowser')}</span> : null}
+      {isViewer && !isControlsOnly ? <a href={`${location.pathname}${location.search}#/conversation/${encodeURIComponent(conversationId)}`}>{t('conversation.browserSession.openConversation')}</a> : null}
       {!isViewer || isControlsOnly ? (
-        <Button size='mini' onClick={() => openBrowserSessionWindow(conversationId)}>
-          {t('conversation.browserSession.openViewer')}
+        <Button size='mini' disabled={!session || isOpeningSeparate} onClick={() => void onOpenSeparate()}>
+          {t(`conversation.browserSession.${isNativeWindowAvailable ? 'openNative' : 'openViewer'}`)}
         </Button>
       ) : null}
-      {!isControlsOnly && session?.capabilities.windowView ? (
+      {isViewer && !isControlsOnly && session?.capabilities.windowView ? (
         <Select
           aria-label={t('conversation.browserSession.viewMode')}
           value={selectedSurface || 'window'}
@@ -377,56 +742,69 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
   );
   if (isControlsOnly)
     return (
-      <div className='h-full min-h-0 flex flex-col gap-2 overflow-auto p-2' data-testid='browser-session-controls'>
+      <div className='h-full min-h-0 box-border flex flex-col gap-2 overflow-auto p-2' data-testid='browser-session-controls'>
         {controls}
-        {handoffNote}
+        <p className='text-xs text-t-secondary'>{t(`conversation.browserSession.${isConversationControlSupported ? 'conversationControl' : 'conversationUpdateRequired'}`)}</p>
         {error ? <div role='alert'>{error}</div> : null}
       </div>
     );
 
   return (
-    <div className='h-full min-h-0 flex flex-col gap-2 overflow-auto p-2' data-testid='browser-session-panel'>
+    <div className='h-full min-h-0 box-border flex flex-col gap-2 overflow-auto p-2' data-testid='browser-session-panel'>
       {controls}
-      {session?.state === 'stopped' || (isController && session?.capabilities.lifecycle) ? (
-        <div className='flex flex-wrap items-center gap-2'>
-          <Select
-            aria-label={t('conversation.browserSession.launchMode')}
-            value={isHeadless ? 'headless' : 'headful'}
-            disabled={isTransferring}
-            onChange={(value) => setIsHeadless(value === 'headless')}
-            style={{ width: 140 }}
-            options={[
-              { value: 'headless', label: t('conversation.browserSession.headless') },
-              { value: 'headful', label: t('conversation.browserSession.headful') },
-            ]}
-          />
-          <Select
-            aria-label={t('conversation.browserSession.transport')}
-            value={transport}
-            disabled={isTransferring}
-            onChange={setTransport}
-            style={{ width: 220 }}
-            options={[
-              { value: 'extension', label: t('conversation.browserSession.extension') },
-              { value: 'cdp', label: t('conversation.browserSession.cdp') },
-            ]}
-          />
-          {session.state === 'stopped' ? (
-            <Button size='mini' disabled={isTransferring || !!error} onClick={() => void onStart()}>
-              {t('conversation.browserSession.start')}
+      <p className='text-xs text-t-secondary'>{t(`conversation.browserSession.${isConversationControlSupported ? 'conversationControl' : 'conversationUpdateRequired'}`)}</p>
+      <Collapse bordered={false}>
+        <Collapse.Item header={t('conversation.browserSession.browserSource')} name='browser-source'>
+          <p className='text-xs text-t-secondary'>{t(`conversation.browserSession.${session?.personalExtension ? 'personalSourceDescription' : session?.capabilities.existingExtension ? 'localSourceDescription' : 'cloudSourceDescription'}`)}</p>
+          {session?.capabilities.existingExtension && session.state === 'stopped' ? (
+            <Button size='mini' disabled={!isConversationControlSupported || isTransferring || !!error} onClick={() => void onInspectExisting()}>
+              {t('conversation.browserSession.personalConnect')}
             </Button>
-          ) : (
-            <>
-              <Button size='mini' disabled={!isController} onClick={() => onLifecycle('restart')}>
-                {t('conversation.browserSession.restart')}
-              </Button>
-              <Button size='mini' disabled={!isController} onClick={() => onLifecycle('stop')}>
-                {t('conversation.browserSession.stop')}
-              </Button>
-            </>
-          )}
-        </div>
-      ) : null}
+          ) : null}
+          {session?.personalExtension ? (
+            <Button size='mini' disabled={isTransferring || !!error || (!isController && session.state !== 'stopped')} onClick={onDisconnectExisting}>
+              {t('conversation.browserSession.personalDisconnect')}
+            </Button>
+          ) : null}
+          {!session?.personalExtension && (session?.state === 'stopped' || (isController && session?.capabilities.lifecycle)) ? (
+            <div className='flex flex-wrap items-center gap-2'>
+              <Select
+                aria-label={t('conversation.browserSession.launchMode')}
+                value={isHeadless ? 'headless' : 'headful'}
+                disabled={isTransferring}
+                onChange={(value) => setIsHeadless(value === 'headless')}
+                style={{ width: 140 }}
+                options={[
+                  { value: 'headless', label: t('conversation.browserSession.headless') },
+                  { value: 'headful', label: t('conversation.browserSession.headful') },
+                ]}
+              />
+              <Select
+                aria-label={t('conversation.browserSession.transport')}
+                value={transport}
+                disabled={isTransferring}
+                onChange={setTransport}
+                style={{ width: 220 }}
+                options={[...(!session.capabilities.existingExtension ? [{ value: 'extension', label: t('conversation.browserSession.extension') }] : []), { value: 'cdp', label: t('conversation.browserSession.cdp') }]}
+              />
+              {session.state === 'stopped' ? (
+                <Button size='mini' disabled={!isConversationControlSupported || isTransferring || !!error} onClick={() => void onStart()}>
+                  {t('conversation.browserSession.start')}
+                </Button>
+              ) : (
+                <>
+                  <Button size='mini' disabled={!isController} onClick={() => onLifecycle('restart')}>
+                    {t('conversation.browserSession.restart')}
+                  </Button>
+                  <Button size='mini' disabled={!isController} onClick={() => onLifecycle('stop')}>
+                    {t('conversation.browserSession.stop')}
+                  </Button>
+                </>
+              )}
+            </div>
+          ) : null}
+        </Collapse.Item>
+      </Collapse>
       {isStoppedController ? <div role='status'>{t('conversation.browserSession.stoppedHuman')}</div> : null}
       {session?.capabilities.fileTransfer && session.fileChooser ? (
         <div className='flex items-center gap-2' data-testid='browser-file-chooser'>
@@ -497,31 +875,164 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
         </Button>
         <Input aria-label={t('conversation.browserSession.address')} value={url} disabled={!isController} onChange={setUrl} onPressEnter={() => void onAction('navigate')} />
       </div>
-      <div className='relative flex-1 min-h-32 overflow-auto flex items-start justify-center'>
-        <img
-          ref={imageRef}
-          alt={t('conversation.browserSession.page')}
-          tabIndex={isController ? 0 : -1}
-          onLoad={() => setIsFrameReady(true)}
-          className='max-w-full max-h-full object-contain outline-none'
-          style={{ pointerEvents: isController ? 'auto' : 'none', touchAction: 'none', visibility: isFrameReady ? 'visible' : 'hidden' }}
+      <div className='flex flex-wrap items-center gap-2'>
+        <Select
+          aria-label={t('conversation.browserSession.imageZoom')}
+          value={imageZoom ?? 'fit'}
+          disabled={!isFrameReady}
+          onChange={onImageZoom}
+          style={{ width: 110 }}
+          options={[{ value: 'fit', label: t('conversation.browserSession.fitImage') }, ...[0.5, 0.75, 1, 1.25, 1.5, 2].map((value) => ({ value, label: `${value * 100}%` }))]}
         />
+        <Button size='small' aria-pressed={isPanning} type={isPanning ? 'primary' : 'secondary'} disabled={!isFrameReady} onClick={() => setIsPanning(true)}>
+          {t('conversation.browserSession.panImage')}
+        </Button>
+        <Button
+          size='small'
+          aria-pressed={!isPanning}
+          type={!isPanning ? 'primary' : 'secondary'}
+          disabled={!isController || !isFrameReady}
+          onClick={() => {
+            panRef.current = null;
+            setIsPanning(false);
+            (imageRef.current ?? viewportRef.current?.querySelector('canvas'))?.focus({ preventScroll: true });
+          }}
+        >
+          {t('conversation.browserSession.interactPage')}
+        </Button>
+        {isTouchInputAvailable && isDragSupported ? (
+          <Button
+            aria-label={t('conversation.browserSession.touchGesture')}
+            aria-pressed={isTouchDragging}
+            type={isTouchDragging ? 'primary' : 'secondary'}
+            disabled={!isController || !isFrameReady || isPanning}
+            onClick={() => onTouchGestureChange(isTouchDragging ? 'scroll' : 'drag')}
+            style={{ minHeight: 44 }}
+          >
+            {t(`conversation.browserSession.${isTouchDragging ? 'touchDrag' : 'touchScroll'}`)}
+          </Button>
+        ) : null}
+      </div>
+      {isController && (session?.capabilities.selectionRead || session?.capabilities.clipboardText) ? (
+        <div className='flex flex-wrap gap-2'>
+          {session.capabilities.selectionRead ? (
+            <Button size='small' disabled={!isFrameReady || isClipboardBusy} onClick={() => void onCopySelection()}>
+              {t('conversation.browserSession.copySelection')}
+            </Button>
+          ) : null}
+          {session.capabilities.clipboardText ? (
+            <Button size='small' disabled={!isFrameReady || isClipboardBusy} onClick={() => void onPasteClipboard()}>
+              {t('conversation.browserSession.pasteClipboard')}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+      <div
+        ref={viewportRef}
+        aria-label={t('conversation.browserSession.imageViewport')}
+        tabIndex={isPanning ? 0 : -1}
+        className='relative flex-1 min-h-32 overflow-auto outline-none'
+        style={{ touchAction: isPanning ? 'none' : undefined, cursor: isPanning ? 'grab' : undefined }}
+        onPointerDown={onPanStart}
+        onPointerDownCapture={() => void onBrowserInterrupt()}
+        onPointerMove={onPanMove}
+        onPointerUp={onPanEnd}
+        onPointerCancel={onPanEnd}
+        onKeyDownCapture={(event) => {
+          if (!(event.ctrlKey || event.metaKey) || event.altKey || event.nativeEvent.isComposing || !isInteractiveRef.current) return;
+          if (event.key.toLowerCase() === 'c' && session?.capabilities.selectionRead) {
+            event.preventDefault();
+            event.stopPropagation();
+            void onCopySelection();
+          } else if (event.key.toLowerCase() === 'v' && session?.capabilities.clipboardText) {
+            event.preventDefault();
+            event.stopPropagation();
+            void onPasteClipboard();
+          }
+        }}
+      >
+        <div className={imageZoom === null ? 'h-full w-full flex items-start justify-center' : 'min-h-full min-w-full w-max flex items-start justify-center'}>
+          {windowStream ? (
+            <WindowStreamSurface
+              stream={windowStream}
+              isInteractive={!!isController && !isPanning}
+              isDragSupported={isDragSupported}
+              isLiveDragSupported={session?.capabilities.liveDragInput === true}
+              isTouchDragging={isTouchDragging}
+              zoom={imageZoom}
+              label={t('conversation.browserSession.page')}
+              onInput={onStreamInput}
+              onReady={onStreamReady}
+              onDisconnect={onStreamDisconnect}
+            />
+          ) : (
+            <img
+              ref={imageRef}
+              alt={t('conversation.browserSession.page')}
+              draggable={false}
+              tabIndex={isController && !isPanning ? 0 : -1}
+              onLoad={onImageLoad}
+              className={imageZoom === null ? 'max-w-full max-h-full object-contain outline-none' : 'max-w-none max-h-none shrink-0 outline-none'}
+              style={{
+                width: imageZoom !== null && imageSize.width ? imageSize.width * imageZoom : undefined,
+                height: imageZoom !== null && imageSize.height ? imageSize.height * imageZoom : undefined,
+                pointerEvents: isController && !isPanning ? 'auto' : 'none',
+                touchAction: 'none',
+                WebkitTouchCallout: isTouchDragging ? 'none' : undefined,
+                visibility: isFrameReady ? 'visible' : 'hidden',
+              }}
+            />
+          )}
+        </div>
         {!isFrameReady ? <div className='absolute inset-0 flex items-center justify-center'>{error ? <Empty description={error} /> : session?.state === 'stopped' ? <Empty description={t('conversation.browserSession.waiting')} /> : <Spin />}</div> : null}
       </div>
       {isController ? (
         <>
           <div className='flex gap-1'>
-            <Input aria-label={t('conversation.browserSession.text')} value={text} maxLength={512} onChange={setText} onPressEnter={() => void onInsertText()} />
-            <Button size='mini' disabled={!text} onClick={() => void onInsertText()}>
+            {session?.capabilities.clipboardText ? (
+              <Input.TextArea
+                aria-label={t('conversation.browserSession.text')}
+                value={text}
+                maxLength={8192}
+                autoSize={{ minRows: 2, maxRows: 5 }}
+                onChange={setText}
+                onCompositionStart={() => setIsTextComposing(true)}
+                onCompositionEnd={() => setIsTextComposing(false)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && !isTextComposing && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) {
+                    event.preventDefault();
+                    void onInsertText();
+                  }
+                }}
+              />
+            ) : (
+              <Input
+                aria-label={t('conversation.browserSession.text')}
+                value={text}
+                maxLength={512}
+                onChange={setText}
+                onCompositionStart={() => setIsTextComposing(true)}
+                onCompositionEnd={() => setIsTextComposing(false)}
+                onPressEnter={(event) => {
+                  if (!isTextComposing && !event?.nativeEvent.isComposing && event?.nativeEvent.keyCode !== 229) void onInsertText();
+                }}
+              />
+            )}
+            <Button size='mini' disabled={!text || isTextComposing || !isFrameReady || isClipboardBusy} onClick={() => void onInsertText()}>
               {t('conversation.browserSession.insert')}
             </Button>
           </div>
         </>
       ) : null}
-      {handoffNote}
       {session?.state === 'human' && error ? <div role='alert'>{t('conversation.browserSession.disconnected')}</div> : null}
     </div>
   );
+}
+
+interface IBrowserInputContext {
+  session: BrowserSessionState;
+  generation: number;
+  surface: 'page' | 'window';
 }
 
 interface IBrowserSessionPanelProps {
@@ -532,8 +1043,4 @@ interface IBrowserSessionPanelProps {
   initialTransport?: 'extension' | 'cdp';
 }
 
-/** User gestures open either view of the same authenticated browser lease. */
-export function openBrowserSessionWindow(conversationId: string, isControlsOnly = false): void {
-  const route = isControlsOnly ? 'browser-controls' : 'browser-viewer';
-  window.open(`${location.pathname}${location.search}#/${route}/${encodeURIComponent(conversationId)}`, '_blank', isControlsOnly ? 'noopener,popup,width=460,height=250' : 'noopener');
-}
+export { openBrowserSessionWindow } from './openBrowserSessionWindow';

@@ -18,6 +18,11 @@ const requireFromHostBridge = createRequire(abs('../../packages/host-bridge/pack
 const officeAiPlatformEntry = requireFromHostBridge.resolve('@office-ai/platform')
 
 const bridgeAlias = [
+  { find: '@renderer', replacement: abs('../../packages/renderer/src') },
+  {
+    find: '@sudowork/moss-client/hosted-tasks',
+    replacement: abs('../../packages/moss-client/src/MossHostedTaskClient.ts'),
+  },
   browserPageViewAlias,
   {
     find: '@sudowork/contracts/browser-session',
@@ -39,6 +44,14 @@ const bridgeAlias = [
     find: '@sudowork/moss-client/agents',
     replacement: abs('../../packages/moss-client/src/MossAgentClient.ts'),
   },
+  {
+    find: '@sudowork/moss-client/input-delivery',
+    replacement: abs('../../packages/moss-client/src/InputDeliveryClient.ts'),
+  },
+  {
+    find: '@sudowork/contracts/input-delivery',
+    replacement: abs('../../packages/contracts/src/inputDelivery.ts'),
+  },
   { find: '@sudowork/moss-client', replacement: abs('../../packages/moss-client/src/index.ts') },
   { find: '@client', replacement: abs('./src/client') },
   { find: '@server', replacement: abs('./src/server') },
@@ -59,7 +72,14 @@ export default defineConfig({
     // Bound Windows worker startup and DOM contention without extending test deadlines.
     maxWorkers: process.platform === 'win32' ? 2 : undefined,
     coverage: {
-      include: ['src/**/*.{ts,tsx}'],
+      include: [
+        '../../packages/common/src/mossSessionContext.ts',
+        '../../packages/contracts/src/inputDelivery.ts',
+        '../../packages/moss-client/src/InputDeliveryClient.ts',
+        '../../packages/moss-client/src/MossHostedTaskClient.ts',
+        '../../packages/renderer/src/pages/hosted-agents/**/*.{ts,tsx}',
+        'src/**/*.{ts,tsx}',
+      ],
     },
     projects: [
       {

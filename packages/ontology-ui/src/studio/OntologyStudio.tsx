@@ -1,32 +1,110 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { CSSProperties, ReactNode } from 'react';
-import { Button, Card, Dropdown, Empty, Form, Input, Menu, Message, Modal, Select, Space, Spin, Table, Tag, Tooltip, Typography } from '@arco-design/web-react';
-import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Database, MessageSquare, Plus, Save, Upload, Workflow } from 'lucide-react';
-import type { IOntologyConsistencyCheckResult, IOntologyConsistencyIssue, IOntologyWorkbenchSnapshot, IOntologyWorkbenchSummary, IOntologyStudioModel, IOntologyStandardPreview, OntologyStudioPage } from '@sudowork/ontology-common';
-import { STUDIO_MAX_FILE_BYTES } from '@sudowork/ontology-common';
-import StudioModelEditor from './StudioModelEditor';
-import { StudioCapabilitiesPage, StudioChecksPage, StudioDataPage, StudioReleasePage } from './StudioPages';
-import type { IOntologyStudioApi } from './api';
-import styles from './studio.module.css';
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties, ReactNode } from "react";
+import {
+  Button,
+  Card,
+  Dropdown,
+  Empty,
+  Form,
+  Input,
+  Menu,
+  Message,
+  Modal,
+  Select,
+  Space,
+  Spin,
+  Table,
+  Tag,
+  Tooltip,
+  Typography,
+} from "@arco-design/web-react";
+import { useTranslation } from "react-i18next";
+import {
+  ArrowLeft,
+  Database,
+  MessageSquare,
+  Plus,
+  Save,
+  Upload,
+  Workflow,
+} from "lucide-react";
+import type {
+  IOntologyConsistencyCheckResult,
+  IOntologyConsistencyIssue,
+  IOntologyWorkbenchSnapshot,
+  IOntologyStudioProject,
+  IOntologyStudioModel,
+  IOntologyStandardPreview,
+  IOntologyPackagePreview,
+  OntologyStudioPage,
+} from "@sudowork/ontology-common";
+import { STUDIO_MAX_FILE_BYTES } from "@sudowork/ontology-common";
+import StudioModelEditor from "./StudioModelEditor";
+import StudioDatabaseConnection from "./StudioDatabaseConnection";
+import StudioSourceProject from "./StudioSourceProject";
+import StudioPackageImport from "./StudioPackageImport";
+import {
+  StudioCapabilitiesPage,
+  StudioChecksPage,
+  StudioDataPage,
+  StudioReleasePage,
+} from "./StudioPages";
+import type { IOntologyStudioApi } from "./api";
+import styles from "./studio.module.css";
 
-const pages: OntologyStudioPage[] = ['model', 'data', 'capabilities', 'checks', 'release'];
-const toModel = (snapshot: IOntologyWorkbenchSnapshot): IOntologyStudioModel => ({ objects: snapshot.objects, relations: snapshot.relations });
+const pages: OntologyStudioPage[] = [
+  "model",
+  "data",
+  "capabilities",
+  "checks",
+  "release",
+];
+const toModel = (
+  snapshot: IOntologyWorkbenchSnapshot,
+): IOntologyStudioModel => ({
+  objects: snapshot.objects,
+  relations: snapshot.relations,
+});
+const sourceRegistrationKey = "ontology-studio:source-registration";
 
-export default function OntologyStudio({ api, workspaceId, page = 'model', onNavigate, renderChat, onStartAgentConversation }: IOntologyStudioProps) {
-  const { t } = useTranslation();
+export default function OntologyStudio({
+  api,
+  workspaceId,
+  page = "model",
+  onNavigate,
+  renderChat,
+  onStartAgentConversation,
+}: IOntologyStudioProps) {
+  const { t, i18n } = useTranslation();
   const text = useCallback((key: string) => t(`ontology.studio.${key}`), [t]);
-  const importHint = t('ontology.studio.importFileHint', { maxSize: STUDIO_MAX_FILE_BYTES / (1024 * 1024) });
-  const [library, setLibrary] = useState<IOntologyWorkbenchSummary[]>([]);
+  const importHint = t("ontology.studio.importFileHint", {
+    maxSize: STUDIO_MAX_FILE_BYTES / (1024 * 1024),
+  });
+  const [library, setLibrary] = useState<IOntologyStudioProject[]>([]);
+  const [sourceProject, setSourceProject] = useState<IOntologyStudioProject>();
+  const [isSourceConnectOpen, setIsSourceConnectOpen] = useState(false);
+  const sourceOperationId = useRef("");
+  const sourceLanguage = useRef<"en" | "zh">("en");
+  const [isSourceOpening, setIsSourceOpening] = useState(false);
+  const isSourceOpeningRef = useRef(false);
+  const projectReadSequence = useRef(0);
+  const activeWorkspace = useRef(workspaceId);
+  activeWorkspace.current = workspaceId;
+  const [loadFailure, setLoadFailure] = useState("");
+  const [retryVersion, setRetryVersion] = useState(0);
   const [snapshot, setSnapshot] = useState<IOntologyWorkbenchSnapshot>();
-  const [draft, setDraft] = useState<IOntologyStudioModel>({ objects: [], relations: [] });
+  const [draft, setDraft] = useState<IOntologyStudioModel>({
+    objects: [],
+    relations: [],
+  });
   const [draftRevision, setDraftRevision] = useState(0);
-  const [baseline, setBaseline] = useState('');
+  const [baseline, setBaseline] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [isChatOpen, setIsChatOpen] = useState(page === 'model');
+  const [isChatOpen, setIsChatOpen] = useState(page === "model");
   const [contextObjectId, setContextObjectId] = useState<string>();
-  const [checkReport, setCheckReport] = useState<IOntologyConsistencyCheckResult>();
+  const [checkReport, setCheckReport] =
+    useState<IOntologyConsistencyCheckResult>();
   const [focusIssue, setFocusIssue] = useState<IOntologyConsistencyIssue>();
   const [repairConversationId, setRepairConversationId] = useState<string>();
   const [isRepairing, setIsRepairing] = useState(false);
@@ -36,22 +114,39 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
   const [isCreating, setIsCreating] = useState(false);
   const isCreatingRef = useRef(false);
   const [dataGuideWorkspaceId, setDataGuideWorkspaceId] = useState<string>();
-  const [createMode, setCreateMode] = useState<'new' | 'rename'>('new');
-  const [search, setSearch] = useState('');
-  const [filePreview, setPreview] = useState<{ path: string; preview: IOntologyStandardPreview }>();
+  const [createMode, setCreateMode] = useState<"new" | "rename">("new");
+  const [search, setSearch] = useState("");
+  const [filePreview, setPreview] = useState<{
+    path: string;
+    preview: IOntologyStandardPreview;
+  }>();
+  const [packagePreview, setPackagePreview] = useState<{
+    filePath: string;
+    preview: IOntologyPackagePreview;
+  }>();
   const [exporting, setExporting] = useState<{ versionId?: string }>();
-  const [exportFormat, setExportFormat] = useState('owl-rdf');
+  const [exportFormat, setExportFormat] = useState("owl-rdf");
   const [isExportDraft, setIsExportDraft] = useState(false);
   const [chatWidth, setChatWidth] = useState(() => {
-    const width = Number(localStorage.getItem('ontology-studio:chat-width') || 35);
+    const width = Number(
+      localStorage.getItem("ontology-studio:chat-width") || 35,
+    );
     return Number.isFinite(width) ? Math.max(25, Math.min(50, width)) : 35;
   });
   const [createForm] = Form.useForm();
   useEffect(() => {
-    localStorage.setItem('ontology-studio:chat-width', String(chatWidth));
+    localStorage.setItem("ontology-studio:chat-width", String(chatWidth));
   }, [chatWidth]);
   const snapshotRef = useRef(snapshot);
-  const isDirty = baseline !== '' && JSON.stringify(draft) !== baseline;
+  const isDirty = baseline !== "" && JSON.stringify(draft) !== baseline;
+  const filteredLibrary = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return query
+      ? library.filter((item) =>
+          `${item.name} ${item.description}`.toLowerCase().includes(query),
+        )
+      : library;
+  }, [library, search]);
   const isDirtyRef = useRef(isDirty);
   const isEditingRef = useRef(false);
   snapshotRef.current = snapshot;
@@ -59,15 +154,23 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
   const onError = useCallback(
     (error: unknown) => {
       const message = error instanceof Error ? error.message : String(error);
-      const [key, ...details] = message.split(': ');
-      Message.error(key.startsWith('ontology.') && t(key) !== key ? `${t(key)}${details.length ? `: ${details.join(': ')}` : ''}` : message);
+      const [key, ...details] = message.split(": ");
+      Message.error(
+        key.startsWith("ontology.") && t(key) !== key
+          ? `${t(key)}${details.length ? `: ${details.join(": ")}` : ""}`
+          : message,
+      );
     },
-    [t]
+    [t],
   );
   const onServerSnapshot = useCallback(
     (next: IOntologyWorkbenchSnapshot, isForce = false) => {
       if (next.workspaceId !== workspaceId) return;
-      if (snapshotRef.current?.workspaceId === next.workspaceId && (snapshotRef.current.revision || 0) > (next.revision || 0)) return;
+      if (
+        snapshotRef.current?.workspaceId === next.workspaceId &&
+        (snapshotRef.current.revision || 0) > (next.revision || 0)
+      )
+        return;
       setSnapshot(next);
       if (isForce || (!isDirtyRef.current && !isEditingRef.current)) {
         const model = toModel(next);
@@ -76,92 +179,168 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
         setDraftRevision(next.revision || 0);
       }
     },
-    [workspaceId]
+    [workspaceId],
   );
   const onEditingChange = useCallback(
     (isEditing: boolean) => {
       isEditingRef.current = isEditing;
-      if (!isEditing && !isDirtyRef.current && snapshotRef.current) onServerSnapshot(snapshotRef.current, true);
+      if (!isEditing && !isDirtyRef.current && snapshotRef.current)
+        onServerSnapshot(snapshotRef.current, true);
     },
-    [onServerSnapshot]
+    [onServerSnapshot],
   );
+  const onLoadLibrary = useCallback(async () => {
+    const sequence = ++projectReadSequence.current;
+    if (api.projects) {
+      const result = await api.projects.list();
+      if (sequence !== projectReadSequence.current || activeWorkspace.current)
+        return;
+      setLibrary(result.items);
+    } else {
+      const result = await api.listWorkbenches();
+      if (sequence !== projectReadSequence.current || activeWorkspace.current)
+        return;
+      setLibrary(
+        result.items.map((item) => ({
+          ...item,
+          authority: "rdf",
+        })),
+      );
+    }
+  }, [api]);
   const onRefresh = useCallback(async () => {
-    if (workspaceId) onServerSnapshot(await api.getWorkbench({ workspaceId }));
-    else setLibrary((await api.listWorkbenches()).items);
-  }, [api, onServerSnapshot, workspaceId]);
+    const sequence = ++projectReadSequence.current;
+    if (workspaceId) {
+      if (api.projects) {
+        const project = await api.projects.get({ workspaceId });
+        if (
+          sequence !== projectReadSequence.current ||
+          activeWorkspace.current !== workspaceId
+        )
+          return;
+        if (project.authority === "sudograph") {
+          setSourceProject(project);
+          return;
+        }
+      }
+      onServerSnapshot(await api.getWorkbench({ workspaceId }));
+    } else await onLoadLibrary();
+  }, [api, onLoadLibrary, onServerSnapshot, workspaceId]);
   useEffect(() => {
     let isCancelled = false;
+    const sequence = ++projectReadSequence.current;
+    setLoadFailure("");
     setIsLoading(true);
     setSnapshot(undefined);
-    setBaseline('');
+    setSourceProject(undefined);
+    setBaseline("");
     setContextObjectId(undefined);
     setCheckReport(undefined);
     setFocusIssue(undefined);
     setRepairConversationId(undefined);
     setIsRepairTracking(false);
-    void (
-      workspaceId
-        ? api.getWorkbench({ workspaceId }).then((next) => {
-            if (isCancelled) return;
-            setSnapshot(next);
-            const model = toModel(next);
-            let saved: { revision: number; model: IOntologyStudioModel } | undefined;
-            try {
-              saved = JSON.parse(localStorage.getItem(`ontology-studio:draft:${workspaceId}`) || 'null') || undefined;
-            } catch {
-              /* Ignore an unreadable presentation cache. */
-            }
-            const isValidCache = saved && Array.isArray(saved.model?.objects) && Array.isArray(saved.model?.relations);
-            setDraft(isValidCache ? saved!.model : structuredClone(model));
-            setDraftRevision(isValidCache ? saved!.revision : next.revision || 0);
-            setBaseline(JSON.stringify(model));
-          })
-        : api.listWorkbenches().then((result) => {
-            if (!isCancelled) setLibrary(result.items);
-          })
-    )
-      .catch(onError)
+    const load = async () => {
+      if (!workspaceId) {
+        await onLoadLibrary();
+        return;
+      }
+      if (api.projects) {
+        const project = await api.projects.get({ workspaceId });
+        if (isCancelled || sequence !== projectReadSequence.current) return;
+        if (project.authority === "sudograph") {
+          setSourceProject(project);
+          return;
+        }
+      }
+      const next = await api.getWorkbench({ workspaceId });
+      if (isCancelled) return;
+      setSnapshot(next);
+      const model = toModel(next);
+      let saved: { revision: number; model: IOntologyStudioModel } | undefined;
+      try {
+        saved =
+          JSON.parse(
+            localStorage.getItem(`ontology-studio:draft:${workspaceId}`) ||
+              "null",
+          ) || undefined;
+      } catch {
+        /* Ignore an unreadable presentation cache. */
+      }
+      const isValidCache =
+        saved &&
+        Array.isArray(saved.model?.objects) &&
+        Array.isArray(saved.model?.relations);
+      setDraft(isValidCache ? saved!.model : structuredClone(model));
+      setDraftRevision(isValidCache ? saved!.revision : next.revision || 0);
+      setBaseline(JSON.stringify(model));
+    };
+    void load()
+      .catch((error: unknown) => {
+        if (!isCancelled) {
+          setLoadFailure(
+            error instanceof Error ? error.message : String(error),
+          );
+          onError(error);
+        }
+      })
       .finally(() => {
         if (!isCancelled) setIsLoading(false);
       });
     return () => {
       isCancelled = true;
     };
-  }, [api, workspaceId, onError]);
+  }, [api, workspaceId, onError, onLoadLibrary, retryVersion]);
+  useEffect(
+    () =>
+      api.projects?.onChanged((event) => {
+        if (!workspaceId || event.workspaceId === workspaceId)
+          void onRefresh().catch(onError);
+      }),
+    [api, workspaceId, onRefresh, onError],
+  );
   useEffect(
     () =>
       api.onWorkbenchChanged((next) => {
         onServerSnapshot(next);
         if (!workspaceId) void onRefresh();
       }),
-    [api, onServerSnapshot, onRefresh, workspaceId]
+    [api, onServerSnapshot, onRefresh, workspaceId],
   );
   useEffect(() => {
-    setIsChatOpen(page === 'model');
+    setIsChatOpen(page === "model");
   }, [page, workspaceId]);
   useEffect(() => {
     if (!workspaceId || !baseline) return;
-    if (isDirty) localStorage.setItem(`ontology-studio:draft:${workspaceId}`, JSON.stringify({ revision: draftRevision, model: draft }));
+    if (isDirty)
+      localStorage.setItem(
+        `ontology-studio:draft:${workspaceId}`,
+        JSON.stringify({ revision: draftRevision, model: draft }),
+      );
     else localStorage.removeItem(`ontology-studio:draft:${workspaceId}`);
   }, [workspaceId, draft, isDirty, draftRevision, baseline]);
   useEffect(() => {
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
       if (isDirtyRef.current) {
         event.preventDefault();
-        event.returnValue = '';
+        event.returnValue = "";
       }
     };
-    window.addEventListener('beforeunload', onBeforeUnload);
-    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, []);
   const onSave = async () => {
     if (!workspaceId) return;
     setIsSaving(true);
     try {
-      const next = await api.saveStudioModel({ ...draft, workspaceId, expectedRevision: draftRevision, operationId: crypto.randomUUID() });
+      const next = await api.saveStudioModel({
+        ...draft,
+        workspaceId,
+        expectedRevision: draftRevision,
+        operationId: crypto.randomUUID(),
+      });
       isDirtyRef.current = false;
       onServerSnapshot(next, true);
-      Message.success(text('saved'));
+      Message.success(text("saved"));
     } catch (error) {
       onError(error);
     } finally {
@@ -170,8 +349,8 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
   };
   const onReload = () =>
     Modal.confirm({
-      title: text('reload'),
-      content: text('reloadHint'),
+      title: text("reload"),
+      content: text("reloadHint"),
       onOk: async () => {
         if (workspaceId) {
           isDirtyRef.current = false;
@@ -181,21 +360,32 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
     });
   const onCreate = async () => {
     if (isCreatingRef.current) return;
-    const values = await createForm.validate();
+    const values = await createForm
+      .validate()
+      .catch((): undefined => undefined);
+    if (!values) return;
     if (isCreatingRef.current) return;
     isCreatingRef.current = true;
     setIsCreating(true);
     try {
-      if (createMode === 'rename' && workspaceId) {
-        const updated = await api.updateDraft({ workspaceId, title: values.name.trim(), description: values.description });
+      if (createMode === "rename" && workspaceId) {
+        const updated = await api.updateDraft({
+          workspaceId,
+          title: values.name.trim(),
+          description: values.description,
+        });
         onServerSnapshot(updated, true);
         setIsCreateOpen(false);
         return;
       }
-      const created = await api.createWorkbench({ name: values.name.trim(), code: `ontology_${crypto.randomUUID().slice(0, 8)}`, description: values.description });
+      const created = await api.createWorkbench({
+        name: values.name.trim(),
+        code: `ontology_${crypto.randomUUID().slice(0, 8)}`,
+        description: values.description,
+      });
       setIsCreateOpen(false);
       setDataGuideWorkspaceId(created.snapshot.workspaceId);
-      onNavigate(created.snapshot.workspaceId, 'model');
+      onNavigate(created.snapshot.workspaceId, "model");
     } catch (error) {
       onError(error);
     } finally {
@@ -208,6 +398,15 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
       const path = await api.pickStandardFile();
       if (!path) return;
       setIsSaving(true);
+      if (/\.sudoonto$/i.test(path)) {
+        if (!api.packageImport)
+          throw new Error(text("packageImportUnavailable"));
+        setPackagePreview({
+          filePath: path,
+          preview: await api.packageImport.preview({ filePath: path }),
+        });
+        return;
+      }
       const preview = await api.previewStandardFile({ filePath: path });
       setPreview({ path, ...{ preview } });
     } catch (error) {
@@ -220,25 +419,98 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
     if (!filePreview) return;
     setIsSaving(true);
     try {
-      const target = snapshot || (await api.createWorkbench({ name: filePreview.preview.fileName.replace(/\.[^.]+$/, ''), code: `ontology_${crypto.randomUUID().slice(0, 8)}` })).snapshot;
-      const next = await api.importStandardFile({ workspaceId: target.workspaceId, expectedRevision: target.revision || 0, operationId: crypto.randomUUID(), filePath: filePreview.path, fingerprint: filePreview.preview.fingerprint });
+      const target =
+        snapshot ||
+        (
+          await api.createWorkbench({
+            name: filePreview.preview.fileName.replace(/\.[^.]+$/, ""),
+            code: `ontology_${crypto.randomUUID().slice(0, 8)}`,
+          })
+        ).snapshot;
+      const next = await api.importStandardFile({
+        workspaceId: target.workspaceId,
+        expectedRevision: target.revision || 0,
+        operationId: crypto.randomUUID(),
+        filePath: filePreview.path,
+        fingerprint: filePreview.preview.fingerprint,
+      });
       setPreview(undefined);
       if (workspaceId) onServerSnapshot(next, true);
-      else onNavigate(next.workspaceId, 'model');
+      else onNavigate(next.workspaceId, "model");
     } catch (error) {
       onError(error);
     } finally {
       setIsSaving(false);
     }
   };
+  const onConnectSource = async () => {
+    if (!api.projects || isSourceOpeningRef.current) return;
+    isSourceOpeningRef.current = true;
+    setIsSourceOpening(true);
+    try {
+      let pending: { operationId: string; language: "en" | "zh" } | undefined;
+      try {
+        const saved = JSON.parse(
+          localStorage.getItem(sourceRegistrationKey) || "null",
+        );
+        if (
+          typeof saved?.operationId === "string" &&
+          /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(
+            saved.operationId,
+          ) &&
+          ["en", "zh"].includes(saved.language)
+        )
+          pending = saved;
+      } catch {
+        /* An opaque retry handle contains no source path or credential. */
+      }
+      if (pending) {
+        const project = await api.projects.resumeSource({
+          operationId: pending.operationId,
+        });
+        if (activeWorkspace.current) return;
+        if (project) {
+          localStorage.removeItem(sourceRegistrationKey);
+          onNavigate(project.workspaceId, "model");
+          return;
+        }
+      }
+      pending ??= {
+        operationId: crypto.randomUUID(),
+        language: (i18n.resolvedLanguage || i18n.language).startsWith("zh")
+          ? "zh"
+          : "en",
+      };
+      localStorage.setItem(sourceRegistrationKey, JSON.stringify(pending));
+      sourceOperationId.current = pending.operationId;
+      sourceLanguage.current = pending.language;
+      setIsSourceConnectOpen(true);
+    } catch (error) {
+      onError(error);
+    } finally {
+      isSourceOpeningRef.current = false;
+      setIsSourceOpening(false);
+    }
+  };
   const onExport = async () => {
     if (!workspaceId || !snapshot) return;
     try {
-      const result = await api.exportStandardFile({ workspaceId, versionId: exporting?.versionId, format: exportFormat === 'owl-xml' ? 'owlxml' : 'rdfxml', ...(isExportDraft && !exporting?.versionId ? { model: draft, expectedRevision: draftRevision } : {}) });
-      const url = URL.createObjectURL(new Blob([result.content], { type: 'application/rdf+xml;charset=utf-8' }));
-      const link = document.createElement('a');
+      const result = await api.exportStandardFile({
+        workspaceId,
+        versionId: exporting?.versionId,
+        format: exportFormat === "owl-xml" ? "owlxml" : "rdfxml",
+        ...(isExportDraft && !exporting?.versionId
+          ? { model: draft, expectedRevision: draftRevision }
+          : {}),
+      });
+      const url = URL.createObjectURL(
+        new Blob([result.content], {
+          type: "application/rdf+xml;charset=utf-8",
+        }),
+      );
+      const link = document.createElement("a");
       link.href = url;
-      link.download = `${snapshot.draft.title.replace(/[\\/:*?"<>|]/g, '_')}.${exportFormat === 'rdf' ? 'rdf' : 'owl'}`;
+      link.download = `${snapshot.draft.title.replace(/[\\/:*?"<>|]/g, "_")}.${exportFormat === "rdf" ? "rdf" : "owl"}`;
       link.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       setExporting(undefined);
@@ -248,16 +520,30 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
   };
   const context = useMemo(() => {
     const object = draft.objects.find((item) => item.id === contextObjectId);
-    return object ? { id: object.id, name: object.name, iri: object.iri, revision: draftRevision } : undefined;
+    return object
+      ? {
+          id: object.id,
+          name: object.name,
+          iri: object.iri,
+          revision: draftRevision,
+        }
+      : undefined;
   }, [draft.objects, contextObjectId, draftRevision]);
-  const pageProps = snapshot ? { snapshot, api, onRefresh, onError } : undefined;
-  const isConflict = snapshot && isDirty && (snapshot.revision || 0) !== draftRevision;
+  const pageProps = snapshot
+    ? { snapshot, api, onRefresh, onError }
+    : undefined;
+  const isConflict =
+    snapshot && isDirty && (snapshot.revision || 0) !== draftRevision;
   const onCheckReport = useCallback(
     (report: IOntologyConsistencyCheckResult) => {
       const current = snapshotRef.current;
-      if (current && current.workspaceId === workspaceId) setCheckReport({ ...report, revision: report.revision ?? current.revision ?? 0 });
+      if (current && current.workspaceId === workspaceId)
+        setCheckReport({
+          ...report,
+          revision: report.revision ?? current.revision ?? 0,
+        });
     },
-    [workspaceId]
+    [workspaceId],
   );
   useEffect(() => {
     if (!workspaceId || !isRepairTracking || isDirty) return;
@@ -276,16 +562,24 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
       isCancelled = true;
       clearTimeout(timer);
     };
-  }, [api, workspaceId, isRepairTracking, snapshot?.revision, isDirty, onCheckReport, onError]);
+  }, [
+    api,
+    workspaceId,
+    isRepairTracking,
+    snapshot?.revision,
+    isDirty,
+    onCheckReport,
+    onError,
+  ]);
   const onRepair = async (issues: IOntologyConsistencyIssue[]) => {
     if (!snapshot || !issues.length || isRepairingRef.current) return;
     if (isDirty) {
-      Message.warning(text('saveBeforeChecks'));
+      Message.warning(text("saveBeforeChecks"));
       return;
     }
-    const prompt = `${text('repairPrompt')}\n\n${JSON.stringify({ workspaceId: snapshot.workspaceId, ontology: snapshot.draft.title, revision: snapshot.revision || 0, issues }, null, 2)}`;
+    const prompt = `${text("repairPrompt")}\n\n${JSON.stringify({ workspaceId: snapshot.workspaceId, ontology: snapshot.draft.title, revision: snapshot.revision || 0, issues }, null, 2)}`;
     if (prompt.length > 80_000) {
-      onError(new Error(text('errors.repairTooLarge')));
+      onError(new Error(text("errors.repairTooLarge")));
       return;
     }
     isRepairingRef.current = true;
@@ -294,10 +588,18 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
     setRepairConversationId(undefined);
     setIsRepairTracking(true);
     try {
-      await api.requestAiRepair({ workspaceId: snapshot.workspaceId, title: snapshot.draft.title, prompt }, (id) => {
-        if (snapshotRef.current?.workspaceId === snapshot.workspaceId) setRepairConversationId(id);
-      });
-      Message.success(text('repairSent'));
+      await api.requestAiRepair(
+        {
+          workspaceId: snapshot.workspaceId,
+          title: snapshot.draft.title,
+          prompt,
+        },
+        (id) => {
+          if (snapshotRef.current?.workspaceId === snapshot.workspaceId)
+            setRepairConversationId(id);
+        },
+      );
+      Message.success(text("repairSent"));
     } catch (error) {
       setIsRepairTracking(false);
       onError(error);
@@ -307,190 +609,329 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
     }
   };
   const onLocateIssue = (issue: IOntologyConsistencyIssue) => {
-    if (issue.targetType === 'logic' || issue.targetType === 'action') {
-      onNavigate(workspaceId, 'capabilities');
+    if (issue.targetType === "logic" || issue.targetType === "action") {
+      onNavigate(workspaceId, "capabilities");
       return;
     }
-    if (issue.targetType === 'agent' || issue.targetType === 'version') {
-      onNavigate(workspaceId, 'release');
+    if (issue.targetType === "agent" || issue.targetType === "version") {
+      onNavigate(workspaceId, "release");
       return;
     }
     setFocusIssue({ ...issue });
-    setContextObjectId(issue.targetType === 'relation' ? snapshot?.relations.find((item) => item.id === issue.targetId)?.fromObjectId : issue.targetType === 'quality_rule' ? snapshot?.qualityRules.find((item) => item.id === issue.targetId)?.objectId : issue.targetId);
-    onNavigate(workspaceId, 'model');
+    setContextObjectId(
+      issue.targetType === "relation"
+        ? snapshot?.relations.find((item) => item.id === issue.targetId)
+            ?.fromObjectId
+        : issue.targetType === "quality_rule"
+          ? snapshot?.qualityRules.find((item) => item.id === issue.targetId)
+              ?.objectId
+          : issue.targetId,
+    );
+    onNavigate(workspaceId, "model");
   };
 
   return (
-    <div className={styles['ontology-studio']}>
+    <div className={styles["ontology-studio"]}>
       {isLoading ? (
-        <div className={styles['ontology-loading']}>
+        <div className={styles["ontology-loading"]}>
           <Spin />
         </div>
+      ) : loadFailure ? (
+        <div className={styles["ontology-library"]}>
+          <Empty description={loadFailure} />
+          <Button onClick={() => setRetryVersion((value) => value + 1)}>
+            {text("sourceRefresh")}
+          </Button>
+        </div>
+      ) : sourceProject ? (
+        <StudioSourceProject
+          project={sourceProject}
+          renderChat={renderChat}
+          onBack={() => onNavigate()}
+          onRefresh={() => onRefresh().catch(onError)}
+        />
       ) : !workspaceId ? (
-        <div className={styles['ontology-library']}>
-          <div className={styles['ontology-page-heading']}>
+        <div className={styles["ontology-library"]}>
+          <div className={styles["ontology-page-heading"]}>
             <div>
-              <Typography.Title heading={4}>{text('library')}</Typography.Title>
-              <Typography.Text type='secondary'>{text('libraryDescription')}</Typography.Text>
+              <Typography.Title heading={4}>{text("library")}</Typography.Title>
+              <Typography.Text type="secondary">
+                {text("libraryDescription")}
+              </Typography.Text>
             </div>
             <Space>
-              <Tooltip content={importHint} position='bottom' trigger={['hover', 'focus']} style={{ maxWidth: 360 }}>
-                <Button icon={<Upload size={16} />} loading={isSaving} onClick={() => void onPickImport()}>
-                  {text('import')}
+              {api.projects && (
+                <Button
+                  type="secondary"
+                  loading={isSourceOpening}
+                  onClick={() => void onConnectSource()}
+                >
+                  {text("addConnection")}
+                </Button>
+              )}
+              <Tooltip
+                content={importHint}
+                position="bottom"
+                trigger={["hover", "focus"]}
+                style={{ maxWidth: 360 }}
+              >
+                <Button
+                  icon={<Upload size={16} />}
+                  loading={isSaving}
+                  onClick={() => void onPickImport()}
+                >
+                  {text("import")}
                 </Button>
               </Tooltip>
               <Button
-                type='primary'
+                type="primary"
                 icon={<Plus size={16} />}
                 onClick={() => {
                   createForm.resetFields();
-                  setCreateMode('new');
+                  setCreateMode("new");
                   setIsCreateOpen(true);
                 }}
               >
-                {text('newOntology')}
+                {text("newOntology")}
               </Button>
             </Space>
           </div>
-          <Input.Search placeholder={text('searchOntology')} value={search} onChange={setSearch} style={{ maxWidth: 360, marginBottom: 24 }} />
+          <Input.Search
+            placeholder={text("searchOntology")}
+            value={search}
+            onChange={setSearch}
+            style={{ maxWidth: 360, marginBottom: 24 }}
+          />
           <Table
-            rowKey='workspaceId'
-            data={library.filter((item) => `${item.name} ${item.description}`.toLowerCase().includes(search.toLowerCase()))}
-            noDataElement={<Empty description={text('emptyLibrary')} />}
+            rowKey="workspaceId"
+            data={filteredLibrary}
+            noDataElement={
+              <Empty
+                description={text(
+                  search.trim() ? "noSearchResults" : "emptyLibrary",
+                )}
+              />
+            }
+            scroll={{ x: 900 }}
             columns={[
               {
-                title: text('name'),
+                title: text("name"),
+                width: 220,
                 render: (_value, item) => (
-                  <Button type='text' onClick={() => onNavigate(item.workspaceId, 'model')}>
+                  <Button
+                    type="text"
+                    onClick={() => onNavigate(item.workspaceId, "model")}
+                  >
                     {item.name}
                   </Button>
                 ),
               },
-              { title: text('description'), dataIndex: 'description' },
-              { title: text('objects'), dataIndex: 'objectCount' },
               {
-                title: text('operations'),
-                render: (_value, item) => (
-                  <Button
-                    type='text'
-                    status='danger'
-                    onClick={() =>
-                      Modal.confirm({
-                        title: text('deleteOntology'),
-                        content: item.name,
-                        onOk: async () => {
-                          await api.deleteWorkbench({ workspaceId: item.workspaceId });
-                          await onRefresh();
-                        },
-                      })
-                    }
-                  >
-                    {text('delete')}
-                  </Button>
-                ),
+                title: text("description"),
+                dataIndex: "description",
+                width: 500,
+              },
+              {
+                title: text("objects"),
+                width: 80,
+                render: (_value, item) => item.objectCount ?? "—",
+              },
+              {
+                title: text("operations"),
+                width: 100,
+                render: (_value, item) =>
+                  item.authority === "sudograph" ? null : (
+                    <Button
+                      type="text"
+                      status="danger"
+                      onClick={() =>
+                        Modal.confirm({
+                          title: text("deleteOntology"),
+                          content: item.name,
+                          onOk: async () => {
+                            await api.deleteWorkbench({
+                              workspaceId: item.workspaceId,
+                            });
+                            await onRefresh();
+                          },
+                        })
+                      }
+                    >
+                      {text("delete")}
+                    </Button>
+                  ),
               },
             ]}
           />
         </div>
       ) : snapshot ? (
         <>
-          <header className={styles['ontology-studio-header']}>
+          <header className={styles["ontology-studio-header"]}>
             <Space>
-              <Button type='text' icon={<ArrowLeft size={17} />} onClick={() => onNavigate()}>
-                {text('library')}
+              <Button
+                type="text"
+                icon={<ArrowLeft size={17} />}
+                onClick={() => onNavigate()}
+              >
+                {text("library")}
               </Button>
-              <Typography.Title heading={5}>{snapshot.draft.title}</Typography.Title>
+              <Typography.Title heading={5}>
+                {snapshot.draft.title}
+              </Typography.Title>
             </Space>
             <Space wrap>
-              <Tag color={isDirty ? 'orange' : 'green'}>{text(isDirty ? 'unsaved' : 'saved')}</Tag>
+              <Tag color={isDirty ? "orange" : "green"}>
+                {text(isDirty ? "unsaved" : "saved")}
+              </Tag>
               <Dropdown
-                trigger='click'
+                trigger="click"
                 droplist={
                   <Menu>
-                    <Menu.Item key='import' disabled={isDirty} onClick={() => void onPickImport()}>
-                      <Tooltip content={importHint} position='left'>
-                        <span>{text('import')}</span>
+                    <Menu.Item
+                      key="import"
+                      disabled={isDirty}
+                      onClick={() => void onPickImport()}
+                    >
+                      <Tooltip content={importHint} position="left">
+                        <span>{text("import")}</span>
                       </Tooltip>
                     </Menu.Item>
                     <Menu.Item
-                      key='rename'
+                      key="rename"
                       disabled={isDirty}
                       onClick={() => {
                         createForm.resetFields();
-                        createForm.setFieldsValue({ name: snapshot.draft.title, description: snapshot.draft.description });
-                        setCreateMode('rename');
+                        createForm.setFieldsValue({
+                          name: snapshot.draft.title,
+                          description: snapshot.draft.description,
+                        });
+                        setCreateMode("rename");
                         setIsCreateOpen(true);
                       }}
                     >
-                      {text('rename')}
+                      {text("rename")}
                     </Menu.Item>
                     <Menu.Item
-                      key='export'
+                      key="export"
                       onClick={() => {
                         setIsExportDraft(false);
                         setExporting({});
                       }}
                     >
-                      {text('export')}
+                      {text("export")}
                     </Menu.Item>
                   </Menu>
                 }
               >
-                <Button>{text('fileMenu')}</Button>
+                <Button>{text("fileMenu")}</Button>
               </Dropdown>
-              <Button type='text' icon={<MessageSquare size={16} />} onClick={() => setIsChatOpen((value) => !value)}>
-                {text(isChatOpen ? 'hideChat' : 'showChat')}
+              <Button
+                type="text"
+                icon={<MessageSquare size={16} />}
+                onClick={() => setIsChatOpen((value) => !value)}
+              >
+                {text(isChatOpen ? "hideChat" : "showChat")}
               </Button>
-              <Button type='primary' icon={<Save size={15} />} disabled={!isDirty} loading={isSaving} onClick={() => void onSave()}>
-                {text('save')}
+              <Button
+                type="primary"
+                icon={<Save size={15} />}
+                disabled={!isDirty}
+                loading={isSaving}
+                onClick={() => void onSave()}
+              >
+                {text("save")}
               </Button>
             </Space>
           </header>
-          <nav className={styles['ontology-studio-nav']} aria-label={text('navigation')}>
+          <nav
+            className={styles["ontology-studio-nav"]}
+            aria-label={text("navigation")}
+          >
             {pages.map((item) => (
-              <Button key={item} type={page === item ? 'primary' : 'text'} onClick={() => onNavigate(workspaceId, item)}>
+              <Button
+                key={item}
+                type={page === item ? "primary" : "text"}
+                onClick={() => onNavigate(workspaceId, item)}
+              >
                 {text(item)}
               </Button>
             ))}
           </nav>
           {isConflict && (
-            <div className={styles['ontology-notice']}>
-              {text('conflictHint')}
-              <Button type='text' onClick={onReload}>
-                {text('reload')}
+            <div className={styles["ontology-notice"]}>
+              {text("conflictHint")}
+              <Button type="text" onClick={onReload}>
+                {text("reload")}
               </Button>
             </div>
           )}
-          <div className={`${styles['ontology-workspace']} ${isChatOpen ? '' : styles['is-chat-collapsed']}`} style={{ '--ontology-chat-width': `${chatWidth}%` } as CSSProperties}>
-            <aside className={styles['ontology-chat-pane']} hidden={!isChatOpen}>
-              {renderChat(snapshot.workspaceId, snapshot.draft.title, context, repairConversationId)}
+          <div
+            className={`${styles["ontology-workspace"]} ${isChatOpen ? "" : styles["is-chat-collapsed"]}`}
+            style={
+              { "--ontology-chat-width": `${chatWidth}%` } as CSSProperties
+            }
+          >
+            <aside
+              className={styles["ontology-chat-pane"]}
+              hidden={!isChatOpen}
+            >
+              {renderChat(
+                snapshot.workspaceId,
+                snapshot.draft.title,
+                context,
+                repairConversationId,
+              )}
             </aside>
             {isChatOpen && (
               <div
-                className={styles['ontology-splitter']}
-                role='separator'
-                aria-label={text('resizeChat')}
-                aria-orientation='vertical'
+                className={styles["ontology-splitter"]}
+                role="separator"
+                aria-label={text("resizeChat")}
+                aria-orientation="vertical"
                 tabIndex={0}
                 onKeyDown={(event) => {
-                  if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') setChatWidth((value) => Math.max(25, Math.min(50, value + (event.key === 'ArrowLeft' ? -2 : 2))));
+                  if (event.key === "ArrowLeft" || event.key === "ArrowRight")
+                    setChatWidth((value) =>
+                      Math.max(
+                        25,
+                        Math.min(
+                          50,
+                          value + (event.key === "ArrowLeft" ? -2 : 2),
+                        ),
+                      ),
+                    );
                 }}
                 onPointerDown={(event) => {
                   const parent = event.currentTarget.parentElement!;
                   const target = event.currentTarget;
                   target.setPointerCapture(event.pointerId);
-                  const onMove = (move: PointerEvent) => setChatWidth(Math.max(25, Math.min(50, ((move.clientX - parent.getBoundingClientRect().left) / parent.clientWidth) * 100)));
+                  const onMove = (move: PointerEvent) =>
+                    setChatWidth(
+                      Math.max(
+                        25,
+                        Math.min(
+                          50,
+                          ((move.clientX -
+                            parent.getBoundingClientRect().left) /
+                            parent.clientWidth) *
+                            100,
+                        ),
+                      ),
+                    );
                   const onEnd = () => {
-                    target.removeEventListener('pointermove', onMove);
-                    target.removeEventListener('pointerup', onEnd);
+                    target.removeEventListener("pointermove", onMove);
+                    target.removeEventListener("pointerup", onEnd);
                   };
-                  target.addEventListener('pointermove', onMove);
-                  target.addEventListener('pointerup', onEnd);
+                  target.addEventListener("pointermove", onMove);
+                  target.addEventListener("pointerup", onEnd);
                 }}
               />
             )}
-            <main className={styles['ontology-content-pane']}>
-              <div className={styles['ontology-page-host']} hidden={page !== 'model'}>
+            <main className={styles["ontology-content-pane"]}>
+              <div
+                className={styles["ontology-page-host"]}
+                hidden={page !== "model"}
+              >
                 <StudioModelEditor
                   key={workspaceId}
                   workspaceId={workspaceId}
@@ -506,18 +947,31 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
                   }}
                 />
               </div>
-              {page === 'data' && pageProps && <StudioDataPage {...pageProps} />}
-              {page === 'capabilities' && pageProps && <StudioCapabilitiesPage {...pageProps} />}
-              {page === 'checks' && pageProps && (
-                <StudioChecksPage {...pageProps} report={checkReport} isModelDirty={isDirty} isRepairing={isRepairing} onReport={onCheckReport} onRepair={(issues) => void onRepair(issues)} onLocate={onLocateIssue} onRelease={() => onNavigate(workspaceId, 'release')} />
+              {page === "data" && pageProps && (
+                <StudioDataPage {...pageProps} />
               )}
-              {page === 'release' && pageProps && (
+              {page === "capabilities" && pageProps && (
+                <StudioCapabilitiesPage {...pageProps} />
+              )}
+              {page === "checks" && pageProps && (
+                <StudioChecksPage
+                  {...pageProps}
+                  report={checkReport}
+                  isModelDirty={isDirty}
+                  isRepairing={isRepairing}
+                  onReport={onCheckReport}
+                  onRepair={(issues) => void onRepair(issues)}
+                  onLocate={onLocateIssue}
+                  onRelease={() => onNavigate(workspaceId, "release")}
+                />
+              )}
+              {page === "release" && pageProps && (
                 <StudioReleasePage
                   {...pageProps}
                   onStartAgentConversation={onStartAgentConversation}
                   isModelDirty={isDirty}
                   onReport={onCheckReport}
-                  onViewChecks={() => onNavigate(workspaceId, 'checks')}
+                  onViewChecks={() => onNavigate(workspaceId, "checks")}
                   onExport={(versionId) => {
                     setIsExportDraft(false);
                     setExporting({ versionId });
@@ -528,11 +982,43 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
           </div>
         </>
       ) : (
-        <Empty description={text('errors.notFound')} />
+        <Empty description={text("errors.notFound")} />
+      )}
+      {packagePreview && api.packageImport && (
+        <StudioPackageImport
+          {...packagePreview}
+          api={api.packageImport}
+          onClose={() => setPackagePreview(undefined)}
+          onError={onError}
+          onImported={(imported) => {
+            setPackagePreview(undefined);
+            onNavigate(imported.workspaceId, "model");
+          }}
+        />
+      )}
+      {isSourceConnectOpen && api.projects && (
+        <StudioDatabaseConnection
+          workspaceId=""
+          api={api}
+          providers={["sqlite", "mysql", "postgresql"]}
+          onRefresh={async () => {}}
+          onClose={() => setIsSourceConnectOpen(false)}
+          onError={onError}
+          onSubmit={async (connector) => {
+            const project = await api.projects!.connectSource({
+              operationId: sourceOperationId.current,
+              connector,
+              language: sourceLanguage.current,
+            });
+            localStorage.removeItem(sourceRegistrationKey);
+            if (!activeWorkspace.current)
+              onNavigate(project.workspaceId, "model");
+          }}
+        />
       )}
       <Modal
         visible={isCreateOpen}
-        title={text(createMode === 'rename' ? 'rename' : 'newOntology')}
+        title={text(createMode === "rename" ? "rename" : "newOntology")}
         onCancel={() => setIsCreateOpen(false)}
         onOk={onCreate}
         confirmLoading={isCreating}
@@ -542,133 +1028,192 @@ export default function OntologyStudio({ api, workspaceId, page = 'model', onNav
         escToExit={!isCreating}
         unmountOnExit
       >
-        <Form form={createForm} layout='vertical'>
-          <Form.Item field='name' label={text('name')} rules={[{ required: true }]}>
+        <Form form={createForm} layout="vertical">
+          <Form.Item
+            field="name"
+            label={text("name")}
+            rules={[
+              {
+                required: true,
+                message: t("ontology.studio.requiredField", {
+                  field: text("name"),
+                }),
+              },
+            ]}
+          >
             <Input />
           </Form.Item>
-          <Form.Item field='description' label={text('description')}>
+          <Form.Item field="description" label={text("description")}>
             <Input.TextArea />
           </Form.Item>
         </Form>
       </Modal>
-      <Modal visible={!!dataGuideWorkspaceId} footer={null} closable={false} maskClosable={false} escToExit={false} className={styles['ontology-data-guide-modal']} style={{ width: 'min(820px, 92vw)' }} onCancel={() => setDataGuideWorkspaceId(undefined)} unmountOnExit>
-        <div className={styles['ontology-data-guide-grid']}>
+      <Modal
+        visible={!!dataGuideWorkspaceId}
+        footer={null}
+        closable={false}
+        maskClosable={false}
+        escToExit={false}
+        className={styles["ontology-data-guide-modal"]}
+        style={{ width: "min(820px, 92vw)" }}
+        onCancel={() => setDataGuideWorkspaceId(undefined)}
+        unmountOnExit
+      >
+        <div className={styles["ontology-data-guide-grid"]}>
           <Card
             hoverable
-            role='button'
+            role="button"
             tabIndex={0}
-            aria-label={text('dataGuideConnectOption')}
-            className={`${styles['ontology-data-guide-option']} ${styles['is-recommended']}`}
+            aria-label={text("dataGuideConnectOption")}
+            className={`${styles["ontology-data-guide-option"]} ${styles["is-recommended"]}`}
             onClick={() => {
               const targetWorkspaceId = dataGuideWorkspaceId;
               setDataGuideWorkspaceId(undefined);
-              if (targetWorkspaceId) onNavigate(targetWorkspaceId, 'data');
+              if (targetWorkspaceId) onNavigate(targetWorkspaceId, "data");
             }}
             onKeyDown={(event) => {
-              if (event.key !== 'Enter' && event.key !== ' ') return;
+              if (event.key !== "Enter" && event.key !== " ") return;
               event.preventDefault();
               const targetWorkspaceId = dataGuideWorkspaceId;
               setDataGuideWorkspaceId(undefined);
-              if (targetWorkspaceId) onNavigate(targetWorkspaceId, 'data');
+              if (targetWorkspaceId) onNavigate(targetWorkspaceId, "data");
             }}
           >
-            <div className={styles['ontology-data-guide-content']}>
-              <div className={styles['ontology-data-guide-header']}>
-                <span className={`${styles['ontology-data-guide-icon']} ${styles['is-primary']}`}>
+            <div className={styles["ontology-data-guide-content"]}>
+              <div className={styles["ontology-data-guide-header"]}>
+                <span
+                  className={`${styles["ontology-data-guide-icon"]} ${styles["is-primary"]}`}
+                >
                   <Database size={22} />
                 </span>
               </div>
-              <Typography.Text className={styles['ontology-data-guide-title']}>{text('dataGuideConnectOption')}</Typography.Text>
-              <Typography.Text type='secondary' className={styles['ontology-data-guide-summary']}>
-                {text('dataGuideConnectHint')}
+              <Typography.Text className={styles["ontology-data-guide-title"]}>
+                {text("dataGuideConnectOption")}
+              </Typography.Text>
+              <Typography.Text
+                type="secondary"
+                className={styles["ontology-data-guide-summary"]}
+              >
+                {text("dataGuideConnectHint")}
               </Typography.Text>
             </div>
           </Card>
           <Card
             hoverable
-            role='button'
+            role="button"
             tabIndex={0}
-            aria-label={text('dataGuideModelOption')}
-            className={`${styles['ontology-data-guide-option']} ${styles['is-model-first']}`}
+            aria-label={text("dataGuideModelOption")}
+            className={`${styles["ontology-data-guide-option"]} ${styles["is-model-first"]}`}
             onClick={() => {
               const targetWorkspaceId = dataGuideWorkspaceId;
               setDataGuideWorkspaceId(undefined);
-              if (targetWorkspaceId) onNavigate(targetWorkspaceId, 'model');
+              if (targetWorkspaceId) onNavigate(targetWorkspaceId, "model");
             }}
             onKeyDown={(event) => {
-              if (event.key !== 'Enter' && event.key !== ' ') return;
+              if (event.key !== "Enter" && event.key !== " ") return;
               event.preventDefault();
               const targetWorkspaceId = dataGuideWorkspaceId;
               setDataGuideWorkspaceId(undefined);
-              if (targetWorkspaceId) onNavigate(targetWorkspaceId, 'model');
+              if (targetWorkspaceId) onNavigate(targetWorkspaceId, "model");
             }}
           >
-            <div className={styles['ontology-data-guide-content']}>
-              <div className={styles['ontology-data-guide-header']}>
-                <span className={styles['ontology-data-guide-icon']}>
+            <div className={styles["ontology-data-guide-content"]}>
+              <div className={styles["ontology-data-guide-header"]}>
+                <span className={styles["ontology-data-guide-icon"]}>
                   <Workflow size={22} />
                 </span>
               </div>
-              <Typography.Text className={styles['ontology-data-guide-title']}>{text('dataGuideModelOption')}</Typography.Text>
-              <Typography.Text type='secondary' className={styles['ontology-data-guide-summary']}>
-                {text('dataGuideModelHint')}
+              <Typography.Text className={styles["ontology-data-guide-title"]}>
+                {text("dataGuideModelOption")}
+              </Typography.Text>
+              <Typography.Text
+                type="secondary"
+                className={styles["ontology-data-guide-summary"]}
+              >
+                {text("dataGuideModelHint")}
               </Typography.Text>
             </div>
           </Card>
         </div>
       </Modal>
-      <Modal visible={!!filePreview} title={text('importPreview')} onCancel={() => setPreview(undefined)} onOk={onImport} confirmLoading={isSaving} okText={text('import')} style={{ width: 'min(780px, 90vw)' }}>
+      <Modal
+        visible={!!filePreview}
+        title={text("importPreview")}
+        onCancel={() => setPreview(undefined)}
+        onOk={onImport}
+        confirmLoading={isSaving}
+        okText={text("import")}
+        style={{ width: "min(780px, 90vw)" }}
+      >
         {filePreview && (
           <>
             <Typography.Text>{filePreview.preview.fileName}</Typography.Text>
-            <p>{text('standardPreservation')}</p>
+            <p>{text("standardPreservation")}</p>
             <Space wrap>
               <Tag>{filePreview.preview.document.sourceFormat}</Tag>
-              <Tag>{t('ontology.studio.objectCount', { count: filePreview.preview.model.objects.length })}</Tag>
-              <Tag>{t('ontology.studio.statementCount', { count: filePreview.preview.statementCount })}</Tag>
+              <Tag>
+                {t("ontology.studio.objectCount", {
+                  count: filePreview.preview.model.objects.length,
+                })}
+              </Tag>
+              <Tag>
+                {t("ontology.studio.statementCount", {
+                  count: filePreview.preview.statementCount,
+                })}
+              </Tag>
             </Space>
             <Table
-              rowKey='id'
+              rowKey="id"
               data={filePreview.preview.model.objects}
               columns={[
-                { title: text('name'), dataIndex: 'name' },
-                { title: 'IRI', dataIndex: 'iri' },
+                { title: text("name"), dataIndex: "name" },
+                { title: "IRI", dataIndex: "iri" },
               ]}
             />
             {!!filePreview.preview.document.imports.length && (
-              <div className={styles['ontology-notice']}>
-                {text('importsUnresolved')}
-                <pre>{filePreview.preview.document.imports.join('\n')}</pre>
+              <div className={styles["ontology-notice"]}>
+                {text("importsUnresolved")}
+                <pre>{filePreview.preview.document.imports.join("\n")}</pre>
               </div>
             )}
           </>
         )}
       </Modal>
-      <Modal visible={exporting !== undefined} title={text('export')} onCancel={() => setExporting(undefined)} onOk={onExport} okText={text('download')}>
-        <div className={styles['ontology-form-stack']}>
-          <Typography.Text>{text(exporting?.versionId ? 'publishedVersion' : 'workingDraft')}</Typography.Text>
+      <Modal
+        visible={exporting !== undefined}
+        title={text("export")}
+        onCancel={() => setExporting(undefined)}
+        onOk={onExport}
+        okText={text("download")}
+      >
+        <div className={styles["ontology-form-stack"]}>
+          <Typography.Text>
+            {text(exporting?.versionId ? "publishedVersion" : "workingDraft")}
+          </Typography.Text>
           <Select
-            aria-label={text('format')}
+            aria-label={text("format")}
             value={exportFormat}
             onChange={setExportFormat}
             options={[
-              { label: '.rdf · RDF/XML', value: 'rdf' },
-              { label: '.owl · RDF/XML', value: 'owl-rdf' },
-              { label: '.owl · OWL/XML', value: 'owl-xml' },
+              { label: ".rdf · RDF/XML", value: "rdf" },
+              { label: ".owl · RDF/XML", value: "owl-rdf" },
+              { label: ".owl · OWL/XML", value: "owl-xml" },
             ]}
           />
           {isDirty && !exporting?.versionId && (
             <Select
-              aria-label={text('exportScope')}
-              value={isExportDraft ? 'preview' : 'saved'}
-              onChange={(value) => setIsExportDraft(value === 'preview')}
+              aria-label={text("exportScope")}
+              value={isExportDraft ? "preview" : "saved"}
+              onChange={(value) => setIsExportDraft(value === "preview")}
               options={[
-                { label: text('savedDraft'), value: 'saved' },
-                { label: text('includeUnsaved'), value: 'preview' },
+                { label: text("savedDraft"), value: "saved" },
+                { label: text("includeUnsaved"), value: "preview" },
               ]}
             />
           )}
-          <Typography.Text type='secondary'>{text('exportDescription')}</Typography.Text>
+          <Typography.Text type="secondary">
+            {text("exportDescription")}
+          </Typography.Text>
         </div>
       </Modal>
     </div>
@@ -681,9 +1226,19 @@ export interface IStudioChatContext {
   iri?: string;
   revision: number;
 }
+/** Host presentation capabilities are separate from business message context. */
+export interface IStudioChatOptions {
+  modelAuthority: "sudograph" | "rdf";
+}
 interface IOntologyStudioProps {
   onStartAgentConversation?: (assistantId: string) => void | Promise<void>;
-  renderChat: (workspaceId: string, workspaceName: string, context?: IStudioChatContext, requestedConversationId?: string) => ReactNode;
+  renderChat: (
+    workspaceId: string,
+    workspaceName: string,
+    context?: IStudioChatContext,
+    requestedConversationId?: string,
+    options?: IStudioChatOptions,
+  ) => ReactNode;
   api: IOntologyStudioApi;
   workspaceId?: string;
   page?: OntologyStudioPage;

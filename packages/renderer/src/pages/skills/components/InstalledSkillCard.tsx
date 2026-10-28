@@ -15,9 +15,8 @@ import { getInstalledSkillDisplay, normalizeSkillVersion, handleSkillIconError }
 export default function InstalledSkillCard({ skill, onUninstall, uninstalling, onToggleEnabled, togglingEnabled, onClick, hasUpdate, onUpdate, updating, onUpload, uploading, uploadStatus, enterprisePublishButton, hideUninstall, canManage = true }: IInstalledSkillCardProps) {
   const { displayName, description, icon, emoji } = getInstalledSkillDisplay(skill);
   const displayVersion = normalizeSkillVersion(skill.version);
-  const isOntologySkill = !!skill.meta?.ontologyBinding;
-  const canUninstall = !skill.isBuiltin && !hideUninstall && !isOntologySkill;
-  const canToggleEnabled = !!skill.meta && !skill.isBuiltin && !isOntologySkill && canManage;
+  const isUninstallAllowed = !skill.isBuiltin && !hideUninstall;
+  const isToggleAllowed = !!skill.meta && !skill.isBuiltin && canManage;
   const hasDetail = !!skill.meta;
   const isEnabled = skill.enabled;
   const { t } = useTranslation();
@@ -43,7 +42,6 @@ export default function InstalledSkillCard({ skill, onUninstall, uninstalling, o
       <div className='flex-1 min-w-0'>
         <div className='flex items-center gap-2 pr-14.5 min-w-0'>
           <span className='min-w-0 font-medium text-13px text-foreground truncate'>{displayName}</span>
-          {isOntologySkill && <span className='px-[5px] py-0 bg-primary-light-1 text-primary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>{t('settings.skill.ontologyGenerated', '本体生成')}</span>}
           {!skill.isBuiltin && displayVersion && <span className='px-[5px] py-0 bg-control text-secondary text-10px rd-3px whitespace-nowrap flex-shrink-0 leading-18px'>v{displayVersion}</span>}
         </div>
         <div className='mt-1 min-h-7.5'>{description ? <div className='text-11px text-secondary line-clamp-2 leading-15px'>{description}</div> : <div className='text-11px text-tertiary italic line-clamp-2 leading-15px'>{skill.name}</div>}</div>
@@ -63,14 +61,14 @@ export default function InstalledSkillCard({ skill, onUninstall, uninstalling, o
           </Tooltip>
         )}
         {enterprisePublishButton}
-        {canToggleEnabled && <Switch size='small' checked={isEnabled} loading={togglingEnabled} onChange={(checked) => onToggleEnabled?.(checked)} />}
+        {isToggleAllowed && <Switch size='small' checked={isEnabled} loading={togglingEnabled} onChange={(checked) => onToggleEnabled?.(checked)} />}
         {canManage &&
           (skill.isBuiltin ? (
             <Tooltip content={t('settings.skill.builtinSkill', '内置技能')}>
               <Button icon={<Shield size={15} />} disabled className='!size-7' />
             </Tooltip>
-          ) : !canUninstall ? (
-            <Tooltip content={isOntologySkill ? t('settings.skill.ontologySkillManaged', '请在本体工作台中管理该技能') : t('settings.skill.builtinSkillCannotUninstall', '内置技能无法卸载')}>
+          ) : !isUninstallAllowed ? (
+            <Tooltip content={t('settings.skill.builtinSkillCannotUninstall', '内置技能无法卸载')}>
               <Button icon={<Shield size={14} />} disabled className='!size-7' />
             </Tooltip>
           ) : uninstalling ? (

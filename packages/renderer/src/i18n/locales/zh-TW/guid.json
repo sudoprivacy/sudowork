@@ -77,7 +77,9 @@
     "statusAvailable": "Available"
   },
   "sessionComposition": {
-    "agent": "我的 Agent",
+    "agent": "我的智能體",
+    "localAgent": "本機智能體",
+    "selectAgent": "選擇智能體",
     "template": "任務範本",
     "noTemplate": "不使用範本",
     "engine": "執行引擎：{{engine}}"

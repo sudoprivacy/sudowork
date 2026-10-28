@@ -1,6 +1,21 @@
+import type { HostedAgent, HostedTaskEvidence, HostedTask, HostedSession, HostedEventsPage } from '@sudowork/contracts/task';
 import type { AgentReleaseOptions } from '@sudowork/contracts/agent-federation';
-import type { ExternalTaskEvidence } from '@sudowork/contracts/external-provider';
-import type { ExternalProviderAccess, ExternalPilotPolicy, ExternalAgentAdmin, ExternalProviderMember, ExternalConnectionInspection, InspectExternalConnection, OnboardExternalAgent, UpdateExternalAgent , CreateExternalTask, ExternalAgent, ExternalEventsPage, ExternalSession, ExternalTask } from '@sudowork/contracts/external-provider';
+import type {
+  ExternalTaskEvidence,
+  ExternalProviderAccess,
+  ExternalPilotPolicy,
+  ExternalAgentAdmin,
+  ExternalProviderMember,
+  ExternalConnectionInspection,
+  InspectExternalConnection,
+  OnboardExternalAgent,
+  UpdateExternalAgent,
+  CreateExternalTask,
+  ExternalAgent,
+  ExternalEventsPage,
+  ExternalSession,
+  ExternalTask,
+} from '@sudowork/contracts/external-provider';
 import type { IMossCatalogPage, IMossCatalogItem, IMossCatalogInstallation, MossCatalogKind, MossCatalogSource } from '@sudowork/common/mossCatalog';
 /**
  * @license
@@ -10,8 +25,10 @@ import type { IMossCatalogPage, IMossCatalogItem, IMossCatalogInstallation, Moss
 
 import { bridge } from '@office-ai/platform';
 import type { BrowserFile, BrowserSessionAction, BrowserSessionReply } from '@sudowork/contracts/browser-session';
+import type { InputAction, InputDelivery, InputReceipt, InputState } from '@sudowork/contracts/input-delivery';
 import type { IConfirmation, IResponseMessage } from '@sudowork/common/chatTypes';
 import type { IAssistantInfo, IAssistantMeta } from '@sudowork/common/assistantTypes';
+import type { AgentExecutionType } from '@sudowork/common/personalAgents';
 import type { IChannelPairingRequest, IChannelPluginStatus, IChannelSession, IChannelUser, IPluginCredentials } from '@sudowork/common/channelTypes';
 import type { ISafetyStatus, IBlacklistConfig } from '@sudowork/common/types/security';
 import type { AuthProxyRule } from '@sudowork/common/types/authProxy';
@@ -75,7 +92,6 @@ import type {
   IOntologyPreviewAssetInput,
   IOntologyPreviewAssetResult,
   IOntologyPublishApprovalInput,
-  IOntologyPublishSkillInput,
   IOntologyPublishedVersion,
   IOntologyQualityRuleInput,
   IOntologyRegisterAgentInput,
@@ -85,8 +101,6 @@ import type {
   IOntologyRollbackInput,
   IOntologyRuntimeExecutionResult,
   IOntologySelectWorkbenchInput,
-  IOntologySkillBlueprint,
-  IOntologySkillBlueprintInput,
   IOntologySyncAssetSchemaInput,
   IOntologyWorkbenchDraftInput,
   IOntologyWorkbenchListResult,
@@ -162,8 +176,11 @@ export const conversation = {
   // Process is the SSOT (turnInputCoordinator); the renderer only reflects this for the queue chips.
   inputQueueUpdate: bridge.buildEmitter<{
     conversation_id: string;
-    queue: Array<{ id: string; preview: string }>;
+    queue?: Array<{ id: string; preview: string; delivery?: InputDelivery }>;
+    state?: InputState;
+    isReset?: boolean;
   }>('conversation.input-queue-update'),
+  inputControl: bridge.buildProvider<IBridgeResponse<{ isSupported: boolean; receipt?: InputReceipt }>, { conversation_id: string; action: InputAction }>('conversation.input-control'),
   // Pull a queued input back out (Up-arrow): removes it from the process queue and returns its content.
   dequeueInput: bridge.buildProvider<IBridgeResponse<{ content: string } | null>, { conversation_id: string; id?: string }>('conversation.dequeue-input'),
   getWorkspace: bridge.buildProvider<
@@ -854,7 +871,15 @@ export const mcporterService = {
 // Database operations
 export const database = {
   getConversationMessages: bridge.buildProvider<import('@sudowork/common/chatTypes').TMessage[], { conversation_id: string; page?: number; pageSize?: number }>('database.get-conversation-messages'),
-  getUserConversations: bridge.buildProvider<import('@sudowork/common/storageTypes').TChatConversation[], { page?: number; pageSize?: number; sessionMode?: 'remote' | 'local' }>('database.get-user-conversations'),
+  getUserConversations: bridge.buildProvider<
+    import('@sudowork/common/storageTypes').TChatConversation[],
+    {
+      page?: number;
+      pageSize?: number;
+      sessionMode?: 'remote' | 'local';
+      includeAllExecutionTargets?: boolean;
+    }
+  >('database.get-user-conversations'),
   /** 渠道对话创建/更新/删除时，主进程通知渲染进程刷新对话列表 */
   conversationChanged: bridge.buildEmitter<{
     conversationId: string;
@@ -1054,6 +1079,27 @@ export const localKnowledgeBase = {
 };
 
 export const ontology = {
+  previewRuntimePackage: bridge.buildProvider<IBridgeResponse<import('@sudowork/ontology-common').IOntologyPackagePreview>, { filePath: string }>('ontology.package.preview'),
+  importRuntimePackage: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, import('@sudowork/ontology-common').IOntologyPackageImportInput>('ontology.package.import'),
+  getRuntimeEnvironment: bridge.buildProvider<IBridgeResponse<import('@sudowork/ontology-common').IOntologyRuntimeEnvironment>, { workspaceId: string }>('ontology.environment.get'),
+  configureRuntimeEnvironment: bridge.buildProvider<IBridgeResponse<import('@sudowork/ontology-common').IOntologyRuntimeEnvironment>, { workspaceId: string; bindings: import('@sudowork/ontology-common').IOntologyRuntimeBindings }>('ontology.environment.configure'),
+  verifyRuntimeEnvironment: bridge.buildProvider<IBridgeResponse<import('@sudowork/ontology-common').OntologyJsonValue | undefined>, { workspaceId: string }>('ontology.environment.verify'),
+  updateAgentDefinition: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, { workspaceId: string; expectedRevision: number; definition: import('@sudowork/ontology-common').IOntologyAgentDefinition }>('ontology.agent-definition.update'),
+  planRuntimePackage: bridge.buildProvider<IBridgeResponse<import('@sudowork/ontology-common').IOntologyPackagePlan>, { workspaceId: string; versionId: string }>('ontology.package.plan'),
+  exportRuntimePackage: bridge.buildProvider<IBridgeResponse<import('@sudowork/ontology-common').IOntologyPackageExportResult>, import('@sudowork/ontology-common').IOntologyPackageExportInput>('ontology.package.export'),
+  cancelRuntimePackageExport: bridge.buildProvider<IBridgeResponse<void>, { requestId: string }>('ontology.package.cancel'),
+  packageExportProgress: bridge.buildEmitter<import('@sudowork/ontology-common').IOntologyPackageExportProgress>('ontology.package.progress'),
+  projectsChanged: bridge.buildEmitter<{ workspaceId: string }>('ontology.projects.changed'),
+  listProjects: bridge.buildProvider<IBridgeResponse<import('@sudowork/ontology-common').IOntologyStudioProjectList>, void>('ontology.projects.list'),
+  getProject: bridge.buildProvider<IBridgeResponse<import('@sudowork/ontology-common').IOntologyStudioProject>, { workspaceId: string }>('ontology.projects.get'),
+  connectSource: bridge.buildProvider<IBridgeResponse<import('@sudowork/ontology-common').IOntologyStudioProject>, import('@sudowork/ontology-common').IOntologyConnectSourceInput>('ontology.projects.connect-source'),
+  resumeSource: bridge.buildProvider<IBridgeResponse<import('@sudowork/ontology-common').IOntologyStudioProject | null>, { operationId: string }>('ontology.projects.resume-source'),
+  openReview: bridge.buildProvider<IBridgeResponse<{ surface: 'native' | 'viewer'; conversationId: string }>, { workspaceId: string; conversationId: string }>('ontology.projects.open-review'),
+  modelChanged: bridge.buildEmitter<{
+    workspaceId: string;
+    revision: string;
+    contextDigest: string;
+  }>('ontology.model-changed'),
   saveStudioModel: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, import('@sudowork/ontology-common').IOntologyStudioSaveInput>('ontology.studio.save-model'),
   previewStandardFile: bridge.buildProvider<IBridgeResponse<import('@sudowork/ontology-common').IOntologyStandardPreview>, { filePath: string }>('ontology.studio.preview-file'),
   importStandardFile: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, import('@sudowork/ontology-common').IOntologyStandardImportInput>('ontology.studio.import-file'),
@@ -1117,20 +1163,6 @@ export const ontology = {
   approvePublishedVersion: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, IOntologyPublishApprovalInput>('ontology.publish.approve-version'),
   rejectPublishedVersion: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, IOntologyRejectVersionInput>('ontology.publish.reject-version'),
   rollbackToVersion: bridge.buildProvider<IBridgeResponse<IOntologyWorkbenchSnapshot>, IOntologyRollbackInput>('ontology.publish.rollback-version'),
-  createSkillBlueprint: bridge.buildProvider<
-    IBridgeResponse<{
-      snapshot: IOntologyWorkbenchSnapshot;
-      blueprint: IOntologySkillBlueprint;
-    }>,
-    IOntologySkillBlueprintInput
-  >('ontology.skill.create-blueprint'),
-  publishSkillBlueprint: bridge.buildProvider<
-    IBridgeResponse<{
-      snapshot: IOntologyWorkbenchSnapshot;
-      blueprint: IOntologySkillBlueprint;
-    }>,
-    IOntologyPublishSkillInput
-  >('ontology.skill.publish-blueprint'),
   createAgentBlueprint: bridge.buildProvider<
     IBridgeResponse<{
       snapshot: IOntologyWorkbenchSnapshot;
@@ -1177,25 +1209,7 @@ export const ontologyAiBuilder = {
   deleteSession: bridge.buildProvider<IBridgeResponse<void>, { id: string }>('ontology-ai-builder.delete-session'),
   getSessionByConversation: bridge.buildProvider<IBridgeResponse<IOntologyAiBuilderSession | null>, { conversationId: string }>('ontology-ai-builder.get-session-by-conversation'),
   sessionsChanged: bridge.buildEmitter<{ workspaceId: string }>('ontology-ai-builder.sessions-changed'),
-  /**
-   * Ensure the write-capable ontology-builder MCP is registered with Sudocode
-   * and return the mcpConfig payload the caller should inject into
-   * `conversation.create`'s `extra.extraMcpConfigs`. Necessary because scode's
-   * user-scope MCP is NOT auto-loaded into acp sessions — sessions only see
-   * the MCPs passed to `session/new.mcpServers`.
-   */
-  ensureBuilderMcp: bridge.buildProvider<
-    IBridgeResponse<{
-      ready: boolean;
-      mcpConfig: {
-        name: string;
-        command: string;
-        args?: string[];
-        env?: Array<{ name: string; value: string }>;
-      };
-    }>,
-    { workspaceId: string } | undefined
-  >('ontology-ai-builder.ensure-builder-mcp'),
+  prepareProject: bridge.buildProvider<IBridgeResponse<{ isReady: boolean; command: string; contextArgument: string; instructions: string }>, { workspaceId: string }>('ontology-ai-builder.prepare-project'),
 };
 
 // FUSE-T installer (macOS) / FUSE-T 安装（macOS 专用）
@@ -1538,7 +1552,16 @@ export const logs = {
 // cache and (later) attach CDP-based agent tooling.
 export const browserSession = {
   invoke: bridge.buildProvider<IBridgeResponse<BrowserSessionReply>, { conversationId: string; action: BrowserSessionAction }>('browser-session:invoke'),
-  uploadFile: bridge.buildProvider<IBridgeResponse<BrowserFile>, { conversationId: string; name: string; controlEpoch: number; targetEpoch: number; data: Uint8Array }>('browser-session:upload-file'),
+  uploadFile: bridge.buildProvider<
+    IBridgeResponse<BrowserFile>,
+    {
+      conversationId: string;
+      name: string;
+      controlEpoch: number;
+      targetEpoch: number;
+      data: Uint8Array;
+    }
+  >('browser-session:upload-file'),
   downloadFile: bridge.buildProvider<IBridgeResponse<Uint8Array>, { conversationId: string; fileId: string }>('browser-session:download-file'),
 };
 
@@ -1996,6 +2019,7 @@ export interface ITeamMcpStatusEvent {
 }
 
 export interface ISendMessageParams {
+  delivery?: InputDelivery;
   input: string;
   msg_id: string;
   conversation_id: string;
@@ -2332,11 +2356,6 @@ export interface ISkillHubListResponse {
  * Prefixed with `_sudowork_` to avoid conflicts with skill content files.
  */
 export interface ISkillHubMeta {
-  ontologyBinding?: {
-    workspaceId: string;
-    versionId: string;
-    skillBlueprintId: string;
-  };
   id: string;
   name: string;
   display_name: string;
@@ -3360,6 +3379,13 @@ export interface UserProfileUsageData {
 }
 
 export interface UserProfileData {
+  user_id?: string;
+  login_name?: string;
+  nickname?: string;
+  avatar?: string | null;
+  can_change_password?: boolean;
+  organization_id?: string;
+  organization_name?: string;
   username: string;
   department: string;
   role: string;
@@ -3369,6 +3395,7 @@ export interface UserProfileData {
 export type IEeclawAuthenticatedLogin = import('@sudowork/common/authLogin').IAuthenticatedLogin;
 
 export const eeclaw = {
+  getOrganizations: bridge.buildProvider<IBridgeResponse<import('@sudowork/contracts/auth').AccountOrganizations>, void>('eeclaw.get-organizations'),
   prepareLocalRuntime: bridge.buildProvider<
     IBridgeResponse<{
       execution: import('@sudowork/common/mossExecution').IMossExecutionCapabilities;
@@ -3391,12 +3418,14 @@ export const eeclaw = {
         ref: string;
         displayName: string;
         kind: 'default' | 'own' | 'template';
+        /** Execution type for this Agent. */
+        executionType?: AgentExecutionType;
       }>
     >,
     void
   >('eeclaw.get-my-agents'),
   /** Create an Agent owned by the currently authenticated user. */
-  createUserAgent: bridge.buildProvider<IBridgeResponse<{ id: string; displayName: string; createdAt: number }>, { displayName: string }>('eeclaw.create-user-agent'),
+  createUserAgent: bridge.buildProvider<IBridgeResponse<{ id: string; displayName: string; createdAt: number; executionType?: AgentExecutionType }>, { displayName: string; executionType?: AgentExecutionType }>('eeclaw.create-user-agent'),
   /** Fetch enterprise cloud assistants from the enterprise server */
   getCloudAssistants: bridge.buildProvider<
     IBridgeResponse<
@@ -3412,6 +3441,9 @@ export const eeclaw = {
   >('eeclaw.get-cloud-assistants'),
   /** Verify enterprise server connectivity via /api/v1/tenant/config (runs in main process to avoid CORS) */
   verifyServer: bridge.buildProvider<IBridgeResponse<TenantConfigData>, { serverUrl: string }>('eeclaw.verify-server'),
+  updateUserProfile: bridge.buildProvider<IBridgeResponse, { nickname: string }>('eeclaw.update-user-profile'),
+  updateUserAvatar: bridge.buildProvider<IBridgeResponse<{ avatar: string | null }>, { avatar: string | null }>('eeclaw.update-user-avatar'),
+  changePassword: bridge.buildProvider<IBridgeResponse, { oldPassword: string; newPassword: string }>('eeclaw.change-password'),
   /** Get current user profile from enterprise server (runs in main process to avoid CORS) */
   getUserProfile: bridge.buildProvider<IBridgeResponse<UserProfileData>, void>('eeclaw.get-user-profile'),
   /** Login to MOSS enterprise server (runs in main process to avoid CORS) */
@@ -3420,7 +3452,8 @@ export const eeclaw = {
     {
       serverUrl: string;
       body: {
-        grant_type: 'password' | 'api_key' | 'oauth2' | 'phone' | 'phone_register';
+        grant_type: 'password' | 'api_key' | 'oauth2' | 'phone' | 'phone_register' | 'organization';
+        orgId?: string;
         username?: string;
         password?: string;
         api_key?: string;
@@ -3447,7 +3480,7 @@ export const eeclaw = {
   /** Set session mode (remote/local) for enterprise mode and update main process cache */
   setSessionMode: bridge.buildProvider<void, { mode: 'remote' | 'local' }>('eeclaw.set-session-mode'),
   /** Logout from enterprise server and clear local credentials */
-  logout: bridge.buildProvider<IBridgeResponse<Record<string, never>>, void>('eeclaw.logout'),
+  logout: bridge.buildProvider<IBridgeResponse<Record<string, never>>, { isLocalOnly?: boolean }>('eeclaw.logout'),
   /** Emitted when the main process refreshes the enterprise auth token */
   tokenRefreshed: bridge.buildEmitter<{
     access_token: string;
@@ -3456,7 +3489,7 @@ export const eeclaw = {
   }>('eeclaw.token-refreshed'),
   /** Emitted when the enterprise token is invalid and cannot be refreshed (e.g. OAuth2 session without a refresh token) — the user must sign in again */
   authRequired: bridge.buildEmitter<{
-    reason: 'no_refresh_token' | 'refresh_failed';
+    reason: 'no_refresh_token' | 'refresh_failed' | 'organization_switch_failed';
   }>('eeclaw.auth-required'),
   /** Refresh enterprise auth token via main process (single entry point to avoid race conditions) */
   refreshToken: bridge.buildProvider<
@@ -3623,24 +3656,40 @@ export const externalProviders = {
   rotate: bridge.buildProvider<IBridgeResponse<ExternalAgentAdmin>, { agentId: string; revision: number; api_key: string }>('external-providers.rotate'),
   archive: bridge.buildProvider<IBridgeResponse<ExternalAgentAdmin>, { agentId: string; revision: number }>('external-providers.archive'),
   testAgent: bridge.buildProvider<IBridgeResponse<ExternalConnectionInspection>, { agentId: string }>('external-providers.testAgent'),
-  review: bridge.buildProvider<IBridgeResponse<ExternalAgentAdmin>, { agentId: string; approved: boolean; revision: number; review_days?: number }>('external-providers.review'),
+  review: bridge.buildProvider<
+    IBridgeResponse<ExternalAgentAdmin>,
+    {
+      agentId: string;
+      approved: boolean;
+      revision: number;
+      review_days?: number;
+    }
+  >('external-providers.review'),
 
-  agents: bridge.buildProvider<IBridgeResponse<ExternalAgent[]>, void>(
-    "external-providers.agents",
-  ),
-  sessions: bridge.buildProvider<IBridgeResponse<ExternalSession[]>, void>(
-    "external-providers.sessions",
-  ),
-  history: bridge.buildProvider<
-    IBridgeResponse<ExternalTask[]>,
-    { sessionId: string }
-  >("external-providers.history"),
+  agents: bridge.buildProvider<IBridgeResponse<ExternalAgent[]>, void>('external-providers.agents'),
+  sessions: bridge.buildProvider<IBridgeResponse<ExternalSession[]>, void>('external-providers.sessions'),
+  history: bridge.buildProvider<IBridgeResponse<ExternalTask[]>, { sessionId: string }>('external-providers.history'),
+  create: bridge.buildProvider<IBridgeResponse<ExternalTask>, CreateExternalTask>('external-providers.create'),
+  events: bridge.buildProvider<IBridgeResponse<ExternalEventsPage>, { taskId: string; cursor: number }>('external-providers.events'),
+};
+
+export const hostedTasks = {
+  evidence: bridge.buildProvider<IBridgeResponse<HostedTaskEvidence>, { taskId: string; cursor?: number }>('hosted-tasks.evidence'),
+  agents: bridge.buildProvider<IBridgeResponse<HostedAgent[]>, void>('hosted-tasks.agents'),
+  sessions: bridge.buildProvider<IBridgeResponse<HostedSession[]>, void>('hosted-tasks.sessions'),
+  history: bridge.buildProvider<IBridgeResponse<HostedTask[]>, { sessionId: string }>('hosted-tasks.history'),
   create: bridge.buildProvider<
-    IBridgeResponse<ExternalTask>,
-    CreateExternalTask
-  >("external-providers.create"),
-  events: bridge.buildProvider<
-    IBridgeResponse<ExternalEventsPage>,
-    { taskId: string; cursor: number }
-  >("external-providers.events"),
+    IBridgeResponse<HostedTask>,
+    {
+      agent_id: string;
+      requested_version?: string;
+      session_id?: string;
+      query: string;
+      idempotency_key: string;
+    }
+  >('hosted-tasks.create'),
+  events: bridge.buildProvider<IBridgeResponse<HostedEventsPage>, { taskId: string; cursor: number }>('hosted-tasks.events'),
+  cancel: bridge.buildProvider<IBridgeResponse<HostedTask>, { taskId: string }>('hosted-tasks.cancel'),
+  reconcile: bridge.buildProvider<IBridgeResponse<HostedTask>, { taskId: string }>('hosted-tasks.reconcile'),
+  close: bridge.buildProvider<IBridgeResponse<HostedTask>, { taskId: string; note: string }>('hosted-tasks.close'),
 };

@@ -4,7 +4,10 @@ import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
+import { dialog } from 'electron';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { extractOntologyArchive } from '@sudowork/ontology-runtime/archive';
+import { loadOntologyArtifact } from '@sudowork/ontology-runtime/artifact';
 import { createDefaultOntologyWorkbenchSnapshot } from '@sudowork/ontology-common';
 import type { IOntologyDocumentExtraction, IOntologyWorkbenchSnapshot } from '@sudowork/ontology-common';
 import { OntologyEngine } from '@sudowork/ontology-engine';
@@ -16,6 +19,245 @@ vi.mock('@process/services/ontology/OntologyStudioDatabase', () => ({
 }));
 vi.mock('@/agent/acp/AcpConnection', () => ({ AcpConnection: class {} }));
 vi.mock('@process/services/scode/ScodeInstallService', () => ({ getScodePath: () => null }));
+const reviewAccount = vi.hoisted(() => ({ isCurrent: true, read: vi.fn() }));
+vi.mock('@process/database', () => ({ getDatabase: () => ({ getConversation: reviewAccount.read }) }));
+vi.mock('@process/services/mossExecutionContext', () => ({
+  assertConversationAccount: () => {
+    if (!reviewAccount.isCurrent) throw new Error('Conversation belongs to a different Moss account');
+  },
+}));
+
+describe('OntologyService canonical source registration', () => {
+  const input = { workspaceId: 'canonical', title: 'Canonical model', modelRef: 'model-1', source: 'sqlite:///private-source.db', namespace: 'support', operationId: 'connect-1', language: 'en' as const };
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it('binds a project only after the checked source worker succeeds and allows durable retries', async () => {
+    const client = { registerSource: vi.fn().mockResolvedValue({ contract: { revision: 'r1' }, registration: { initial_revision: 'r1' } }) };
+    const module = await import('@process/services/ontology/SudographModelClient');
+    vi.spyOn(module, 'getSudographModelClient').mockReturnValue(client as unknown as ReturnType<typeof module.getSudographModelClient>);
+    const project = { id: input.workspaceId, title: input.title, modelRef: input.modelRef, authority: 'sudograph' };
+    let current: typeof project | null = null;
+    const database = {
+      getHostSecret: vi.fn().mockReturnValue(null),
+      getProject: vi.fn(() => current),
+      registerSudographProject: vi.fn(() => {
+        current = project;
+      }),
+      saveSnapshot: vi.fn(),
+    };
+    const service = new OntologyService(database as unknown as OntologyDatabase, {} as OntologyEngine);
+    await expect(service.registerSudographSourceProject(input)).resolves.toMatchObject({ project, registration: { initial_revision: 'r1' } });
+    expect(client.registerSource).toHaveBeenCalledWith(input.modelRef, expect.stringMatching(/^desktop:/), { source: input.source, namespace: input.namespace, operationId: input.operationId, language: input.language });
+    expect(database.saveSnapshot).not.toHaveBeenCalled();
+    await service.registerSudographSourceProject(input);
+    expect(client.registerSource).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps project registration absent after failure and refuses model authority changes before scanning', async () => {
+    const module = await import('@process/services/ontology/SudographModelClient');
+    const client = { registerSource: vi.fn().mockRejectedValue(new Error('source scan incomplete')) };
+    vi.spyOn(module, 'getSudographModelClient').mockReturnValue(client as unknown as ReturnType<typeof module.getSudographModelClient>);
+    const database = { getHostSecret: vi.fn().mockReturnValue(null), getProject: vi.fn().mockReturnValue(null), registerSudographProject: vi.fn() };
+    const service = new OntologyService(database as unknown as OntologyDatabase, {} as OntologyEngine);
+    await expect(service.registerSudographSourceProject(input)).rejects.toThrow('incomplete');
+    expect(database.registerSudographProject).not.toHaveBeenCalled();
+    client.registerSource.mockClear();
+    database.getProject.mockReturnValue({ authority: 'rdf', modelRef: null });
+    await expect(service.registerSudographSourceProject(input)).rejects.toThrow('authority conflict');
+    expect(client.registerSource).not.toHaveBeenCalled();
+  });
+});
+
+describe('OntologyService native source intake', () => {
+  it('reports an incomplete canonical deployment instead of creating a legacy project', async () => {
+    vi.stubEnv('SUDOGRAPH_PYTHON', 'configured');
+    vi.stubEnv('SUDOGRAPH_COMPILER_ROOT', '');
+    vi.stubEnv('SUDOGRAPH_MODEL_DIRECTORY', '');
+    const engine = { probeConnector: vi.fn() };
+    const database = { saveSnapshot: vi.fn() };
+    const service = new OntologyService(database as unknown as OntologyDatabase, engine as unknown as OntologyEngine);
+    await expect(service.connectStudioSource({} as Parameters<typeof service.connectStudioSource>[0])).rejects.toThrow('incompletely configured');
+    expect(engine.probeConnector).not.toHaveBeenCalled();
+    expect(database.saveSnapshot).not.toHaveBeenCalled();
+  });
+  it('binds private review sessions to the persisted project and conversation and rechecks ownership', async () => {
+    reviewAccount.isCurrent = true;
+    reviewAccount.read.mockReturnValue({ data: { extra: { purpose: 'ontology', ontologyId: 'source' } } });
+    const module = await import('@process/services/ontology/SudographModelClient');
+    const client = { review: vi.fn().mockResolvedValue('native compiled graph') };
+    vi.spyOn(module, 'getSudographModelClient').mockReturnValue(client as unknown as ReturnType<typeof module.getSudographModelClient>);
+    let session: { workspace_id: string } | undefined = { workspace_id: 'source' };
+    const database = {
+      getHostSecret: vi.fn().mockReturnValue(null),
+      getProject: vi.fn((id: string) => (id === 'source' ? { authority: 'sudograph', modelRef: 'private-model' } : null)),
+      getAiSessionByConversationId: vi.fn((id: string) => (id === 'chat-1' ? session : undefined)),
+      getSnapshot: vi.fn(() => {
+        throw new Error('Canonical review must not read RDF');
+      }),
+    };
+    // This fixture accepts the private read transport, independently of ShareOne.
+    const service = new OntologyService(database as unknown as OntologyDatabase, {} as OntologyEngine, undefined, undefined, async () => undefined);
+    try {
+      await expect(service.createStudioReviewSession({ workspaceId: 'source', conversationId: 'other' })).rejects.toThrow('does not own');
+      const launch = await service.createStudioReviewSession({ workspaceId: 'source', conversationId: 'chat-1' });
+      const headers = { Cookie: `${launch.cookie.name}=${launch.cookie.value}` };
+      expect((await fetch(launch.url, { headers })).status).toBe(200);
+      expect(client.review).toHaveBeenCalledWith('private-model', expect.stringMatching(/^desktop:/), 'source', { operation: 'html', endpoint: `${new URL(launch.url).pathname}v1` });
+      reviewAccount.isCurrent = false;
+      expect((await fetch(launch.url, { headers })).status).toBe(403);
+      await expect(service.createStudioReviewSession({ workspaceId: 'source', conversationId: 'chat-1' })).rejects.toThrow('different Moss account');
+      reviewAccount.isCurrent = true;
+      reviewAccount.read.mockReturnValueOnce({ data: { extra: { purpose: 'ontology', ontologyId: 'another' } } });
+      expect((await fetch(launch.url, { headers })).status).toBe(403);
+      session = undefined;
+      expect((await fetch(launch.url, { headers })).status).toBe(403);
+      expect(client.review).toHaveBeenCalledTimes(1);
+      expect(database.getSnapshot).not.toHaveBeenCalled();
+    } finally {
+      await service.closeReviewSessions();
+    }
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+  });
+
+  it('lists unified workbench projects and enables database modeling without an external compiler', async () => {
+    const database = {
+      listProjects: () => [
+        { id: 'old', title: 'Old', authority: 'rdf' },
+        { id: 'source', title: 'Support', authority: 'sudograph', modelRef: 'private-model' },
+      ],
+      getSnapshot: vi.fn().mockImplementation((id) => {
+        if (id !== 'old') throw new Error('Canonical models are not RDF');
+        return { draft: { title: 'Existing RDF', description: 'Legacy' }, objects: [{}] };
+      }),
+    };
+    const service = new OntologyService(database as unknown as OntologyDatabase, {} as OntologyEngine);
+    for (const name of ['SUDOGRAPH_PYTHON', 'SUDOGRAPH_COMPILER_ROOT', 'SUDOGRAPH_MODEL_DIRECTORY']) vi.stubEnv(name, 'configured');
+    const result = await service.listStudioProjects();
+    expect(result.items).toEqual([
+      { workspaceId: 'old', name: 'Existing RDF', description: 'Legacy', objectCount: 1, authority: 'rdf' },
+      { workspaceId: 'source', name: 'Support', authority: 'sudograph' },
+    ]);
+    expect(result.sourceRegistration).toEqual({ available: true, providers: ['sqlite', 'postgresql', 'mysql'], execution: 'desktop' });
+    vi.stubEnv('SUDOGRAPH_COMPILER_ROOT', '');
+    expect((await service.listStudioProjects()).sourceRegistration.available).toBe(true);
+    expect(database.getSnapshot).not.toHaveBeenCalledWith('source');
+    expect(JSON.stringify(result)).not.toContain('private-model');
+  });
+
+  it('derives overview counts and observation from one committed product without leaking source details', async () => {
+    const database = { getProject: vi.fn().mockReturnValue({ id: 'source', title: 'Support', authority: 'sudograph', modelRef: 'private-model' }), getSnapshot: vi.fn() };
+    const service = new OntologyService(database as unknown as OntologyDatabase, {} as OntologyEngine);
+    const read = vi.spyOn(service, 'invokeSudograph').mockResolvedValue({
+      revision: 'r1',
+      source_registration: {
+        private_dsn: 'sqlite:///private.db',
+        connection: { observed_at: '2026-10-25T00:00:00Z' },
+        scan: { status: 'complete', structure_complete: true, objects: 2, tables: 1, database_views: 1, fields: 3 },
+        records: { delivery: 'live', rows_embedded: 0 },
+      },
+    });
+    const project = await service.getStudioProject({ workspaceId: 'source' });
+    expect(project.source).toEqual({ revision: 'r1', observedAt: '2026-10-25T00:00:00Z', structureComplete: true, objects: 2, tables: 1, databaseViews: 1, fields: 3, delivery: 'live', rowsEmbedded: 0 });
+    expect(read).toHaveBeenCalledExactlyOnceWith('source', { operation: 'overview' });
+    expect(database.getSnapshot).not.toHaveBeenCalled();
+    expect(JSON.stringify(project)).not.toContain('private');
+    read.mockResolvedValueOnce({ revision: 'legacy', source_registration: null });
+    expect((await service.getStudioProject({ workspaceId: 'source' })).source).toBeUndefined();
+    database.getProject.mockReturnValue(null);
+    await expect(service.getStudioProject({ workspaceId: 'missing' })).rejects.toThrow('notFound');
+    expect(read).toHaveBeenCalledTimes(2);
+  });
+
+  it('derives the persistent model binding in the host and retries the same intake identity', async () => {
+    for (const name of ['SUDOGRAPH_PYTHON', 'SUDOGRAPH_COMPILER_ROOT', 'SUDOGRAPH_MODEL_DIRECTORY']) vi.stubEnv(name, 'configured');
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'ontology-source-form-'));
+    try {
+      const source = path.join(directory, 'support #source.db');
+      await fs.writeFile(source, '');
+      const database = { getHostValue: vi.fn().mockReturnValue(null), setHostValue: vi.fn(), getProject: vi.fn().mockReturnValue(null) };
+      const service = new OntologyService(database as unknown as OntologyDatabase, {} as OntologyEngine);
+      const register = vi.spyOn(service, 'registerSudographSourceProject').mockResolvedValue({} as Awaited<ReturnType<typeof service.registerSudographSourceProject>>);
+      const project = { workspaceId: 'registered', name: 'Support', authority: 'sudograph' as const };
+      vi.spyOn(service, 'getStudioProject').mockResolvedValue(project);
+      const input = { operationId: '123e4567-e89b-42d3-a456-426614174000', language: 'en' as const, connector: { name: 'Support', kind: 'database' as const, sourceType: 'sqlite' as const, path: source, writable: false, metadata: {} } };
+      expect(await service.connectStudioSource(input)).toEqual(project);
+      await service.connectStudioSource(input);
+      const binding = register.mock.calls[0][0];
+      expect(binding.workspaceId).toMatch(/^source_[a-f0-9]{32}$/);
+      expect(binding.modelRef).toBe(binding.workspaceId);
+      expect(binding.namespace).toBe(binding.workspaceId);
+      expect(binding.source).toBe(`sqlite:///${(await fs.realpath(source)).split(path.sep).join('/')}`);
+      expect(binding.operationId).toBe(input.operationId);
+      expect(register.mock.calls[1][0]).toEqual(binding);
+      expect(await service.resumeStudioSource({ operationId: input.operationId })).toBeNull();
+      database.getProject.mockReturnValue({ id: binding.workspaceId, title: 'Support', authority: 'sudograph', modelRef: binding.modelRef });
+      expect(await service.resumeStudioSource({ operationId: input.operationId })).toEqual(project);
+      expect(service.getStudioProject).toHaveBeenLastCalledWith({ workspaceId: binding.workspaceId });
+      for (const override of [{ modelRef: 'chosen' }, { namespace: 'chosen' }, { workspaceId: 'chosen' }]) {
+        await expect(service.connectStudioSource({ ...input, ...override })).rejects.toThrow();
+      }
+      for (const override of [{ sourceType: 'postgresql' }, { writable: true }, { password: 'secret' }, { path: 'relative.db' }]) {
+        await expect(service.connectStudioSource({ ...input, connector: { ...input.connector, ...override } } as typeof input)).rejects.toThrow();
+      }
+      expect(register).toHaveBeenCalledTimes(2);
+    } finally {
+      expect(path.dirname(directory)).toBe(path.resolve(os.tmpdir()));
+      expect(path.basename(directory)).toMatch(/^ontology-source-form-/);
+      await fs.rm(directory, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('Canonical source registration recovery', () => {
+  it('joins concurrent registration and reuses its source identity after a failed scan', async () => {
+    for (const name of ['SUDOGRAPH_PYTHON', 'SUDOGRAPH_COMPILER_ROOT', 'SUDOGRAPH_MODEL_DIRECTORY']) vi.stubEnv(name, 'configured');
+    const values = new Map<string, unknown>();
+    const secrets = new Map<string, string>();
+    const projects = new Map<string, unknown>();
+    const database = {
+      getProject: (id: string) => projects.get(id) || null,
+      getHostValue: (key: string) => values.get(key) || null,
+      setHostValue: (key: string, value: unknown) => values.set(key, value),
+      setHostSecret: (key: string, value: string) => secrets.set(key, value),
+    };
+    const service = new OntologyService(database as unknown as OntologyDatabase, {} as OntologyEngine);
+    const input = {
+      operationId: '123e4567-e89b-42d3-a456-426614174000',
+      language: 'en' as const,
+      connector: { name: 'Database fixture', kind: 'database' as const, sourceType: 'postgresql' as const, host: '127.0.0.1', database: 'fixture', username: 'reader', password: 'fixture-only-password', writable: false, metadata: {} },
+    };
+    let finish!: () => void;
+    const register = vi.spyOn(service, 'registerSudographSourceProject').mockImplementationOnce(async () => {
+      await new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      throw new Error('scan incomplete');
+    });
+    const first = service.connectStudioSource(input);
+    const same = service.connectStudioSource({ ...input, operationId: '123e4567-e89b-42d3-a456-426614174001' });
+    const joined = Promise.allSettled([first, same]);
+    finish();
+    expect((await joined).every((item) => item.status === 'rejected')).toBe(true);
+    expect(register).toHaveBeenCalledTimes(1);
+    const reserved = register.mock.calls[0][0];
+    register.mockImplementationOnce(async (binding) => {
+      projects.set(binding.workspaceId, { authority: 'sudograph' });
+      return {} as Awaited<ReturnType<typeof service.registerSudographSourceProject>>;
+    });
+    vi.spyOn(service, 'getStudioProject').mockImplementation(async ({ workspaceId }) => ({ workspaceId, name: 'Database fixture', authority: 'sudograph' }));
+    const recovered = await service.connectStudioSource({ ...input, operationId: '123e4567-e89b-42d3-a456-426614174002' });
+    expect(register.mock.calls[1][0]).toEqual(reserved);
+    const reopened = await service.connectStudioSource({ ...input, operationId: '123e4567-e89b-42d3-a456-426614174003', connector: { ...input.connector, name: 'Renamed connection', password: 'rotated-fixture-password' } });
+    expect(reopened.workspaceId).toBe(recovered.workspaceId);
+    expect(register).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify(reopened)).not.toContain('password');
+    expect(JSON.parse([...secrets.values()][0]).connector.password).toBe('rotated-fixture-password');
+  });
+});
 
 describe('OntologyService workspace selection', () => {
   it('does not change the active workspace when reading another workbench', async () => {
@@ -43,6 +285,11 @@ describe('OntologyService workspace selection', () => {
 class DocumentRepository {
   snapshots = new Map<string, IOntologyWorkbenchSnapshot>();
   activeWorkspaceId = 'documents';
+  runtimeDirectory?: string;
+
+  getRuntimeDirectory() {
+    return this.runtimeDirectory;
+  }
 
   getSnapshot(workspaceId: string) {
     return structuredClone(this.snapshots.get(workspaceId) ?? null);
@@ -81,6 +328,7 @@ describe('OntologyService document generation', () => {
   beforeEach(async () => {
     directory = await fs.mkdtemp(path.join(os.tmpdir(), 'ontology-document-service-'));
     repository = new DocumentRepository();
+    repository.runtimeDirectory = path.join(directory, 'runtime');
     repository.saveSnapshot(createDefaultOntologyWorkbenchSnapshot(100, { workspaceId: 'documents' }));
     repository.saveSnapshot(createDefaultOntologyWorkbenchSnapshot(100, { workspaceId: 'other' }));
     engine = new OntologyEngine(repository);
@@ -111,6 +359,11 @@ describe('OntologyService document generation', () => {
     expect(first.objects[0].attributes).toEqual([]);
     expect(extract.mock.calls[0][0][0].text).toContain('Invoice includes an amount.');
     expect(extract.mock.calls[0][1]).toBe('Model business records');
+    const artifacts = path.join(repository.runtimeDirectory!, 'artifacts');
+    const generatedArtifacts = (await fs.readdir(artifacts)).filter((name) => name !== '.cli');
+    expect(generatedArtifacts).toHaveLength(1);
+    const runtimeModel = JSON.parse(await fs.readFile(path.join(artifacts, generatedArtifacts[0], 'ontology/runtime-model.json'), 'utf8'));
+    expect(runtimeModel.objects.map((object: { code: string }) => object.code)).toEqual(['invoice']);
     await fs.writeFile(filePath, 'Shipment has a tracking number.');
     const second = await service.generateDraft(input);
     expect(second.objects.map((object) => object.code)).toEqual(['shipment']);
@@ -298,6 +551,7 @@ describe('OntologyService quality rule execution', () => {
     ];
     repository = new DocumentRepository();
     repository.saveSnapshot(snapshot);
+    repository.runtimeDirectory = path.join(directory, 'runtime');
     service = new OntologyService(repository as unknown as OntologyDatabase, new OntologyEngine(repository));
   });
 
@@ -360,6 +614,32 @@ describe('OntologyService quality rule execution', () => {
     const published = await service.approvePublishedVersion({ workspaceId: 'quality', versionId: candidate.version.id });
     expect(published.publishedVersions.find((version) => version.id === candidate.version.id)?.status).toBe('published');
   });
+
+  it('exports the frozen published artifact through the desktop service and verifies embedded resources independently', async () => {
+    const snapshot = repository.getSnapshot('quality')!;
+    snapshot.qualityRules = [];
+    repository.saveSnapshot(snapshot);
+    const candidate = await service.publishCurrentDraft({ workspaceId: 'quality' });
+    await service.approvePublishedVersion({ workspaceId: 'quality', versionId: candidate.version.id });
+    const input = { requestId: 'desktop-export', workspaceId: 'quality', versionId: candidate.version.id, embeddedResourceIds: ['file:transactions-asset'] };
+    vi.mocked(dialog.showSaveDialog).mockResolvedValueOnce({ canceled: true, filePath: '' });
+    expect(await service.exportRuntimePackage(input)).toEqual({ isCancelled: true });
+    const target = path.join(directory, 'transactions.ontology.zip');
+    vi.mocked(dialog.showSaveDialog).mockResolvedValueOnce({ canceled: false, filePath: target });
+    const progress = vi.fn();
+    const result = await service.exportRuntimePackage(input, progress);
+    expect(result).toMatchObject({ isCancelled: false, filePath: target, runtimeDigest: candidate.version.runtimeDigest, runtimeVerification: 'passed', requiresBindings: [], fileBytes: expect.any(Number), packageDigest: expect.stringMatching(/^sha256:/) });
+    expect(progress).toHaveBeenCalledWith(expect.objectContaining({ requestId: input.requestId, phase: 'packing' }));
+    const extracted = path.join(directory, 'independent-export');
+    await extractOntologyArchive(target, extracted);
+    const report = JSON.parse(await fs.readFile(path.join(extracted, 'verification/export-report.json'), 'utf8'));
+    expect(report.runtimeCheck.resources).toEqual([expect.objectContaining({ id: 'transactions-asset', verification: 'file-access' })]);
+    await fs.rename(snapshot.assets[0].path!, snapshot.assets[0].path! + '.unavailable');
+    const loaded = await loadOntologyArtifact(extracted);
+    expect(loaded.missingBindings).toEqual([]);
+    expect(loaded.manifest.runtimeDigest).toBe(candidate.version.runtimeDigest);
+    expect(loaded.snapshot.assets[0].path).toContain(extracted);
+  }, 60_000);
 
   it('marks rules without a complete single-asset mapping as skipped', async () => {
     const snapshot = repository.getSnapshot('quality')!;

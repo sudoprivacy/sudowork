@@ -29,6 +29,7 @@ function mount() {
         <Routes>
           <Route path='/conversation/:id' element={<ConversationPage />} />
           <Route path='/guid' element={<div>New task</div>} />
+          <Route path='/app/ontology/:ontologyId/model' element={<div>Model workspace</div>} />
         </Routes>
       </MemoryRouter>
     </SWRConfig>
@@ -39,6 +40,12 @@ beforeEach(() => vi.resetAllMocks());
 afterEach(cleanup);
 
 describe('conversation route recovery', () => {
+  it('returns a model session opened from shared history to its owning workspace', async () => {
+    bridge.get.mockResolvedValue({ id: 'old-link', type: 'acp', extra: { purpose: 'ontology', ontologyId: 'northwind' } });
+    mount();
+    expect(await screen.findByText('Model workspace')).toBeInTheDocument();
+    expect(bridge.openTab).not.toHaveBeenCalled();
+  });
   it('waits for the lookup before returning a missing conversation to new task', async () => {
     let resolveLookup!: (value: undefined) => void;
     bridge.get.mockReturnValue(
@@ -69,5 +76,17 @@ describe('conversation route recovery', () => {
     mount();
     expect(await screen.findByText('Conversation old-link')).toBeInTheDocument();
     expect(screen.queryByText('New task')).not.toBeInTheDocument();
+  });
+
+  it('keeps a refused bridge receipt on the conversation page until the user retries', async () => {
+    bridge.get.mockResolvedValueOnce({ success: false, msg: 'SESSION_FORBIDDEN' });
+    bridge.get.mockResolvedValue({ id: 'old-link', type: 'gemini', extra: {} });
+    mount();
+    const retry = await screen.findByRole('button', { name: 'common.retry' });
+    expect(screen.queryByText('New task')).not.toBeInTheDocument();
+    expect(bridge.openTab).not.toHaveBeenCalled();
+    fireEvent.click(retry);
+    expect(await screen.findByText('Conversation old-link')).toBeInTheDocument();
+    expect(bridge.get).toHaveBeenCalledTimes(2);
   });
 });

@@ -11,6 +11,7 @@
 // re-exports everything here for backward-compatible `@/common/storage` imports.
 
 import type { AcpBackend, AcpBackendAll, AcpBackendConfig, AcpModelInfo } from './acpTypes.js';
+import type { ILocalPersonalAgent } from './personalAgents.js';
 import type { IBlacklistConfig } from './types/security.js';
 
 export interface IConfigStorageRefer {
@@ -255,6 +256,8 @@ export interface IConfigStorageRefer {
   'eeclaw.localRuntime'?: import('./mossExecution.js').TMossLocalRuntimeStatus;
   // Whether enterprise local mode is available for the current user / 当前用户是否可用企业本地模式
   'eeclaw.localModeAvailable'?: boolean;
+  /** Local personal Agents, partitioned by the authenticated account scope. */
+  'eeclaw.localAgents'?: Record<string, ILocalPersonalAgent[]>;
   // Enterprise auth token for main process (no user field, unlike localStorage eeclaw_auth_v1)
   'eeclaw.authStorage'?: {
     access_token: string;
@@ -335,6 +338,10 @@ export type TChatConversation =
           pinned?: boolean;
           /** 置顶时间戳（毫秒）/ Pin timestamp in milliseconds */
           pinnedAt?: number;
+          /** Whether the conversation is hidden from active history. */
+          archived?: boolean;
+          /** Archive timestamp (milliseconds), used for archived-list ordering. */
+          archivedAt?: number | null;
           /** ACP 后端的 session UUID，用于会话恢复 / ACP backend session UUID for session resume */
           acpSessionId?: string;
           /** ACP session 最后更新时间 / Last update time of ACP session */
@@ -441,6 +448,10 @@ export type TChatConversation =
           pinned?: boolean;
           /** 置顶时间戳（毫秒）/ Pin timestamp in milliseconds */
           pinnedAt?: number;
+          /** Whether the conversation is hidden from active history. */
+          archived?: boolean;
+          /** Archive timestamp (milliseconds), used for archived-list ordering. */
+          archivedAt?: number | null;
           /** Health check marker */
           isHealthCheck?: boolean;
           /** Moss Session ID for resume */

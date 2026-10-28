@@ -2,7 +2,7 @@
   "name": "sudowork-monorepo",
   "private": true,
   "packageManager": "bun@1.3.14",
-  "version": "0.2.37",
+  "version": "0.2.40",
   "description": "Sudowork monorepo — Electron desktop app, multi-tenant web console, and shared packages",
   "workspaces": [
     "apps/*",
@@ -13,7 +13,7 @@
   },
   "scripts": {
     "prepare": "husky",
-    "build:packages": "bun run --filter='@sudowork/contracts' build && bun run --filter='@sudowork/common' build && bun run --filter='@sudowork/ontology-common' build && bun run --filter='@sudowork/ontology-engine' build && bun run --filter='@sudowork/moss-client' build && bun run --filter='@sudowork/host-bridge' build && bun run --filter='@sudowork/ontology-ai' build && bun run --filter='@sudowork/ontology-ui' build && bun run --filter='@sudowork/renderer' build",
+    "build:packages": "bun run --filter='@sudowork/contracts' build && bun run --filter='@sudowork/common' build && bun run --filter='@sudowork/ontology-common' build && bun run --filter='@sudowork/ontology-engine' build && bun run --filter='@sudowork/ontology-runtime' build && bun run --filter='@sudowork/moss-client' build && bun run --filter='@sudowork/host-bridge' build && bun run --filter='@sudowork/ontology-ai' build && bun run --filter='@sudowork/ontology-ui' build && bun run --filter='@sudowork/renderer' build",
     "start": "bun run --filter sudowork start",
     "package": "bun run --filter sudowork package",
     "lint": "bun run --filter sudowork lint",

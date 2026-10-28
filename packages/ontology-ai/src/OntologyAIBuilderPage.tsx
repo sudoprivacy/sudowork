@@ -260,13 +260,9 @@ function NewSessionModal({ api, visible, currentWorkspaceId, onCancel, onCreated
           return;
         }
       }
-      // Register the ontology-builder MCP BEFORE spawning the acp conversation.
-      // Scode reads settings.json at process start, so if we registered after
-      // conversation.create the freshly-spawned scode would miss the write
-      // tools and the AI would report "ontology_* not found".
-      const mcpRes = await ipcBridge.ontologyAiBuilder.ensureBuilderMcp.invoke({ workspaceId });
-      if (!mcpRes.success || !mcpRes.data) {
-        Message.error(mcpRes.msg ?? t('ontology.aiBuilder.errors.createFailed'));
+      const project = await ipcBridge.ontologyAiBuilder.prepareProject.invoke({ workspaceId });
+      if (!project.success || !project.data) {
+        Message.error(project.msg ?? t('ontology.aiBuilder.errors.createFailed'));
         return;
       }
       const initialPrompt = buildInitialPrompt(t, ontologyTitle || workspaceId, businessGoal.trim());
@@ -280,11 +276,7 @@ function NewSessionModal({ api, visible, currentWorkspaceId, onCancel, onCreated
           ontologyId: workspaceId,
           workspace: '',
           sessionModeParam: 'local',
-          // Inject the ontology-builder MCP into session/new so scode actually
-          // exposes ontology_* tools to this conversation. Without this the
-          // AI just sees generic tools and the workbench stays empty.
-          extraMcpConfigs: [mcpRes.data.mcpConfig],
-          presetContext: buildPresetContext(t, ontologyTitle || workspaceId, workspaceId),
+          presetContext: project.data.instructions,
         },
       });
       if ('__error' in conversation) throw new Error(conversation.__error);
@@ -403,10 +395,6 @@ function buildInitialPrompt(t: (key: string, opts?: Record<string, unknown>) => 
   const base = t('ontology.aiBuilder.initialPrompt', { title: ontologyTitle });
   if (businessGoal) return `${base}\n\n${t('ontology.aiBuilder.initialPromptGoalLine', { goal: businessGoal })}`;
   return base;
-}
-
-function buildPresetContext(t: (key: string, opts?: Record<string, unknown>) => string, ontologyTitle: string, workspaceId: string): string {
-  return t('ontology.aiBuilder.presetContext', { title: ontologyTitle, workspaceId });
 }
 
 function formatShortDate(timestamp: number): string {

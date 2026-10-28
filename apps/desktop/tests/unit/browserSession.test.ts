@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BrowserSessionActionSchema, BrowserSessionReplySchema, isCurrentBrowserFrame } from '@sudowork/contracts/browser-session';
+import { changeMossBrowserConversation, MossHttpError } from '@sudowork/moss-client';
 
 const state = {
   browserSessionId: 'browser-owned',
@@ -17,6 +18,47 @@ const state = {
 } as const;
 
 describe('browser session boundary', () => {
+  it('keeps legacy chat available only for a proven absent endpoint and preserves real refusals', async () => {
+    const ctx = { baseUrl: 'https://moss.test', accessToken: 'fixture' };
+    const missing = new MossHttpError(404, '{"error":"Not found"}', '/browser/conversation');
+    expect(
+      await changeMossBrowserConversation(
+        async () => {
+          throw missing;
+        },
+        ctx,
+        'session',
+        'continue'
+      )
+    ).toBe(false);
+    for (const [status, body] of [
+      [401, '{"error":"Unauthorized"}'],
+      [403, '{"error":"Forbidden"}'],
+      [404, '{"error":"Session not found"}'],
+      [503, '{"error":"unavailable"}'],
+    ] as const) {
+      const failure = new MossHttpError(status, body, '/browser/conversation');
+      await expect(
+        changeMossBrowserConversation(
+          async () => {
+            throw failure;
+          },
+          ctx,
+          'session',
+          'continue'
+        )
+      ).rejects.toBe(failure);
+    }
+  });
+  it('preserves the selected personal identity and unknown mode without accepting profile paths', () => {
+    const selected = { sessionId: 'extension-run', profileId: 'personal-profile' };
+    const reply = BrowserSessionReplySchema.parse({ session: { ...state, isHeadless: null, personalExtension: { ...selected, isHeadless: null }, capabilities: { ...state.capabilities, existingExtension: true, lifecycle: false, fileTransfer: false } }, existingExtension: selected });
+    expect(reply.session.isHeadless).toBeNull();
+    expect(reply.existingExtension).toEqual(selected);
+    expect(BrowserSessionActionSchema.parse({ kind: 'connect-existing-extension', ...selected, profilePath: '/another-profile', actor: 'ai' })).toEqual({ kind: 'connect-existing-extension', ...selected });
+    expect(BrowserSessionActionSchema.safeParse({ kind: 'disconnect-existing-extension' }).success).toBe(false);
+  });
+
   it('requires an acknowledged restart and preserves the stopped human lease', () => {
     const restart = { kind: 'restart', isHeadless: false, transport: 'extension', controlEpoch: 4, targetEpoch: 2 };
     expect(BrowserSessionActionSchema.safeParse(restart).success).toBe(false);

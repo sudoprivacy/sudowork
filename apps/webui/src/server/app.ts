@@ -14,6 +14,7 @@ import {
   MossNetworkError,
   mossFetchAsset,
   mossRequest,
+  changeMossBrowserConversation,
 } from '@sudowork/moss-client'
 import {
   createOriginGuard,
@@ -35,6 +36,8 @@ import {
   type AuthedRequest,
 } from './features/auth/sessionMiddleware.js'
 import { ConversationCoordinator } from './features/conversations/ConversationCoordinator.js'
+import { BrowserSessionActionSchema } from '@sudowork/contracts/browser-session'
+import { openMossBrowserStream, relayMossBrowserStream } from '@sudowork/moss-client'
 import {
   SessionForbiddenError,
   SessionNotFoundError,
@@ -103,10 +106,15 @@ export function createApp(deps: AppDeps): Express {
   // 其余维持 1mb。必须在全局挂载点分流——Express 中间件严格按注册顺序，路由级再挂更大的
   // 解析器永远不生效（≤1mb 时 body 已被读、解析器被跳过；>1mb 时在读取阶段即抛 413）。
   const uploadJsonParser = express.json({ limit: '16mb' })
+  const avatarJsonParser = express.json({ limit: '3mb' })
   const defaultJsonParser = express.json({ limit: '1mb' })
   app.use((req, res, next) => {
     if (req.method === 'POST' && /^\/api\/conversations\/[^/]+\/workspace\/file$/.test(req.path)) {
       uploadJsonParser(req, res, next)
+      return
+    }
+    if (req.method === 'POST' && req.path === '/api/v1/user/avatar') {
+      avatarJsonParser(req, res, next)
       return
     }
     defaultJsonParser(req, res, next)
@@ -221,7 +229,15 @@ export function registerApiRoutes(app: Express, deps: ApiDeps): ApiHandles {
 
   const auth = { pool, config, mossAuth: deps.mossAuth }
   const coordinator =
-    deps.coordinator ?? new ConversationCoordinator({ pool, config, auth, moss: mossSession })
+    deps.coordinator ??
+    new ConversationCoordinator({
+      pool,
+      config,
+      auth,
+      moss: mossSession,
+      browserControl: (ctx, sessionId, intent) =>
+        changeMossBrowserConversation(mossFetch, ctx, sessionId, intent),
+    })
   const agents = deps.agents ?? createMossAgentTemplatePort(mossFetch)
   const skills = deps.skills ?? createMossSkillPort(mossFetch)
 
@@ -351,7 +367,16 @@ export function attachConversationWebSocket(server: Server, deps: WsDeps): void 
   const wss = new WebSocketServer({ noServer: true })
   const terminalWss = new WebSocketServer({ noServer: true })
   const channelWss = new WebSocketServer({ noServer: true })
+  const browserWss = new WebSocketServer({
+    noServer: true,
+    maxPayload: 1024 * 1024,
+    perMessageDeflate: false,
+  })
   const { config, pool, coordinator } = deps
+  server.once('close', () => {
+    for (const socket of browserWss.clients) socket.close(1001, 'Server stopping')
+    browserWss.close()
+  })
   const terminals = deps.terminals ?? globalTerminalManager
   if (deps.auth) attachChannelEvents(channelWss, { auth: deps.auth })
 
@@ -359,9 +384,10 @@ export function attachConversationWebSocket(server: Server, deps: WsDeps): void 
     void (async () => {
       const url = new URL(req.url ?? '/', 'http://internal.invalid')
       const conversationMatch = url.pathname.match(/^\/ws\/conversations\/([^/]+)$/)
+      const browserMatch = url.pathname.match(/^\/ws\/browser\/([^/]+)$/)
       const isTerminal = url.pathname === '/ws/terminal'
       const isChannels = url.pathname === '/ws/channels'
-      if (!conversationMatch && !isTerminal && !isChannels) {
+      if (!conversationMatch && !browserMatch && !isTerminal && !isChannels) {
         socket.destroy()
         return
       }
@@ -382,6 +408,56 @@ export function attachConversationWebSocket(server: Server, deps: WsDeps): void 
       if (!webSession) {
         socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n')
         socket.destroy()
+        return
+      }
+
+      if (browserMatch) {
+        const operation = BrowserSessionActionSchema.safeParse({
+          kind: 'window-stream',
+          viewerId: url.searchParams.get('viewerId'),
+          controlEpoch: url.searchParams.has('controlEpoch')
+            ? Number(url.searchParams.get('controlEpoch'))
+            : undefined,
+          targetEpoch: url.searchParams.has('targetEpoch')
+            ? Number(url.searchParams.get('targetEpoch'))
+            : undefined,
+        })
+        if (!operation.success || operation.data.kind !== 'window-stream') {
+          socket.end('HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\nConnection: close\r\n\r\n')
+          return
+        }
+        const sessionId = decodeURIComponent(browserMatch[1]!)
+        const authorized = await coordinator.authorize(webSession, sessionId)
+        // Conversation managers cannot view another person's Chrome profile.
+        if (authorized.ownerPrincipalId !== webSession.principalId)
+          throw new SessionForbiddenError()
+        const upstream = await openMossBrowserStream(authorized, sessionId, operation.data)
+        try {
+          browserWss.handleUpgrade(req, socket, head, (ws) => {
+            relayMossBrowserStream(ws, upstream, async () => {
+              const fresh = await findSessionByCookie(
+                pool,
+                req.headers.cookie,
+                config.sessionHmacKey,
+              )
+              if (
+                !fresh ||
+                fresh.id !== webSession.id ||
+                fresh.principalId !== webSession.principalId
+              )
+                return false
+              const current = await coordinator.authorize(fresh, sessionId)
+              return (
+                current.ownerPrincipalId === fresh.principalId &&
+                current.baseUrl === authorized.baseUrl &&
+                current.accessToken === authorized.accessToken
+              )
+            })
+          })
+        } catch (error) {
+          upstream.terminate()
+          throw error
+        }
         return
       }
 
@@ -542,7 +618,9 @@ export function attachConversationWebSocket(server: Server, deps: WsDeps): void 
               ? '401 Unauthorized'
               : error instanceof MossUnavailableError
                 ? '503 Service Unavailable'
-                : null
+                : error instanceof MossHttpError
+                  ? `${[400, 401, 403, 404, 409, 503].includes(error.status) ? error.status : 502} Browser Stream Unavailable`
+                  : null
       if (status) socket.end(`HTTP/1.1 ${status}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`)
       else socket.destroy()
     })

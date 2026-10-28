@@ -1,14 +1,18 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Button, Form, Input, InputNumber, Modal, Select } from '@arco-design/web-react';
 import { useTranslation } from 'react-i18next';
 import type { IOntologyConnectorInput } from '@sudowork/ontology-common';
 import type { IOntologyStudioApi } from './api';
 
-export default function StudioDatabaseConnection({ workspaceId, api, onRefresh, onClose, onError }: IStudioDatabaseConnectionProps) {
+const defaultProviders = ['postgresql', 'mysql', 'sqlite'] as const;
+
+export default function StudioDatabaseConnection({ workspaceId, api, onRefresh, onClose, onError, providers = defaultProviders, onSubmit, initialConnector }: IStudioDatabaseConnectionProps) {
   const { t } = useTranslation();
   const text = (key: string) => t(`ontology.studio.${key}`);
-  const [sourceType, setSourceType] = useState<'postgresql' | 'mysql' | 'sqlite'>('postgresql');
+  const requiredMessage = (field: string) => t('ontology.studio.requiredField', { field });
+  const [sourceType, setSourceType] = useState<'postgresql' | 'mysql' | 'sqlite'>(providers[0]);
   const [isConnecting, setIsConnecting] = useState(false);
+  const isConnectingRef = useRef(false);
   const [form] = Form.useForm();
   const isSqlite = sourceType === 'sqlite';
   const onPickSqlite = async () => {
@@ -20,7 +24,11 @@ export default function StudioDatabaseConnection({ workspaceId, api, onRefresh, 
     }
   };
   const onConnect = async () => {
-    const values = await form.validate();
+    if (isConnectingRef.current) return;
+    const values = await form.validate().catch((): undefined => undefined);
+    if (!values) return;
+    if (isConnectingRef.current) return;
+    isConnectingRef.current = true;
     setIsConnecting(true);
     try {
       const connector: IOntologyConnectorInput = {
@@ -40,20 +48,66 @@ export default function StudioDatabaseConnection({ workspaceId, api, onRefresh, 
               ...(sourceType === 'postgresql' ? { params: { schema: values.schema?.trim() || 'public' } } : {}),
             }),
       };
-      const result = await api.probeConnector({ workspaceId, connector });
-      if (result.connector.probeStatus === 'failed') throw new Error(result.connector.lastError || text('connectionFailed'));
+      if (onSubmit) await onSubmit(connector);
+      else {
+        const result = await api.probeConnector({ workspaceId, connector });
+        if (result.connector.probeStatus === 'failed') throw new Error(result.connector.lastError || text('connectionFailed'));
+      }
       await onRefresh();
       onClose();
     } catch (error) {
       onError(error);
     } finally {
+      isConnectingRef.current = false;
       setIsConnecting(false);
     }
   };
   return (
-    <Modal visible title={text('addConnection')} onCancel={onClose} onOk={onConnect} confirmLoading={isConnecting} style={{ width: 'min(560px, 92vw)' }}>
-      <Form form={form} layout='vertical' initialValues={{ sourceType: 'postgresql', port: 5432, schema: 'public' }}>
-        <Form.Item field='name' label={text('name')} rules={[{ required: true, match: /\S/ }]}>
+    <Modal
+      visible
+      title={text('addConnection')}
+      onCancel={() => {
+        if (!isConnectingRef.current) onClose();
+      }}
+      onOk={onConnect}
+      confirmLoading={isConnecting}
+      cancelButtonProps={{ disabled: isConnecting }}
+      maskClosable={!isConnecting}
+      escToExit={!isConnecting}
+      style={{ width: 'min(560px, 92vw)' }}
+    >
+      <Form
+        form={form}
+        layout='vertical'
+        disabled={isConnecting}
+        initialValues={{
+          sourceType: providers[0],
+          port: 5432,
+          schema: 'public',
+          ...(initialConnector
+            ? {
+                name: initialConnector.name,
+                host: initialConnector.host,
+                port: initialConnector.port || (providers[0] === 'mysql' ? 3306 : 5432),
+                database: initialConnector.database,
+                username: initialConnector.username,
+                path: initialConnector.path,
+                schema: initialConnector.params?.schema || 'public',
+              }
+            : {}),
+        }}
+      >
+        <Form.Item
+          field='name'
+          label={text('name')}
+          rules={[
+            {
+              required: true,
+              match: /\S/,
+              message: requiredMessage(text('name')),
+            },
+          ]}
+        >
           <Input aria-label={text('name')} />
         </Form.Item>
         <Form.Item field='sourceType' label={text('kind')}>
@@ -63,7 +117,7 @@ export default function StudioDatabaseConnection({ workspaceId, api, onRefresh, 
               { label: 'PostgreSQL', value: 'postgresql' },
               { label: 'MySQL', value: 'mysql' },
               { label: 'SQLite', value: 'sqlite' },
-            ]}
+            ].filter((option) => providers.includes(option.value as typeof sourceType))}
             onChange={(value) => {
               setSourceType(value);
               form.setFieldValue('port', value === 'mysql' ? 3306 : value === 'postgresql' ? 5432 : undefined);
@@ -71,7 +125,18 @@ export default function StudioDatabaseConnection({ workspaceId, api, onRefresh, 
           />
         </Form.Item>
         {isSqlite ? (
-          <Form.Item field='path' label={text('sqlitePath')} rules={[{ required: true, match: /\S/ }]} extra={text('sqliteHint')}>
+          <Form.Item
+            field='path'
+            label={text('sqlitePath')}
+            rules={[
+              {
+                required: true,
+                match: /\S/,
+                message: requiredMessage(text('sqlitePath')),
+              },
+            ]}
+            extra={text('sqliteHint')}
+          >
             <Input
               aria-label={text('sqlitePath')}
               suffix={
@@ -83,13 +148,33 @@ export default function StudioDatabaseConnection({ workspaceId, api, onRefresh, 
           </Form.Item>
         ) : (
           <>
-            <Form.Item field='host' label={text('host')} rules={[{ required: true, match: /\S/ }]}>
+            <Form.Item
+              field='host'
+              label={text('host')}
+              rules={[
+                {
+                  required: true,
+                  match: /\S/,
+                  message: requiredMessage(text('host')),
+                },
+              ]}
+            >
               <Input aria-label={text('host')} />
             </Form.Item>
-            <Form.Item field='port' label={text('port')} rules={[{ required: true }]}>
+            <Form.Item field='port' label={text('port')} rules={[{ required: true, message: requiredMessage(text('port')) }]}>
               <InputNumber aria-label={text('port')} min={1} max={65535} precision={0} />
             </Form.Item>
-            <Form.Item field='database' label={text('database')} rules={[{ required: true, match: /\S/ }]}>
+            <Form.Item
+              field='database'
+              label={text('database')}
+              rules={[
+                {
+                  required: true,
+                  match: /\S/,
+                  message: requiredMessage(text('database')),
+                },
+              ]}
+            >
               <Input aria-label={text('database')} />
             </Form.Item>
             {sourceType === 'postgresql' && (
@@ -97,7 +182,17 @@ export default function StudioDatabaseConnection({ workspaceId, api, onRefresh, 
                 <Input aria-label={text('databaseSchema')} />
               </Form.Item>
             )}
-            <Form.Item field='username' label={text('username')} rules={[{ required: true, match: /\S/ }]}>
+            <Form.Item
+              field='username'
+              label={text('username')}
+              rules={[
+                {
+                  required: true,
+                  match: /\S/,
+                  message: requiredMessage(text('username')),
+                },
+              ]}
+            >
               <Input aria-label={text('username')} />
             </Form.Item>
             <Form.Item field='password' label={text('password')}>
@@ -111,6 +206,9 @@ export default function StudioDatabaseConnection({ workspaceId, api, onRefresh, 
 }
 
 interface IStudioDatabaseConnectionProps {
+  initialConnector?: Partial<IOntologyConnectorInput>;
+  providers?: readonly ('postgresql' | 'mysql' | 'sqlite')[];
+  onSubmit?: (connector: IOntologyConnectorInput) => Promise<void>;
   workspaceId: string;
   api: IOntologyStudioApi;
   onRefresh: () => Promise<void>;

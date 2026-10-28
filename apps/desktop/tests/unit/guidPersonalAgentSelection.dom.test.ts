@@ -8,7 +8,9 @@ const state = vi.hoisted(() => ({
   readConfig: vi.fn(),
   loadInstalled: vi.fn(),
   loadMossModels: vi.fn(),
+  loadUserModel: vi.fn(),
   local: [] as any[],
+  cloud: [] as any[],
   available: [{ backend: 'scode', name: 'Sudo Code' }],
   mine: [{ ref: 'moss-agent:own:22222222-2222-4222-8222-222222222222', displayName: 'Research', kind: 'own' }],
   listeners: new Map<string, () => void>(),
@@ -22,11 +24,11 @@ vi.mock('@renderer/utils/emitter', () => ({ emitter: { on: (event: string, callb
 vi.mock('@sudowork/host-bridge/ipcBridge', () => {
   const installed = async () => ({ data: await state.loadInstalled() });
   return {
-    eeclaw: { getMyAgents: { invoke: async () => ({ success: true, data: state.mine }) }, getCloudAssistants: { invoke: async () => ({ data: [] }) }, setSessionMode: { invoke: async () => undefined } },
+    eeclaw: { getMyAgents: { invoke: async () => ({ success: true, data: state.mine }) }, getCloudAssistants: { invoke: async () => ({ data: state.cloud }) }, setSessionMode: { invoke: async () => undefined } },
     extensions: { getAssistants: { invoke: async () => [] } },
     assistantHub: { getInstalledAssistants: { invoke: installed }, getInstalledAssistantsWithVisibility: { invoke: installed } },
     acpConversation: { refreshCustomAgents: { invoke: async () => undefined }, rescanAgents: { invoke: async () => undefined }, probeModelInfo: { invoke: async () => ({ success: false }) }, getAvailableAgents: { invoke: async () => ({ data: state.available }) } },
-    moss: { getAvailableModels: { invoke: state.loadMossModels }, getUserModel: { invoke: async () => ({ success: false }) }, setUserModel: { invoke: async () => undefined } },
+    moss: { getAvailableModels: { invoke: state.loadMossModels }, getUserModel: { invoke: state.loadUserModel }, setUserModel: { invoke: async () => undefined } },
   };
 });
 
@@ -36,10 +38,13 @@ beforeEach(() => {
   const storage = new Map<string, string>();
   vi.stubGlobal('localStorage', { getItem: (key: string) => storage.get(key) || null, setItem: (key: string, value: string) => storage.set(key, value), removeItem: (key: string) => storage.delete(key), clear: () => storage.clear() });
   state.mode = 'local';
+  state.mine = [{ ref: 'moss-agent:own:22222222-2222-4222-8222-222222222222', displayName: 'Research', kind: 'own' }];
   state.isEnterprise = true;
   state.saveConfig.mockReset().mockResolvedValue(undefined);
   state.loadMossModels.mockReset().mockResolvedValue({ success: false });
+  state.loadUserModel.mockReset().mockResolvedValue({ success: false });
   state.local = [];
+  state.cloud = [];
   setRendererSessionMode('remote');
   state.readConfig.mockReset().mockImplementation(async (key: string) => (key === 'guid.sessionMode' ? state.mode : undefined));
   state.loadInstalled
@@ -54,6 +59,17 @@ afterEach(() => {
 });
 
 describe('personal Agent selection through picker refreshes', () => {
+  it('opens a local identity URL in local mode even when the saved preference is remote', async () => {
+    state.mode = 'remote';
+    state.mine = [{ ref: 'sudowork-agent:local:22222222-2222-4222-8222-222222222222', displayName: 'Research', kind: 'own' }];
+    const { result } = renderHook(() => useGuidAgentSelection({ localeKey: 'en-US', assistantFromUrl: state.mine[0].ref }));
+    await waitFor(() => expect(result.current.selectedAgentInfo?.customAgentId).toBe(state.mine[0].ref));
+    expect(result.current.sessionMode).toBe('local');
+    await act(async () => state.listeners.get('assistants.changed')?.());
+    await waitFor(() => expect(result.current.selectedAgentInfo?.customAgentId).toBe(state.mine[0].ref));
+    expect(result.current.sessionMode).toBe('local');
+  });
+
   it('uses Cloud mode before the Guid page mounts in the WebUI host', () => {
     vi.stubGlobal('electronAPI', undefined);
     vi.stubGlobal('__sudoworkWebBridge', true);
@@ -81,6 +97,17 @@ describe('personal Agent selection through picker refreshes', () => {
       expect(result.current.sessionMode).toBe('remote');
       expect(result.current.selectedAgentInfo?.customAgentId).toBe(ref);
     });
+  });
+
+  it('keeps the personal Agent ready while an independent task template is selected', async () => {
+    state.cloud = [{ key: 'recruiter-template', name: 'Recruiter' }];
+    const ref = state.mine[0].ref;
+    const { result } = renderHook(() => useGuidAgentSelection({ localeKey: 'en-US', assistantFromUrl: ref }));
+    await waitFor(() => expect(result.current.selectedAgentInfo?.customAgentId).toBe(ref));
+    expect(result.current.isAgentSelectionPending).toBe(false);
+    act(() => result.current.setSelectedAgentKey('custom:recruiter-template'));
+    await waitFor(() => expect(result.current.selectedAgentInfo?.customAgentId).toBe('recruiter-template'));
+    expect(result.current.isAgentSelectionPending).toBe(false);
   });
 
   it('loads cloud models after switching away during an unfinished request', async () => {
@@ -137,6 +164,44 @@ interface IMossModelCatalogResult {
   success: boolean;
   data: Array<{ id: string; name: string }>;
 }
+
+describe('cloud model catalog readiness', () => {
+  it('does not advertise a saved model when credential rejection leaves the catalog empty', async () => {
+    state.mode = 'remote';
+    state.loadMossModels.mockResolvedValue({ success: true, data: [] });
+    state.loadUserModel.mockResolvedValue({ success: true, data: { modelId: 'legacy-default:gpt-6-astra' } });
+    const { result } = renderHook(() => useGuidAgentSelection({ localeKey: 'en-US' }));
+    await waitFor(() => expect(result.current.remoteModelStatus).toBe('empty'));
+    expect(result.current.selectedAcpModel).toBeNull();
+    expect(result.current.currentAcpCachedModelInfo?.availableModels).toEqual([]);
+    expect(state.loadUserModel).not.toHaveBeenCalled();
+    expect(state.loadMossModels).toHaveBeenCalledOnce();
+  });
+
+  it.each(['rejected', 'failed'])('reports a %s catalog lookup without retrying it', async (outcome) => {
+    state.mode = 'remote';
+    if (outcome === 'rejected') state.loadMossModels.mockRejectedValue(new Error('MODEL_SERVICE_UNAVAILABLE'));
+    else state.loadMossModels.mockResolvedValue({ success: false });
+    const { result } = renderHook(() => useGuidAgentSelection({ localeKey: 'en-US' }));
+    await waitFor(() => expect(result.current.remoteModelStatus).toBe('error'));
+    expect(state.loadMossModels).toHaveBeenCalledOnce();
+  });
+
+  it.each([null, 'removed-provider:retired-model'])('resolves an unqualified system default after preference %s', async (preference) => {
+    state.mode = 'remote';
+    state.loadMossModels.mockResolvedValue({
+      success: true,
+      data: [
+        { id: 'legacy-default:gpt-6-luna', name: 'Luna' },
+        { id: 'legacy-default:claude-sonnet-4-6', name: 'Sonnet' },
+      ],
+    });
+    state.loadUserModel.mockResolvedValue({ success: true, data: { modelId: preference, systemDefaultModel: 'claude-sonnet-4-6' } });
+    const { result } = renderHook(() => useGuidAgentSelection({ localeKey: 'en-US' }));
+    await waitFor(() => expect(result.current.remoteModelStatus).toBe('available'));
+    expect(result.current.selectedAcpModel).toBe('legacy-default:claude-sonnet-4-6');
+  });
+});
 
 describe('registered ontology Agent selection', () => {
   it('ignores a late ordinary preference read after entering the ontology page', async () => {

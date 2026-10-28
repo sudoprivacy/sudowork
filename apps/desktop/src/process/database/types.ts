@@ -57,6 +57,37 @@ export interface IPaginatedResult<T> {
   hasMore: boolean;
 }
 
+export interface IConversationUpdateOptions {
+  /** Metadata hydration may retain an authoritative or existing activity time. */
+  preserveModifyTime?: boolean;
+}
+
+/** Keep an explicit activity timestamp; ordinary mutations advance to now. */
+export function resolveConversationUpdateTime(modifyTime: number | undefined, now = Date.now()): number {
+  return typeof modifyTime === 'number' ? modifyTime : now;
+}
+
+/** Deterministic order shared by merged local and remote conversation history. */
+export function compareConversationHistoryEntries(a: TChatConversation, b: TChatConversation): number {
+  const activityDiff = (b.modifyTime || b.createTime || 0) - (a.modifyTime || a.createTime || 0);
+  if (activityDiff !== 0) return activityDiff;
+  const createTimeDiff = (b.createTime || 0) - (a.createTime || 0);
+  if (createTimeDiff !== 0) return createTimeDiff;
+  return b.id.localeCompare(a.id);
+}
+
+/** Merge execution-target histories without letting one provider replace the other. */
+export function mergeConversationHistories(...sources: TChatConversation[][]): TChatConversation[] {
+  const byId = new Map<string, TChatConversation>();
+  for (const source of sources) {
+    for (const conversation of source) {
+      const current = byId.get(conversation.id);
+      if (!current || compareConversationHistoryEntries(conversation, current) < 0) byId.set(conversation.id, conversation);
+    }
+  }
+  return [...byId.values()].sort(compareConversationHistoryEntries);
+}
+
 /**
  * ======================
  * 数据库存储格式 (序列化后的格式)

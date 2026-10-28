@@ -1,5 +1,5 @@
 import { isGeneratedFilesOnlyMessage } from '@sudowork/common/generatedFiles';
-import { isOntologyConversation } from '@sudowork/common/conversationPurpose';
+import { getMossSessionAgentContext } from '@sudowork/common/mossSessionContext';
 /**
  * @license
  * Copyright 2025 Sudowork (sudowork.ai)
@@ -314,7 +314,7 @@ export class RemoteConversationProvider implements IConversationProvider {
     await this.syncOwnedSessions().catch((error) => {
       mainError('RemoteProvider', `Failed to sync cloud sessions: ${error instanceof Error ? error.message : String(error)}`);
     });
-    const result = db.getUserConversations(undefined, page, pageSize, 'general');
+    const result = db.getUserConversations(undefined, page, pageSize, 'all');
 
     if (!result.data || result.data.length === 0) {
       mainLog('RemoteProvider', 'No conversations found in local DB');
@@ -322,7 +322,7 @@ export class RemoteConversationProvider implements IConversationProvider {
     }
 
     // Filter for remote-agent type conversations.
-    const conversations = result.data.filter((c) => !isOntologyConversation(c) && isConversationInCurrentAccount(c) && (c.type === 'remote-agent' || c.extra?.backend === 'remote-agent'));
+    const conversations = result.data.filter((c) => isConversationInCurrentAccount(c) && (c.type === 'remote-agent' || c.extra?.backend === 'remote-agent'));
 
     // Sort by modifyTime
     // 按 modifyTime 排序
@@ -373,7 +373,11 @@ export class RemoteConversationProvider implements IConversationProvider {
       const existingConversation = bySession.get(mossSessionId);
       if (!existingConversation && byId.has(mossSessionId)) continue;
       const now = Date.now();
-      const modifyTime = session.lastActiveAt || session.last_active_at || session.updatedAt || session.updated_at || now;
+      const serverActivityTime = session.lastActiveAt || session.last_active_at || session.updatedAt || session.updated_at || now;
+      // Moss updates lastActiveAt when an old Session is merely resumed. Keep
+      // the locally established conversation activity for existing rows so a
+      // click cannot move history; new rows still start from server activity.
+      const modifyTime = typeof existingConversation?.modifyTime === 'number' ? existingConversation.modifyTime : serverActivityTime;
       const createTime = existingConversation?.createTime || session.createdAt || session.created_at || modifyTime;
       const existingExtra = existingConversation?.extra as Record<string, unknown> | undefined;
 
@@ -390,12 +394,13 @@ export class RemoteConversationProvider implements IConversationProvider {
         authToken: undefined,
         runtimeType: this.config.runtimeType,
         agentName: session.assistantName || session.assistant_name,
+        agentManagement: getMossSessionAgentContext(session) ?? undefined,
         templateRef: typeof session.clientMetadata?.session_template_ref === 'string' ? session.clientMetadata.session_template_ref : undefined,
         ...getConversationExecutionExtra('remote'),
         sessionMode: 'remote',
         mossSessionId,
         mossSessionPending: false,
-        mossSessionUpdatedAt: modifyTime,
+        mossSessionUpdatedAt: serverActivityTime,
         ...(cronSource ? { cronJobId: cronSource.cronJobId, cronJobName: cronSource.cronJobName, cronRunId: cronSource.cronRunId } : {}),
       };
 
@@ -417,11 +422,15 @@ export class RemoteConversationProvider implements IConversationProvider {
 
       if (existingConversation) {
         if (existingConversation.modifyTime === conversation.modifyTime && existingConversation.status === conversation.status && JSON.stringify(existingExtra) === JSON.stringify(extra)) continue;
-        const result = db.updateConversation(existingConversation.id, {
-          modifyTime: conversation.modifyTime,
-          status: conversation.status,
-          extra: conversation.extra,
-        });
+        const result = db.updateConversation(
+          existingConversation.id,
+          {
+            modifyTime: conversation.modifyTime,
+            status: conversation.status,
+            extra: conversation.extra,
+          },
+          { preserveModifyTime: true }
+        );
         if (result.success) Object.assign(existingConversation, conversation);
       } else {
         if (db.createConversation(conversation).success) {
@@ -518,7 +527,7 @@ export class RemoteConversationProvider implements IConversationProvider {
         // Sync customTitle from Moss Server if available / 同步 Moss Server 的 customTitle
         const customTitle = contextData.context?.customTitle;
         if (customTitle && existing.data.name !== customTitle) {
-          db.updateConversation(conversationId, { name: customTitle } as Partial<TChatConversation>);
+          db.updateConversation(conversationId, { name: customTitle, modifyTime: existing.data.modifyTime } as Partial<TChatConversation>, { preserveModifyTime: true });
         }
 
         return messages;
@@ -616,23 +625,33 @@ export class RemoteConversationProvider implements IConversationProvider {
       let nameUpdated = false;
       const customTitle = contextData.context?.customTitle;
       if (customTitle && existing.data.name !== customTitle) {
-        db.updateConversation(conversationId, {
-          name: customTitle,
-          extra: {
-            ...existing.data.extra,
-            mossSessionUpdatedAt: Date.now(),
-          },
-        } as Partial<TChatConversation>);
+        db.updateConversation(
+          conversationId,
+          {
+            name: customTitle,
+            modifyTime: existing.data.modifyTime,
+            extra: {
+              ...existing.data.extra,
+              mossSessionUpdatedAt: Date.now(),
+            },
+          } as Partial<TChatConversation>,
+          { preserveModifyTime: true }
+        );
         nameUpdated = true;
         mainLog('RemoteProvider', `Synced conversation name from Moss Server: "${existing.data.name}" → "${customTitle}"`);
       } else {
         // Update mossSessionUpdatedAt timestamp only / 仅更新时间戳
-        db.updateConversation(conversationId, {
-          extra: {
-            ...existing.data.extra,
-            mossSessionUpdatedAt: Date.now(),
-          },
-        } as Partial<TChatConversation>);
+        db.updateConversation(
+          conversationId,
+          {
+            modifyTime: existing.data.modifyTime,
+            extra: {
+              ...existing.data.extra,
+              mossSessionUpdatedAt: Date.now(),
+            },
+          } as Partial<TChatConversation>,
+          { preserveModifyTime: true }
+        );
       }
 
       mainLog('RemoteProvider', `Synced ${insertedCount}/${messages.length} messages from Moss Server for session ${mossSessionId}`);
@@ -712,6 +731,7 @@ export class RemoteConversationProvider implements IConversationProvider {
         acpWsUrl: wsUrl,
         mossSessionPending: false,
         agentName: sessionData.assistantName || sessionData.assistant_name,
+        agentManagement: getMossSessionAgentContext(sessionData) ?? undefined,
         templateRef: typeof sessionData.clientMetadata?.session_template_ref === 'string' ? sessionData.clientMetadata.session_template_ref : undefined,
       };
 
@@ -731,10 +751,12 @@ export class RemoteConversationProvider implements IConversationProvider {
         // id: mossSessionId,
         extra: extraUpdate,
         status: 'finished',
-        modifyTime: Date.now(),
+        // Hydrating runtime metadata must not make an opened historical
+        // conversation look newly active.
+        modifyTime: existing.data.modifyTime,
       } as TChatConversation;
 
-      const result = db.updateConversation(localConversationId, updatedConversation);
+      const result = db.updateConversation(localConversationId, updatedConversation, { preserveModifyTime: true });
       mainLog('RemoteProvider', `Updated conversation ${localConversationId} with Moss session info`);
       return result.success;
     } catch (error) {

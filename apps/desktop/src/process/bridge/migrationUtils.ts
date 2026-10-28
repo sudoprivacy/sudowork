@@ -20,8 +20,8 @@ export async function migrateConversationToDatabase(conversation: TChatConversat
     // Check if already in database
     const existing = db.getConversation(conversation.id);
     if (existing.success && existing.data) {
-      // Already migrated, just update modifyTime
-      db.updateConversation(conversation.id, { modifyTime: Date.now() });
+      // Migration is idempotent and must never turn a history read into new
+      // activity; preserving modifyTime keeps sidebar order stable.
       return;
     }
 

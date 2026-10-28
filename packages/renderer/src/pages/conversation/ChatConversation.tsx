@@ -12,6 +12,8 @@ import { useNavigate } from 'react-router-dom';
 import useSWR from 'swr';
 import { uuid } from '@sudowork/common/utils';
 import type { TChatConversation } from '@sudowork/common/storage';
+import { resolveConversationExecutionTarget } from '@sudowork/common/mossExecution';
+import { isPersonalAgentRef } from '@sudowork/common/personalAgents';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import AgentStatusDot from '@renderer/components/AgentStatusBanner';
 import AcpModelSelector from '@renderer/components/AcpModelSelector';
@@ -22,6 +24,8 @@ import { TaskPanelHeaderProvider } from './workspace/TaskPanelHeaderContext';
 import ChatSider from './ChatSider';
 import ChatLayout from './ChatLayout';
 import AcpChat from './acp/AcpChat';
+import { useConversationHistory } from './context/ConversationHistoryContext';
+import { getConversationAgentName, getConversationAgentRef } from './utils/agentIdentity';
 
 const _AssociatedConversation: React.FC<{ conversation_id: string }> = ({ conversation_id }) => {
   const { data } = useSWR(['getAssociateConversation', conversation_id], () => ipcBridge.conversation.getAssociateConversation.invoke({ conversation_id }));
@@ -98,17 +102,24 @@ const _AddNewConversation: React.FC<{ conversation: TChatConversation }> = ({ co
 };
 
 function ChatConversation({ conversation, conversationId = conversation?.id, children }: IChatConversationProps) {
+  const { t } = useTranslation();
+  const { agents } = useConversationHistory();
   // Remote-agent workspaces are loaded from Moss Server, so they may not have a
   // local workspace path in conversation.extra.
   const workspaceEnabled = Boolean(conversation && (conversation.type === 'remote-agent' || conversation.extra?.workspace));
 
   // 使用统一的 Hook 获取预设助手信息（ACP 会话）
   // Use unified hook for preset assistant info (ACP conversations)
-  const { info: presetAssistantInfo, isLoading: isLoadingPreset } = usePresetAssistantInfo(conversation);
+  const { info: presetAssistantInfo } = usePresetAssistantInfo(conversation);
 
-  // Resolve agentName: prefer preset assistant name, then extra.agentName, then undefined
-  // 优先使用预设助手名称，然后是 extra.agentName
-  const resolvedAgentName = presetAssistantInfo?.name || (conversation?.extra as { agentName?: string })?.agentName;
+  const resolvedAgentName = useMemo(() => {
+    if (presetAssistantInfo?.name) return presetAssistantInfo.name;
+    if (!conversation) return undefined;
+    const listedReferences = new Set(agents.map((agent) => agent.ref));
+    const reference = getConversationAgentRef(conversation, listedReferences);
+    const fallback = reference && isPersonalAgentRef(reference) ? t('conversation.sidebar.myAgent') : '';
+    return getConversationAgentName(conversation, agents, fallback) || undefined;
+  }, [agents, conversation, presetAssistantInfo?.name, t]);
 
   const conversationNode = useMemo(() => {
     if (!conversation) return null;
@@ -117,8 +128,8 @@ function ChatConversation({ conversation, conversationId = conversation?.id, chi
         return <AcpChat key={conversation.id} conversation_id={conversation.id} workspace={conversation.extra?.workspace} backend={conversation.extra?.backend || 'claude'} sessionMode={conversation.extra?.sessionMode} agentName={resolvedAgentName}></AcpChat>;
       case 'remote-agent': {
         // Remote-agent uses AcpChat with backend='remote-agent' (handled by conversationBridge.sendMessage)
-        const remoteExtra = conversation.extra as { mossServerUrl?: string; agentName?: string };
-        return <AcpChat key={conversation.id} conversation_id={conversation.id} workspace={conversation.extra?.workspace} backend={'remote-agent'} sessionMode={conversation.extra?.sessionMode} agentName={resolvedAgentName || remoteExtra.agentName || 'Moss Server'}></AcpChat>;
+        const permissionMode = conversation.extra?.dangerouslySkipPermissions === true || conversation.extra?.sessionMode === 'yolo' ? 'yolo' : 'default';
+        return <AcpChat key={conversation.id} conversation_id={conversation.id} workspace={conversation.extra?.workspace} backend={'remote-agent'} sessionMode={permissionMode} agentName={resolvedAgentName || 'Moss Server'}></AcpChat>;
       }
       default:
         return null;
@@ -129,35 +140,21 @@ function ChatConversation({ conversation, conversationId = conversation?.id, chi
     if (!conversation) return undefined;
     if (conversation.type === 'acp') {
       const extra = conversation.extra as { backend?: string; currentModelId?: string };
-      return <AcpModelSelector conversationId={conversation.id} backend={extra.backend} initialModelId={extra.currentModelId} />;
+      return <AcpModelSelector conversationId={conversation.id} backend={extra.backend} initialModelId={extra.currentModelId} labelPrefix={t('conversation.header.model')} />;
     }
     if (conversation.type === 'remote-agent') {
       const extra = conversation.extra as { currentModelId?: string };
-      return <AcpModelSelector conversationId={conversation.id} backend='remote-agent' initialModelId={extra.currentModelId} />;
+      return <AcpModelSelector conversationId={conversation.id} backend='remote-agent' initialModelId={extra.currentModelId} labelPrefix={t('conversation.header.model')} />;
     }
     return undefined;
-  }, [conversation]);
+  }, [conversation, t]);
 
-  // 如果有预设助手信息，使用预设助手的 logo 和名称；加载中时不进入 fallback；否则使用 backend 的 logo
-  // If preset assistant info exists, use preset logo/name; while loading, avoid fallback; otherwise use backend logo
-  const chatLayoutProps = presetAssistantInfo
-    ? {
-        agentName: presetAssistantInfo.name,
-        agentLogo: presetAssistantInfo.logo,
-        agentLogoIsEmoji: presetAssistantInfo.isEmoji,
-      }
-    : isLoadingPreset
-      ? {} // Still loading custom agents — avoid showing backend logo prematurely
-      : {
-          backend: conversation?.type === 'acp' ? conversation?.extra?.backend : conversation?.type === 'remote-agent' ? 'remote-agent' : undefined,
-          agentName: (conversation?.extra as { agentName?: string })?.agentName,
-        };
-
-  const headerExtraNode = <div className='flex items-center gap-8px'>{conversation && <AgentStatusDot conversation_id={conversation.id} conversationType={conversation.type} />}</div>;
+  const executionTarget = conversation ? resolveConversationExecutionTarget(conversation) : undefined;
+  const headerExtraNode = <div className='flex items-center gap-8px'>{conversation && <AgentStatusDot conversation_id={conversation.id} conversationType={conversation.type} showLabel />}</div>;
 
   return (
     <TaskPanelHeaderProvider>
-      <ChatLayout title={conversation?.name} {...chatLayoutProps} headerLeft={modelSelector} headerExtra={headerExtraNode} sider={<ChatSider conversation={conversation} />} workspaceEnabled={workspaceEnabled} conversationId={conversationId}>
+      <ChatLayout title={conversation?.name} headerLeft={modelSelector} headerExtra={headerExtraNode} sider={<ChatSider conversation={conversation} />} workspaceEnabled={workspaceEnabled} conversationId={conversationId} executionTarget={executionTarget}>
         {children ?? conversationNode}
       </ChatLayout>
     </TaskPanelHeaderProvider>

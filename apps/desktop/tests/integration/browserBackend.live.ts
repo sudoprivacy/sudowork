@@ -1,7 +1,7 @@
 import { exec, execFile } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { chmod, copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
-import { createServer } from 'node:http';
+import { createServer, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -27,13 +27,23 @@ document.querySelector('form').onsubmit=async(e)=>{e.preventDefault();await fetc
 </script></html>`;
 
 describe('real browser wrapper migration', () => {
-  it.each(['ai-dev-browser', 'sudohand'])('%s: discover → reserve → capture → reload, with correlated results', async (backend) => {
+  it.each([
+    { name: 'ai-dev-browser', backend: 'ai-dev-browser', isHeldStartup: false },
+    { name: 'sudohand', backend: 'sudohand', isHeldStartup: false },
+    { name: 'ai-dev-browser incomplete startup', backend: 'ai-dev-browser', isHeldStartup: true },
+  ])('$name: discover → reserve → capture → reload, with correlated results', async ({ backend, isHeldStartup }) => {
     if (backend === 'sudohand') {
       expect(process.env.SUDOWORK_SUDOHAND_PATH, 'Set SUDOWORK_SUDOHAND_PATH to the pinned suh binary').toBeTruthy();
     }
     const receipts: { name: string; trusted: boolean; id: string }[] = [];
+    const heldResponses = new Set<ServerResponse>();
+    let heldStartupRequests = 0;
     const fixture = createServer((req, res) => {
-      if (req.url === '/reserve' && req.method === 'POST') {
+      if (req.url === '/held-startup') {
+        heldStartupRequests++;
+        heldResponses.add(res);
+        res.on('close', () => heldResponses.delete(res));
+      } else if (req.url === '/reserve' && req.method === 'POST') {
         let body = '';
         req.on('data', (chunk: Buffer) => {
           body += chunk.toString();
@@ -52,7 +62,7 @@ describe('real browser wrapper migration', () => {
     const url = `http://127.0.0.1:${(fixture.address() as AddressInfo).port}/`;
     const sidechannel = new AdbResultSidechannel();
     await sidechannel.start();
-    const artifacts = path.join(output, backend);
+    const artifacts = path.join(output, isHeldStartup ? `${backend}-startup-failure` : backend);
     const installedWrappers = path.join(artifacts, 'bin');
     await mkdir(installedWrappers, { recursive: true });
     for (const name of ['browser', 'browser.cmd', 'browser_helper.py']) {
@@ -75,8 +85,9 @@ describe('real browser wrapper migration', () => {
     };
     for (const key of ['AI_DEV_BROWSER_PORT', 'AI_DEV_BROWSER_TAB_URL', 'AI_DEV_BROWSER_REDIRECT', 'AI_DEV_BROWSER_VIEWPORT']) delete env[key as keyof typeof env];
     if (backend === 'ai-dev-browser') delete env.SUDOWORK_BROWSER_BACKEND;
-    const calls: unknown[] = [];
+    const calls: { argv: string[]; code: number; stdout: string; stderr: string; durationMs: number }[] = [];
     async function call(argv: string[], overrides: NodeJS.ProcessEnv = {}, isShim = false) {
+      const started = performance.now();
       const callId = randomUUID();
       const options = { env: { ...env, ...overrides, AI_DEV_BROWSER_CALL_ID: callId }, cwd: artifacts, timeout: 70_000, maxBuffer: 4 * 1024 * 1024, encoding: 'utf8' as const };
       let code = 0;
@@ -101,12 +112,53 @@ describe('real browser wrapper migration', () => {
       expect(received).toMatchObject({ callId, argv, cmd, exitCode: code, stdoutRaw: visible, cmdHash: createHash('sha1').update(cmd).digest('hex') });
       expect(received!.finishedAt).toBeGreaterThanOrEqual(received!.startedAt);
       expect(await sidechannel.waitForCmd(received!.cmdHash, 20), 'duplicate result').toBeNull();
-      calls.push({ argv, code, stdout, stderr });
+      calls.push({ argv, code, stdout, stderr, durationMs: performance.now() - started });
+      if (argv[0] === 'browser_start' && code !== 0) {
+        const payload = JSON.parse(visible);
+        if (Number.isInteger(payload.pid) && Number.isInteger(payload.port) && typeof payload.user_data_dir === 'string') {
+          failedStartup = payload;
+          const diagnostic: Record<string, unknown> = { pid: payload.pid, port: payload.port, wrapperDurationMs: performance.now() - started };
+          // Observe the failed process; never create, navigate or adopt a target.
+          for (const endpoint of ['version', 'list']) {
+            try {
+              const response = await fetch(`http://127.0.0.1:${payload.port}/json/${endpoint}`, { signal: AbortSignal.timeout(1500) });
+              expect(response.ok).toBe(true);
+              const value = await response.json();
+              diagnostic[endpoint] =
+                endpoint === 'version' ? { browser: value.Browser, protocol: value['Protocol-Version'] } : value.map((target: { id: string; type: string; url?: string }) => ({ id: target.id, type: target.type, isBlank: target.url === 'about:blank', isFixture: target.url?.startsWith(url) }));
+            } catch (error) {
+              diagnostic[endpoint + 'Error'] = String(error);
+            }
+          }
+          await writeFile(path.join(artifacts, 'startup-diagnostic.json'), JSON.stringify(diagnostic, null, 2));
+        }
+      }
       return { code, stdout, stderr, payload: () => JSON.parse(visible) };
     }
     let port: string | undefined;
+    let browserSession: string | undefined;
+    let failedStartup: { port: number; pid: number; user_data_dir: string; session_id?: string } | undefined;
+    async function isFailedChromeRunning() {
+      expect(failedStartup).toBeDefined();
+      const script = `import json,os,sys,psutil
+try:
+ p=psutil.Process(int(sys.argv[1])); expected=os.path.normcase(os.path.realpath(sys.argv[2]))
+ owned=any(arg.startswith('--user-data-dir=') and os.path.normcase(os.path.realpath(arg.split('=',1)[1]))==expected for arg in p.cmdline())
+ print(json.dumps(owned and p.is_running() and p.status()!=psutil.STATUS_ZOMBIE))
+except (psutil.NoSuchProcess,psutil.ZombieProcess): print('false')`;
+      const result = await runFile(python, ['-c', script, String(failedStartup!.pid), failedStartup!.user_data_dir], { timeout: 10_000, encoding: 'utf8' });
+      return JSON.parse(result.stdout) as boolean;
+    }
     async function tool(name: string, ...args: string[]) {
-      const result = await call([name, ...(port ? ['--port', port] : []), ...args]);
+      const connection = name === 'browser_stop' && browserSession ? ['--session-id', browserSession] : port ? ['--port', port] : [];
+      const result = await call([name, ...connection, ...args]);
+      // A failed startup can still own a live Chrome. Remember its identity
+      // before asserting success so finally always releases that process.
+      if (name === 'browser_start') {
+        const started = result.payload();
+        if (Number.isInteger(started.port) && started.port > 0) port = String(started.port);
+        if (backend === 'ai-dev-browser' && typeof started.session_id === 'string') browserSession = started.session_id;
+      }
       expect(result.code, result.stderr || result.stdout).toBe(0);
       const payload = result.payload();
       expect(payload.error).toBeFalsy();
@@ -120,6 +172,22 @@ describe('real browser wrapper migration', () => {
       const help = await call(['type_by_ref', '--help']);
       expect(help.stdout).toContain('--ref');
       if (backend === 'sudohand') expect(help.stdout).toContain('Usage: browser type_by_ref');
+      if (isHeldStartup) {
+        let startupError: unknown;
+        try {
+          await tool('browser_start', '--headless', 'new', '--temp', '--url', url + 'held-startup', '--startup-timeout', '30');
+        } catch (error) {
+          startupError = error;
+        }
+        const result = calls.find((entry) => entry.argv[0] === 'browser_start')!;
+        failedStartup = JSON.parse(result.stdout);
+        expect(startupError, 'A held initial document must not be reported as connected').toBeTruthy();
+        expect(result.code).toBe(9);
+        expect(JSON.parse(result.stdout)).toMatchObject({ browser_closed: false, error_code: 'transient' });
+        expect(heldStartupRequests).toBe(1);
+        expect(receipts).toHaveLength(0);
+        return;
+      }
       const started = await tool('browser_start', '--headless', 'new', '--temp');
       expect(started.reused).not.toBe(true);
       expect(started.pid).toBeGreaterThan(0);
@@ -174,10 +242,30 @@ describe('real browser wrapper migration', () => {
     } finally {
       try {
         if (port) await tool('browser_stop');
+        if (failedStartup) {
+          const isRunning = await isFailedChromeRunning();
+          await writeFile(path.join(artifacts, 'startup-cleanup.json'), JSON.stringify({ pid: failedStartup.pid, isRunningAfterNormalCleanup: isRunning, heldStartupRequests, startupCalls: calls.filter((entry) => entry.argv[0] === 'browser_start').length }));
+          try {
+            expect(isRunning, 'The wrapper fixture left its failed-start Chrome running').toBe(false);
+          } finally {
+            // A red regression must still clean its explicitly owned fixture.
+            if (isRunning) {
+              const stopped = await call(['browser_stop', ...(failedStartup.session_id ? ['--session-id', failedStartup.session_id] : ['--port', String(failedStartup.port)])]);
+              expect(stopped.code, stopped.stderr || stopped.stdout).toBe(0);
+              expect(stopped.payload().count, 'Closing an owned Chrome must release one process').toBe(1);
+              expect(await isFailedChromeRunning(), 'The red fixture guard must also release its own Chrome').toBe(false);
+            }
+          }
+        }
       } finally {
+        // Stop accepting requests before releasing the held response. Otherwise
+        // a still-running red fixture can reconnect while close is draining.
+        const closed = new Promise<void>((resolve, reject) => fixture.close((error) => (error ? reject(error) : resolve())));
+        for (const response of heldResponses) response.destroy();
+        fixture.closeAllConnections();
         await writeFile(path.join(artifacts, 'calls.json'), JSON.stringify(calls, null, 2));
         await sidechannel.stop();
-        await new Promise<void>((resolve, reject) => fixture.close((error) => (error ? reject(error) : resolve())));
+        await closed;
       }
     }
   });

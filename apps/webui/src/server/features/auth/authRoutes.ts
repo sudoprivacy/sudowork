@@ -11,6 +11,7 @@ import {
   RegisterPhoneRequestSchema,
   SendPhoneCodeRequestSchema,
   OpenAgentWorkspaceRequestSchema,
+  SwitchOrganizationRequestSchema,
 } from '@sudowork/contracts/auth'
 import {
   AuthRequestRejectedError,
@@ -27,6 +28,8 @@ import {
   sendPhoneCode,
   resolveSession,
   openAgentWorkspace,
+  listAccountOrganizations,
+  switchAccountOrganization,
   type AuthDeps,
 } from './authService.js'
 import { SESSION_COOKIE_NAME, requireSession, type AuthedRequest } from './sessionMiddleware.js'
@@ -169,6 +172,27 @@ export function createAuthRouter(deps: AuthDeps, sessions: MossSessionPort): Rou
         sessions,
       )
       if (result) setSessionCookie(res, deps.config, result.cookieToken)
+      res.status(200).json({ ok: true })
+    })().catch((err: unknown) => authErrorHandler(err, res, next))
+  })
+
+  router.get('/organizations', requireSession, (req, res, next) => {
+    void (async () => {
+      res.setHeader('Cache-Control', 'no-store')
+      res.status(200).json(await listAccountOrganizations(deps, (req as AuthedRequest).webSession!))
+    })().catch((err: unknown) => authErrorHandler(err, res, next))
+  })
+
+  router.post('/switch-org', requireSession, (req, res, next) => {
+    void (async () => {
+      const { orgId } = SwitchOrganizationRequestSchema.parse(req.body)
+      const result = await switchAccountOrganization(
+        deps,
+        (req as AuthedRequest).webSession!,
+        orgId,
+      )
+      if (result) setSessionCookie(res, deps.config, result.cookieToken)
+      res.setHeader('Cache-Control', 'no-store')
       res.status(200).json({ ok: true })
     })().catch((err: unknown) => authErrorHandler(err, res, next))
   })

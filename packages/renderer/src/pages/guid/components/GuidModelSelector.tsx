@@ -16,7 +16,7 @@ import type { IProvider, TProviderWithModel } from '@sudowork/common/storage';
 import ActionChip from '@renderer/components/ui/ActionChip';
 import { getModelDisplayLabel } from '@renderer/utils/agentUiDisplay';
 import { buildProviderModelGroups } from '@renderer/utils/modelProviderGroups';
-import type { AcpModelInfo } from '../types';
+import type { AcpModelInfo, RemoteModelStatus } from '../types';
 import { getAvailableModels } from '../utils/modelUtils';
 
 type GeminiModeOption = {
@@ -36,12 +36,13 @@ type GuidModelSelectorProps = {
 
   // ACP model state
   currentAcpCachedModelInfo: AcpModelInfo | null;
+  remoteModelStatus?: RemoteModelStatus;
   selectedAcpModel: string | null;
   setSelectedAcpModel: React.Dispatch<React.SetStateAction<string | null>>;
 };
 
 const PANEL_CLASS = 'flex flex-col gap-2px p-6px rd-12px border bg-popup max-h-[min(60vh,420px)] overflow-y-auto scrollbar-hide';
-const PANEL_STYLE: React.CSSProperties = { minWidth: 200, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' };
+const PANEL_STYLE: React.CSSProperties = { minWidth: 200, maxWidth: 'calc(100vw - 24px)', boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' };
 const GROUP_TITLE_CLASS = 'px-10px pt-4px pb-2px text-12px leading-18px text-secondary';
 const ROW_CLASS = 'flex items-center gap-8px px-10px h-38px rd-8px cursor-pointer text-14px text-foreground transition-colors hover:bg-hover active:bg-active';
 
@@ -61,7 +62,7 @@ const GeminiSubMenu: React.FC<{
   const [open, setOpen] = React.useState(false);
   return (
     <Dropdown
-      trigger='hover'
+      trigger='click'
       position='br'
       popupVisible={open}
       onVisibleChange={setOpen}
@@ -84,7 +85,7 @@ const GeminiSubMenu: React.FC<{
   );
 };
 
-const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({ isGeminiMode, modelList, currentModel, setCurrentModel, geminiModeLookup, currentAcpCachedModelInfo, selectedAcpModel, setSelectedAcpModel }) => {
+const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({ isGeminiMode, modelList, currentModel, setCurrentModel, geminiModeLookup, currentAcpCachedModelInfo, remoteModelStatus, selectedAcpModel, setSelectedAcpModel }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const defaultModelLabel = t('common.defaultModel');
@@ -142,7 +143,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({ isGeminiMode, mod
 
     return (
       <Dropdown
-        trigger='hover'
+        trigger='click'
         popupVisible={geminiOpen}
         onVisibleChange={setGeminiOpen}
         droplist={
@@ -226,8 +227,22 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({ isGeminiMode, mod
           </div>
         }
       >
-        <ActionChip icon={<Brain theme='outline' size='14' fill='currentColor' />} label={geminiButtonLabel} />
+        <ActionChip aria-label={t('conversation.welcome.selectModel')} icon={<Brain theme='outline' size='14' fill='currentColor' />} label={`${t('conversation.welcome.selectModel')} · ${geminiButtonLabel}`} />
       </Dropdown>
+    );
+  }
+
+  if (remoteModelStatus && remoteModelStatus !== 'available') {
+    const isLoading = remoteModelStatus === 'loading';
+    return (
+      <div className='flex flex-col gap-2 min-w-0'>
+        <ActionChip aria-label={t('conversation.welcome.selectModel')} disabled icon={<Brain theme='outline' size='14' fill='currentColor' />} label={t(isLoading ? 'conversation.welcome.modelsLoading' : 'conversation.welcome.modelsUnavailable')} />
+        {!isLoading && (
+          <span role='alert' className='text-12px text-danger leading-5'>
+            {t('conversation.welcome.modelServiceUnavailable')}
+          </span>
+        )}
+      </div>
     );
   }
 
@@ -270,13 +285,13 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({ isGeminiMode, mod
             </div>
           }
         >
-          <ActionChip icon={<Brain theme='outline' size='14' fill='currentColor' />} label={acpButtonLabel} />
+          <ActionChip aria-label={t('conversation.welcome.selectModel')} icon={<Brain theme='outline' size='14' fill='currentColor' />} label={`${t('conversation.welcome.selectModel')} · ${acpButtonLabel}`} />
         </Dropdown>
       );
     }
 
     return (
-      <Tooltip content={t('conversation.welcome.modelSwitchNotSupported')} position='top'>
+      <Tooltip content={t('conversation.welcome.modelSwitchUnavailable')} position='top'>
         <ActionChip icon={<Brain theme='outline' size='14' fill='currentColor' />} label={acpButtonLabel} />
       </Tooltip>
     );

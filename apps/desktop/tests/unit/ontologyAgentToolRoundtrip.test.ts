@@ -5,30 +5,45 @@ import os from 'node:os';
 import http from 'node:http';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
+import { buildOntologyArtifact } from '@sudowork/ontology-runtime/artifact';
+import { createDefaultOntologyWorkbenchSnapshot } from '@sudowork/ontology-common';
 import { expect, it } from 'vitest';
-import { findScodeSessionFile } from '@process/task/acpUsageReconciliation';
-import { repairOntologyToolHistory } from '@process/services/ontology/ontologyToolHistory';
-import { ONTOLOGY_RUNTIME_MCP_NAME, ONTOLOGY_TOOL_PREFIX } from '@process/services/ontology/ontologyToolNames';
 
 const binary = process.env.SUDOCODE_TEST_BINARY || path.join(os.homedir(), '.nexus/sudowork/sudocode/scode');
 
 it.skipIf(!existsSync(binary))(
-  'round-trips ontology tools and restored history through real Sudocode and a local model endpoint',
+  'round-trips ontology scripts through the native shell and restores history without MCP',
   async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ontology-agent-roundtrip-'));
     const workspace = path.join(root, 'workspace');
     const config = path.join(root, 'config');
     await fs.mkdir(workspace);
     await fs.mkdir(config);
-    const exportFile = path.join(root, 'published.json');
-    await fs.writeFile(
-      exportFile,
-      JSON.stringify({
-        workspaceId: 'northwind',
-        title: 'Northwind',
-        versions: [{ id: 'v3', version: 'v3', status: 'published', snapshot: { objects: [], relations: [], mappings: [], qualityRules: [], actions: [], logicFunctions: [{ id: 'lookup', code: 'product_lookup', name: 'Products', status: 'active', parameters: [] }] } }],
-      })
-    );
+    const snapshot = createDefaultOntologyWorkbenchSnapshot(1, { workspaceId: 'northwind', title: 'Northwind' });
+    snapshot.logicFunctions = [
+      {
+        id: 'lookup',
+        code: 'product_lookup',
+        name: 'Products',
+        displayName: 'Products',
+        description: 'Product lookup',
+        displayDescription: 'Product lookup',
+        runtime: 'typescript',
+        objectIds: [],
+        signature: 'lookup()',
+        returnType: 'object[]',
+        body: 'return [];',
+        parameters: [],
+        configuration: {},
+        origin: 'manual',
+        status: 'active',
+        executionCount: 0,
+        updatedAt: 1,
+      },
+    ];
+    const artifact = await buildOntologyArtifact(snapshot, { root: path.join(root, 'artifacts'), cliFile: path.resolve(__dirname, '../../resources/ontology-cli/ontology.cjs') });
+    const shellCommand = [process.execPath, path.join(artifact.directory, 'scripts/ontology.cjs'), 'list', '--package', artifact.directory].map((value) => JSON.stringify(value)).join(' ');
+    let selectedTool = '';
     const requests: Array<Record<string, any>> = [];
     const provider = http.createServer(async (req, res) => {
       if (req.method !== 'POST') {
@@ -44,9 +59,11 @@ it.skipIf(!existsSync(binary))(
         res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: { type: 'invalid_request_error', message: 'Tool name exceeds 64 characters' } }));
         return;
       }
-      const toolName = `${ONTOLOGY_TOOL_PREFIX}ontology_list_logic`;
+      const shellTool = (body.tools || []).find((tool: any) => /^bash$/i.test(tool.function?.name || '') && tool.function?.parameters?.properties?.command);
+      if (shellTool) selectedTool = shellTool.function.name;
+      const toolName = selectedTool;
       const isToolCall = requests.length === 1;
-      const delta = isToolCall ? { role: 'assistant', tool_calls: [{ index: 0, id: 'call-ontology', type: 'function', function: { name: toolName, arguments: '{}' } }] } : { role: 'assistant', content: 'Northwind product_lookup is available.' };
+      const delta = isToolCall ? { role: 'assistant', tool_calls: [{ index: 0, id: 'call-ontology', type: 'function', function: { name: toolName, arguments: JSON.stringify({ command: shellCommand }) } }] } : { role: 'assistant', content: 'Northwind product_lookup is available.' };
       res.writeHead(200, { 'Content-Type': 'text/event-stream' });
       res.write(`data: ${JSON.stringify({ id: 'completion', object: 'chat.completion.chunk', model: 'auto', choices: [{ index: 0, delta, finish_reason: null }] })}\n\n`);
       res.end(`data: ${JSON.stringify({ id: 'completion', object: 'chat.completion.chunk', model: 'auto', choices: [{ index: 0, delta: {}, finish_reason: isToolCall ? 'tool_calls' : 'stop' }], usage: { prompt_tokens: 100, completion_tokens: 10, total_tokens: 110 } })}\n\ndata: [DONE]\n\n`);
@@ -62,17 +79,7 @@ it.skipIf(!existsSync(binary))(
         models: { auto: { alias: 'auto', name: 'Fixture', input: ['text'], providers: { proxy: { provider: 'sudorouter', model: 'auto', api: 'openai-completions' } } } },
       })
     );
-    const mcpServers = [
-      {
-        name: ONTOLOGY_RUNTIME_MCP_NAME,
-        command: process.execPath,
-        args: [path.resolve(__dirname, '../../resources/ontology-mcp/index.js')],
-        env: [
-          { name: 'ONTOLOGY_EXPORT_FILE', value: exportFile },
-          { name: 'ONTOLOGY_VERSION_ID', value: 'v3' },
-        ],
-      },
-    ];
+    const mcpServers: unknown[] = [];
 
     function start() {
       const child = spawn(binary, ['--auth', 'proxy', '--model', 'auto', 'acp'], {
@@ -137,19 +144,17 @@ it.skipIf(!existsSync(binary))(
       const { sessionId } = await agent.request('session/new', { cwd: workspace, mcpServers });
       expect(await agent.request('session/prompt', { sessionId, prompt: [{ type: 'text', text: 'List Northwind logic functions.' }] })).toMatchObject({ stopReason: 'end_turn' });
       expect(requests).toHaveLength(2);
-      expect(requests[1].messages.some((message: any) => message.role === 'tool' && JSON.stringify(message).includes('product_lookup'))).toBe(true);
+      expect(
+        requests[1].messages.some((message: any) => message.role === 'tool' && JSON.stringify(message).includes('product_lookup')),
+        JSON.stringify({ selectedTool, tools: requests[0].tools.map((tool: any) => ({ name: tool.function?.name, properties: Object.keys(tool.function?.parameters?.properties || {}) })), responses: requests[1].messages.filter((message: any) => message.role === 'tool') })
+      ).toBe(true);
       await agent.close();
-      const transcript = (await findScodeSessionFile(workspace, sessionId))!;
-      const blueprint = 'cabd46a93f34fbd80278da616e504bf5';
-      const oldName = `mcp__ontology-${blueprint}__ontology_list_logic`;
-      await fs.writeFile(transcript, (await fs.readFile(transcript, 'utf8')).replaceAll(`${ONTOLOGY_TOOL_PREFIX}ontology_list_logic`, oldName));
-      expect(await repairOntologyToolHistory({ workspace, acpSessionId: sessionId }, blueprint, { ontology_list_logic: 'ontology_list_logic' })).toBeGreaterThan(0);
       agent = start();
       await agent.request('initialize', { protocolVersion: 1, clientCapabilities: {} });
       await agent.request('session/load', { sessionId, cwd: workspace, mcpServers });
       expect(await agent.request('session/prompt', { sessionId, prompt: [{ type: 'text', text: 'Continue with the same ontology.' }] })).toMatchObject({ stopReason: 'end_turn' });
       expect(requests).toHaveLength(3);
-      expect(requests[2].messages.flatMap((message: any) => message.tool_calls || []).map((call: any) => call.function.name)).toContain(`${ONTOLOGY_TOOL_PREFIX}ontology_list_logic`);
+      expect(requests[2].messages.flatMap((message: any) => message.tool_calls || []).map((call: any) => call.function.name)).toContain(selectedTool);
     } finally {
       await agent.close();
       await new Promise<void>((resolve) => provider.close(() => resolve()));

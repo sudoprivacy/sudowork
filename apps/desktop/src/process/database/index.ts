@@ -20,9 +20,9 @@ import { rowToChannelUser, rowToChannelSession, rowToPairingRequest } from '@/ch
 import { runMigrations as executeMigrations } from './migrations';
 import { isCorruptDatabaseFileError } from './corruptionError';
 import { CURRENT_DB_VERSION, getDatabaseVersion, initSchema, setDatabaseVersion } from './schema';
-import type { IConversationRow, IMessageRow, IPaginatedResult, IQueryResult, IUser, TChatConversation, TMessage } from './types';
+import type { IConversationRow, IConversationUpdateOptions, IMessageRow, IPaginatedResult, IQueryResult, IUser, TChatConversation, TMessage } from './types';
 import { readWorkspacePathsForUser } from './workspaceQueries';
-import { conversationToRow, messageToRow, rowToConversation, rowToMessage } from './types';
+import { conversationToRow, messageToRow, resolveConversationUpdateTime, rowToConversation, rowToMessage } from './types';
 
 type LocalKbRow = Record<string, unknown>;
 
@@ -991,7 +991,7 @@ export class SudoworkDatabase {
     }
   }
 
-  updateConversation(conversationId: string, updates: Partial<TChatConversation>): IQueryResult<boolean> {
+  updateConversation(conversationId: string, updates: Partial<TChatConversation>, options?: IConversationUpdateOptions): IQueryResult<boolean> {
     try {
       const existing = this.getConversation(conversationId);
       if (!existing.success || !existing.data) {
@@ -1004,7 +1004,7 @@ export class SudoworkDatabase {
       const updated = {
         ...existing.data,
         ...updates,
-        modifyTime: Date.now(),
+        modifyTime: options?.preserveModifyTime ? resolveConversationUpdateTime(updates.modifyTime, existing.data.modifyTime) : Date.now(),
       } as TChatConversation;
       const row = conversationToRow(updated, this.defaultUserId);
 

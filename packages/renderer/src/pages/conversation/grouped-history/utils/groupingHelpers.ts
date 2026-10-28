@@ -6,7 +6,8 @@
 
 import type { ICronJob } from '@sudowork/host-bridge/ipcBridge';
 import type { TChatConversation } from '@sudowork/common/storage';
-import { isPersonalAgentRef, type IMyAgent } from '@sudowork/common/personalAgents';
+import { getAgentExecutionType, isLocalPersonalAgentRef, isPersonalAgentRef, type AgentExecutionType, type IMyAgent } from '@sudowork/common/personalAgents';
+import { resolveConversationExecutionTarget } from '@sudowork/common/mossExecution';
 import { getActivityTime, getTimelineLabel } from '@renderer/utils/timeline';
 import { getWorkspaceDisplayName } from '@renderer/utils/workspace';
 import { getWorkspaceUpdateTime } from '@renderer/utils/workspaceHistory';
@@ -14,6 +15,8 @@ import { compareConversationsByLatestActivity, getConversationAgentRef } from '.
 
 import type { AgentGroup, ConversationItem, GroupedHistoryResult, ScheduledGroup, SidebarTabKey, TimelineItem, TimelineSection, WorkspaceGroup } from '../types';
 import { getConversationSortOrder } from './sortOrderHelpers';
+
+export const isConversationArchived = (conversation: ConversationItem): boolean => conversation.extra?.archived === true;
 
 export const getConversationTimelineLabel = (conversation: ConversationItem, t: (key: string) => string): string => {
   const time = getActivityTime(conversation as TChatConversation);
@@ -129,7 +132,13 @@ export const groupConversationsByTimelineAndWorkspace = (conversations: Conversa
       });
     });
 
-    items.sort((a, b) => b.time - a.time);
+    items.sort((a, b) => {
+      const timeDiff = b.time - a.time;
+      if (timeDiff !== 0) return timeDiff;
+      const idA = a.conversation?.id || a.workspaceGroup?.workspace || '';
+      const idB = b.conversation?.id || b.workspaceGroup?.workspace || '';
+      return idB.localeCompare(idA);
+    });
 
     sections.push({
       timeline,
@@ -233,7 +242,8 @@ export const buildGroupedHistory = (
       if (orderA !== undefined && orderB !== undefined) return orderA - orderB;
       if (orderA !== undefined) return -1;
       if (orderB !== undefined) return 1;
-      return getConversationPinnedAt(b as TChatConversation) - getConversationPinnedAt(a as TChatConversation);
+      const pinnedAtDiff = getConversationPinnedAt(b as TChatConversation) - getConversationPinnedAt(a as TChatConversation);
+      return pinnedAtDiff || b.id.localeCompare(a.id);
     });
 
   // Split pinned into timeline and scheduled tabs based on pinnedTab field.
@@ -271,6 +281,20 @@ export const buildGroupedHistory = (
   return result;
 };
 
+/** Infer missing catalog metadata only when the saved sessions establish one execution type. */
+function resolveHistoricalAgentExecutionType(reference: string, conversations: ConversationItem[]): AgentExecutionType | undefined {
+  if (isLocalPersonalAgentRef(reference)) return 'local';
+  const executionTypes = new Set<AgentExecutionType>();
+  for (const conversation of conversations) {
+    const target = conversation.extra && 'executionTarget' in conversation.extra ? conversation.extra.executionTarget : undefined;
+    const backend = conversation.extra?.backend;
+    const isKnownTarget = target === 'local' || target === 'remote' || conversation.type === 'acp' || conversation.type === 'remote-agent' || backend === 'scode' || backend === 'remote-agent';
+    if (!isKnownTarget) return undefined;
+    executionTypes.add(resolveConversationExecutionTarget(conversation) === 'local' ? 'local' : 'server');
+  }
+  return executionTypes.size === 1 ? [...executionTypes][0] : undefined;
+}
+
 /** Group persistent Agent identities using the catalog and saved management context. */
 export const groupConversationsByAgent = (conversations: ConversationItem[], agents: IMyAgent[]): AgentGroup[] => {
   const byRef = new Map<string, ConversationItem[]>();
@@ -287,6 +311,7 @@ export const groupConversationsByAgent = (conversations: ConversationItem[], age
     ref: agent.ref,
     displayName: agent.displayName,
     kind: agent.kind,
+    executionType: isLocalPersonalAgentRef(agent.ref) ? 'local' : getAgentExecutionType(agent),
     conversations: (byRef.get(agent.ref) ?? []).sort(compareConversationsByLatestActivity),
   }));
 
@@ -299,6 +324,7 @@ export const groupConversationsByAgent = (conversations: ConversationItem[], age
       ref,
       displayName: management?.displayName || savedName || '',
       kind: management ? 'managed' : 'own',
+      executionType: resolveHistoricalAgentExecutionType(ref, bucket),
       conversations: bucket.sort(compareConversationsByLatestActivity),
     });
   }

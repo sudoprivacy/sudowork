@@ -15,6 +15,13 @@ beforeEach(() => {
 });
 
 describe('installed template references in managed conversations', () => {
+  it('rejects local personal identities before resolving or contacting Moss', async () => {
+    await expect(resolveMossCatalogSelection('sudowork-agent:local:22222222-2222-4222-8222-222222222222')).rejects.toThrow('Local Agents cannot use server execution');
+    expect(state.personal).not.toHaveBeenCalled();
+    expect(state.request).not.toHaveBeenCalled();
+    expect(state.list).not.toHaveBeenCalled();
+  });
+
   it('preserves an installed private template without fetching unrelated catalogs', async () => {
     expect(await resolveMossCatalogSelection(templateId)).toEqual({ assistantReference: templateId, skillReferences: [], selected: [], unresolved: [templateId] });
     expect(state.request).toHaveBeenCalledWith('/api/v1/agent-templates/installed');

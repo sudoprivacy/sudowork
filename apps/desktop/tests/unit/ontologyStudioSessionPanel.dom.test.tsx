@@ -8,13 +8,14 @@ import { MemoryRouter } from 'react-router-dom';
 import StudioConversationPanel from '@renderer/pages/ontology/StudioConversationPanel';
 import locale from '../../../../packages/renderer/src/i18n/locales/zh-CN/ontology.json';
 
-const bridge = vi.hoisted(() => ({ list: vi.fn(), create: vi.fn(), register: vi.fn(), prepare: vi.fn(), get: vi.fn(), update: vi.fn(), remove: vi.fn(), listeners: new Set<(event: { workspaceId: string }) => void>() }));
+const bridge = vi.hoisted(() => ({ review: vi.fn(), list: vi.fn(), create: vi.fn(), register: vi.fn(), prepare: vi.fn(), get: vi.fn(), update: vi.fn(), remove: vi.fn(), listeners: new Set<(event: { workspaceId: string }) => void>() }));
 vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
+  ontology: { openReview: { invoke: bridge.review } },
   conversation: { create: { invoke: bridge.create }, get: { invoke: bridge.get }, update: { invoke: bridge.update } },
   ontologyAiBuilder: {
     listSessions: { invoke: bridge.list },
     createSession: { invoke: bridge.register },
-    ensureBuilderMcp: { invoke: bridge.prepare },
+    prepareProject: { invoke: bridge.prepare },
     deleteSession: { invoke: bridge.remove },
     sessionsChanged: {
       on: (callback: (event: { workspaceId: string }) => void) => {
@@ -25,15 +26,22 @@ vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
   },
 }));
 vi.mock('@renderer/pages/conversation/acp/AcpChat', () => ({ default: ({ conversation_id }: { conversation_id: string }) => <div data-testid='ready-conversation'>{conversation_id}</div> }));
+vi.mock('@renderer/pages/conversation/ChatConversation', () => ({
+  default: ({ conversation, children }: React.PropsWithChildren<{ conversation: { id: string } }>) => (
+    <section aria-label={`Shared conversation ${conversation.id}`} data-custom-send={children != null}>
+      {children ?? <div data-testid='ready-conversation'>{conversation.id}</div>}
+    </section>
+  ),
+}));
 const i18n = createInstance();
 void i18n.init({ lng: 'zh-CN', resources: { 'zh-CN': { translation: { ontology: locale } } }, interpolation: { escapeValue: false } });
 const session = { id: 'registry', workspaceId: 'northwind', conversationId: 'northwind-chat', title: 'Northwind本体', createdAt: 1, updatedAt: 1 };
 let sessions: (typeof session)[];
-function mount() {
+function mount(isCanonicalReview = false) {
   return render(
     <I18nextProvider i18n={i18n}>
       <MemoryRouter>
-        <StudioConversationPanel workspaceId='northwind' workspaceName='Northwind本体' />
+        <StudioConversationPanel workspaceId='northwind' workspaceName='Northwind本体' isCanonicalReview={isCanonicalReview} />
       </MemoryRouter>
     </I18nextProvider>
   );
@@ -49,7 +57,7 @@ beforeEach(() => {
     sessions = [session];
     return { success: true, data: session };
   });
-  bridge.prepare.mockResolvedValue({ success: true, data: { mcpConfig: { name: 'ontology-builder' } } });
+  bridge.prepare.mockResolvedValue({ success: true, data: { isReady: true, instructions: 'Use ontology project scripts' } });
   bridge.get.mockResolvedValue({ id: session.conversationId, type: 'acp', extra: { purpose: 'ontology', ontologyId: 'northwind', workspace: '/tmp/northwind', backend: 'scode' } });
   bridge.update.mockResolvedValue(true);
   bridge.remove.mockImplementation(async () => {
@@ -65,6 +73,55 @@ afterEach(() => {
 });
 
 describe('ontology conversation setup', () => {
+  it('uses the regular conversation shell for the selected model session', async () => {
+    mount(true);
+    const shell = await screen.findByRole('region', { name: 'Shared conversation northwind-chat' });
+    expect(within(shell).getByTestId('ready-conversation')).toHaveTextContent('northwind-chat');
+    expect(shell).toHaveAttribute('data-custom-send', 'false');
+  });
+  it('does not open a viewer from a late reply after the project panel closes', async () => {
+    const opened = vi.spyOn(window, 'open').mockReturnValue(null);
+    let complete!: (value: unknown) => void;
+    bridge.review.mockReturnValue(
+      new Promise((resolve) => {
+        complete = resolve;
+      })
+    );
+    const view = mount(true);
+    await screen.findByTestId('ready-conversation');
+    fireEvent.click(screen.getByRole('button', { name: '打开审阅' }));
+    view.unmount();
+    await act(async () => complete({ success: true, data: { surface: 'viewer', conversationId: session.conversationId } }));
+    expect(opened).not.toHaveBeenCalled();
+  });
+  it('opens the checked review for the actual selected conversation without sending credentials', async () => {
+    mount(true);
+    await screen.findByTestId('ready-conversation');
+    let complete!: (value: unknown) => void;
+    bridge.review.mockReturnValue(
+      new Promise((resolve) => {
+        complete = resolve;
+      })
+    );
+    fireEvent.click(screen.getByRole('button', { name: '打开审阅' }));
+    fireEvent.click(screen.getByRole('button', { name: '打开审阅' }));
+    expect(bridge.review).toHaveBeenCalledExactlyOnceWith({ workspaceId: 'northwind', conversationId: session.conversationId });
+    await act(async () => complete({ success: true, data: { surface: 'native', conversationId: session.conversationId } }));
+    expect(screen.queryByRole('button', { name: '审阅浏览器' })).not.toBeInTheDocument();
+  });
+
+  it('opens the existing authenticated viewer route and leaves a user-gesture retry entry', async () => {
+    const opened = vi.spyOn(window, 'open').mockReturnValue(null);
+    bridge.review.mockResolvedValue({ success: true, data: { surface: 'viewer', conversationId: session.conversationId } });
+    mount(true);
+    await screen.findByTestId('ready-conversation');
+    fireEvent.click(screen.getByRole('button', { name: '打开审阅' }));
+    await screen.findByRole('button', { name: '审阅浏览器' });
+    expect(opened).toHaveBeenCalledWith(expect.stringContaining(`#/browser-viewer/${session.conversationId}`), '_blank', 'noopener');
+    fireEvent.click(screen.getByRole('button', { name: '审阅浏览器' }));
+    expect(opened).toHaveBeenCalledTimes(2);
+    expect(bridge.review).toHaveBeenCalledTimes(1);
+  });
   it('automatically creates a same-name default conversation when the workspace opens', async () => {
     mount();
     await screen.findByTestId('ready-conversation');

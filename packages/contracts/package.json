@@ -33,6 +33,11 @@
       "bun": "./src/agent-federation.gen.ts",
       "types": "./dist/agent-federation.gen.d.ts",
       "default": "./dist/agent-federation.gen.js"
+    },
+    "./input-delivery": {
+      "bun": "./src/inputDelivery.ts",
+      "types": "./dist/inputDelivery.d.ts",
+      "default": "./dist/inputDelivery.js"
     }
   },
   "files": [

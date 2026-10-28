@@ -10,6 +10,7 @@ import { spawn } from 'child_process';
 import * as fs from 'node:fs';
 import * as nodePath from 'node:path';
 import { app } from 'electron';
+import type { InputAction, InputDelivery, InputDraft, InputReceipt, InputUpdate } from '@sudowork/contracts/input-delivery';
 import type { IResponseMessage } from '@sudowork/host-bridge/ipcBridge';
 import type { AcpQuestionData, CronMessageMeta, TMessage, TurnTokenUsage } from '@sudowork/common/chatLib';
 import { transformMessage } from '@sudowork/common/chatLib';
@@ -318,6 +319,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         },
         pauseTools: async () => {
           this.userCancelled = true;
+          this.cancelPendingUserRequests();
           const ticket = await connection.pauseTools();
           let timeout: ReturnType<typeof setTimeout> | undefined;
           try {
@@ -367,6 +369,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
   // ========== Connection Lifecycle ==========
 
   private setupConnectionHandlers(): void {
+    this.connection.onInputUpdate = (update) => this.onInputUpdate(update);
     this.connection.onSessionUpdate = (data: AcpSessionUpdate) => {
       this.handleSessionUpdate(data);
     };
@@ -388,6 +391,46 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     this.connection.onDisconnect = (error) => {
       this.handleDisconnect(error);
     };
+  }
+
+  private inputTurnId: number | null = null;
+  private inputEpoch = 0;
+  private pendingInputBubbles = new Map<string, () => void>();
+  private turnGeneration = 0;
+  private isCancelNoticeEmitted = false;
+
+  private onInputUpdate(update: InputUpdate): void {
+    if (update.kind === 'state') {
+      const state = update.state;
+      if (state.activeTurnId !== null && state.activeTurnId !== this.inputTurnId) {
+        this.beginTurnState();
+        this.adapter.resetMessageTracking();
+        this.streamedContextErrorBuffer = '';
+        ipcBridge.acpConversation.responseStream.emit({ type: 'start', conversation_id: this.conversation_id, msg_id: uuid(), data: { processingStartTime: this.processingStartTime } });
+      }
+      this.inputTurnId = state.activeTurnId;
+      ipcBridge.conversation.inputQueueUpdate.emit({ conversation_id: this.conversation_id, state });
+    } else if (update.kind === 'committed') {
+      if (update.source === 'human') {
+        this.lastUserMessage = update.display;
+        this.isFirstMessage = false;
+      }
+      this.pendingInputBubbles.get(update.clientId)?.();
+      this.pendingInputBubbles.delete(update.clientId);
+    } else if (update.kind === 'turn_complete') {
+      const { costUnits, costCurrency, ...usage } = update.usage;
+      this.handlePromptUsage({ ...usage, ...(costUnits !== null && { costUnits }), ...(costCurrency !== null && { costCurrency }) });
+      if (update.stopReason === 'cancelled') {
+        this.flushThinkFilters();
+        this.streamTextBuffer.flushAll();
+        this.cancelPendingUserRequests();
+        this.emitUserCancelledMessage();
+      }
+      this.userCancelled = update.stopReason === 'cancelled';
+      void this.handleEndTurn();
+    } else {
+      this.emitErrorMessage(update.message);
+    }
   }
 
   initAgent(data: AcpAgentData = this.options): Promise<void> {
@@ -601,6 +644,10 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         } catch (error) {
           mainWarn('[AcpAgent]', `scode: forced setModel failed: ${error instanceof Error ? error.message : String(error)}`);
         }
+      }
+
+      if (this.connection.isInputDeliverySupported) {
+        await this.connection.controlInput({ action: 'snapshot' });
       }
 
       // Cache model list for Guid page
@@ -839,25 +886,9 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     return this.lastTurnProseText;
   }
 
-  sendMessage(data: Parameters<AcpAgent['performMessage']>[0]) {
-    const pending = this.performMessage(data);
-    this.toolControlTurns.add(pending);
-    void pending.finally(() => this.toolControlTurns.delete(pending)).catch(() => {});
-    return pending;
-  }
-
-  private async performMessage(data: { content: string; files?: string[]; msg_id?: string; cronMeta?: CronMessageMeta; skills?: string[]; hiddenPromptPrefix?: string; suppressUserBubble?: boolean }): Promise<{
-    success: boolean;
-    msg?: string;
-    message?: string;
-  }> {
-    const toolEpoch = localAgentToolControl.assertCanPrompt();
-    this.turnToolEpoch = toolEpoch;
-    const managerSendStart = Date.now();
-    if (ProcessConfig.getSync('eeclaw.accountScope')) {
-      const { assertMossLocalExecutionAllowed } = await import('@process/services/mossLocalRuntime');
-      await assertMossLocalExecutionAllowed();
-    }
+  private beginTurnState(): void {
+    this.turnGeneration += 1;
+    this.isCancelNoticeEmitted = false;
     cronBusyGuard.setProcessing(this.conversation_id, true);
     this.status = 'running';
     this.processingStartTime = Date.now();
@@ -887,25 +918,68 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     this.customSkillsSnapshot = this.getCustomSkillNames();
     mainLog('[AcpAgent]', `[TURN-START] Reset file tracking, snapshot size: ${this.workspaceFileSnapshot.size}`);
 
+    // Start telemetry conversation tracking
+    const modelInfo = this.getModelInfo();
+    const modelId = modelInfo?.currentModelId || this.persistedModelId || 'unknown';
+    const modelProvider = this.options.backend;
+    startConversationTracking(this.conversation_id, modelId, modelProvider);
+
+    // Start telemetry turn tracking
+    startTurnTracking(this.conversation_id, modelId, modelProvider, this.options.backend);
+
+    // Breadcrumb: conversation started
+    conversationBreadcrumbs.start(this.conversation_id, modelId, modelProvider);
+  }
+
+  /** GUI input uses the agent's queue; this method returns at admission. */
+  async submitInput(data: Parameters<AcpAgent['performMessage']>[0]) {
+    const inputEpoch = this.inputEpoch;
+    await this.initAgent(this.options);
+    if (!this.connection.isInputDeliverySupported) return { success: false, msg: 'This agent does not support input delivery control' };
+    if (/^\s*[!/]/.test(data.content)) {
+      if (this.connection.inputDeliveryState?.running) return { success: false, msg: 'busy' };
+      return this.sendMessage({ ...data, delivery: undefined });
+    }
+    return this.sendMessage({ ...data, inputEpoch, delivery: data.delivery ?? 'steer' });
+  }
+
+  async controlInput(action: InputAction): Promise<InputReceipt | null> {
+    await this.initAgent(this.options);
+    if (!this.connection.isInputDeliverySupported) return null;
+    const receipt = await this.connection.controlInput(action);
+    for (const item of receipt.recalled ?? []) this.pendingInputBubbles.delete(item.clientId);
+    return receipt;
+  }
+
+  sendMessage(data: Parameters<AcpAgent['performMessage']>[0]) {
+    const pending = this.performMessage(data);
+    this.toolControlTurns.add(pending);
+    void pending.finally(() => this.toolControlTurns.delete(pending)).catch(() => {});
+    return pending;
+  }
+
+  private async performMessage(data: { inputEpoch?: number; delivery?: InputDelivery; content: string; agentContent?: string; files?: string[]; msg_id?: string; cronMeta?: CronMessageMeta; skills?: string[]; hiddenPromptPrefix?: string; suppressUserBubble?: boolean }): Promise<{
+    success: boolean;
+    msg?: string;
+    message?: string;
+  }> {
+    const inputEpoch = data.inputEpoch ?? this.inputEpoch;
+    const toolEpoch = localAgentToolControl.assertCanPrompt();
+    this.turnToolEpoch = toolEpoch;
+    const managerSendStart = Date.now();
+    if (ProcessConfig.getSync('eeclaw.accountScope')) {
+      const { assertMossLocalExecutionAllowed } = await import('@process/services/mossLocalRuntime');
+      await assertMossLocalExecutionAllowed();
+    }
+    if (!data.delivery) this.beginTurnState();
+
     try {
       // Apply prompt timeout from config before sending
       this.applyPromptTimeoutFromConfig();
 
-      // Start telemetry conversation tracking
-      const modelInfo = this.getModelInfo();
-      const modelId = modelInfo?.currentModelId || this.persistedModelId || 'unknown';
-      const modelProvider = this.options.backend;
-      startConversationTracking(this.conversation_id, modelId, modelProvider);
-
-      // Start telemetry turn tracking
-      startTurnTracking(this.conversation_id, modelId, modelProvider, this.options.backend);
-
-      // Breadcrumb: conversation started
-      conversationBreadcrumbs.start(this.conversation_id, modelId, modelProvider);
-
       // Store user's message for file-sending intent detection
       // 存储用户消息用于检测文件发送意图
-      if (data.content) {
+      if (data.content && !data.delivery) {
         this.lastUserMessage = data.content;
         console.log(`[AcpAgent] Stored lastUserMessage: "${data.content.substring(0, 100)}..."`);
       }
@@ -932,34 +1006,40 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
             },
             createdAt: Date.now(),
           };
-          addMessage(this.conversation_id, userMessage);
-          let responseData: any = displayContent;
-          if (data.cronMeta || (data.skills && data.skills.length > 0)) {
-            responseData = {
-              content: displayContent,
-              ...(data.cronMeta && { cronMeta: data.cronMeta }),
-              ...(data.skills && data.skills.length > 0 && { skills: data.skills }),
-            };
-          }
+          const publishUser = () => {
+            addMessage(this.conversation_id, userMessage);
+            let responseData: any = displayContent;
+            if (data.cronMeta || (data.skills && data.skills.length > 0)) {
+              responseData = {
+                content: displayContent,
+                ...(data.cronMeta && { cronMeta: data.cronMeta }),
+                ...(data.skills && data.skills.length > 0 && { skills: data.skills }),
+              };
+            }
 
-          const userResponseMessage: IResponseMessage = {
-            type: 'user_content',
-            conversation_id: this.conversation_id,
-            msg_id: data.msg_id,
-            data: responseData,
+            const userResponseMessage: IResponseMessage = {
+              type: 'user_content',
+              conversation_id: this.conversation_id,
+              msg_id: data.msg_id,
+              data: responseData,
+            };
+            ipcBridge.acpConversation.responseStream.emit(userResponseMessage);
           };
-          ipcBridge.acpConversation.responseStream.emit(userResponseMessage);
+          if (data.delivery) this.pendingInputBubbles.set(data.msg_id, publishUser);
+          else publishUser();
         }
       }
 
       // Emit start event before async initAgent so frontend loading state
       // is set immediately, without waiting for the connection to be ready.
-      ipcBridge.acpConversation.responseStream.emit({
-        type: 'start',
-        conversation_id: this.conversation_id,
-        msg_id: data.msg_id || uuid(),
-        data: { processingStartTime: this.processingStartTime },
-      });
+      if (!data.delivery) {
+        ipcBridge.acpConversation.responseStream.emit({
+          type: 'start',
+          conversation_id: this.conversation_id,
+          msg_id: data.msg_id || uuid(),
+          data: { processingStartTime: this.processingStartTime },
+        });
+      }
 
       // Intercept /model slash command locally so model switching does not depend on backend command support.
       const modelMatch = data.content.trim().match(/^\/model(?:\s+(.*))?$/);
@@ -981,7 +1061,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
 
       // Intercept channel query intent (natural language)
       const channelQueryCommand = detectChannelQueryIntent(data.content);
-      if (channelQueryCommand) {
+      if (channelQueryCommand && !data.delivery) {
         return await this.handleChannelQueryIntent(channelQueryCommand);
       }
 
@@ -1097,7 +1177,7 @@ This identity statement takes priority over the default identity in USER.md.
       }
 
       if (data.msg_id && data.content) {
-        let contentToSend = data.content;
+        let contentToSend = data.agentContent ?? data.content;
         if (contentToSend.includes(NEXUS_FILES_MARKER)) {
           contentToSend = contentToSend.split(NEXUS_FILES_MARKER)[0].trimEnd();
         }
@@ -1261,9 +1341,9 @@ This identity statement takes priority over the default identity in USER.md.
         contentToSend = applyHiddenPromptPrefix(contentToSend, data.hiddenPromptPrefix);
 
         const agentSendStart = Date.now();
-        const result = await this.sendToConnection(contentToSend, data.msg_id, finalImages, true, toolEpoch);
+        const result = await this.sendToConnection(contentToSend, data.msg_id, finalImages, true, toolEpoch, data.delivery ? { epoch: inputEpoch, delivery: data.delivery, draft: { text: data.content, files: data.files, skills: data.skills } } : undefined);
         if (ACP_PERF_LOG) mainLog('ACP-PERF', `manager: sendMessage completed ${Date.now() - agentSendStart}ms (total: ${Date.now() - managerSendStart}ms)`);
-        if (this.isFirstMessage) {
+        if (this.isFirstMessage && result.success && !data.delivery) {
           this.isFirstMessage = false;
         }
         // Handle sendToConnection error result (not thrown)
@@ -1278,7 +1358,7 @@ This identity statement takes priority over the default identity in USER.md.
         return result;
       }
       const agentSendStart = Date.now();
-      const result = await this.sendToConnection(data.content, data.msg_id, undefined, true, toolEpoch);
+      const result = await this.sendToConnection(data.agentContent ?? data.content, data.msg_id, undefined, true, toolEpoch, data.delivery ? { epoch: inputEpoch, delivery: data.delivery, draft: { text: data.content, files: data.files, skills: data.skills } } : undefined);
       if (ACP_PERF_LOG) mainLog('ACP-PERF', `manager: sendMessage completed ${Date.now() - agentSendStart}ms (total: ${Date.now() - managerSendStart}ms)`);
       // Handle sendToConnection error result (not thrown)
       if (!result.success) {
@@ -1291,7 +1371,7 @@ This identity statement takes priority over the default identity in USER.md.
       }
       return result;
     } catch (e) {
-      this.finishTurnState();
+      if (!data.delivery) this.finishTurnState();
 
       // Telemetry: end conversation tracking (error)
       const errorMsg = e instanceof Error ? e.message : String(e);
@@ -1397,7 +1477,7 @@ This identity statement takes priority over the default identity in USER.md.
     }
   }
 
-  private async sendToConnection(content: string, msg_id?: string, images?: Array<{ type: 'image'; data: string; mimeType: string }>, skipStart?: boolean, toolEpoch = this.turnToolEpoch): Promise<AcpResult> {
+  private async sendToConnection(content: string, msg_id?: string, images?: Array<{ type: 'image'; data: string; mimeType: string }>, skipStart?: boolean, toolEpoch = this.turnToolEpoch, input?: { epoch: number; delivery: InputDelivery; draft: InputDraft }): Promise<AcpResult> {
     const sendStart = Date.now();
     try {
       if (!this.connection.isConnected || !this.connection.hasActiveSession) {
@@ -1428,12 +1508,14 @@ This identity statement takes priority over the default identity in USER.md.
         });
       }
 
-      this.adapter.resetMessageTracking();
-      this.streamedContextErrorBuffer = '';
+      if (!input) {
+        this.adapter.resetMessageTracking();
+        this.streamedContextErrorBuffer = '';
+      }
       let processedContent = content;
 
       // Re-assert model override
-      if (this.userModelOverride) {
+      if (this.userModelOverride && (!input || !this.connection.inputDeliveryState?.running)) {
         const currentInfo = this.getModelInfo();
         if (currentInfo?.currentModelId !== this.userModelOverride) {
           try {
@@ -1471,7 +1553,15 @@ This identity statement takes priority over the default identity in USER.md.
         processedContent =
           '[SudoWork shared browser] Use the sudowork-browser MCP tools for browser tasks so you and the user share the same browser, profile and tab. Desktop defaults to standalone CDP; choose extension explicitly when needed. Choose headless or headful from the task. Request explicit handoff for manual login. Never bypass human control using a shell, a separate browser or a different connection.\n\n' +
           processedContent;
-      await this.connection.sendPrompt(processedContent, images, msg_id);
+      if (input) {
+        if (input.epoch !== this.inputEpoch) {
+          if (msg_id) this.pendingInputBubbles.delete(msg_id);
+          throw new Error('Input was cancelled before delivery');
+        }
+        await this.connection.controlInput({ action: 'submit', clientId: msg_id || uuid(), delivery: input.delivery, display: input.draft.text, draft: input.draft, content: [{ type: 'text', text: processedContent }, ...(images || [])] });
+      } else {
+        await this.connection.sendPrompt(processedContent, images, msg_id);
+      }
       if (ACP_PERF_LOG) mainLog('ACP-PERF', `send: sendPrompt completed ${Date.now() - promptStart}ms (total send: ${Date.now() - sendStart}ms)`);
 
       // Breadcrumb: API response success
@@ -1481,6 +1571,7 @@ This identity statement takes priority over the default identity in USER.md.
       return { success: true, data: null };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
+      if (input) return { success: false, error: createAcpError(AcpErrorType.UNKNOWN, errorMsg, false) };
       this.logAgentError('sendToConnection failed', error, { msg_id });
       if (errorMsg.includes('Internal error') && this.extra.backend === 'qwen') {
         const enhancedMsg = `Qwen ACP Internal Error: This usually means authentication failed or ` + `the Qwen CLI has compatibility issues. Please try: 1) Restart the application ` + `2) Use 'npx @qwen-code/qwen-code' instead of global qwen 3) Check if you have valid Qwen credentials.`;
@@ -1792,10 +1883,11 @@ This identity statement takes priority over the default identity in USER.md.
   }
 
   async stop(): Promise<void> {
+    this.inputEpoch += 1;
     if (this.stopPromise) {
       return this.stopPromise;
     }
-    if (!this.turnActive) {
+    if (!this.turnActive && !this.connection.inputDeliveryState?.pending.length) {
       return;
     }
 
@@ -1803,6 +1895,30 @@ This identity statement takes priority over the default identity in USER.md.
       this.stopPromise = null;
     });
     return this.stopPromise;
+  }
+
+  /** Cancel native prompts before an acknowledged stop or browser takeover. */
+  private cancelPendingUserRequests(): void {
+    // ACP clients must answer pending requests when cancelling a turn.
+    for (const [_callId, pending] of this.pendingPermissions) {
+      pending.reject(new Error('Cancelled'));
+    }
+    this.pendingPermissions.clear();
+    for (const [, pending] of this.pendingQuestions) {
+      this.emitQuestionCancelled(pending.msgId);
+      pending.reject(new Error('Cancelled'));
+    }
+    this.pendingQuestions.clear();
+    this.permissionRequestMeta.clear();
+
+    // Remove the corresponding confirmation UI as part of the same stop.
+    for (const confirmation of this.confirmations) {
+      ipcBridge.conversation.confirmation.remove.emit({
+        conversation_id: this.conversation_id,
+        id: confirmation.id,
+      });
+    }
+    this.confirmations = [];
   }
 
   private async performStop(): Promise<void> {
@@ -1822,31 +1938,10 @@ This identity statement takes priority over the default identity in USER.md.
     this.flushThinkFilters();
     this.streamTextBuffer.flushAll();
 
-    // 2. Respond to pending permission requests with Cancelled
-    //    (ACP spec: client MUST do this when cancelling)
-    for (const [_callId, pending] of this.pendingPermissions) {
-      pending.reject(new Error('Cancelled'));
-    }
-    this.pendingPermissions.clear();
-    for (const [, pending] of this.pendingQuestions) {
-      this.emitQuestionCancelled(pending.msgId);
-      pending.reject(new Error('Cancelled'));
-    }
-    this.pendingQuestions.clear();
-    this.permissionRequestMeta.clear();
+    this.cancelPendingUserRequests();
 
-    // 3. Clear confirmation UI
-    for (const confirmation of this.confirmations) {
-      ipcBridge.conversation.confirmation.remove.emit({
-        conversation_id: this.conversation_id,
-        id: confirmation.id,
-      });
-    }
-    this.confirmations = [];
-
-    // 4. Cancel the current turn. If the backend doesn't acknowledge quickly,
+    // Cancel the current turn. If the backend does not acknowledge quickly,
     // force disconnect to stop the process.
-    // 取消当前 turn。如果后端不及时响应，强制断开连接以停止进程。
     let result: 'cancelled' | 'abandoned' | 'disconnected';
     try {
       result = await this.connection.cancel(5000); // 5 seconds timeout
@@ -1854,8 +1949,7 @@ This identity statement takes priority over the default identity in USER.md.
       result = 'disconnected';
     }
 
-    // If backend didn't acknowledge cancel or abandoned, force disconnect
-    // 如果后端没有确认取消或放弃，强制断开连接
+    // If backend did not acknowledge cancel or abandoned, force disconnect.
     if (result === 'abandoned' || result === 'disconnected') {
       mainLog('[AcpAgent]', `Backend cancel result: ${result}, forcing disconnect`);
       await this.connection.disconnect();
@@ -1976,6 +2070,10 @@ This identity statement takes priority over the default identity in USER.md.
       return [];
     }
 
+    if (this.connection.isInputDeliverySupported) {
+      const paths = new Map([...turnFiles].map(([key, file]) => [key, file.actualPath]));
+      return this.buildGeneratedFileEntries(paths, turnFiles);
+    }
     this.currentTurnProtectedFinalPaths = this.getCurrentTurnFinalRootPaths(turnFiles);
     this.pendingCurrentTurnPostCleanup = true;
     const archivedPaths = await archiveTurnFiles(this.workspace, turnFiles);
@@ -2363,6 +2461,8 @@ This identity statement takes priority over the default identity in USER.md.
    * 发送用户终止消息（作为 content 类型，会显示在对话历史中）
    */
   private emitUserCancelledMessage(): void {
+    if (this.isCancelNoticeEmitted) return;
+    this.isCancelNoticeEmitted = true;
     // Emit as 'content' type so it appears in conversation history
     // and user can continue the conversation
     const msg: IResponseMessage = {
@@ -3061,6 +3161,7 @@ This identity statement takes priority over the default identity in USER.md.
   }
 
   private handleQuestionRequest(data: AcpQuestionRequest): Promise<{ answers: AcpQuestionResponseAnswer[] }> {
+    if (this.userCancelled) return Promise.reject(new Error('Cancelled'));
     return new Promise((resolve, reject) => {
       const requestId = this.resolveQuestionRequestId(data.toolCallId);
 
@@ -3183,22 +3284,22 @@ This identity statement takes priority over the default identity in USER.md.
    */
   private emitQuestionCancelled(msgId: string): void {
     try {
-      this.emitMessage({
-        id: uuid(),
-        type: 'acp_question',
-        msg_id: msgId,
-        conversation_id: this.conversation_id,
-        createdAt: Date.now(),
-        position: 'left',
-        content: {
-          // Required by AcpQuestionData; the renderer merges partial updates by msg_id.
-          question: '',
-          options: [],
-          conversationId: this.conversation_id,
-          answered: true,
-          cancelled: true,
+      // This is a host lifecycle update after cancellation, not a late agent
+      // message. Preserve the original question when merging the update.
+      const content = {
+        conversationId: this.conversation_id,
+        answered: true,
+        cancelled: true,
+      } as unknown as AcpQuestionData;
+      this.handleStreamEvent(
+        {
+          type: 'acp_question',
+          msg_id: msgId,
+          conversation_id: this.conversation_id,
+          data: content,
         },
-      });
+        true
+      );
     } catch {
       // Best-effort UI hint; never let emit errors mask the underlying rejection.
     }
@@ -3217,6 +3318,7 @@ This identity statement takes priority over the default identity in USER.md.
   }
 
   private async handleEndTurn(): Promise<void> {
+    const generation = this.turnGeneration;
     if (!this.userCancelled) {
       // Telemetry: end turn tracking (success)
       endTurnSuccess(this.conversation_id);
@@ -3239,11 +3341,11 @@ This identity statement takes priority over the default identity in USER.md.
       // 归档必须基于此处锁定的副本，否则竞态下不发交付物标记。
       const turnFiles = new Map(this.currentTurnFiles);
       const finalFiles = this.getCurrentTurnFinalFileSummaries();
-      await this.installTrackedWorkspaceSkills();
+      await this.installTrackedWorkspaceSkills(turnFiles);
       // Archive FIRST, then build the marker from the returned final paths, so
       // the recorded path matches the file's real post-archive location.
       const generatedEntries = await this.archiveCurrentTurnFiles(turnFiles);
-      this.emitFallbackCompletionMessage(finalFiles);
+      if (generation === this.turnGeneration) this.emitFallbackCompletionMessage(finalFiles);
       this.emitGeneratedFilesMarkerMessage(generatedEntries);
     }
 
@@ -3253,16 +3355,16 @@ This identity statement takes priority over the default identity in USER.md.
       msg_id: uuid(),
       data: null,
     };
-    void this.handleSignalEvent(msg);
+    if (generation === this.turnGeneration) void this.handleSignalEvent(msg);
   }
 
-  private async installTrackedWorkspaceSkills(): Promise<void> {
+  private async installTrackedWorkspaceSkills(turnFiles: ReadonlyMap<string, TrackedTurnFile> = this.currentTurnFiles): Promise<void> {
     if (!this.workspace) {
       return;
     }
 
     try {
-      const results = await installWorkspaceSkillsFromTrackedFiles(this.workspace, this.currentTurnFiles, {
+      const results = await installWorkspaceSkillsFromTrackedFiles(this.workspace, turnFiles, {
         getCustomSkillsDir,
         existingCustomSkillNames: this.customSkillsSnapshot,
         clearSkillsCache,
@@ -3434,6 +3536,8 @@ This identity statement takes priority over the default identity in USER.md.
   }
 
   private handleDisconnect(error: { code: number | null; signal: NodeJS.Signals | null }): void {
+    this.inputTurnId = null;
+    ipcBridge.conversation.inputQueueUpdate.emit({ conversation_id: this.conversation_id, isReset: true });
     if (this.plannedRestartInProgress) {
       mainLog('[AcpAgent]', `Ignoring planned ${this.extra.backend} disconnect during restart (code: ${error.code}, signal: ${error.signal})`);
       this.emitStatusMessage('disconnected');
@@ -3484,9 +3588,9 @@ This identity statement takes priority over the default identity in USER.md.
 
   // ========== Stream & Signal Pipeline (merged from Manager) ==========
 
-  private handleStreamEvent(message: IResponseMessage): void {
+  private handleStreamEvent(message: IResponseMessage, isHostQuestionCancellation = false): void {
     // Ignore messages if user has cancelled
-    if (this.userCancelled) {
+    if (this.userCancelled && !(isHostQuestionCancellation && message.type === 'acp_question' && (message.data as AcpQuestionData | undefined)?.cancelled === true)) {
       mainLog('[AcpAgent]', `Ignoring message after user cancel: type=${message.type}`);
       return;
     }
@@ -3716,7 +3820,7 @@ This identity statement takes priority over the default identity in USER.md.
       });
 
       // Post-cleanup: move intermediate files from workspace root to .drafts/
-      if (this.workspace && shouldRunCurrentTurnPostCleanup(this.pendingCurrentTurnPostCleanup)) {
+      if (this.workspace && !this.connection.isInputDeliverySupported && shouldRunCurrentTurnPostCleanup(this.pendingCurrentTurnPostCleanup)) {
         cleanupIntermediateFiles(this.workspace, { protectedFinalPaths: this.currentTurnProtectedFinalPaths })
           .catch((err) => {
             mainError('AcpAgent', 'Post-cleanup failed:', err);

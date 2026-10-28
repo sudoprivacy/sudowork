@@ -75,5 +75,13 @@
     "yesAlwaysAllowServer": "是，始终允许来自服务器 \"{{serverName}}\" 的所有工具",
     "no": "否 (esc)"
   },
-  "openFileFailed": "无法打开文件，请确认文件仍在当前会话的工作空间中，并检查网络连接。"
+  "openFileFailed": "无法打开文件，请确认文件仍在当前会话的工作空间中，并检查网络连接。",
+  "inputDelivery": {
+    "queue": "已排队",
+    "steer": "待引导",
+    "keys": "Enter：引导 · Tab：排队 · ↑：取回排队输入",
+    "flushHint": "Esc：投递待处理输入",
+    "cancelHint": "Esc / Ctrl+C：取消",
+    "failed": "无法投递输入"
+  }
 }

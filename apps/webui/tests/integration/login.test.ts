@@ -347,6 +347,115 @@ describe('auth routes (real PostgreSQL + fake moss)', () => {
     return parseCookie(response.headers['set-cookie'])
   }
 
+  function memberApp(options: { selectedUserId?: string; isDenied?: boolean } = {}) {
+    const auth: MossAuthPort = {
+      ...createFakeMossAuth(),
+      async organizations() {
+        if (options.isDenied) throw new MossHttpError(403, '', '/api/v1/auth/organizations')
+        return {
+          organizations: [
+            { id: 'org-1', name: 'OPC', userId: 'moss-a', role: 'admin' },
+            { id: 'org-2', name: 'Company', userId: 'company-member', role: 'user' },
+          ],
+        }
+      },
+      async switchOrg(_token, orgId) {
+        if (orgId !== 'org-2')
+          throw new Error('Foreign organization must be rejected before minting a token')
+        return { ...TOKENS_A, access_token: 'member-selected' }
+      },
+      async me(token, baseUrl) {
+        if (token === 'member-selected')
+          return {
+            ...ME_A,
+            user: { id: options.selectedUserId ?? 'company-member', name: 'Human' },
+            organization: { id: 'org-2', name: 'Company' },
+            role: 'user',
+          }
+        return createFakeMossAuth().me(token, baseUrl)
+      },
+    }
+    return buildApp(
+      auth,
+      createMossSessionPort(async () => ({
+        session: {
+          sessionId: 'company-session',
+          orgId: 'org-2',
+          userId: 'company-member',
+          status: 'active',
+        },
+      })),
+    )
+  }
+
+  test('one human selects a company membership through a new HttpOnly cookie with its actual owner identity', async () => {
+    const app = memberApp()
+    const original = await workspaceLogin(app, 'user_a')
+    const available = await request(app).get('/api/auth/organizations').set('Cookie', original)
+    expect(available.status).toBe(200)
+    expect(available.body.organizations.map((org: { id: string }) => org.id)).toEqual([
+      'org-1',
+      'org-2',
+    ])
+    const selected = await request(app)
+      .post('/api/auth/switch-org')
+      .set('Origin', testConfig.publicOrigin)
+      .set('Cookie', original)
+      .send({ orgId: 'org-2' })
+    expect(selected.status).toBe(200)
+    expect(selected.body).toEqual({ ok: true })
+    expect(JSON.stringify(selected.body)).not.toContain('member-selected')
+    const cookie = parseCookie(selected.headers['set-cookie'])
+    expect(cookie).not.toBe(original)
+    const me = await request(app).get('/api/auth/session').set('Cookie', cookie)
+    expect(me.body).toMatchObject({
+      user: { id: 'company-member' },
+      organization: { id: 'org-2' },
+      role: 'user',
+    })
+    expect((await request(app).get('/api/auth/session').set('Cookie', original)).status).toBe(401)
+  })
+
+  test('a member workspace handoff verifies the selected membership owner', async () => {
+    const app = memberApp()
+    const original = await workspaceLogin(app, 'user_a')
+    const response = await request(app)
+      .post('/api/auth/agent-workspace')
+      .set('Origin', testConfig.publicOrigin)
+      .set('Cookie', original)
+      .send({ orgId: 'org-2', sessionId: 'company-session' })
+    expect(response.status).toBe(200)
+    expect(
+      (
+        await request(app)
+          .get('/api/auth/session')
+          .set('Cookie', parseCookie(response.headers['set-cookie']))
+      ).body.user.id,
+    ).toBe('company-member')
+  })
+
+  test.each([
+    { orgId: 'foreign' },
+    { orgId: 'org-2', selectedUserId: 'another-human' },
+    { orgId: 'org-2', isDenied: true },
+  ])(
+    'enterprise selection rejects unavailable membership and preserves the existing cookie: %j',
+    async (options) => {
+      const app = memberApp(options)
+      const original = await workspaceLogin(app, 'user_a')
+      const response = await request(app)
+        .post('/api/auth/switch-org')
+        .set('Origin', testConfig.publicOrigin)
+        .set('Cookie', original)
+        .send({ orgId: options.orgId })
+      expect(response.status).toBe(403)
+      expect(response.headers['set-cookie']).toBeUndefined()
+      expect(
+        (await request(app).get('/api/auth/session').set('Cookie', original)).body.user.id,
+      ).toBe('moss-a')
+    },
+  )
+
   test('a verified manager handoff rotates the cookie into the selected organization', async () => {
     const { app, switches } = workspaceApp()
     const original = await workspaceLogin(app)

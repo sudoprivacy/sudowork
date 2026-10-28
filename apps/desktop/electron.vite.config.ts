@@ -7,6 +7,7 @@ import react from '@vitejs/plugin-react';
 import UnoCSS from 'unocss/vite';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
 import { browserPageViewAlias, browserSessionContractAlias } from '../../scripts/browser-view-alias.mjs';
+import { inputDeliveryAliases } from '../../scripts/input-delivery-alias.mjs';
 import unoConfig from './uno.config.ts';
 
 const nodeRequire = createRequire(import.meta.url);
@@ -87,11 +88,15 @@ const mainAliases = [
   // Bundle the shared workspace packages from source (see externalizeDepsPlugin
   // exclude below) so the packaged/dev main process never depends on a prior
   // `dist` build of them.
+  { find: '@sudowork/moss-client/hosted-tasks', replacement: resolve('../../packages/moss-client/src/MossHostedTaskClient.ts') },
   { find: '@sudowork/moss-client/external-providers', replacement: resolve('../../packages/moss-client/src/MossExternalProviderClient.ts') },
   { find: '@sudowork/moss-client/agents', replacement: resolve('../../packages/moss-client/src/MossAgentClient.ts') },
+  ...inputDeliveryAliases,
   { find: '@sudowork/moss-client', replacement: resolve('../../packages/moss-client/src/index.ts') },
   { find: /^@sudowork\/ontology-common\/(.*)$/, replacement: resolve('../../packages/ontology-common/src') + '/$1' },
   { find: /^@sudowork\/ontology-common$/, replacement: resolve('../../packages/ontology-common/src/index.ts') },
+  { find: /^@sudowork\/ontology-runtime\/(.*)$/, replacement: resolve('../../packages/ontology-runtime/src') + '/$1' },
+  { find: /^@sudowork\/ontology-runtime$/, replacement: resolve('../../packages/ontology-runtime/src') + '/index.ts' },
   { find: /^@sudowork\/ontology-engine\/(.*)$/, replacement: resolve('../../packages/ontology-engine/src') + '/$1' },
   { find: /^@sudowork\/ontology-engine$/, replacement: resolve('../../packages/ontology-engine/src/index.ts') },
   { find: '@sudowork/contracts/auth', replacement: resolve('../../packages/contracts/src/auth.ts') },
@@ -163,7 +168,23 @@ export default defineConfig(({ mode }) => {
         externalizeDepsPlugin({
           // @sudowork/* are workspace packages bundled from source (aliased above)
           // so the main process has no runtime dependency on their dist build.
-          exclude: ['fix-path', 'v8-compile-cache', 'unified', 'remark-parse', 'remark-gfm', 'mdast-util-from-markdown', 'mdast-util-gfm', 'docx', '@sudowork/moss-client', '@sudowork/contracts', '@sudowork/common', '@sudowork/host-bridge', '@sudowork/ontology-common', '@sudowork/ontology-engine'],
+          exclude: [
+            'fix-path',
+            'v8-compile-cache',
+            'unified',
+            'remark-parse',
+            'remark-gfm',
+            'mdast-util-from-markdown',
+            'mdast-util-gfm',
+            'docx',
+            '@sudowork/moss-client',
+            '@sudowork/contracts',
+            '@sudowork/common',
+            '@sudowork/host-bridge',
+            '@sudowork/ontology-common',
+            '@sudowork/ontology-engine',
+            '@sudowork/ontology-runtime',
+          ],
         }),
         ...(!isDevelopment
           ? [
@@ -237,7 +258,9 @@ export default defineConfig(({ mode }) => {
         alias: [
           browserPageViewAlias,
           browserSessionContractAlias,
+          ...inputDeliveryAliases,
           ...commonAliasEntries(),
+          { find: '@sudowork/moss-client/hosted-tasks', replacement: resolve('../../packages/moss-client/src/MossHostedTaskClient.ts') },
           { find: '@sudowork/moss-client/external-providers', replacement: resolve('../../packages/moss-client/src/MossExternalProviderClient.ts') },
           { find: '@sudowork/contracts/external-provider', replacement: resolve('../../packages/contracts/src/external-provider.gen.ts') },
           { find: '@sudowork/contracts/task', replacement: resolve('../../packages/contracts/src/task.gen.ts') },

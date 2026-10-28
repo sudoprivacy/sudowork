@@ -12,7 +12,7 @@
     },
     "apps/desktop": {
       "name": "sudowork",
-      "version": "0.2.37",
+      "version": "0.2.40",
       "dependencies": {
         "@anthropic-ai/sdk": "^0.71.2",
         "@aws-sdk/client-bedrock": "^3.987.0",
@@ -31,6 +31,7 @@
         "@sudowork/moss-client": "workspace:*",
         "@sudowork/ontology-common": "workspace:*",
         "@sudowork/ontology-engine": "workspace:*",
+        "@sudowork/ontology-runtime": "workspace:*",
         "@types/bcryptjs": "^2.4.6",
         "@types/jsonwebtoken": "^9.0.10",
         "@xenova/transformers": "^2.17.2",
@@ -358,6 +359,32 @@
         "rdflib": "2.4.1",
       },
     },
+    "packages/ontology-runtime": {
+      "name": "@sudowork/ontology-runtime",
+      "version": "0.0.0",
+      "dependencies": {
+        "@aws-sdk/client-s3": "^3.1134.0",
+        "@sudowork/ontology-common": "workspace:*",
+        "@sudowork/ontology-engine": "workspace:*",
+        "basic-ftp": "^6.2.1",
+        "csv-parse": "^7.0.2",
+        "jszip": "^3.10.1",
+        "kafkajs": "^2.2.4",
+        "mssql": "^12.7.2",
+        "mysql2": "^3.24.4",
+        "oracledb": "^7.0.1",
+        "pg": "^8.22.0",
+        "ssh2-sftp-client": "^12.1.1",
+        "zod": "^3.25.76",
+      },
+      "devDependencies": {
+        "@types/mssql": "^12.3.0",
+        "@types/node": "^24.3.1",
+        "@types/oracledb": "^7.0.3",
+        "@types/pg": "^8.15.5",
+        "@types/ssh2-sftp-client": "^9.0.5",
+      },
+    },
     "packages/ontology-ui": {
       "name": "@sudowork/ontology-ui",
       "version": "0.0.0",
@@ -398,6 +425,7 @@
         "@floating-ui/react": "^0.27.16",
         "@icon-park/react": "^1.4.2",
         "@monaco-editor/react": "^4.7.0",
+        "@novnc/novnc": "1.5.0",
         "@office-ai/platform": "^0.3.16",
         "@sudowork/common": "workspace:*",
         "@sudowork/contracts": "workspace:*",
@@ -1301,6 +1329,8 @@
 
     "@nodelib/fs.walk": ["@nodelib/fs.walk@1.2.8", "https://registry.npmjs.org/@nodelib/fs.walk/-/fs.walk-1.2.8.tgz", { "dependencies": { "@nodelib/fs.scandir": "2.1.5", "fastq": "^1.6.0" } }, "sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg=="],
 
+    "@novnc/novnc": ["@novnc/novnc@1.5.0", "", {}, "sha512-4yGHOtUCnEJUCsgEt/L78eeJu00kthurLBWXFiaXfonNx0pzbs6R/3gJb1byZe6iAE8V9MF0syQb0xIL8MSOtQ=="],
+
     "@npmcli/agent": ["@npmcli/agent@3.0.0", "https://registry.npmjs.org/@npmcli/agent/-/agent-3.0.0.tgz", { "dependencies": { "agent-base": "^7.1.0", "http-proxy-agent": "^7.0.0", "https-proxy-agent": "^7.0.1", "lru-cache": "^10.0.1", "socks-proxy-agent": "^8.0.3" } }, "sha512-S79NdEgDQd/NGCay6TCoVzXSj74skRZIKJcpJjC5lOq34SZzyI6MqtiiWoiVWoVrTcGjNeC4ipbh1VIHlpfF5Q=="],
 
     "@npmcli/fs": ["@npmcli/fs@4.0.0", "https://registry.npmjs.org/@npmcli/fs/-/fs-4.0.0.tgz", { "dependencies": { "semver": "^7.3.5" } }, "sha512-/xGlezI6xfGO9NwuJlnwz/K14qD1kCSAGtacBHnGzeAIuJGazcp45KP5NuyARXoKb7cwulAGWVsbeSxdG/cb0Q=="],
@@ -1734,6 +1764,8 @@
     "@sudowork/ontology-common": ["@sudowork/ontology-common@workspace:packages/ontology-common"],
 
     "@sudowork/ontology-engine": ["@sudowork/ontology-engine@workspace:packages/ontology-engine"],
+
+    "@sudowork/ontology-runtime": ["@sudowork/ontology-runtime@workspace:packages/ontology-runtime"],
 
     "@sudowork/ontology-ui": ["@sudowork/ontology-ui@workspace:packages/ontology-ui"],
 

@@ -6,7 +6,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import type { TChatConversation } from '@sudowork/common/storage';
-import { groupConversationsByTimelineAndWorkspace } from '@renderer/pages/conversation/grouped-history/utils/groupingHelpers';
+import { groupConversationsByTimelineAndWorkspace, isConversationArchived } from '@renderer/pages/conversation/grouped-history/utils/groupingHelpers';
 
 vi.stubGlobal('localStorage', {
   getItem: () => null,
@@ -40,5 +40,17 @@ describe('groupConversationsByTimelineAndWorkspace', () => {
     const workspaceItem = sections.flatMap((section) => section.items).find((item) => item.type === 'workspace');
 
     expect(workspaceItem?.workspaceGroup?.displayName).toBe('Team Alpha');
+  });
+
+  it('recognizes only explicitly archived conversations', () => {
+    expect(isConversationArchived(makeConversation())).toBe(false);
+    expect(isConversationArchived(makeConversation({ extra: { backend: 'scode', archived: true, archivedAt: 10 } }))).toBe(true);
+  });
+
+  it('uses conversation identity as a stable fallback when activity times tie', () => {
+    const time = Date.now();
+    const sections = groupConversationsByTimelineAndWorkspace([makeConversation({ id: 'conversation-a', createTime: time, modifyTime: time, extra: { backend: 'scode' } }), makeConversation({ id: 'conversation-b', createTime: time, modifyTime: time, extra: { backend: 'scode' } })], t);
+
+    expect(sections.flatMap((section) => section.items).map((item) => item.conversation?.id)).toEqual(['conversation-b', 'conversation-a']);
   });
 });

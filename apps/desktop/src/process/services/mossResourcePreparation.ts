@@ -6,7 +6,7 @@ import { z } from 'zod';
 import type { IAssistantMeta } from '@sudowork/common/assistantTypes';
 import type { IMossConversationExecution } from '@sudowork/common/mossExecution';
 import { isPersonalAgentRef } from '@sudowork/common/personalAgents';
-import { ProcessConfig, getHubSkillsDir, getHubAssistantsDir, clearSkillsCache } from '@process/initStorage';
+import { ProcessConfig, getCustomSkillsDir, getHubSkillsDir, getHubAssistantsDir, clearSkillsCache } from '@process/initStorage';
 import { getValidToken } from '@process/bridge/eeclawBridge';
 import { getEnterpriseTenantSkillsDir, getEnterpriseTenantAssistantsDir } from '@process/constants/enterpriseStorage';
 import { AcpSkillManager } from '@process/task/AcpSkillManager';
@@ -29,6 +29,29 @@ export interface IMossPreparedResources {
   presetContext: string;
   enabledSkills: string[];
   resources: Array<{ id: string; kind: 'agents' | 'skills'; source?: 'hub' | 'tenant'; digest: string; path: string }>;
+}
+
+/** Resolve ontology skills that are registered in the local custom-skill store. */
+async function prepareLocalOntologySkills(skillIds: string[]): Promise<{ enabledSkills: string[]; presetContext: string; unresolved: string[] }> {
+  const enabledSkills: string[] = [];
+  const contexts: string[] = [];
+  const unresolved: string[] = [];
+  const root = getCustomSkillsDir();
+
+  for (const skillId of skillIds) {
+    let directory: string;
+    try {
+      directory = safeResourcePath(root, skillId);
+      await fs.access(path.join(directory, 'SKILL.md'));
+    } catch {
+      unresolved.push(skillId);
+      continue;
+    }
+    enabledSkills.push(skillId);
+    contexts.push(`Skill ${path.basename(directory)}: ${path.join(directory, 'SKILL.md')}`);
+  }
+
+  return { enabledSkills, presetContext: contexts.join('\n'), unresolved };
 }
 
 /** Read the exact assistant version bound to a managed conversation. */
@@ -79,8 +102,17 @@ export async function prepareMossResources(assistantId?: string, skillIds: strin
     const { ontologyService } = await import('./ontology/OntologyService');
     const assistant = await ontologyService.getRegisteredAgentRuntime(assistantId);
     if (assistant) {
-      const skills = await prepareMossResources(undefined, skillIds, isLegacyOnly);
-      return { ...skills, presetContext: [assistant.presetContext, skills.presetContext].filter(Boolean).join('\n\n') };
+      const local = await prepareLocalOntologySkills(skillIds);
+      const skills = local.unresolved.length ? await prepareMossResources(undefined, local.unresolved, isLegacyOnly) : { presetContext: '', enabledSkills: [], resources: [] };
+      if (local.enabledSkills.length) {
+        clearSkillsCache();
+        AcpSkillManager.resetInstance();
+      }
+      return {
+        ...skills,
+        enabledSkills: [...local.enabledSkills, ...skills.enabledSkills],
+        presetContext: [assistant.presetContext, local.presetContext, skills.presetContext].filter(Boolean).join('\n\n'),
+      };
     }
   }
   if (isPersonalAgentRef(assistantId)) {

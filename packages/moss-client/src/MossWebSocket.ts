@@ -4,7 +4,7 @@ import WebSocket from 'ws'
 /**
  * 上游 Moss WS 连接（计划 3.5）：
  * - Moss 返回的 ws_url 不直接信任：pathname 必须是 /ws/sessions/:expectedSessionId，
- *   scheme/host 必须等于配置 moss.wsBaseUrl；拒绝 query credentials 与 session mismatch。
+ *   scheme/host 必须等于配置 moss.wsBaseUrl；仅保留 Moss 的 owner 路由提示。
  * - 连接时由 Node 端设置 Authorization header（浏览器无法设置）。
  * - 上游无心跳（基线事实）；断线语义 = detach，由协调器决定是否重连（仅 idle）。
  */
@@ -48,8 +48,11 @@ export function validateMossWsUrl(
     throw new MossWsValidationError(`invalid ws_url from moss`)
   }
   const configured = new URL(configuredWsBaseUrl)
-  if (url.protocol !== 'ws:' && url.protocol !== 'wss:') {
-    throw new MossWsValidationError(`ws_url scheme must be ws/wss`)
+  if ((url.protocol !== 'ws:' && url.protocol !== 'wss:') || url.protocol !== configured.protocol) {
+    throw new MossWsValidationError(`ws_url scheme must match the configured ws/wss scheme`)
+  }
+  if (url.username || url.password || url.hash) {
+    throw new MossWsValidationError(`ws_url must not carry URL credentials or a fragment`)
   }
   if (url.host !== configured.host) {
     throw new MossWsValidationError(
@@ -62,8 +65,16 @@ export function validateMossWsUrl(
       `ws_url pathname ${url.pathname} does not match ${expectedPath}`,
     )
   }
-  if ([...url.searchParams.keys()].length > 0) {
-    throw new MossWsValidationError(`ws_url must not carry query credentials`)
+  // Moss uses this non-authentication hint to route an upgrade to the live
+  // session owner. Authentication stays in the Authorization header. Keep
+  // the hint intact, but never accept tokens, other keys or duplicate owners.
+  const routeHints = url.searchParams.getAll('moss_route')
+  if (
+    [...url.searchParams.keys()].some((key) => key !== 'moss_route') ||
+    routeHints.length > 1 ||
+    routeHints.some((value) => !value.trim())
+  ) {
+    throw new MossWsValidationError(`ws_url must not carry credentials or unexpected routing data`)
   }
   return url
 }

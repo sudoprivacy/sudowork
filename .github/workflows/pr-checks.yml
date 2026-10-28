@@ -2,11 +2,12 @@ name: "✓PR Checks"
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [main, dev]
+  merge_group:
 
 concurrency:
-  group: pr-checks-${{ github.event.pull_request.number }}
+  group: pr-checks-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -20,6 +21,8 @@ env:
 
 jobs:
   external-provider-contract:
+    # Skipped on draft PRs: heavy CI starts once the PR is marked ready.
+    if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.draft) }}
     name: External Provider Contract
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -27,7 +30,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: "22"
       - name: Verify the exact published sudostack artifact and semantic source lock
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -41,6 +44,8 @@ jobs:
 
   # Job 2: Vault secrets unit tests — pure mock, no native deps
   unit-tests-secrets:
+    # Skipped on draft PRs: heavy CI starts once the PR is marked ready.
+    if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.draft) }}
     name: Secrets Unit Tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -78,6 +83,8 @@ jobs:
 
   # Job 2b: Hub catalog empty-state differentiation tests
   unit-tests-hub:
+    # Skipped on draft PRs: heavy CI starts once the PR is marked ready.
+    if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.draft) }}
     name: Hub Unit Tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -180,6 +187,8 @@ jobs:
 
   # Job 2c: Conversation resource reaper regression tests
   unit-tests-conversation-reaper:
+    # Skipped on draft PRs: heavy CI starts once the PR is marked ready.
+    if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.draft) }}
     name: Conversation Reaper Unit Tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -220,6 +229,8 @@ jobs:
   # entire suite here (same `vitest run` the nightly Code Quality job runs on Linux)
   # so dev stays release-clean and regressions are caught at PR time, not release time.
   unit-tests-full:
+    # Skipped on draft PRs: heavy CI starts once the PR is marked ready.
+    if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.draft) }}
     name: ${{ matrix.name }}
     strategy:
       fail-fast: false
@@ -228,12 +239,25 @@ jobs:
           - os: ubuntu-latest
             name: Full Unit Test Suite
             timeout: 20
+            shard: 1/1
           # Match the VS 2022 toolchain selected by rebuildNativeModules.js.
           - os: windows-2022
-            name: Full Unit Test Suite (Windows)
+            name: Full Unit Test Suite (Windows 1/3)
             # A cold install took 14m35s; preserve time for the complete suite
             # and the Electron ABI rebuild without changing test timeouts.
             timeout: 30
+            shard: 1/3
+          # A cold full run took 17m, mostly module imports and DOM setup.
+          # Separate runners keep the complete suite within its step budget
+          # without concurrent DOM workloads on the same machine.
+          - os: windows-2022
+            name: Full Unit Test Suite (Windows 2/3)
+            timeout: 30
+            shard: 2/3
+          - os: windows-2022
+            name: Full Unit Test Suite (Windows 3/3)
+            timeout: 30
+            shard: 3/3
     runs-on: ${{ matrix.os }}
     timeout-minutes: ${{ matrix.timeout }}
     defaults:
@@ -255,7 +279,20 @@ jobs:
         with:
           bun-version-file: package.json
 
+      - name: Cache verified libvips downloads
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/npm-cache/_libvips
+          key: libvips-8.14.5-${{ runner.os }}-${{ runner.arch }}-integrity-v2
+
+      - name: Verify libvips before dependency installation
+        env:
+          npm_config_cache: ${{ runner.temp }}/npm-cache
+        run: node ../../.github/scripts/cache-sharp-libvips.mjs
+
       - name: Install dependencies
+        env:
+          npm_config_cache: ${{ runner.temp }}/npm-cache
         run: bun install --frozen-lockfile
 
       - name: Ensure Electron is installed for native SQLite tests
@@ -276,7 +313,7 @@ jobs:
 
       - name: Run full test suite
         timeout-minutes: 10
-        run: bunx vitest run
+        run: bunx vitest run --shard=${{ matrix.shard }}
 
   # Job 3: Build test across all platforms (parallel with code-quality and unit-tests)
   build-test:
@@ -286,24 +323,16 @@ jobs:
     defaults:
       run:
         working-directory: apps/desktop
+    # Steps read the per-platform values from env rather than matrix, so the
+    # macOS jobs below, which cannot be matrix jobs, share these exact steps.
+    env:
+      MATRIX_PLATFORM: ${{ matrix.platform }}
+      MATRIX_ARCH: ${{ matrix.arch }}
+      MATRIX_BUILD_ARGS: ${{ matrix.build_args }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: "macos-arm64"
-            os: "macos-14"
-            arch: "arm64"
-            target: "--mac"
-            build_args: "--mac --arm64"
-            unpacked_dir: "mac-arm64"
-            timeout: 30
-          - platform: "macos-x64"
-            os: "macos-14"
-            arch: "x64"
-            target: "--mac"
-            build_args: "--mac --x64"
-            unpacked_dir: "mac"
-            timeout: 30
           - platform: "windows-x64"
             os: "windows-2022"
             arch: "x64"
@@ -326,7 +355,7 @@ jobs:
           #   build_args: '--linux --x64'
           #   unpacked_dir: 'linux-unpacked'
 
-    steps:
+    steps: &build_test_steps
       - name: Checkout code
         uses: actions/checkout@v6
         with:
@@ -336,6 +365,11 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: "22"
+
+      - name: Prepare pinned ShareOne review source
+        uses: ./.github/actions/checkout-shareone-review
+        with:
+          ssh-key: ${{ secrets.SHAREONE_REVIEW_DEPLOY_KEY }}
 
       - name: Setup bun
         uses: oven-sh/setup-bun@v2
@@ -349,6 +383,15 @@ jobs:
 
       - name: Setup just
         uses: extractions/setup-just@v2
+        with:
+          just-version: "1.59.0"
+
+      - name: Verify native macOS build architecture
+        if: runner.os == 'macOS'
+        env:
+          EXPECTED_BUILD_ARCH: ${{ env.MATRIX_ARCH }}
+        run: |
+          node -e "if (process.arch !== process.env.EXPECTED_BUILD_ARCH) throw new Error('Expected ' + process.env.EXPECTED_BUILD_ARCH + ' runner; received ' + process.arch)"
 
       - name: Install dependencies
         run: bun install --no-frozen-lockfile
@@ -360,7 +403,7 @@ jobs:
         run: cd hook/node && bun install --no-frozen-lockfile
 
       - name: Install Linux dependencies
-        if: matrix.platform == 'linux'
+        if: env.MATRIX_PLATFORM == 'linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential python3 python3-pip pkg-config libsqlite3-dev fakeroot dpkg-dev rpm libnss3-dev libatk-bridge2.0-dev libdrm2 libxkbcommon-dev libxss1 libatspi2.0-dev libgtk-3-dev libxrandr2 libasound2-dev
@@ -384,16 +427,16 @@ jobs:
             ~/.cache/electron
             ~/.cache/electron-builder
             ${{ env.LOCALAPPDATA }}\electron-builder\Cache
-          key: electron-cache-${{ matrix.platform }}-${{ matrix.arch }}-${{ hashFiles('package.json', 'bun.lock') }}
+          key: electron-cache-${{ env.MATRIX_PLATFORM }}-${{ env.MATRIX_ARCH }}-${{ hashFiles('package.json', 'bun.lock') }}
           restore-keys: |
-            electron-cache-${{ matrix.platform }}-${{ matrix.arch }}-
-            electron-cache-${{ matrix.platform }}-
+            electron-cache-${{ env.MATRIX_PLATFORM }}-${{ env.MATRIX_ARCH }}-
+            electron-cache-${{ env.MATRIX_PLATFORM }}-
 
       - name: Cache status
         run: echo "electron-cache-hit=${{ steps.electron-cache.outputs.cache-hit }}"
 
       - name: Rebuild native modules for Electron (non-Windows)
-        if: "!startsWith(matrix.platform, 'windows')"
+        if: "!startsWith(env.MATRIX_PLATFORM, 'windows')"
         run: bunx electron-builder install-app-deps
         env:
           npm_config_runtime: electron
@@ -402,20 +445,20 @@ jobs:
           ELECTRON_BUILDER_CACHE: ${{ runner.temp }}/.cache/electron-builder
 
       - name: Setup MSBuild (Windows only)
-        if: startsWith(matrix.platform, 'windows')
+        if: startsWith(env.MATRIX_PLATFORM, 'windows')
         uses: microsoft/setup-msbuild@v2
         with:
           vs-version: "17.0"
 
       - name: Build test (Windows x64)
-        if: matrix.platform == 'windows-x64'
+        if: env.MATRIX_PLATFORM == 'windows-x64'
         shell: pwsh
         run: |
           Write-Host "=========================================="
-          Write-Host "BUILD TEST: ${{ matrix.platform }}"
+          Write-Host "BUILD TEST: ${{ env.MATRIX_PLATFORM }}"
           Write-Host "=========================================="
           just build-win-x64
-          Write-Host "✓Build test passed for ${{ matrix.platform }}"
+          Write-Host "✓Build test passed for ${{ env.MATRIX_PLATFORM }}"
         env:
           NODE_OPTIONS: "--max-old-space-size=8192"
           MSVS_VERSION: 2022
@@ -424,14 +467,14 @@ jobs:
           CI: true
 
       - name: Build test (Windows arm64)
-        if: matrix.platform == 'windows-arm64'
+        if: env.MATRIX_PLATFORM == 'windows-arm64'
         shell: pwsh
         run: |
           Write-Host "=========================================="
-          Write-Host "BUILD TEST: ${{ matrix.platform }}"
+          Write-Host "BUILD TEST: ${{ env.MATRIX_PLATFORM }}"
           Write-Host "=========================================="
           just build-win-arm64
-          Write-Host "✓Build test passed for ${{ matrix.platform }}"
+          Write-Host "✓Build test passed for ${{ env.MATRIX_PLATFORM }}"
         env:
           NODE_OPTIONS: "--max-old-space-size=8192"
           MSVS_VERSION: 2022
@@ -440,18 +483,18 @@ jobs:
           CI: true
 
       - name: Build test (non-Windows)
-        if: "!startsWith(matrix.platform, 'windows')"
+        if: "!startsWith(env.MATRIX_PLATFORM, 'windows')"
         shell: bash
         run: |
           echo "=========================================="
-          echo "BUILD TEST: ${{ matrix.platform }}"
+          echo "BUILD TEST: ${{ env.MATRIX_PLATFORM }}"
           echo "=========================================="
-          node scripts/build-with-builder.js ${{ matrix.arch }} ${{ matrix.build_args }}
-          echo "✓Build test passed for ${{ matrix.platform }}"
+          node scripts/build-with-builder.js ${{ env.MATRIX_ARCH }} ${{ env.MATRIX_BUILD_ARGS }}
+          echo "✓Build test passed for ${{ env.MATRIX_PLATFORM }}"
         env:
           NODE_OPTIONS: "--max-old-space-size=8192"
-          npm_config_arch: ${{ matrix.arch }}
-          npm_config_target_arch: ${{ matrix.arch }}
+          npm_config_arch: ${{ env.MATRIX_ARCH }}
+          npm_config_target_arch: ${{ env.MATRIX_ARCH }}
           npm_config_runtime: electron
           npm_config_target: ${{ steps.electron-version.outputs.version }}
           npm_config_disturl: https://electronjs.org/headers
@@ -464,11 +507,11 @@ jobs:
         shell: bash
         run: |
           echo "=========================================="
-          echo "VERIFY ARTIFACTS: ${{ matrix.platform }}"
+          echo "VERIFY ARTIFACTS: ${{ env.MATRIX_PLATFORM }}"
           echo "=========================================="
           ls -lah out || true
 
-          case "${{ matrix.platform }}" in
+          case "${{ env.MATRIX_PLATFORM }}" in
             windows-*)
               ls out/*.exe out/*latest*.yml >/dev/null
               ;;
@@ -481,7 +524,7 @@ jobs:
           esac
 
       - name: Silent install smoke test (Windows x64)
-        if: matrix.platform == 'windows-x64'
+        if: env.MATRIX_PLATFORM == 'windows-x64'
         shell: pwsh
         run: |
           Write-Host "=========================================="
@@ -517,47 +560,26 @@ jobs:
           Write-Host "Installed executable: $installedExe"
 
       - name: Skip executable smoke for Windows arm64 cross build
-        if: matrix.platform == 'windows-arm64'
+        if: env.MATRIX_PLATFORM == 'windows-arm64'
         shell: pwsh
         run: |
           Write-Host "Skipping runtime install smoke for windows-arm64: runner is windows-x64, cannot reliably execute arm64 installer."
           Get-ChildItem -Path out -Filter "Sudowork-*-win-*.exe" | Format-Table Name, Length
 
       - name: Install smoke test (macOS arm64)
-        if: matrix.platform == 'macos-arm64'
+        if: env.MATRIX_PLATFORM == 'macos-arm64'
         shell: bash
-        run: |
-          set -euo pipefail
-          echo "=========================================="
-          echo "SMOKE INSTALL: macos-arm64"
-          echo "=========================================="
-
-          DMG_FILE=$(ls out/*.dmg | head -n 1)
-          MOUNT_POINT="/tmp/sudowork-smoke-mount"
-          APP_DIR="/tmp/sudowork-smoke-app"
-
-          rm -rf "$MOUNT_POINT" "$APP_DIR"
-          mkdir -p "$MOUNT_POINT" "$APP_DIR"
-
-          hdiutil attach "$DMG_FILE" -nobrowse -mountpoint "$MOUNT_POINT"
-          cp -R "$MOUNT_POINT"/*.app "$APP_DIR"/
-          hdiutil detach "$MOUNT_POINT"
-
-          APP_PATH=$(ls -d "$APP_DIR"/*.app | head -n 1)
-          APP_BIN="$APP_PATH/Contents/MacOS/Sudowork"
-
-          test -x "$APP_BIN"
-          "$APP_BIN" --version || true
+        run: python3 ../../scripts/smoke_install_macos.py --directory out
 
       - name: Skip executable smoke for macOS x64 cross build
-        if: matrix.platform == 'macos-x64'
+        if: env.MATRIX_PLATFORM == 'macos-x64'
         shell: bash
         run: |
           echo "Skipping runtime launch smoke for macos-x64 cross build on arm64 runner."
           ls -lah out/*.dmg out/*.zip
 
       - name: Install smoke test (Linux)
-        if: matrix.platform == 'linux'
+        if: env.MATRIX_PLATFORM == 'linux'
         shell: bash
         run: |
           set -euo pipefail
@@ -570,6 +592,48 @@ jobs:
           "$APPIMAGE_FILE" --appimage-extract-and-run --version || true
 
   # Job 4: Test release scripts (fast, no build required)
+
+  build-test-macos-arm64:
+    # macOS runners are the scarcest pool, shared by every sudoprivacy repo.
+    # PRs into `dev` skip this job: `dev` lands only through the merge queue,
+    # which runs it on the exact commit that becomes `dev`. A job skipped by
+    # `if` still reports this required check, without allocating a runner.
+    # PRs into `main` have no queue behind them, so they always run it.
+    # It must stay a non-matrix job: a skipped matrix job reports the
+    # unexpanded name, so the required check would never be satisfied.
+    if: ${{ github.event_name != 'pull_request' || github.base_ref != 'dev' }}
+    name: Build Test (macos-arm64)
+    runs-on: macos-15
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/desktop
+    env:
+      MATRIX_PLATFORM: macos-arm64
+      MATRIX_ARCH: arm64
+      MATRIX_BUILD_ARGS: "--mac --arm64"
+    steps: *build_test_steps
+
+  build-test-macos-x64:
+    # macOS runners are the scarcest pool, shared by every sudoprivacy repo.
+    # PRs into `dev` skip this job: `dev` lands only through the merge queue,
+    # which runs it on the exact commit that becomes `dev`. A job skipped by
+    # `if` still reports this required check, without allocating a runner.
+    # PRs into `main` have no queue behind them, so they always run it.
+    # It must stay a non-matrix job: a skipped matrix job reports the
+    # unexpanded name, so the required check would never be satisfied.
+    if: ${{ github.event_name != 'pull_request' || github.base_ref != 'dev' }}
+    name: Build Test (macos-x64)
+    runs-on: macos-15-intel
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/desktop
+    env:
+      MATRIX_PLATFORM: macos-x64
+      MATRIX_ARCH: x64
+      MATRIX_BUILD_ARGS: "--mac --x64"
+    steps: *build_test_steps
   release-script-test:
     name: Release Script Test
     runs-on: ubuntu-latest
@@ -598,3 +662,6 @@ jobs:
 
       - name: Test candidate promotion against local Git remotes
         run: python3 scripts/test-candidate-promotion.py
+
+      - name: Test macOS distribution lifecycle
+        run: python3 -m unittest discover -s ../../scripts -p 'test_*macos*.py'

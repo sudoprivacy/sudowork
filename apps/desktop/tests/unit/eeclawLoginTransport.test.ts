@@ -9,25 +9,29 @@ const state = vi.hoisted(() => ({
   set: vi.fn(),
   runtime: vi.fn(),
   warn: vi.fn(),
+  authRequired: vi.fn(),
+  clearRuntime: vi.fn(),
+  cachedToken: vi.fn(),
 }));
 
 vi.mock('electron', () => ({ net: { fetch: state.chromiumFetch } }));
 vi.mock('@/common', () => ({
   ipcBridge: {
+    hostedTasks: new Proxy({}, { get: () => ({ provider: vi.fn() }) }),
     externalProviders: new Proxy({}, { get: () => ({ provider: vi.fn() }) }),
-    eeclaw: new Proxy({}, { get: (_target, name: string) => ({ provider: (handler: LoginHandler) => state.providers.set(name, handler), emit: vi.fn() }) }),
+    eeclaw: new Proxy({}, { get: (_target, name: string) => ({ provider: (handler: LoginHandler) => state.providers.set(name, handler), emit: name === 'authRequired' ? state.authRequired : vi.fn() }) }),
   },
 }));
 vi.mock('@process/initStorage', () => ({ ProcessConfig: { getSync: (key: string) => state.values.get(key), set: state.set } }));
 vi.mock('@process/utils/mainLogger', () => ({ mainWarn: state.warn, mainLog: vi.fn(), mainError: vi.fn() }));
 vi.mock('@/common/enterpriseDebugConfig', () => ({
-  setCachedAuthToken: vi.fn(),
+  setCachedAuthToken: state.cachedToken,
   setCachedServerUrl: vi.fn(),
   setCachedAppMode: vi.fn(),
   setCachedLocalModeAvailable: vi.fn(),
   setCachedSessionMode: vi.fn(),
 }));
-vi.mock('@process/services/mossLocalRuntime', () => ({ applyMossLocalRuntime: state.runtime, prepareMossLocalRuntime: vi.fn(), clearMossLocalRuntime: vi.fn() }));
+vi.mock('@process/services/mossLocalRuntime', () => ({ applyMossLocalRuntime: state.runtime, prepareMossLocalRuntime: vi.fn(), clearMossLocalRuntime: state.clearRuntime }));
 vi.mock('@process/providers', () => ({ resetConversationProvider: vi.fn() }));
 
 import { getValidToken, initEeclawBridge } from '@process/bridge/eeclawBridge';
@@ -56,6 +60,83 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('desktop authentication transport', () => {
+  it.each(['runtime', 'identity-persistence', 'runtime-cleanup'])('requires reauthentication after a partially applied enterprise selection fails at %s', async (scenario) => {
+    await invoke();
+    const selected = { ...auth, access_token: 'company-access', user: { ...auth.user, id: 'company-member', orgId: 'company' } };
+    state.chromiumFetch.mockResolvedValueOnce(new Response(JSON.stringify({ organizations: [{ id: 'company', name: 'Company', userId: 'company-member', role: 'user' }] }))).mockResolvedValueOnce(new Response(JSON.stringify(selected)));
+    if (scenario === 'identity-persistence') {
+      state.set.mockImplementation(async (key: string, value: unknown) => {
+        if (key === 'eeclaw.userInfo' && value) throw new Error('Storage write failed');
+        state.values.set(key, value);
+      });
+    } else state.runtime.mockRejectedValueOnce(new Error('Local runtime unavailable'));
+    if (scenario === 'runtime-cleanup') state.clearRuntime.mockRejectedValueOnce(new Error('Cleanup failed'));
+    expect(await invoke({ grant_type: 'organization', orgId: 'company' })).toMatchObject({ success: false, error: 'local_setup_failed' });
+    expect(state.values.get('eeclaw.authStorage')).toBeNull();
+    expect(state.values.get('eeclaw.userInfo')).toBeNull();
+    expect(state.values.get('eeclaw.localModeAvailable')).toBeNull();
+    expect(state.cachedToken).toHaveBeenLastCalledWith('');
+    expect(state.clearRuntime).toHaveBeenCalledTimes(1);
+    expect(state.authRequired).toHaveBeenCalledWith({ reason: 'organization_switch_failed' });
+  });
+
+  it('selects a verified membership on the saved host and persists its independent identity', async () => {
+    await invoke();
+    const selected = {
+      ...auth,
+      access_token: 'company-access',
+      refresh_token: 'company-refresh',
+      user: { ...auth.user, id: 'company-member', orgId: 'company', role: 'user' },
+      execution: { ...auth.execution, isLocalAllowed: false },
+      localRuntime: { ...auth.localRuntime, userId: 'company-member', organizationId: 'company', status: 'policy_denied' },
+    };
+    state.runtime.mockResolvedValue({ execution: selected.execution, localRuntime: selected.localRuntime });
+    state.chromiumFetch
+      .mockClear()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ organizations: [{ id: 'company', name: 'Company', userId: 'company-member', role: 'user' }] })))
+      .mockResolvedValueOnce(new Response(JSON.stringify(selected)));
+    const result = await state.providers.get('login')!({ serverUrl: 'https://attacker.example', body: { grant_type: 'organization', orgId: 'company' }, deviceId: 'test-device' });
+    expect(result).toMatchObject({ success: true, data: { user: selected.user } });
+    expect(state.chromiumFetch.mock.calls.map((call) => call[0])).toEqual(['https://moss.example/api/v1/auth/organizations', 'https://moss.example/api/v1/auth/switch-org']);
+    expect(state.chromiumFetch.mock.calls[1][1].headers.Authorization).toBe(`Bearer ${auth.access_token}`);
+    expect(JSON.parse(state.chromiumFetch.mock.calls[1][1].body)).toEqual({ org_id: 'company' });
+    expect(state.values.get('eeclaw.userInfo')).toMatchObject({ id: 'company-member', orgId: 'company', role: 'user' });
+    expect(state.values.get('eeclaw.authStorage')).toMatchObject({ access_token: 'company-access', refresh_token: 'company-refresh' });
+  });
+
+  it.each(['missing-membership', 'wrong-returned-identity'])('rejects %s without replacing the saved identity', async (scenario) => {
+    await invoke();
+    state.set.mockClear();
+    state.chromiumFetch
+      .mockClear()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ organizations: scenario === 'missing-membership' ? [] : [{ id: 'company', name: 'Company', userId: 'company-member', role: 'user' }] })))
+      .mockResolvedValueOnce(new Response(JSON.stringify(auth)));
+    expect(await invoke({ grant_type: 'organization', orgId: 'company' })).toMatchObject({ success: false, error: 'auth_request_rejected' });
+    expect(state.set).not.toHaveBeenCalled();
+    expect(state.values.get('eeclaw.authStorage')).toMatchObject({ access_token: auth.access_token });
+  });
+
+  it('does not overwrite a newer login when enterprise selection finishes late', async () => {
+    await invoke();
+    state.set.mockClear();
+    let finish!: (response: Response) => void;
+    state.chromiumFetch
+      .mockClear()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ organizations: [{ id: 'company', name: 'Company', userId: 'company-member', role: 'user' }] })))
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          })
+      );
+    const pending = invoke({ grant_type: 'organization', orgId: 'company' });
+    await vi.waitFor(() => expect(state.chromiumFetch).toHaveBeenCalledTimes(2));
+    state.values.set('eeclaw.authStorage', { access_token: 'newer-login' });
+    finish(new Response(JSON.stringify({ ...auth, user: { ...auth.user, id: 'company-member', orgId: 'company' } })));
+    expect(await pending).toMatchObject({ success: false });
+    expect(state.values.get('eeclaw.authStorage')).toEqual({ access_token: 'newer-login' });
+    expect(state.set).not.toHaveBeenCalled();
+  });
   it.each<LoginGrant>([
     phone,
     { ...phone, grant_type: 'phone_register', nickname: 'User', invitation_code: 'INVITE' },

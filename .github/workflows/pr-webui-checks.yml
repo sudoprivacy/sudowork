@@ -15,7 +15,7 @@ name: "✓PR WebUI Checks"
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [main, dev]
 
 concurrency:
@@ -30,6 +30,8 @@ env:
 
 jobs:
   webui-container:
+    # Skipped on draft PRs: heavy CI starts once the PR is marked ready.
+    if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.draft) }}
     name: WebUI Container E2E
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -71,6 +73,11 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - name: Verify live acceptance error reporting
+        run: python3 -m unittest discover -s apps/webui/tests/e2e -p test_live_browser_ui.py
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -116,3 +123,27 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
         run: bun run test:integration
+
+      - name: Build the production SPA for Vault browser acceptance
+        working-directory: apps/webui
+        run: bun run build
+
+      - name: Install the browser for Vault acceptance
+        uses: browser-actions/setup-chrome@v2
+        id: vault-chrome
+        with:
+          chrome-version: stable
+
+      - name: Verify Vault save and full reload through the real WebUI server
+        working-directory: apps/webui
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          E2E_NO_SERVER: "1"
+          E2E_CHROME_PATH: ${{ steps.vault-chrome.outputs.chrome-path }}
+        run: bunx playwright test tests/e2e/vault-roundtrip.spec.ts
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: vault-browser-acceptance
+          path: apps/webui/test-results

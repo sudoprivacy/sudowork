@@ -13,7 +13,7 @@
 /* ===================== Light Mode ===================== */
 :root {
   /* ---------- Layout 尺寸 ---------- */
-  --app-min-width: 360px;
+  --app-min-width: min(360px, 100vw);
   --titlebar-height: 36px;
 
   /* ---------- Border Radius / 圆角系统 ---------- */

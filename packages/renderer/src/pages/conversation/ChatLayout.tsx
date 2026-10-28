@@ -4,23 +4,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Layout as ArcoLayout, Tooltip } from '@arco-design/web-react';
+import { Layout as ArcoLayout, Drawer, Tooltip } from '@arco-design/web-react';
 import { ExpandLeft, ExpandRight, Right } from '@icon-park/react';
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
-import useSWR from 'swr';
 import classNames from 'classnames';
 import { STORAGE_KEYS } from '@sudowork/common/storageKeys';
-import { ACP_BACKENDS_ALL } from '@sudowork/common/acpTypes';
-import { fetchAssistantsAsConfigs } from '@renderer/shared/agents/assistantAdapter';
-import AgentModeSelector from '@renderer/components/AgentModeSelector';
-import FlexFullContainer from '@renderer/components/FlexFullContainer';
 import { useLayoutContext } from '@renderer/context/LayoutContext';
 import { useResizableSplit } from '@renderer/hooks/useResizableSplit';
 import ConversationTabs from '@renderer/pages/conversation/ConversationTabs';
 import { PreviewPanel, usePreviewContext } from '@renderer/pages/conversation/preview';
 import AgentSessionHeader from '@renderer/pages/conversation/components/AgentSessionHeader';
+import ConversationExecutionBadge from '@renderer/pages/conversation/components/ConversationExecutionBadge';
+import styles from './ChatLayout.module.css';
 import { WORKSPACE_HAS_FILES_EVENT, WORKSPACE_TOGGLE_EVENT, dispatchWorkspaceStateEvent, dispatchWorkspaceToggleEvent, type WorkspaceHasFilesDetail } from '@renderer/utils/workspaceEvents';
 
 const MIN_CHAT_RATIO = 25;
@@ -109,22 +106,19 @@ const ChatLayout: React.FC<{
   title?: React.ReactNode;
   sider: React.ReactNode;
   siderTitle?: React.ReactNode;
-  backend?: string;
-  agentName?: string;
-  /** 自定义 agent logo（可以是 SVG 路径或 emoji 字符串）/ Custom agent logo (can be SVG path or emoji string) */
-  agentLogo?: string;
-  /** 是否为 emoji 类型的 logo / Whether the logo is an emoji */
-  agentLogoIsEmoji?: boolean;
   headerExtra?: React.ReactNode;
   headerLeft?: React.ReactNode;
   workspaceEnabled?: boolean;
   rightSiderWidthOverride?: IRightSiderWidthOverride | null;
   /** 会话 ID，用于模式切换 / Conversation ID for mode switching */
   conversationId?: string;
+  /** Persisted execution location for the current conversation. */
+  executionTarget?: 'local' | 'remote';
 }> = (props) => {
   const { conversationId } = props;
   const { t } = useTranslation();
   const [rightSiderCollapsed, setRightSiderCollapsed] = useState(() => {
+    if (typeof window !== 'undefined' && window.matchMedia?.('(max-width: 767px)').matches) return true;
     try {
       const stored = localStorage.getItem(STORAGE_KEYS.WORKSPACE_PANEL_COLLAPSE);
       if (stored !== null) {
@@ -143,7 +137,7 @@ const ChatLayout: React.FC<{
   const rightSidebarToggleRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(() => (typeof window === 'undefined' ? 0 : window.innerWidth));
   const [conversationTogglePosition, setConversationTogglePosition] = useState<React.CSSProperties | null>(null);
-  const { backend, agentName, agentLogo, agentLogoIsEmoji, workspaceEnabled = true, rightSiderWidthOverride } = props;
+  const { workspaceEnabled = true, rightSiderWidthOverride } = props;
   const layout = useLayoutContext();
   const isMacRuntime = isMacEnvironment();
   const isWindowsRuntime = isWindowsEnvironment();
@@ -152,13 +146,12 @@ const ChatLayout: React.FC<{
   const previousSiderCollapsedRef = useRef<boolean | null>(null);
   const previousPreviewOpenRef = useRef(false);
 
-  const { isOpen: isPreviewOpen } = usePreviewContext();
+  const { isOpen: isPreviewOpen, closePreview } = usePreviewContext();
+  const isNarrowViewport = containerWidth < 768;
 
-  // Fetch custom agents config as fallback when agentName is not provided
-  const { data: customAgents } = useSWR(backend === 'custom' && !agentName ? 'assistantHub.installed' : null, fetchAssistantsAsConfigs);
-
-  // Compute display name with fallback chain (use first custom agent as fallback for backward compatibility)
-  const displayName = agentName || (backend === 'custom' && customAgents?.[0]?.name) || ACP_BACKENDS_ALL[backend as keyof typeof ACP_BACKENDS_ALL]?.name || backend;
+  useEffect(() => {
+    if (isNarrowViewport) setRightSiderCollapsed(true);
+  }, [isNarrowViewport]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -198,6 +191,9 @@ const ChatLayout: React.FC<{
       const conversationId = detail.conversationId;
 
       currentConversationIdRef.current = conversationId;
+
+      // Phone panels open on request; background file updates must not cover chat.
+      if (window.matchMedia?.('(max-width: 767px)').matches) return;
 
       // 预览打开时不自动展开工作空间，防止在窄屏（高 DPI + 非全屏）下
       // 工作空间展开/折叠反复切换导致无限闪烁
@@ -322,7 +318,7 @@ const ChatLayout: React.FC<{
   const dynamicChatMinRatio = workspaceEnabled && isPreviewOpen ? Math.max(MIN_CHAT_RATIO, minChatRatioByPx) : MIN_CHAT_RATIO;
   const dynamicChatMaxCandidate = workspaceEnabled && isPreviewOpen ? Math.min(80, 100 - Math.max(MIN_PREVIEW_RATIO, minPreviewRatioByPx)) : 80;
   const dynamicChatMaxRatio = Math.max(dynamicChatMinRatio, dynamicChatMaxCandidate);
-  const isDesktop = true;
+  const isDesktop = !isNarrowViewport;
 
   const {
     splitRatio: chatSplitRatio,
@@ -410,7 +406,7 @@ const ChatLayout: React.FC<{
   const showDesktopWorkspaceSidebar = workspaceEnabled && !rightSiderCollapsed;
   const desktopWorkspaceSidebarWidth = Math.max(MIN_RIGHT_SIDER_PANEL_PX, Math.round(workspaceWidthPx));
   const showWorkspaceHeader = props.siderTitle != null;
-  const showConversationCollapseToggle = workspaceEnabled && !rightSiderCollapsed;
+  const showConversationCollapseToggle = workspaceEnabled && !rightSiderCollapsed && !isNarrowViewport;
   const toggleConversationCollapsed = () => setConversationCollapsed((prev) => !prev);
   const conversationCollapseTitle = isConversationCollapsed ? t('conversation.layout.expandConversation', { defaultValue: 'Expand conversation' }) : t('conversation.layout.collapseConversation', { defaultValue: 'Collapse conversation' });
   const conversationToggleProps = {
@@ -461,16 +457,18 @@ const ChatLayout: React.FC<{
   const headerBlock = (
     <>
       <ConversationTabs />
-      <ArcoLayout.Header className='min-h-16 flex items-center justify-between px-4 py-3 gap-3 !bg-1 chat-layout-header border-b overflow-hidden'>
-        {props.headerLeft && <div className='shrink-0'>{props.headerLeft}</div>}
-        <FlexFullContainer className='h-full min-w-0' containerClassName='flex items-center gap-4'>
-          <AgentSessionHeader title={props.title} conversationId={conversationId} />
-        </FlexFullContainer>
-        <div className='flex items-center gap-3 shrink-0'>
+      <ArcoLayout.Header className={classNames('min-h-16 flex items-center justify-between px-4 py-2.5 gap-3 !bg-1 chat-layout-header border-b overflow-hidden', styles.conversationHeader)}>
+        <div className={classNames('flex items-center gap-3 flex-1 min-w-0', styles.headerPrimary)}>
+          {props.executionTarget && <ConversationExecutionBadge target={props.executionTarget} />}
+          <div className='flex-1 min-w-0'>
+            <AgentSessionHeader title={props.title} conversationId={conversationId} />
+          </div>
+        </div>
+        <div className={classNames('flex items-center gap-2 shrink-0', styles.headerActions)}>
+          {props.headerLeft && <div className={classNames('flex items-center justify-end gap-1.5 min-w-0', styles.headerControl)}>{props.headerLeft}</div>}
           {props.headerExtra}
-          {(backend || agentLogo) && <AgentModeSelector backend={backend} agentName={displayName} agentLogo={agentLogo} agentLogoIsEmoji={agentLogoIsEmoji} conversationId={conversationId} compact showLogoInCompact={false} compactLabelType='mode' />}
-          {isWindowsRuntime && workspaceEnabled && (
-            <button type='button' className='workspace-header__toggle' aria-label='Toggle workspace' onClick={() => dispatchWorkspaceToggleEvent()}>
+          {(isWindowsRuntime || isNarrowViewport) && workspaceEnabled && (
+            <button type='button' className='workspace-header__toggle' style={isNarrowViewport ? { minWidth: 44, minHeight: 44 } : undefined} aria-label={t('conversation.workspace.title')} aria-expanded={!rightSiderCollapsed} onClick={() => dispatchWorkspaceToggleEvent()}>
               {rightSiderCollapsed ? <ExpandRight size={16} /> : <ExpandLeft size={16} />}
             </button>
           )}
@@ -482,6 +480,25 @@ const ChatLayout: React.FC<{
   // 预览打开时使用顶部标题栏布局（聊天+预览位于标题栏下方）
   // When preview is open on desktop, keep chat+preview below the header.
   const useHeaderFullWidth = isPreviewOpen;
+
+  if (isNarrowViewport) {
+    return (
+      <ArcoLayout className='size-full'>
+        <div ref={containerRef} className={`${styles.phoneChat} flex flex-col flex-1 min-h-0 min-w-0 w-full overflow-hidden`}>
+          {headerBlock}
+          <ArcoLayout.Content className='flex flex-col flex-1 min-h-0 bg-1 overflow-hidden'>{props.children}</ArcoLayout.Content>
+        </div>
+        {workspaceEnabled && (
+          <Drawer className={styles.phonePanel} title={t('conversation.workspace.title')} visible={!rightSiderCollapsed} width='100%' footer={null} unmountOnExit={false} onCancel={() => dispatchWorkspaceToggleEvent()} bodyStyle={{ padding: 0 }}>
+            {props.sider}
+          </Drawer>
+        )}
+        <Drawer className={styles.phonePanel} title={t('preview.preview')} visible={isPreviewOpen} width='100%' footer={null} onCancel={closePreview} bodyStyle={{ padding: 0 }}>
+          {isPreviewOpen && <PreviewPanel />}
+        </Drawer>
+      </ArcoLayout>
+    );
+  }
 
   return (
     <ArcoLayout className='size-full'>
