@@ -109,6 +109,68 @@ class CandidatePromotionTests(unittest.TestCase):
         self.assertNotEqual(self.run_phase('rc', version='0.2.29', expected=self.candidate).returncode, 0)
         self.assertEqual(self.remote_ref('refs/heads/main'), self.base)
 
+    def create_copied_release_snapshot(self):
+        self.git('switch', '--detach', self.base)
+        (self.repo / 'shared.txt').write_text('previous release', encoding='utf-8')
+        self.commit('previous dev release')
+        snapshot = self.git('rev-parse', 'HEAD')
+        self.write_versions('0.2.28')
+        (self.repo / 'shared.txt').write_text('audited next release', encoding='utf-8')
+        self.commit('advance candidate beyond the release snapshot')
+        candidate = self.git('rev-parse', 'HEAD')
+        self.git('tag', '-f', self.tag)
+        self.git('switch', '--detach', self.base)
+        self.git('commit', '--allow-empty', '-m', 'independent main history')
+        self.git('read-tree', '--reset', '-u', snapshot)
+        self.commit('copy dev release without its ancestry')
+        previous_main = self.git('rev-parse', 'HEAD')
+        self.assertEqual(self.git('rev-parse', 'HEAD^{tree}'),
+                         self.git('rev-parse', snapshot + '^{tree}'))
+        self.git('push', 'origin', 'HEAD:refs/heads/main')
+        conflict = subprocess.run(['git', 'merge-tree', '--write-tree', previous_main, candidate],
+                                  cwd=self.repo, env=self.env, capture_output=True, timeout=30)
+        self.assertNotEqual(conflict.returncode, 0, 'Fixture must reproduce the snapshot conflict')
+        return previous_main, candidate
+
+    def test_copied_release_snapshot_preserves_both_histories_and_audited_tree(self):
+        previous_main, candidate = self.create_copied_release_snapshot()
+        candidate_tree = self.git('rev-parse', candidate + '^{tree}')
+        for phase in ['validate', 'rc', 'promote']:
+            result = self.run_phase(phase, expected=candidate)
+            self.assertEqual(result.returncode, 0, phase + ': ' + result.stderr)
+            if phase == 'validate':
+                self.assertEqual(result.stdout.strip(), candidate)
+        self.assertEqual(self.remote_ref('refs/heads/main^1'), previous_main)
+        self.assertEqual(self.remote_ref('refs/heads/main^2'), candidate)
+        self.assertEqual(self.remote_ref('refs/heads/main^{tree}'), candidate_tree)
+        self.assertEqual(self.remote_ref('refs/tags/v0.2.28^{tree}'), candidate_tree)
+        self.assertEqual(self.remote_ref('refs/tags/v0.2.28-rc'), candidate)
+
+    def test_main_only_changes_prevent_snapshot_reconciliation(self):
+        _, candidate = self.create_copied_release_snapshot()
+        (self.repo / 'main-only.txt').write_text('must not be discarded', encoding='utf-8')
+        self.commit('main-only fix')
+        changed = self.git('rev-parse', 'HEAD')
+        self.git('push', 'origin', 'HEAD:refs/heads/main')
+        for phase in ['validate', 'rc']:
+            self.assertNotEqual(self.run_phase(phase, expected=candidate).returncode, 0)
+        self.assertEqual(self.remote_ref('refs/heads/main'), changed)
+
+    def test_snapshot_reconciliation_rechecks_main_after_audit(self):
+        _, candidate = self.create_copied_release_snapshot()
+        self.assertEqual(self.run_phase('rc', expected=candidate).returncode, 0)
+        (self.repo / 'main-only.txt').write_text('new fix after audit', encoding='utf-8')
+        self.commit('advance main after audit')
+        changed = self.git('rev-parse', 'HEAD')
+        self.git('push', 'origin', 'HEAD:refs/heads/main')
+        # Leave the local tracking ref stale to exercise the mandatory refresh.
+        self.git('update-ref', 'refs/remotes/origin/main', changed + '^')
+        self.assertNotEqual(self.run_phase('promote', expected=candidate).returncode, 0)
+        self.assertEqual(self.remote_ref('refs/heads/main'), changed)
+        result = subprocess.run(['git', '--git-dir=' + str(self.remote), 'show-ref',
+                                 '--verify', 'refs/tags/v0.2.28'], capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+
     def test_workflow_resolves_ancestor_submodule_updates_in_a_fresh_checkout(self):
         self.env['GIT_ALLOW_PROTOCOL'] = 'file'
         module = self.root / 'browser'
