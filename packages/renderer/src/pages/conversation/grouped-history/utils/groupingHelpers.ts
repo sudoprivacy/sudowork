@@ -6,7 +6,8 @@
 
 import type { ICronJob } from '@sudowork/host-bridge/ipcBridge';
 import type { TChatConversation } from '@sudowork/common/storage';
-import { isPersonalAgentRef, type IMyAgent } from '@sudowork/common/personalAgents';
+import { getAgentExecutionType, isLocalPersonalAgentRef, isPersonalAgentRef, type AgentExecutionType, type IMyAgent } from '@sudowork/common/personalAgents';
+import { resolveConversationExecutionTarget } from '@sudowork/common/mossExecution';
 import { getActivityTime, getTimelineLabel } from '@renderer/utils/timeline';
 import { getWorkspaceDisplayName } from '@renderer/utils/workspace';
 import { getWorkspaceUpdateTime } from '@renderer/utils/workspaceHistory';
@@ -280,6 +281,20 @@ export const buildGroupedHistory = (
   return result;
 };
 
+/** Infer missing catalog metadata only when the saved sessions establish one execution type. */
+function resolveHistoricalAgentExecutionType(reference: string, conversations: ConversationItem[]): AgentExecutionType | undefined {
+  if (isLocalPersonalAgentRef(reference)) return 'local';
+  const executionTypes = new Set<AgentExecutionType>();
+  for (const conversation of conversations) {
+    const target = conversation.extra && 'executionTarget' in conversation.extra ? conversation.extra.executionTarget : undefined;
+    const backend = conversation.extra?.backend;
+    const isKnownTarget = target === 'local' || target === 'remote' || conversation.type === 'acp' || conversation.type === 'remote-agent' || backend === 'scode' || backend === 'remote-agent';
+    if (!isKnownTarget) return undefined;
+    executionTypes.add(resolveConversationExecutionTarget(conversation) === 'local' ? 'local' : 'server');
+  }
+  return executionTypes.size === 1 ? [...executionTypes][0] : undefined;
+}
+
 /** Group persistent Agent identities using the catalog and saved management context. */
 export const groupConversationsByAgent = (conversations: ConversationItem[], agents: IMyAgent[]): AgentGroup[] => {
   const byRef = new Map<string, ConversationItem[]>();
@@ -296,6 +311,7 @@ export const groupConversationsByAgent = (conversations: ConversationItem[], age
     ref: agent.ref,
     displayName: agent.displayName,
     kind: agent.kind,
+    executionType: isLocalPersonalAgentRef(agent.ref) ? 'local' : getAgentExecutionType(agent),
     conversations: (byRef.get(agent.ref) ?? []).sort(compareConversationsByLatestActivity),
   }));
 
@@ -308,6 +324,7 @@ export const groupConversationsByAgent = (conversations: ConversationItem[], age
       ref,
       displayName: management?.displayName || savedName || '',
       kind: management ? 'managed' : 'own',
+      executionType: resolveHistoricalAgentExecutionType(ref, bucket),
       conversations: bucket.sort(compareConversationsByLatestActivity),
     });
   }

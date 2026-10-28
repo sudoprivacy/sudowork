@@ -17,7 +17,7 @@ import { assertConversationAccount } from '@process/services/mossExecutionContex
 import { ensureScodeInstalled, getScodePath } from '@process/services/scode/ScodeInstallService';
 import { prepareMossResources, validateMossResourceSnapshot } from '@process/services/mossResourcePreparation';
 import { prepareMossLocalRuntime } from '@process/services/mossLocalRuntime';
-import { requireMossPersonalAgent } from '@process/services/mossPersonalAgents';
+import { requireMossPersonalAgent, resolveMossLocalAgentReference } from '@process/services/mossPersonalAgents';
 import { getDatabase } from '@process/database';
 import { mainError, mainLog, mainWarn } from '@process/utils/mainLogger';
 import { setupChannelResponseRouting } from '@/channels/agent/ChannelResponseRouter';
@@ -568,7 +568,7 @@ export function initConversationBridge(): void {
         if (runtime?.status !== 'ready') runtime = (await prepareMossLocalRuntime()).localRuntime;
         if (runtime.status !== 'ready') throw new Error(`Local execution is unavailable: ${runtime.status}`);
         if (!(await ensureScodeInstalled())) throw new Error('Local scode engine is unavailable');
-        const assistantReference = params.extra?.presetAssistantId || `moss-agent:user:${runtime.userId}`;
+        const assistantReference = params.extra?.presetAssistantId || (await resolveMossLocalAgentReference(ProcessConfig.getSync('eeclaw.userInfo')?.username || runtime.userId));
         const personalAgent = isPersonalAgentRef(assistantReference) ? await requireMossPersonalAgent(assistantReference) : undefined;
         const resources = await prepareMossResources(params.extra?.templateRef || assistantReference, params.extra?.enabledSkills);
         finalParams = {

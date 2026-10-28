@@ -27,6 +27,56 @@ const agent = (ref: string, displayName: string, kind: 'default' | 'own' | 'temp
 });
 
 describe('groupConversationsByAgent', () => {
+  it('keeps execution types on unused Agents without inferring them from display names', () => {
+    const groups = groupConversationsByAgent(
+      [],
+      [
+        { ...agent('sudowork-agent:local:default', 'Same name', 'default'), executionType: 'local' },
+        { ...agent('moss-agent:own:server', 'Same name', 'own'), executionType: 'server' },
+        agent('moss-agent:user:legacy', 'Agent-本地', 'default'),
+        agent('sudowork-agent:local:legacy', 'Local identity', 'own'),
+      ]
+    );
+    expect(groups.map((group) => group.executionType)).toEqual(['local', 'server', 'server', 'local']);
+    expect(groups.every((group) => group.conversations.length === 0)).toBe(true);
+  });
+
+  it('uses the current Agent execution type when older sessions used a different target', () => {
+    const ref = 'moss-agent:own:server';
+    const local = { ...conversation('local', ref, 1), type: 'acp', extra: { presetAssistantId: ref, executionTarget: 'local' } } as ConversationItem;
+    expect(groupConversationsByAgent([local], [{ ...agent(ref, 'Agent', 'own'), executionType: 'server' }])[0].executionType).toBe('server');
+  });
+
+  it.each([
+    { type: 'remote-agent', extra: { executionTarget: 'local' }, expected: 'local' },
+    { type: 'acp', extra: { executionTarget: 'remote' }, expected: 'server' },
+    { type: 'acp', extra: {}, expected: 'local' },
+    { type: 'remote-agent', extra: {}, expected: 'server' },
+    { type: undefined, extra: { backend: 'scode' }, expected: 'local' },
+    { type: undefined, extra: { backend: 'remote-agent' }, expected: 'server' },
+    { type: undefined, extra: {}, expected: undefined },
+  ])('uses saved execution information for unavailable Agents: %j', ({ type, extra, expected }) => {
+    const ref = 'moss-agent:own:unavailable';
+    const saved = { ...conversation('saved', ref, 1), type, extra: { presetAssistantId: ref, agentName: 'Local-looking name-本地', ...extra } } as ConversationItem;
+    expect(groupConversationsByAgent([saved], [])[0].executionType).toBe(expected);
+  });
+
+  it('recognizes an unavailable local identity even if its saved session has no execution metadata', () => {
+    const ref = 'sudowork-agent:local:unavailable';
+    const saved = { ...conversation('saved', ref, 1), type: undefined, extra: { presetAssistantId: ref } } as unknown as ConversationItem;
+    expect(groupConversationsByAgent([saved], [])[0].executionType).toBe('local');
+  });
+
+  it('leaves conflicting or incomplete historical groups unknown instead of using the newest session', () => {
+    const ref = 'moss-agent:own:mixed';
+    const local = { ...conversation('local', ref, 2), type: 'acp', extra: { presetAssistantId: ref, executionTarget: 'local' } } as ConversationItem;
+    const remote = { ...conversation('remote', ref, 1), extra: { presetAssistantId: ref, executionTarget: 'remote' } } as ConversationItem;
+    const unknown = { ...conversation('unknown', ref, 3), type: undefined, extra: { presetAssistantId: ref } } as unknown as ConversationItem;
+    expect(groupConversationsByAgent([remote, local], [])[0].executionType).toBeUndefined();
+    expect(groupConversationsByAgent([local, remote], [])[0].executionType).toBeUndefined();
+    expect(groupConversationsByAgent([unknown, local], [])[0].executionType).toBeUndefined();
+  });
+
   it('uses personal references for local and cloud sessions with identical display names', () => {
     const firstRef = 'moss-agent:own:11111111-1111-4111-8111-111111111111';
     const secondRef = 'moss-agent:own:22222222-2222-4222-8222-222222222222';

@@ -79,6 +79,8 @@
   },
   "sessionComposition": {
     "agent": "My Agent",
+    "localAgent": "Local Agent",
+    "selectAgent": "Select an Agent",
     "template": "Task template",
     "noTemplate": "No template",
     "engine": "Execution engine: {{engine}}"

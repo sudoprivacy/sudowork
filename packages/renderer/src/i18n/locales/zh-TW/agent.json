@@ -27,6 +27,14 @@
     "configureFirst": "請先在設定中配置一個 Agent。",
     "switching": "正在切換 Agent..."
   },
+  "execution": {
+    "localShort": "本機",
+    "serverShort": "伺服器",
+    "unknownShort": "未知",
+    "local": "本機執行",
+    "server": "伺服器執行",
+    "unknown": "執行類型未知"
+  },
   "mine": {
     "title": "我的智能體",
     "create": "建立 Agent",
@@ -38,6 +46,12 @@
     "startConversation": "新對話",
     "empty": "尚無個人 Agent",
     "name": "Agent 名稱",
+    "executionType": "執行類型",
+    "serverExecution": "伺服器執行",
+    "localExecution": "本機執行",
+    "filterAll": "全部",
+    "filterServer": "伺服器執行",
+    "filterLocal": "本機執行",
     "createFailed": "建立失敗，請重試。",
     "open": "開啟 Agent",
     "openFailed": "無法開啟 Agent 的對話，請重試。"

@@ -27,6 +27,14 @@
     "configureFirst": "Please configure an agent in Settings first.",
     "switching": "Switching agent..."
   },
+  "execution": {
+    "localShort": "Local",
+    "serverShort": "Server",
+    "unknownShort": "Unknown",
+    "local": "Local execution",
+    "server": "Server execution",
+    "unknown": "Execution type unknown"
+  },
   "mine": {
     "title": "My Agents",
     "create": "Create Agent",
@@ -38,6 +46,12 @@
     "startConversation": "New conversation",
     "empty": "No personal Agents yet",
     "name": "Agent name",
+    "executionType": "Execution type",
+    "serverExecution": "Server execution",
+    "localExecution": "Local execution",
+    "filterAll": "All",
+    "filterServer": "Server execution",
+    "filterLocal": "Local execution",
     "createFailed": "Could not create the Agent. Please try again.",
     "open": "Open Agent",
     "openFailed": "Could not open the Agent conversations. Please try again."

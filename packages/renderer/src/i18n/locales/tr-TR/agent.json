@@ -27,6 +27,14 @@
     "configureFirst": "Please configure an agent in Settings first.",
     "switching": "Switching agent..."
   },
+  "execution": {
+    "localShort": "Yerel",
+    "serverShort": "Sunucu",
+    "unknownShort": "Bilinmiyor",
+    "local": "Yerel çalıştırma",
+    "server": "Sunucu çalıştırma",
+    "unknown": "Çalıştırma türü bilinmiyor"
+  },
   "mine": {
     "title": "Agent’larım",
     "create": "Agent oluştur",
@@ -38,6 +46,12 @@
     "startConversation": "Yeni görüşme",
     "empty": "Henüz kişisel Agent yok",
     "name": "Agent adı",
+    "executionType": "Çalıştırma türü",
+    "serverExecution": "Sunucu çalıştırma",
+    "localExecution": "Yerel çalıştırma",
+    "filterAll": "Tümü",
+    "filterServer": "Sunucu çalıştırma",
+    "filterLocal": "Yerel çalıştırma",
     "createFailed": "Agent oluşturulamadı. Lütfen tekrar deneyin.",
     "open": "Agent aç",
     "openFailed": "Agent görüşmeleri açılamadı. Lütfen tekrar deneyin."

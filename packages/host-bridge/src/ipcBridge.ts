@@ -28,6 +28,7 @@ import type { BrowserFile, BrowserSessionAction, BrowserSessionReply } from '@su
 import type { InputAction, InputDelivery, InputReceipt, InputState } from '@sudowork/contracts/input-delivery';
 import type { IConfirmation, IResponseMessage } from '@sudowork/common/chatTypes';
 import type { IAssistantInfo, IAssistantMeta } from '@sudowork/common/assistantTypes';
+import type { AgentExecutionType } from '@sudowork/common/personalAgents';
 import type { IChannelPairingRequest, IChannelPluginStatus, IChannelSession, IChannelUser, IPluginCredentials } from '@sudowork/common/channelTypes';
 import type { ISafetyStatus, IBlacklistConfig } from '@sudowork/common/types/security';
 import type { AuthProxyRule } from '@sudowork/common/types/authProxy';
@@ -3416,12 +3417,14 @@ export const eeclaw = {
         ref: string;
         displayName: string;
         kind: 'default' | 'own' | 'template';
+        /** Execution type for this Agent. */
+        executionType?: AgentExecutionType;
       }>
     >,
     void
   >('eeclaw.get-my-agents'),
   /** Create an Agent owned by the currently authenticated user. */
-  createUserAgent: bridge.buildProvider<IBridgeResponse<{ id: string; displayName: string; createdAt: number }>, { displayName: string }>('eeclaw.create-user-agent'),
+  createUserAgent: bridge.buildProvider<IBridgeResponse<{ id: string; displayName: string; createdAt: number; executionType?: AgentExecutionType }>, { displayName: string; executionType?: AgentExecutionType }>('eeclaw.create-user-agent'),
   /** Fetch enterprise cloud assistants from the enterprise server */
   getCloudAssistants: bridge.buildProvider<
     IBridgeResponse<

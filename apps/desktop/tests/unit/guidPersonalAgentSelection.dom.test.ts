@@ -38,6 +38,7 @@ beforeEach(() => {
   const storage = new Map<string, string>();
   vi.stubGlobal('localStorage', { getItem: (key: string) => storage.get(key) || null, setItem: (key: string, value: string) => storage.set(key, value), removeItem: (key: string) => storage.delete(key), clear: () => storage.clear() });
   state.mode = 'local';
+  state.mine = [{ ref: 'moss-agent:own:22222222-2222-4222-8222-222222222222', displayName: 'Research', kind: 'own' }];
   state.isEnterprise = true;
   state.saveConfig.mockReset().mockResolvedValue(undefined);
   state.loadMossModels.mockReset().mockResolvedValue({ success: false });
@@ -58,6 +59,17 @@ afterEach(() => {
 });
 
 describe('personal Agent selection through picker refreshes', () => {
+  it('opens a local identity URL in local mode even when the saved preference is remote', async () => {
+    state.mode = 'remote';
+    state.mine = [{ ref: 'sudowork-agent:local:22222222-2222-4222-8222-222222222222', displayName: 'Research', kind: 'own' }];
+    const { result } = renderHook(() => useGuidAgentSelection({ localeKey: 'en-US', assistantFromUrl: state.mine[0].ref }));
+    await waitFor(() => expect(result.current.selectedAgentInfo?.customAgentId).toBe(state.mine[0].ref));
+    expect(result.current.sessionMode).toBe('local');
+    await act(async () => state.listeners.get('assistants.changed')?.());
+    await waitFor(() => expect(result.current.selectedAgentInfo?.customAgentId).toBe(state.mine[0].ref));
+    expect(result.current.sessionMode).toBe('local');
+  });
+
   it('uses Cloud mode before the Guid page mounts in the WebUI host', () => {
     vi.stubGlobal('electronAPI', undefined);
     vi.stubGlobal('__sudoworkWebBridge', true);

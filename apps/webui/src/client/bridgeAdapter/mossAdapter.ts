@@ -1989,7 +1989,10 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     return ok(await listMyAgents())
   },
   'eeclaw.create-user-agent': async (req) => {
-    return ok(await agentPort.createOwned(req))
+    const { executionType, ...input } = (req ?? {}) as { executionType?: unknown }
+    if (executionType !== undefined && executionType !== 'server')
+      return fail('not-supported-on-web')
+    return ok(await agentPort.createOwned(input))
   },
 
   'eeclaw.get-cloud-assistants': async () => {

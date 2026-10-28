@@ -8,17 +8,16 @@ import type { UnifiedHistoryConversation } from '@renderer/pages/external-agents
 
 import { DndContext, DragOverlay, closestCenter } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { Button, Empty, Input, Message, Modal } from '@arco-design/web-react';
+import { Button, Empty, Input, Message, Modal, Tag, Tooltip } from '@arco-design/web-react';
 import { Down, FolderOpen } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import type { TChatConversation } from '@sudowork/common/storage';
 import { emitter } from '@renderer/utils/emitter';
-import { resetGuidDraft } from '@renderer/pages/guid/hooks/useGuidDraft';
 import { useCronJobsMap } from '@renderer/pages/cron/hooks/useCronJobs';
 import FlexFullContainer from '@renderer/components/FlexFullContainer';
 import DirectorySelectionModal from '@renderer/components/DirectorySelectionModal';
@@ -31,12 +30,10 @@ import { useConversationActions } from './hooks/useConversationActions';
 import { useConversations } from './hooks/useConversations';
 import { useDragAndDrop } from './hooks/useDragAndDrop';
 import { useExport } from './hooks/useExport';
-import type { AgentGroup, ConversationRowProps, ConversationItem, WorkspaceGroupedHistoryProps } from './types';
-import { getLatestAgentConversation } from '../utils/agentIdentity';
+import type { ConversationRowProps, ConversationItem, WorkspaceGroupedHistoryProps } from './types';
 
 const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSessionClick, collapsed = false, tooltipEnabled = false, batchMode = false, onBatchModeChange, activeTab = 'timeline', onBatchApiChange }) => {
   const { id } = useParams();
-  const navigate = useNavigate();
   const { t } = useTranslation();
   const { getJobStatus, markAsRead, setActiveConversation } = useCronJobsMap();
 
@@ -228,17 +225,6 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
     toggleSelectedConversation,
     markAsRead,
   });
-
-  function onAgentOpen(group: AgentGroup) {
-    const latest = getLatestAgentConversation(group.conversations, group.ref);
-    if (latest) {
-      void handleConversationClick(latest);
-      return;
-    }
-    resetGuidDraft();
-    void navigate(`/guid?assistant=${encodeURIComponent(group.ref)}`);
-    onSessionClick?.();
-  }
 
   const {
     exportTask,
@@ -545,6 +531,8 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
               // with no name falls back to a label rather than showing a blank
               // row or the internal reference.
               const label = group.displayName || t('conversation.sidebar.myAgent', '我的智能体');
+              const executionType = group.executionType ?? 'unknown';
+              const executionLabel = t(`agent.execution.${executionType}`);
               return (
                 <div key={group.ref} className='mb-8px min-w-0'>
                   {!collapsed && (
@@ -557,13 +545,20 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({ onSes
                         onClick={() => onToggleTimeline(group.ref, false)}
                         icon={<Down size={12} className={classNames('line-height-0 transition-transform duration-200', isExpanded ? 'rotate-0' : '-rotate-90')} />}
                       />
-                      <Button type='text' size='mini' className='flex-1 min-w-0 text-left !justify-start !text-inherit !font-bold' disabled={batchMode} onClick={() => onAgentOpen(group)}>
-                        <span className='truncate'>{label}</span>
-                      </Button>
+                      <Tooltip content={label} position='right' unmountOnExit popupHoverStay={false}>
+                        <Button type='text' size='mini' className='flex-1 min-w-0 text-left !justify-start !text-inherit !font-bold' aria-expanded={isExpanded} onClick={() => onToggleTimeline(group.ref, false)}>
+                          <span className='truncate'>{label}</span>
+                        </Button>
+                      </Tooltip>
+                      <Tooltip mini content={executionLabel}>
+                        <Tag size='small' color={executionType === 'local' ? 'blue' : executionType === 'server' ? 'orange' : undefined} className='shrink-0 min-w-11 justify-center !px-1.5 !text-xs !font-normal' aria-label={executionLabel}>
+                          {t(`agent.execution.${executionType}Short`)}
+                        </Tag>
+                      </Tooltip>
                     </div>
                   )}
                   {(collapsed || isExpanded) && (
-                    <div className='flex flex-col gap-2px min-w-0'>
+                    <div className={classNames('flex flex-col gap-0.5 min-w-0', { 'ml-8 pl-2 border-l border-solid border-light': !collapsed })}>
                       {unpinnedConversations.length > 0
                         ? unpinnedConversations.map((conversation) => renderConversation(conversation as ConversationItem, group.ref))
                         : !collapsed && <div className='px-12px py-6px text-12px text-secondary'>{t('conversation.sidebar.agentHasNoConversations', '还没有对话')}</div>}

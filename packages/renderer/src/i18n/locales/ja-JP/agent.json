@@ -27,6 +27,14 @@
     "configureFirst": "まず設定でエージェントを設定してください。",
     "switching": "エージェントを切り替え中..."
   },
+  "execution": {
+    "localShort": "ローカル",
+    "serverShort": "サーバー",
+    "unknownShort": "不明",
+    "local": "ローカル実行",
+    "server": "サーバー実行",
+    "unknown": "実行タイプ不明"
+  },
   "mine": {
     "title": "マイ Agent",
     "create": "Agent を作成",
@@ -38,6 +46,12 @@
     "startConversation": "新しい会話",
     "empty": "個人用 Agent はまだありません",
     "name": "Agent 名",
+    "executionType": "実行タイプ",
+    "serverExecution": "サーバー実行",
+    "localExecution": "ローカル実行",
+    "filterAll": "すべて",
+    "filterServer": "サーバー実行",
+    "filterLocal": "ローカル実行",
     "createFailed": "Agent を作成できませんでした。再試行してください。",
     "open": "Agent を開く",
     "openFailed": "Agent の会話を開けませんでした。もう一度お試しください。"

@@ -304,6 +304,8 @@ describe('personal Agent forwarding', () => {
     { displayName: 'x'.repeat(61) },
     { displayName: 'Project', userId: 'other' },
     { displayName: 'Project', orgId: 'other' },
+    { displayName: 'Project', executionType: 'server' },
+    { displayName: 'Project', executionType: 'local' },
   ])('rejects invalid names and caller-supplied ownership: %j', async (body) => {
     const response = await request(setupApp()).post('/api/v1/user-agents').send(body)
     expect(response.status).toBe(400)

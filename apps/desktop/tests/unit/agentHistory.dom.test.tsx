@@ -19,8 +19,8 @@ vi.mock('@renderer/pages/conversation/grouped-history/hooks/useExport', () => ({
 vi.mock('@renderer/pages/conversation/grouped-history/hooks/useDragAndDrop', () => ({ useDragAndDrop: () => ({}) }));
 vi.mock('@renderer/components/DirectorySelectionModal', () => ({ default: () => null }));
 vi.mock('@renderer/pages/conversation/grouped-history/ConversationRow', () => ({
-  default: function ConversationRowMock({ conversation, agentDisplayName }: IConversationRowMockProps) {
-    return <button>{agentDisplayName ? `${agentDisplayName} · ${conversation.name}` : conversation.name}</button>;
+  default: function ConversationRowMock({ conversation, agentDisplayName, onConversationClick }: IConversationRowMockProps) {
+    return <button onClick={() => onConversationClick(conversation)}>{agentDisplayName ? `${agentDisplayName} · ${conversation.name}` : conversation.name}</button>;
   },
 }));
 
@@ -48,6 +48,36 @@ function legacyConversations(): ConversationItem[] {
 }
 
 describe('Agent history compatibility', () => {
+  it('shows passive execution badges before and after expanding an Agent, with the full type on hover', async () => {
+    const local = { ref: 'sudowork-agent:local:default', displayName: 'A very long local Agent name that must leave room for its execution badge', kind: 'default' as const, executionType: 'local' as const };
+    const unknown = { id: 'unknown', name: 'Old conversation', createTime: 1, modifyTime: 1, extra: { presetAssistantId: 'moss-agent:own:unknown', agentName: 'Unavailable Agent' } } as ConversationItem;
+    state.history = buildGroupedHistory([unknown], t, [], [myAgent, local]);
+    const { rerender } = render(<WorkspaceGroupedHistory activeTab='agents' />);
+    const localBadge = screen.getByLabelText('agent.execution.local');
+    expect(localBadge).toHaveTextContent('agent.execution.localShort');
+    expect(screen.getByLabelText('agent.execution.server')).toHaveTextContent('agent.execution.serverShort');
+    expect(screen.getByLabelText('agent.execution.unknown')).toHaveTextContent('agent.execution.unknownShort');
+    const nameButton = screen.getByRole('button', { name: local.displayName, exact: true });
+    fireEvent.mouseEnter(nameButton);
+    expect(await screen.findByRole('tooltip', { name: local.displayName })).toBeVisible();
+    fireEvent.mouseLeave(nameButton);
+    fireEvent.click(localBadge);
+    expect(state.navigate).not.toHaveBeenCalled();
+    expect(state.onConversationClick).not.toHaveBeenCalled();
+    fireEvent.mouseEnter(localBadge);
+    expect(await screen.findByText('agent.execution.local')).toBeVisible();
+    fireEvent.mouseLeave(localBadge);
+    fireEvent.click(screen.getByRole('button', { name: `common.expandMore ${local.displayName}` }));
+    expect(screen.getByLabelText('agent.execution.local')).toBeVisible();
+    expect(screen.getByText('conversation.sidebar.agentHasNoConversations')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: `common.collapse ${local.displayName}` }));
+    expect(screen.getByLabelText('agent.execution.local')).toBeVisible();
+    rerender(<WorkspaceGroupedHistory activeTab='timeline' />);
+    expect(screen.queryByLabelText('agent.execution.local')).toBeNull();
+    expect(screen.queryByLabelText('agent.execution.server')).toBeNull();
+    expect(screen.queryByLabelText('agent.execution.unknown')).toBeNull();
+  });
+
   it('keeps older conversations without an Agent reference reachable after the Agent list loads', () => {
     const conversations = legacyConversations();
     state.history = buildGroupedHistory(conversations, t, [], [myAgent]);
@@ -90,23 +120,37 @@ describe('Agent history compatibility', () => {
     }
   });
 
-  it('opens the latest session when clicking an Agent and changes expansion only with its arrow', () => {
+  it.each([false, true])('toggles the same expansion state from the Agent name and arrow without navigating (batch=%s)', (isBatchMode) => {
     const conversations = legacyConversations()
       .slice(0, 2)
       .map((conversation) => ({ ...conversation, extra: { presetAssistantId: myAgent.ref, agentName: myAgent.displayName } }) as ConversationItem);
     state.conversations = conversations;
     state.history = buildGroupedHistory(conversations, t, [], [myAgent]);
-    render(<WorkspaceGroupedHistory activeTab='agents' />);
+    const onSessionClick = vi.fn();
+    render(<WorkspaceGroupedHistory activeTab='agents' batchMode={isBatchMode} onSessionClick={onSessionClick} />);
 
-    fireEvent.click(screen.getByRole('button', { name: myAgent.displayName, exact: true }));
-    expect(state.onConversationClick).toHaveBeenCalledWith(conversations[1]);
-    expect(state.navigate).not.toHaveBeenCalled();
-    expect(screen.queryByRole('button', { name: conversations[0].name })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: `common.expandMore ${myAgent.displayName}` }));
-    expect(state.onConversationClick).toHaveBeenCalledTimes(1);
+    const nameButton = screen.getByRole('button', { name: myAgent.displayName, exact: true });
+    expect(nameButton).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(nameButton);
+    expect(nameButton).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getAllByRole('button', { name: conversations[0].name })).toHaveLength(1);
     fireEvent.click(screen.getByRole('button', { name: `common.collapse ${myAgent.displayName}` }));
+    expect(nameButton).toHaveAttribute('aria-expanded', 'false');
     expect(screen.queryByRole('button', { name: conversations[0].name })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: `common.expandMore ${myAgent.displayName}` }));
+    expect(nameButton).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getAllByRole('button', { name: conversations[0].name })).toHaveLength(1);
+    fireEvent.click(nameButton);
+    expect(nameButton).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('button', { name: conversations[0].name })).toBeNull();
+    expect(state.onConversationClick).not.toHaveBeenCalled();
+    expect(state.navigate).not.toHaveBeenCalled();
+    expect(onSessionClick).not.toHaveBeenCalled();
+    if (!isBatchMode) {
+      fireEvent.click(nameButton);
+      fireEvent.click(screen.getByRole('button', { name: conversations[0].name }));
+      expect(state.onConversationClick).toHaveBeenCalledExactlyOnceWith(conversations[0]);
+    }
   });
 
   it('keeps pinned sessions above newer activity in the Agent view without duplication', () => {
@@ -125,11 +169,14 @@ describe('Agent history compatibility', () => {
     expect(pinnedRow.compareDocumentPosition(newestRow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('opens a new conversation under an unused Agent', () => {
+  it('shows the empty group when clicking an unused Agent without opening a new conversation', () => {
     state.history = buildGroupedHistory([], t, [], [myAgent]);
     render(<WorkspaceGroupedHistory activeTab='agents' />);
     fireEvent.click(screen.getByRole('button', { name: myAgent.displayName, exact: true }));
-    expect(state.navigate).toHaveBeenCalledWith(`/guid?assistant=${encodeURIComponent(myAgent.ref)}`);
+    expect(screen.getByText('conversation.sidebar.agentHasNoConversations')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: myAgent.displayName, exact: true }));
+    expect(screen.queryByText('conversation.sidebar.agentHasNoConversations')).toBeNull();
+    expect(state.navigate).not.toHaveBeenCalled();
     expect(state.onConversationClick).not.toHaveBeenCalled();
   });
 });
@@ -137,6 +184,7 @@ describe('Agent history compatibility', () => {
 interface IConversationRowMockProps {
   conversation: ConversationItem;
   agentDisplayName?: string;
+  onConversationClick: (conversation: ConversationItem) => void;
 }
 
 it('keeps external sessions on the complete timeline and preserves native Agent navigation after rebase', () => {

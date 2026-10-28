@@ -5,7 +5,7 @@
  */
 
 import type { TChatConversation } from '@sudowork/common/storage';
-import type { IMyAgent } from '@sudowork/common/personalAgents';
+import type { AgentExecutionType, IMyAgent } from '@sudowork/common/personalAgents';
 import type { CronJobStatusEnums } from '@renderer/utils/enum';
 
 /**
@@ -30,10 +30,12 @@ export type WorkspaceGroup = {
  * 「招聘专家」 have two agents, and each sees only their own.
  */
 export type AgentGroup = {
-  /** Stable identity from the server; display names are presentation only. */
+  /** Stable local or server identity; display names are presentation only. */
   ref: string;
   displayName: string;
   kind: IMyAgent['kind'] | 'managed';
+  /** Missing when historical sessions cannot establish one execution type. */
+  executionType?: AgentExecutionType;
   conversations: ConversationItem[];
 };
 

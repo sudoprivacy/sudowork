@@ -110,4 +110,24 @@ describe('shared session navigation', () => {
     expect(screen.getByRole('status').textContent).toBe('recruiter');
     expect(screen.getByText('Alice')).toBeTruthy();
   });
+
+  it('shows local preferred identities in the local execution selector', async () => {
+    render(
+      <SessionCompositionSelector
+        sessionMode='local'
+        agents={[
+          { ref: 'moss-agent:own:server', displayName: 'Server', kind: 'own', executionType: 'server' },
+          { ref: 'sudowork-agent:local:local', displayName: 'Local', kind: 'own', executionType: 'local' },
+        ]}
+        templates={[]}
+        personalAgentRef='sudowork-agent:local:local'
+        onPersonalAgentChange={vi.fn()}
+        onTemplateChange={vi.fn()}
+      />
+    );
+    const agent = screen.getByRole('combobox', { name: 'guid.sessionComposition.localAgent' });
+    await userEvent.click(agent);
+    expect(screen.getAllByText('Local')).toHaveLength(2);
+    expect(screen.queryByRole('option', { name: 'Server' })).toBeNull();
+  });
 });
