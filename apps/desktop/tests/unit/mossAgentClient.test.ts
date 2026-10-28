@@ -22,7 +22,7 @@ describe('shared personal Agent contract', () => {
     expect(request).toHaveBeenCalledWith({ method: 'POST', path: '/api/v1/user-agents', body: { displayName: 'My Agent' } });
   });
 
-  it.each([{ displayName: ' ' }, { displayName: 'x'.repeat(61) }, { displayName: 'Valid', userId: 'foreign-owner' }])('rejects invalid creation input before transport: %j', async (input) => {
+  it.each([{ displayName: ' ' }, { displayName: 'x'.repeat(61) }, { displayName: 'Valid', userId: 'foreign-owner' }, { displayName: 'Valid', executionType: 'server' }, { displayName: 'Valid', executionType: 'local' }])('rejects invalid creation input before transport: %j', async (input) => {
     const request = vi.fn();
     await expect(createMossAgentPort(request).createOwned(input)).rejects.toThrow();
     expect(request).not.toHaveBeenCalled();

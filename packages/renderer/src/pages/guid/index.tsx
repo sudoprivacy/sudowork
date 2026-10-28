@@ -51,7 +51,7 @@ import { useGuidSend } from './hooks/useGuidSend';
 import { useTypewriterPlaceholder } from './hooks/useTypewriterPlaceholder';
 import { getGuidDraft, setGuidDraft } from './hooks/useGuidDraft';
 import type { AcpBackendConfig } from './types';
-import { isPersonalAgentRef } from '@sudowork/common/personalAgents';
+import { getAgentExecutionType, isPersonalAgentRef, type AgentExecutionType } from '@sudowork/common/personalAgents';
 import { useConversationHistory } from '@renderer/pages/conversation/context/ConversationHistoryContext';
 import SessionCompositionSelector from './components/SessionCompositionSelector';
 
@@ -84,10 +84,9 @@ const GuidPage: React.FC = () => {
   const searchParams = new URLSearchParams(location.search);
   const skillParam = searchParams.get('skill');
   const assistantParam = searchParams.get('assistant');
+  const modeParam = searchParams.get('mode');
+  const initialSessionMode: 'remote' | 'local' | undefined = modeParam === 'local' || modeParam === 'remote' ? modeParam : undefined;
   const { agents: personalAgents, scopeKey } = useConversationHistory();
-  const [personalSelection, setPersonalSelection] = useState<{ scope: string | null; ref: string }>();
-  const personalAgentRef = personalSelection?.scope === scopeKey ? personalSelection.ref : isPersonalAgentRef(assistantParam || undefined) ? assistantParam! : personalAgents.find((agent) => agent.kind === 'default')?.ref;
-  const selectedPersonalAgent = personalAgents.find((agent) => agent.ref === personalAgentRef && agent.kind !== 'template');
   const isOntologyEntry = searchParams.get('source') === 'ontology' && assistantParam?.startsWith('ontology-') === true;
 
   // --- Hooks ---
@@ -98,8 +97,17 @@ const GuidPage: React.FC = () => {
     isGoogleAuth: modelSelection.isGoogleAuth,
     localeKey,
     assistantFromUrl: assistantParam,
+    initialSessionMode,
     isOntologyEntry,
   });
+  const [personalSelection, setPersonalSelection] = useState<{ scope: string | null; refs: Partial<Record<AgentExecutionType, string>> }>();
+  const selectedExecutionType: AgentExecutionType = agentSelection.sessionMode === 'local' ? 'local' : 'server';
+  const preferredAgent =
+    personalAgents.filter((agent) => agent.kind !== 'template' && getAgentExecutionType(agent) === selectedExecutionType).find((agent) => agent.kind === 'default') || personalAgents.find((agent) => agent.kind !== 'template' && getAgentExecutionType(agent) === selectedExecutionType);
+  const urlAgent = personalAgents.find((agent) => agent.ref === assistantParam && agent.kind !== 'template');
+  const selectedModeAgentRef = personalSelection?.scope === scopeKey ? personalSelection.refs[selectedExecutionType] : undefined;
+  const personalAgentRef = selectedModeAgentRef || (urlAgent && getAgentExecutionType(urlAgent) === selectedExecutionType ? urlAgent.ref : preferredAgent?.ref);
+  const selectedPersonalAgent = personalAgents.find((agent) => agent.ref === personalAgentRef && agent.kind !== 'template');
   const selectedTemplateRef = agentSelection.selectedAgentInfo?.customAgentId && !isPersonalAgentRef(agentSelection.selectedAgentInfo.customAgentId) ? agentSelection.selectedAgentInfo.customAgentId : undefined;
 
   const guidInput = useGuidInput({
@@ -617,10 +625,14 @@ const GuidPage: React.FC = () => {
           <SessionCompositionSelector
             agents={personalAgents}
             templates={agentSelection.customAgents}
+            sessionMode={agentSelection.sessionMode}
             personalAgentRef={personalAgentRef}
             templateRef={selectedTemplateRef}
             onPersonalAgentChange={(ref) => {
-              setPersonalSelection({ scope: scopeKey, ref });
+              setPersonalSelection((previous) => ({
+                scope: scopeKey,
+                refs: { ...(previous?.scope === scopeKey ? previous.refs : {}), [selectedExecutionType]: ref },
+              }));
               if (!selectedTemplateRef) agentSelection.setSelectedAgentKey(`custom:${ref}`);
             }}
             onTemplateChange={(ref) => agentSelection.setSelectedAgentKey(`custom:${ref || personalAgentRef || ''}`)}

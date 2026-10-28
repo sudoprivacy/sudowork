@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { IMossCatalogInstallation, MossCatalogKind } from '@sudowork/common/mossCatalog';
-import { isPersonalAgentRef } from '@sudowork/common/personalAgents';
+import { isLocalPersonalAgentRef, isPersonalAgentRef } from '@sudowork/common/personalAgents';
 import { z } from 'zod';
 import { listMossCatalog, detailMossCatalog, requestMossCatalog } from './mossCatalogApi';
 import { getMossCatalogInstallations, installMossCatalog, validateCatalogInstallation, catalogResourceRoot, catalogRuntimeName } from './mossCatalogInstall';
@@ -9,6 +9,7 @@ import { requireMossPersonalAgent } from './mossPersonalAgents';
 
 /** Resolve selected local downloads to stable remote references without confusing them with directory names. */
 export async function resolveMossCatalogSelection(assistantId?: string, skillIds: string[] = []) {
+  if (isLocalPersonalAgentRef(assistantId)) throw new Error('Local Agents cannot use server execution');
   const installed = await getMossCatalogInstallations();
   const selected: IMossCatalogInstallation[] = [];
   const unresolved: string[] = [];

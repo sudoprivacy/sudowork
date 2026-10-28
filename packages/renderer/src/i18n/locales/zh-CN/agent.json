@@ -27,6 +27,14 @@
     "configureFirst": "请先在设置中配置一个 Agent。",
     "switching": "正在切换 Agent..."
   },
+  "execution": {
+    "localShort": "本地",
+    "serverShort": "服务端",
+    "unknownShort": "未知",
+    "local": "本地执行",
+    "server": "服务端执行",
+    "unknown": "执行类型未知"
+  },
   "mine": {
     "title": "我的智能体",
     "create": "创建 Agent",
@@ -38,6 +46,12 @@
     "startConversation": "新会话",
     "empty": "暂无个人 Agent",
     "name": "Agent 名称",
+    "executionType": "执行类型",
+    "serverExecution": "服务器执行",
+    "localExecution": "本地执行",
+    "filterAll": "全部",
+    "filterServer": "服务器执行",
+    "filterLocal": "本地执行",
     "createFailed": "创建失败，请重试。",
     "open": "进入 Agent",
     "openFailed": "无法打开 Agent 的会话，请重试。"

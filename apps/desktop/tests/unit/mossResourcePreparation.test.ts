@@ -85,8 +85,7 @@ describe('Moss resource preparation', () => {
     expect(snapshot?.presetContext).toContain('Remote template rules');
   });
 
-  it('checks personal ownership without downloading a template or requiring its snapshot', async () => {
-    const ref = 'moss-agent:own:personal';
+  it.each(['moss-agent:own:personal', 'sudowork-agent:local:personal'])('checks personal ownership without downloading a template or requiring its snapshot: %s', async (ref) => {
     const request = vi.fn();
     vi.stubGlobal('fetch', request);
     expect(await prepareMossResources(ref)).toEqual({ presetContext: '', enabledSkills: [], resources: [] });

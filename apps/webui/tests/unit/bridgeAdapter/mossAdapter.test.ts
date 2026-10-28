@@ -502,28 +502,47 @@ describe('mossAdapter: personal Agent conversation names', () => {
 
 describe('mossAdapter: personal Agents', () => {
   afterEach(() => vi.unstubAllGlobals())
-  it('creates with cookie authority and a trimmed name only', async () => {
-    const agent = {
-      id: '22222222-2222-4222-8222-222222222222',
-      displayName: 'My Agent',
-      createdAt: 100,
-    }
-    const request = vi.fn(async () =>
-      Response.json({ success: true, data: agent }, { status: 201 }),
-    )
+  it.each([undefined, 'server'] as const)(
+    'creates with cookie authority and a trimmed name only (executionType=%s)',
+    async (executionType) => {
+      const agent = {
+        id: '22222222-2222-4222-8222-222222222222',
+        displayName: 'My Agent',
+        createdAt: 100,
+      }
+      const request = vi.fn(async () =>
+        Response.json({ success: true, data: agent }, { status: 201 }),
+      )
+      vi.stubGlobal('fetch', request)
+      expect(
+        await ipcBridge.eeclaw.createUserAgent.invoke({
+          displayName: '  My Agent  ',
+          executionType,
+        }),
+      ).toEqual({
+        success: true,
+        data: agent,
+      })
+      expect(request).toHaveBeenCalledWith(
+        '/api/v1/user-agents',
+        expect.objectContaining({
+          method: 'POST',
+          credentials: 'include',
+          body: JSON.stringify({ displayName: 'My Agent' }),
+        }),
+      )
+    },
+  )
+  it('rejects local creation without making a browser request', async () => {
+    const request = vi.fn()
     vi.stubGlobal('fetch', request)
-    expect(await ipcBridge.eeclaw.createUserAgent.invoke({ displayName: '  My Agent  ' })).toEqual({
-      success: true,
-      data: agent,
-    })
-    expect(request).toHaveBeenCalledWith(
-      '/api/v1/user-agents',
-      expect.objectContaining({
-        method: 'POST',
-        credentials: 'include',
-        body: JSON.stringify({ displayName: 'My Agent' }),
+    expect(
+      await ipcBridge.eeclaw.createUserAgent.invoke({
+        displayName: 'Local',
+        executionType: 'local',
       }),
-    )
+    ).toMatchObject({ success: false, msg: 'not-supported-on-web' })
+    expect(request).not.toHaveBeenCalled()
   })
   it('exposes list failures so the management page can offer retry', async () => {
     vi.stubGlobal(

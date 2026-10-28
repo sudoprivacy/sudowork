@@ -76,6 +76,8 @@
   },
   "sessionComposition": {
     "agent": "マイ Agent",
+    "localAgent": "ローカル Agent",
+    "selectAgent": "Agent を選択",
     "template": "タスクテンプレート",
     "noTemplate": "テンプレートなし",
     "engine": "実行エンジン：{{engine}}"

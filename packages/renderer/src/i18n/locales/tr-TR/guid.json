@@ -76,6 +76,8 @@
   },
   "sessionComposition": {
     "agent": "My Agent",
+    "localAgent": "Yerel Agent",
+    "selectAgent": "Agent seçin",
     "template": "Task template",
     "noTemplate": "No template",
     "engine": "Execution engine: {{engine}}"

@@ -79,6 +79,8 @@
   },
   "sessionComposition": {
     "agent": "我的智能体",
+    "localAgent": "本地智能体",
+    "selectAgent": "选择智能体",
     "template": "任务模板",
     "noTemplate": "不使用模板",
     "engine": "执行引擎：{{engine}}"

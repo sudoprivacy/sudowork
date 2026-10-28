@@ -13,7 +13,7 @@ import { DEFAULT_CODEX_MODELS } from '@sudowork/common/codex/codexModels';
 import type { IProvider } from '@sudowork/common/storage';
 import { ConfigStorage } from '@sudowork/common/storage';
 import { DEFAULT_PRESET_AGENT_TYPE, resolvePresetAgentBackend } from '@sudowork/common/acpTypes';
-import { isPersonalAgentRef } from '@sudowork/common/personalAgents';
+import { isLocalPersonalAgentRef, isPersonalAgentRef } from '@sudowork/common/personalAgents';
 import { resolveAssistantReference } from '@renderer/shared/agents/assistantReference';
 import type { IMyAgent } from '@sudowork/common/personalAgents';
 import { fetchAssistantsAsConfigs } from '@renderer/shared/agents/assistantAdapter';
@@ -201,14 +201,16 @@ type UseGuidAgentSelectionOptions = {
   localeKey: string;
   /** Stable assistant reference; older links may contain an unambiguous name. */
   assistantFromUrl?: string | null;
+  initialSessionMode?: 'remote' | 'local';
   isOntologyEntry?: boolean;
 };
 
 /**
  * Hook that manages agent selection, availability, and preset assistant logic.
  */
-export const useGuidAgentSelection = ({ localeKey, assistantFromUrl, isOntologyEntry = false }: UseGuidAgentSelectionOptions): GuidAgentSelectionResult => {
+export const useGuidAgentSelection = ({ localeKey, assistantFromUrl, initialSessionMode, isOntologyEntry = false }: UseGuidAgentSelectionOptions): GuidAgentSelectionResult => {
   const { isEnterprise } = useAppMode();
+  const requestedSessionMode = initialSessionMode ?? (isLocalPersonalAgentRef(assistantFromUrl ?? undefined) ? 'local' : undefined);
   const ontologyAssistantId = isOntologyEntry ? assistantFromUrl : undefined;
   const ontologyEntryRef = useRef(ontologyAssistantId);
   const ontologyEntryEpochRef = useRef(0);
@@ -231,7 +233,7 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl, isOntologyE
   const [customAgents, setCustomAgents] = useState<AcpBackendConfig[]>([]);
   // Session mode state (remote/local) - SSOT for enterprise mode
   // sessionMode 状态（remote/local）— 企业模式的唯一权威来源
-  const [preferredSessionMode, _setSessionMode] = useState<'remote' | 'local'>('remote');
+  const [preferredSessionMode, _setSessionMode] = useState<'remote' | 'local'>(requestedSessionMode ?? 'remote');
   // The ontology entry uses local execution for this page without changing stored preferences.
   const sessionMode = isOntologyEntry ? 'local' : preferredSessionMode;
   const [selectedMode, _setSelectedMode] = useState<string>('default');
@@ -301,7 +303,7 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl, isOntologyE
     const entryEpoch = ontologyEntryEpochRef.current;
     void ConfigStorage.get('guid.sessionMode').then(async (stored) => {
       if (ontologyEntryEpochRef.current !== entryEpoch) return;
-      let mode = stored ?? 'remote';
+      let mode = requestedSessionMode ?? stored ?? 'remote';
       // Validate localModeAvailable: fallback to remote if 'local' persisted but user lacks permission
       if (mode === 'local') {
         try {
@@ -328,7 +330,7 @@ export const useGuidAgentSelection = ({ localeKey, assistantFromUrl, isOntologyE
       }
       emitter.emit('chat.history.refresh');
     });
-  }, [isEnterprise, isOntologyEntry]);
+  }, [requestedSessionMode, isEnterprise, isOntologyEntry]);
 
   // --- sessionMode: setSessionMode wrapper with side effects ---
   // setSessionMode 封装：同步模块缓存 + 持久化 + IPC + 刷新历史 + 重置 agent 选择
