@@ -49,7 +49,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          bun install --frozen-lockfile
+          # This Node/Python browser journey does not run Electron or native
+          # SQLite. Do not download/rebuild those runtimes during installation.
+          bun install --frozen-lockfile --ignore-scripts
           version="$(bun -e "import { BROWSER_WORKER_VERSION } from './apps/desktop/src/process/services/python/browserRuntimeVersion.ts'; console.log(BROWSER_WORKER_VERSION)")"
           [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
           python -m pip --isolated install --index-url https://pypi.org/simple -r .native-review-acceptance/compiler/requirements.txt "ai-dev-browser[remote]==$version"
