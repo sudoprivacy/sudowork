@@ -36,6 +36,7 @@ export const BrowserSessionStateSchema = z.object({
     conversationControl: z.boolean().optional(),
     dragInput: z.boolean().optional(),
     liveDragInput: z.boolean().optional(),
+    liveDragSurfaces: z.array(SurfaceSchema).max(2).optional(),
     clipboardText: z.boolean().optional(),
     selectionRead: z.boolean().optional(),
     lifecycle: z.boolean().optional(),

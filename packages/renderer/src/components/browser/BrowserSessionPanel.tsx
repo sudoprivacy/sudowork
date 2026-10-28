@@ -35,6 +35,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
   const [isPanning, setIsPanning] = useState(false);
   const [isTouchDragging, setIsTouchDragging] = useState(false);
   const [windowStream, setWindowStream] = useState<IWindowStreamContext | null>(null);
+  const [pageViewerId, setPageViewerId] = useState<string | undefined>(undefined);
   const windowStreamRef = useRef<IWindowStreamContext | null>(null);
   const isTouchInputAvailable = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -100,6 +101,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     let isStateNeeded = true;
     let unsupportedStreamBrowserId: string | undefined;
     const viewerId = crypto.randomUUID();
+    setPageViewerId(undefined);
     sessionRef.current = null;
     windowStreamRef.current = null;
     setWindowStream(null);
@@ -141,6 +143,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
             update(attached.session);
             attachedBrowserId = attached.session.browserSessionId;
             attachedSurface = viewMode;
+            setPageViewerId(viewMode === 'page' ? viewerId : undefined);
           }
           const state = sessionRef.current!;
           const isStreamingSupported = viewMode === 'window' && state.capabilities.windowStream === true && unsupportedStreamBrowserId !== state.browserSessionId;
@@ -171,6 +174,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
           if (attachedBrowserId) await invoke({ kind: 'detach', viewerId });
           attachedBrowserId = undefined;
           attachedSurface = undefined;
+          setPageViewerId(undefined);
           isStateNeeded = true;
           windowStreamRef.current = null;
           setWindowStream(null);
@@ -181,6 +185,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
         isStateNeeded = true;
         attachedBrowserId = undefined;
         attachedSurface = undefined;
+        setPageViewerId(undefined);
         windowStreamRef.current = null;
         setWindowStream(null);
         if (!isClosed) {
@@ -211,23 +216,10 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
   const isConversationControlSupported = session?.capabilities.conversationControl === true;
   const isSessionKnown = session !== null;
   const isDragSupported = session?.capabilities.dragInput === true;
+  const isPageLiveDragSupported = session?.capabilities.liveDragSurfaces?.includes('page') === true;
   const isController = isConversationControlSupported && session?.state === 'human' && session.isController && !isTransferring && !isFileTransferring && !error;
   const isStoppedController = isConversationControlSupported && session?.state === 'stopped' && session.isController && session.isHumanControlHeld && !isTransferring && !error;
   isInteractiveRef.current = !!isController && isFrameReady && !isPanning;
-
-  const onStreamInput = (value: unknown) => {
-    const input = BrowserInputSchema.safeParse(value);
-    if (!input.success || (!isInteractiveRef.current && !isLiveDragCancellation(input.data))) return Promise.reject(new Error(t('conversation.browserSession.unavailable')));
-    const generation = generationRef.current;
-    return queueInput(input.data)
-      .then((reply) => {
-        if (generationRef.current === generation) updateRef.current(reply.session);
-      })
-      .catch((failure: unknown) => {
-        if (generationRef.current === generation) Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
-        throw failure;
-      });
-  };
 
   const onStreamReady = (size: { width: number; height: number }) => {
     const state = sessionRef.current;
@@ -330,6 +322,23 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     [t]
   );
 
+  const onStreamInput = useCallback(
+    (value: unknown) => {
+      const input = BrowserInputSchema.safeParse(value);
+      if (!input.success || (!isInteractiveRef.current && !isLiveDragCancellation(input.data))) return Promise.reject(new Error(t('conversation.browserSession.unavailable')));
+      const generation = generationRef.current;
+      return queueInput(input.data)
+        .then((reply) => {
+          if (generationRef.current === generation) updateRef.current(reply.session);
+        })
+        .catch((failure: unknown) => {
+          if (generationRef.current === generation) Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
+          throw failure;
+        });
+    },
+    [queueInput, t]
+  );
+
   const onAction = useCallback(
     async (kind: 'navigate' | 'back' | 'forward' | 'reload' | 'new-tab' | 'select-tab' | 'close-tab', targetId?: string) => {
       const generation = generationRef.current;
@@ -385,20 +394,13 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     const surface = new PageSurface(
       imageRef.current,
       (value: unknown) => {
-        const current = sessionRef.current;
-        if (!isInteractiveRef.current || !current || current.state !== 'human' || !current.isController) return;
-        const input = BrowserInputSchema.safeParse(value);
-        if (!input.success) return;
-        const generation = generationRef.current;
-        void queueInput(input.data)
-          .then((reply) => {
-            if (generationRef.current === generation) updateRef.current(reply.session);
-          })
-          .catch((failure: unknown) => {
-            if (generationRef.current === generation) Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
-          });
+        const pending = onStreamInput(value);
+        // The shared mapper coalesces live positions until the checked API
+        // acknowledges each packet. Legacy one-shot input has no promise user.
+        if (value !== null && typeof value === 'object' && 'kind' in value && value.kind === 'drag-stream') return pending;
+        void pending.catch(() => {});
       },
-      { drag: isDragSupported, touchDrag: isTouchDragging }
+      { drag: isDragSupported, touchDrag: isTouchDragging, liveDrag: isPageLiveDragSupported && !!pageViewerId, viewerId: pageViewerId }
     );
     surfaceRef.current = surface;
     return () => {
@@ -408,7 +410,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
       setIsFrameReady(false);
       surfaceRef.current = null;
     };
-  }, [queueInput, t, isControlsOnly, isSessionKnown, isDragSupported, isTouchDragging, windowStream]);
+  }, [onStreamInput, isControlsOnly, isSessionKnown, isDragSupported, isPageLiveDragSupported, isTouchDragging, pageViewerId, windowStream]);
 
   const onTouchGestureChange = (value: string) => {
     // A second finger can change this control during an unfinished gesture.

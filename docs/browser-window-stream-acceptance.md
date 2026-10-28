@@ -277,3 +277,31 @@ package, production worker promotion, actual Sudograph graph interaction latency
 and physical-phone browser input still need their own acceptance. The observed
 1.55–1.96 second browser-status replies do not measure graph dragging or transport
 latency. The separate Linux Chrome startup timeout remains unresolved.
+
+## Page drag feedback qualification (28 October)
+
+The shared Desktop/WebUI panel negotiates page streaming through
+`capabilities.liveDragSurfaces`. A page viewer returns each checked input
+acknowledgement to the existing public gesture mapper. Workers without the new
+surface capability retain their bounded drag fallback. No handoff controls or
+alternate browser session are introduced.
+
+The actual `BrowserSessionPanel` was built with Vite and exercised against an
+installed candidate wheel for [ai-dev-browser #44](https://github.com/sudoprivacy/ai-dev-browser/pull/44).
+Both CDP and the installed signed extension passed in an isolated Linux container
+with one CPU, 1536 MB memory and 384 PIDs. Trusted canvas pan and changed decoded
+pixels arrived before pointer release. Closing the real viewer Chrome during a
+second drag released the remote button, fenced its old input and retained human
+ownership. Reopening the panel kept the same browser ID and profile. Headless
+execution allocated no display service. Screenshots were visually inspected.
+
+The measured local motion-to-visible upper bounds were 183.5 ms for CDP and
+129.0 ms for extension. These measurements use a local canvas fixture and do not
+establish public Sudograph, network or physical-phone latency. Test observation
+waits for the actual checked client response between gestures; a source
+`pointerup` alone precedes the extension acknowledgement.
+
+The repository's `live_page_session_panel.py` and `browser_page_panel` fixture
+protect this path in the same CI job as the existing window stream. A matching
+public SDK release and consumer pin are required before promotion. Production
+WebUI and actual Sudograph graph/comments remain separate acceptance gates.
