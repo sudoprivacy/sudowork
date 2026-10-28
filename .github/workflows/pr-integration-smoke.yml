@@ -104,6 +104,13 @@ jobs:
           xvfb-run -a -s '-screen 0 1280x1024x24' python3 tests/integration/browser_port_isolation.py
         env:
           PYTHONPATH: ${{ github.workspace }}/vendor/ai-dev-browser
+          BROWSER_ISOLATION_ARTIFACT_DIR: ${{ github.workspace }}/.tmp/browser-port-isolation
+
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: browser-port-isolation
+          path: .tmp/browser-port-isolation
 
   browser-panel-mcp-server:
     # Skipped on draft PRs: heavy CI starts once the PR is marked ready.
