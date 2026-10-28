@@ -55,7 +55,10 @@ jobs:
           version="$(bun -e "import { BROWSER_WORKER_VERSION } from './apps/desktop/src/process/services/python/browserRuntimeVersion.ts'; console.log(BROWSER_WORKER_VERSION)")"
           [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
           python -m pip --isolated install --index-url https://pypi.org/simple -r .native-review-acceptance/compiler/requirements.txt "ai-dev-browser[remote]==$version"
-          bun run --filter=@sudowork/contracts build
+          # Node-targeted bundles resolve workspace exports through dist, while
+          # Bun execution can read src. Build the shared dependency chain so a
+          # fresh runner cannot depend on another command's retained outputs.
+          bun run build:packages
           bun build ./apps/desktop/tests/integration/sudographReviewLaunch.live.ts --target=node --format=esm --outfile=./sudograph-review-live.mjs
           bun build ./apps/desktop/tests/integration/sudographModelRuntime.live.ts --target=node --format=esm --outfile=./sudograph-model-runtime-live.mjs
       - name: Verify actual protected HTML and controlled browser handoff
