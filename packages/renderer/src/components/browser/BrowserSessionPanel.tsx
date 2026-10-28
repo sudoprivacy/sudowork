@@ -2,7 +2,19 @@ import { Button, Collapse, Empty, Input, Message, Modal, Select, Spin } from '@a
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
-import { BrowserFileSchema, BrowserInputSchema, BrowserOwnerInfoSchema, BrowserSessionReplySchema, isCurrentBrowserFrame, type BrowserFile, type BrowserInput, type BrowserOwnerInfo, type BrowserSessionAction, type BrowserSessionReply, type BrowserSessionState } from '@sudowork/contracts/browser-session';
+import {
+  BrowserFileSchema,
+  BrowserInputSchema,
+  BrowserOwnerInfoSchema,
+  BrowserSessionReplySchema,
+  isCurrentBrowserFrame,
+  type BrowserFile,
+  type BrowserInput,
+  type BrowserOwnerInfo,
+  type BrowserSessionAction,
+  type BrowserSessionReply,
+  type BrowserSessionState,
+} from '@sudowork/contracts/browser-session';
 import { PageSurface } from '@ai-dev-browser/remote-page';
 import { copyTextFromPromise } from '../../utils/clipboard';
 import WindowStreamSurface, { type IWindowStreamContext } from './WindowStreamSurface';
@@ -15,7 +27,10 @@ function isLiveDragCancellation(input: BrowserInput) {
 
 /** Carries the untranslated bridge error code so callers can branch on the cause. */
 class BrowserPanelError extends Error {
-  constructor(message: string, readonly code: string) {
+  constructor(
+    message: string,
+    readonly code: string
+  ) {
     super(message);
   }
 }
@@ -252,11 +267,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
   const occupantSessionId = occupancy?.owner ? occupancy.owner.sessionId.slice(0, 8) : '';
   const occupancyView = occupancy ? (
     <div className='flex flex-wrap items-center gap-2' data-testid='browser-session-occupied'>
-      <span role='status'>
-        {occupancy.browserRunning
-          ? t('conversation.browserSession.occupiedRunning', { sessionId: occupantSessionId })
-          : t('conversation.browserSession.occupiedIdle', { sessionId: occupantSessionId })}
-      </span>
+      <span role='status'>{occupancy.browserRunning ? t('conversation.browserSession.occupiedRunning', { sessionId: occupantSessionId }) : t('conversation.browserSession.occupiedIdle', { sessionId: occupantSessionId })}</span>
       <Button size='mini' disabled={!isOccupancyTakeoverEnabled || isTransferring} onClick={() => void onStart()}>
         {t('conversation.browserSession.takeover')}
       </Button>
@@ -265,8 +276,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
   const isController = isConversationControlSupported && session?.state === 'human' && session.isController && !isTransferring && !isFileTransferring && !error;
   const isStoppedController = isConversationControlSupported && session?.state === 'stopped' && session.isController && session.isHumanControlHeld && !isTransferring && !error;
   // AI control can be interrupted to run lifecycle actions as the human controller.
-  const isLifecycleInterruptible =
-    isConversationControlSupported && session?.state === 'ai' && !isTransferring && !isFileTransferring && !error;
+  const isLifecycleInterruptible = isConversationControlSupported && session?.state === 'ai' && !isTransferring && !isFileTransferring && !error;
   const isLifecycleActor = isController || isLifecycleInterruptible;
   isInteractiveRef.current = !!isController && isFrameReady && !isPanning;
 
@@ -1057,7 +1067,11 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
             />
           )}
         </div>
-        {!isFrameReady ? <div className='absolute inset-0 flex items-center justify-center'>{error ? <Empty description={error} /> : occupancy ? <Empty description={t('conversation.browserSession.occupiedEmpty')} /> : session?.state === 'stopped' ? <Empty description={t('conversation.browserSession.waiting')} /> : <Spin />}</div> : null}
+        {!isFrameReady ? (
+          <div className='absolute inset-0 flex items-center justify-center'>
+            {error ? <Empty description={error} /> : occupancy ? <Empty description={t('conversation.browserSession.occupiedEmpty')} /> : session?.state === 'stopped' ? <Empty description={t('conversation.browserSession.waiting')} /> : <Spin />}
+          </div>
+        ) : null}
       </div>
       {isController ? (
         <>
