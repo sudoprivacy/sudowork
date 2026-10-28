@@ -305,3 +305,48 @@ The repository's `live_page_session_panel.py` and `browser_page_panel` fixture
 protect this path in the same CI job as the existing window stream. A matching
 public SDK release and consumer pin are required before promotion. Production
 WebUI and actual Sudograph graph/comments remain separate acceptance gates.
+
+### Public SDK 0.58.11 qualification
+
+The consumer pins public SDK `0.58.11` and source
+`011d8eb102a276e566db352a1da1220a39541aad`. The PyPI wheel has SHA-256
+`2ae371bebc04f6f12bab15b0f07cf9d2102bbb52757f6a75ddd2eb233d337364`;
+all 203 shipped source files match that merge, excluding the generated version
+file. The actual Electron first-use installer passed from a fresh environment
+in 62.73 seconds. All 204 installed package files matched the public wheel.
+
+Four real host/stdio journeys passed in headless and headful Chrome, including
+trusted Chinese submission, input barriers, cookies, upload and download. The
+pinned Sudograph compiler's protected review journey also passed in both launch
+modes with the public worker. Its Node/Python CI installation skips lifecycle
+scripts because this journey uses neither Electron nor native SQLite.
+
+The actual shared React panel passed again against an installed public wheel
+in an isolated Linux container. CDP and signed extension both showed changed
+pixels before release, released a disconnected press, retained human ownership
+and reconnected to the same browser/profile. Local motion-to-visible upper
+bounds were 181.9 ms and 350.0 ms respectively. These are fixture measurements;
+production rollout, public graph latency and physical phone input remain open.
+
+The complete Desktop test command passed with one worker: 3,529 tests passed
+and 31 were skipped. TypeScript, scoped lint and formatting checks also passed.
+
+### Public Sudograph cold-load investigation
+
+The production WebUI could not reach the public Northwind graph within the
+original 30-second readiness budget. The ShareOne shell was visible and focused,
+had measurable layout, and completed two animation callbacks in 31.3 ms, but had
+not created its content iframe. The failed test and normal cleanup are retained.
+
+An isolated browser using the same released worker reproduced this in both
+headful extension and headless CDP. The public content request returned HTTP 200
+and continued receiving bytes without finishing within the budget. Its gzip
+response declared 6,865,571 bytes. An independent ordinary HTTP read also failed
+to finish in 25 seconds, after receiving 2,580,715 decompressed bytes.
+
+The pinned source HTML is 11,995,006 bytes. Its full source snapshot contains
+3,481 compressed segments; this is much larger than the visible 19-node graph.
+The source and existing comments were preserved. No generated HTML was edited,
+records removed, cache policy changed or timeout widened to make this pass.
+Content delivery needs further work before this page can qualify public graph
+dragging, zooming and comments.
