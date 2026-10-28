@@ -1653,7 +1653,9 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
   },
   'browser-session:owner-info': async (req) => {
     try {
-      const data = await apiFetch(`/api/conversations/${encodeURIComponent(String(req.conversationId || ''))}/browser-owner`)
+      const data = await apiFetch(
+        `/api/conversations/${encodeURIComponent(String(req.conversationId || ''))}/browser-owner`,
+      )
       return ok(data)
     } catch (error) {
       return fail(errMessage(error))

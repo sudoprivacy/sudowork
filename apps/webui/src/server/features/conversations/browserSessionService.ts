@@ -6,7 +6,12 @@ import {
   type BrowserSessionAction,
   type BrowserSessionReply,
 } from '@sudowork/contracts/browser-session'
-import { uploadBrowserFile, downloadBrowserFile, MossHttpError, type MossCallContext } from '@sudowork/moss-client'
+import {
+  uploadBrowserFile,
+  downloadBrowserFile,
+  MossHttpError,
+  type MossCallContext,
+} from '@sudowork/moss-client'
 import type { Principal } from '../auth/principalRepository.js'
 import { requireAccessibleSession, type ConversationDeps } from './conversationService.js'
 
@@ -83,11 +88,15 @@ export async function browserOwnerInfo(
 ): Promise<BrowserOwnerInfo> {
   await requireAccessibleSession(deps, principal, sessionId, ctx)
   const reply = await deps
-    .mossFetch(ctx.baseUrl, {
-      method: 'GET',
-      path: `/api/v1/sessions/${encodeURIComponent(sessionId)}/browser-owner`,
-      accessToken: ctx.accessToken,
-    }, 30_000)
+    .mossFetch(
+      ctx.baseUrl,
+      {
+        method: 'GET',
+        path: `/api/v1/sessions/${encodeURIComponent(sessionId)}/browser-owner`,
+        accessToken: ctx.accessToken,
+      },
+      30_000,
+    )
     .catch(toBrowserUpstreamError)
   return BrowserOwnerInfoSchema.parse(reply)
 }
