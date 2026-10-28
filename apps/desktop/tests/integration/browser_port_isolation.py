@@ -164,7 +164,7 @@ async def _startup_diagnostic(payload: dict) -> dict:
 #  Test
 # ──────────────────────────────────────────────────────────────
 
-def run_test(sudowork_port: int = 9230) -> tuple[bool, str]:
+def run_test(sudowork_port: int = 9230, expected_chrome_version: str | None = None) -> tuple[bool, str]:
     """Run the full port isolation test. Returns (passed, message)."""
     # 0. Verify browser_helper.py can find ai_dev_browser tools
     helper = _find_helper()
@@ -208,6 +208,8 @@ def run_test(sudowork_port: int = 9230) -> tuple[bool, str]:
             raise RuntimeError(f"browser_start failed: {start['stderr'] or start['stdout']}")
         if not chrome_port or not browser_session:
             raise RuntimeError("Successful startup did not identify its owned browser session.")
+        if expected_chrome_version and payload.get("browser_version") != f"Chrome/{expected_chrome_version}":
+            raise RuntimeError(f"Expected Chrome/{expected_chrome_version}; launched {payload.get('browser_version')}")
         if chrome_port == sudowork_port:
             failures.append(f"CRITICAL: Chrome started on Sudowork's port {sudowork_port}")
         port_args = ["--port", str(chrome_port)] if chrome_port else []
@@ -281,13 +283,14 @@ def run_test(sudowork_port: int = 9230) -> tuple[bool, str]:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Browser port isolation integration test")
     parser.add_argument("--sudowork-port", type=int, default=9230, help="Sudowork CDP port to check isolation against")
+    parser.add_argument("--expected-chrome-version", help="Refuse an unexpected browser binary instead of accepting a host fallback")
     args = parser.parse_args()
 
     print("=" * 60)
     print("  Browser Port Isolation Test")
     print("=" * 60)
 
-    passed, message = run_test(args.sudowork_port)
+    passed, message = run_test(args.sudowork_port, args.expected_chrome_version)
 
     status = "PASS" if passed else "FAIL"
     print(f"\n  {status}: {message}")
