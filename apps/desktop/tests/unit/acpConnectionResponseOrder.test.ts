@@ -88,6 +88,49 @@ describe('sensitive ACP diagnostics', () => {
 });
 
 describe('AcpConnection prompt response ordering', () => {
+  it('requires negotiated host context and binds refresh requests to the active session', async () => {
+    const { AcpConnection } = await loadAcpConnection();
+    const connection = new AcpConnection();
+    const send = vi.fn();
+    const request = vi.fn().mockResolvedValue({ sessionId: 'original-history' });
+    const harness = connection as unknown as {
+      backend: string;
+      sessionId: string;
+      isInitialized: boolean;
+      initializeResponse: unknown;
+      transport: { send: typeof send; connected: boolean };
+      sendRequest: typeof request;
+      handleIncomingRequest: (message: unknown) => Promise<void>;
+    };
+    harness.backend = 'scode';
+    harness.transport = { send, connected: true };
+    harness.isInitialized = true;
+    harness.sendRequest = request;
+    connection.systemPromptAppend = 'Business revision A';
+    connection.onHostContext = vi.fn().mockResolvedValue('Business revision B');
+    await expect(connection.newSession('/workspace')).rejects.toThrow('must support version 1 host context');
+    expect(request).not.toHaveBeenCalled();
+    harness.initializeResponse = { _meta: { sudocode: { hostContext: { version: 1 } } } };
+    await connection.newSession('/workspace');
+    await connection.loadSession('original-history', '/workspace');
+    expect(request.mock.calls.every(([, params]) => params._meta.sudocode.hostContext.version === 1)).toBe(true);
+    const refresh = (sessionId: string) => harness.handleIncomingRequest({ jsonrpc: '2.0', id: 'context-request', method: '_sudocode/session/host_context', params: { sessionId } });
+    await refresh('unrelated-session');
+    expect(connection.onHostContext).not.toHaveBeenCalled();
+    expect(send).toHaveBeenLastCalledWith(expect.objectContaining({ error: expect.objectContaining({ message: expect.stringContaining('No host context provider') }) }));
+    await refresh('original-history');
+    expect(send).toHaveBeenLastCalledWith({ jsonrpc: '2.0', id: 'context-request', result: { appendSystemPrompt: 'Business revision B' } });
+    connection.onHostContext = vi.fn().mockRejectedValue(new Error('Permission revoked'));
+    await refresh('original-history');
+    expect(send).toHaveBeenLastCalledWith(expect.objectContaining({ error: { code: -32603, message: 'Permission revoked' } }));
+    connection.onHostContext = vi.fn(async () => {
+      harness.sessionId = 'replacement';
+      return 'Do not send to a replacement session';
+    });
+    await refresh('original-history');
+    expect(send).toHaveBeenLastCalledWith(expect.objectContaining({ error: expect.objectContaining({ message: expect.stringContaining('connection changed') }) }));
+  });
+
   it('carries personal identity and memory instructions into new and restored scode sessions', async () => {
     const { AcpConnection } = await loadAcpConnection();
     const connection = new AcpConnection();

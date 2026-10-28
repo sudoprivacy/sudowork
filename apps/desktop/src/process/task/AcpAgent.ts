@@ -553,6 +553,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
         this.options.presetContext = runtime.presetContext;
         this.options.extraMcpConfigs = runtime.extraMcpConfigs;
         this.connection.systemPromptAppend = runtime.presetContext;
+        this.connection.onHostContext = runtime.resolveContext ?? null;
       }
 
       // Store resolved config for connection
@@ -1264,7 +1265,7 @@ This identity statement takes priority over the default identity in USER.md.
 
         if (this.isFirstMessage) {
           contentToSend = await prepareFirstMessageWithSkillsIndex(contentToSend, {
-            presetContext: this.options.presetContext,
+            presetContext: this.connection.onHostContext ? undefined : this.options.presetContext,
             enabledSkills: this.options.enabledSkills,
             workspace: this.workspace,
             presetAgentType: this.options.backend,
@@ -1291,7 +1292,7 @@ This identity statement takes priority over the default identity in USER.md.
               contentToSend = await injectSkillsDirectoryHint(contentToSend, skillsDir, linkedSkillNames);
             }
           }
-        } else if (this.options.presetAssistantId && this.options.presetContext) {
+        } else if (!this.connection.onHostContext && this.options.presetAssistantId && this.options.presetContext) {
           // For subsequent messages, re-inject identity override (latest assistant
           // name) and team governance so the member keeps its role across turns.
           // Both prepend to the user request; neither enters displayContent (which

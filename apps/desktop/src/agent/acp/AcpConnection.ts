@@ -73,6 +73,8 @@ export class AcpConnection {
   /** Account-scoped personal identity prepared by the desktop host. */
   public managedAgentId: string | null = null;
   public systemPromptAppend: string | null = null;
+  /** Host-owned provider; the engine cannot choose its model, actor or source. */
+  public onHostContext: (() => Promise<string>) | null = null;
   private initializeResponse: AcpResponse | null = null;
   private workingDir: string = process.cwd();
 
@@ -572,7 +574,7 @@ export class AcpConnection {
   private sendResponseMessage(response: AcpResponse): void {
     if (this.transport) {
       try {
-        if (!this.options.isSensitive) mainLog('[ACP-DIAG]', `sendResponseMessage id=${JSON.stringify((response as { id?: unknown }).id)} hasResult=${'result' in response} hasError=${'error' in response} preview=${JSON.stringify(response).slice(0, 400)}`);
+        if (!this.options.isSensitive && !this.onHostContext) mainLog('[ACP-DIAG]', `sendResponseMessage id=${JSON.stringify((response as { id?: unknown }).id)} hasResult=${'result' in response} hasError=${'error' in response} preview=${JSON.stringify(response).slice(0, 400)}`);
       } catch {
         // ignore log errors
       }
@@ -648,6 +650,16 @@ export class AcpConnection {
 
       // 可辨识联合类型：TypeScript 根据 method 字面量自动窄化 params 类型
       switch (message.method) {
+        case ACP_METHODS.HOST_CONTEXT: {
+          const sessionId = this.sessionId;
+          const transport = this.transport;
+          if (this.backend !== 'scode' || !sessionId || message.params?.sessionId !== sessionId || !this.onHostContext) throw new Error('No host context provider is bound to this session');
+          const appendSystemPrompt = await this.onHostContext();
+          if (!this.isConnected || this.transport !== transport || this.sessionId !== sessionId) throw new Error('The agent connection changed during context resolution');
+          if (typeof appendSystemPrompt !== 'string' || !appendSystemPrompt.trim()) throw new Error('Host context must be non-empty');
+          result = { appendSystemPrompt };
+          break;
+        }
         case ACP_METHODS.SESSION_UPDATE:
           // Track first chunk latency since prompt was sent
           if (!this.firstChunkReceived && this.lastPromptSentAt > 0) {
@@ -820,9 +832,10 @@ export class AcpConnection {
           },
         }
       : this.backend === 'scode' && this.systemPromptAppend
-        ? { sudocode: { appendSystemPrompt: this.systemPromptAppend, memory: 'enabled' } }
+        ? { sudocode: { appendSystemPrompt: this.systemPromptAppend, memory: 'enabled', ...(this.onHostContext && { hostContext: { version: 1 } }) } }
         : undefined;
 
+    this.assertHostContextSupport();
     const response = await this.sendRequest<AcpResponse & { sessionId?: string }>('session/new', {
       cwd: normalizedCwd,
       mcpServers: mcpServers ?? ([] as unknown[]),
@@ -854,12 +867,13 @@ export class AcpConnection {
    */
   async loadSession(sessionId: string, cwd: string = process.cwd(), mcpServers?: unknown[]): Promise<AcpResponse & { sessionId?: string }> {
     const normalizedCwd = this.normalizeCwdForAgent(cwd);
+    this.assertHostContextSupport();
 
     const response = await this.sendRequest<AcpResponse & { sessionId?: string }>('session/load', {
       sessionId,
       cwd: normalizedCwd,
       mcpServers: mcpServers ?? ([] as unknown[]),
-      ...(this.backend === 'scode' && this.systemPromptAppend && { _meta: { sudocode: { appendSystemPrompt: this.systemPromptAppend, memory: 'enabled' } } }),
+      ...(this.backend === 'scode' && this.systemPromptAppend && { _meta: { sudocode: { appendSystemPrompt: this.systemPromptAppend, memory: 'enabled', ...(this.onHostContext && { hostContext: { version: 1 } }) } } }),
     });
 
     // session/load returns modes/models/configOptions but not sessionId — keep the one we sent
@@ -1029,6 +1043,12 @@ export class AcpConnection {
   get isToolPauseSupported(): boolean {
     const initialized = this.initializeResponse as unknown as { _meta?: { sudocode?: { toolPause?: { version?: unknown } } } } | null;
     return initialized?._meta?.sudocode?.toolPause?.version === 1;
+  }
+
+  private assertHostContextSupport(): void {
+    if (!this.onHostContext) return;
+    const initialized = this.initializeResponse as unknown as { _meta?: { sudocode?: { hostContext?: { version?: unknown } } } } | null;
+    if (this.backend !== 'scode' || initialized?._meta?.sudocode?.hostContext?.version !== 1 || !this.systemPromptAppend) throw new Error('The agent runtime must support version 1 host context before opening this model. Update the runtime and retry.');
   }
 
   get isInputDeliverySupported(): boolean {
