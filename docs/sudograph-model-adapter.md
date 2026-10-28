@@ -68,6 +68,25 @@ definition versions, base revisions and operation IDs. Graph, context and model
 advance together only after compilation succeeds. Ordinary model edits do not
 use the optional GitLab human-review publisher and do not change source data.
 
+The client and registered PostgreSQL/MySQL source provider live in
+`packages/ontology-runtime/src/SudographModelClient.ts` and
+`SudographSourceProvider.ts`. Desktop service modules re-export those classes;
+they do not own a second implementation. The shared subpath imports run in
+ordinary Node without Electron, UI storage or a desktop login. A cloud execution
+worker can therefore use the same pinned compiler transport where its authorized
+source is reachable. This does not itself supply a cloud project registry,
+tenant authorization, connector credential service or WebUI routes; those remain
+host responsibilities. A control-plane or WebUI VM must not reinterpret a source
+path belonging to another execution host.
+
+`sudographModelRuntime.live.ts` runs the shared client in ordinary Node against
+the actual Python compiler. It checks complete registration and retry, business
+edits, matching graph/context revisions, stale-context rejection and live record
+reads. An external fixture update becomes visible without embedding rows or
+creating another model revision. The native review CI job runs this journey on
+Windows and Linux before its existing browser acceptance. This is portable host
+execution evidence, not acceptance of deployed cloud tenant permissions.
+
 The shared project CLI discovers four canonical model commands and the common
 `register_source` command:
 
