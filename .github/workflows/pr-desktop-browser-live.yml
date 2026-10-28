@@ -103,7 +103,9 @@ jobs:
       - name: Build the actual shared React and noVNC surface
         env:
           GOMAXPROCS: "1"
-        run: node apps/desktop/node_modules/vite/bin/vite.js build --config apps/desktop/tests/e2e/browser_stream_surface/vite.config.ts
+        run: |
+          node apps/desktop/node_modules/vite/bin/vite.js build --config apps/desktop/tests/e2e/browser_stream_surface/vite.config.ts
+          node apps/desktop/node_modules/vite/bin/vite.js build --config apps/desktop/tests/e2e/browser_page_panel/vite.config.ts
       - name: Build the isolated managed Chrome fixture
         shell: bash
         run: |
@@ -127,6 +129,19 @@ jobs:
             /consumer/apps/desktop/tests/e2e/live_window_stream_surface.py \
             --assets /consumer/apps/desktop/tests/e2e/browser_stream_surface/dist \
             --evidence /tmp/browser-stream-evidence
+      - name: Verify the actual shared page panel and disconnect cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --init --name "sudowork-browser-page-$GITHUB_RUN_ID" \
+            --label "sudo.acceptance.owner=sudowork-browser-page-$GITHUB_RUN_ID" \
+            --network none --memory=1536m --shm-size=256m --pids-limit=384 --cpus=1 --cpuset-cpus=0 \
+            --cap-drop ALL --security-opt no-new-privileges \
+            --mount "type=bind,source=$PWD,target=/consumer,readonly" \
+            sudowork-browser-stream:ci /opt/browser/venv/bin/python \
+            /consumer/apps/desktop/tests/e2e/live_page_session_panel.py \
+            --assets /consumer/apps/desktop/tests/e2e/browser_page_panel/dist \
+            --evidence /tmp/browser-page-evidence
       - name: Collect actual Chrome evidence
         if: always()
         shell: bash
@@ -134,11 +149,16 @@ jobs:
           if docker inspect "sudowork-browser-stream-$GITHUB_RUN_ID" >/dev/null 2>&1; then
             docker cp "sudowork-browser-stream-$GITHUB_RUN_ID:/tmp/browser-stream-evidence" "$RUNNER_TEMP/browser-stream-evidence"
           fi
+          if docker inspect "sudowork-browser-page-$GITHUB_RUN_ID" >/dev/null 2>&1; then
+            docker cp "sudowork-browser-page-$GITHUB_RUN_ID:/tmp/browser-page-evidence" "$RUNNER_TEMP/browser-page-evidence"
+          fi
       - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: shared-react-window-stream
-          path: ${{ runner.temp }}/browser-stream-evidence/**
+          path: |
+            ${{ runner.temp }}/browser-stream-evidence/**
+            ${{ runner.temp }}/browser-page-evidence/**
           if-no-files-found: warn
       - name: Remove the owned fixture and signing key
         if: always()
@@ -148,6 +168,11 @@ jobs:
             owner="$(docker inspect --format '{{ index .Config.Labels "sudo.acceptance.owner" }}' "sudowork-browser-stream-$GITHUB_RUN_ID")"
             test "$owner" = "sudowork-browser-stream-$GITHUB_RUN_ID"
             docker rm -f "sudowork-browser-stream-$GITHUB_RUN_ID"
+          fi
+          if docker inspect "sudowork-browser-page-$GITHUB_RUN_ID" >/dev/null 2>&1; then
+            owner="$(docker inspect --format '{{ index .Config.Labels "sudo.acceptance.owner" }}' "sudowork-browser-page-$GITHUB_RUN_ID")"
+            test "$owner" = "sudowork-browser-page-$GITHUB_RUN_ID"
+            docker rm -f "sudowork-browser-page-$GITHUB_RUN_ID"
           fi
           rm -f "$RUNNER_TEMP/browser-stream-fixture.pem"
 

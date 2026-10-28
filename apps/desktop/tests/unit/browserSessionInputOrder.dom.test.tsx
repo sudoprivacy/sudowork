@@ -360,6 +360,55 @@ it('begins the clipboard write in the user gesture before the remote selection a
   expect(actions.some((action) => action.kind === 'take' || action.kind === 'return')).toBe(false);
 });
 
+it.each([false, true])('negotiates page drag streaming and retains acknowledgement ordering (supported=%s)', async (isSupported) => {
+  const base = activeSession();
+  const session = { ...base, capabilities: { ...base.capabilities, dragInput: true, liveDragInput: true, ...(isSupported ? { liveDragSurfaces: ['page' as const] } : {}) } };
+  const actions: BrowserSessionAction[] = [];
+  let attachedViewer: string | undefined;
+  let acknowledge: (() => void) | undefined;
+  host.invoke.mockImplementation(async ({ action }: { action: BrowserSessionAction }) => {
+    if (action.kind === 'attach') attachedViewer = action.viewerId;
+    if (action.kind === 'input') {
+      actions.push(action);
+      if (action.input.kind === 'drag-stream' && action.input.phase === 'begin') {
+        return new Promise((resolve) => {
+          acknowledge = () => resolve({ success: true, data: { session } });
+        });
+      }
+    }
+    return { success: true, data: { session, ...(action.kind === 'frame' ? { frame: { data: 'eA==', width: 100, height: 100, controlEpoch: 4, targetEpoch: 2 } } : {}) } };
+  });
+  render(<BrowserSessionPanel conversationId='owned-conversation' />);
+  const image = await screen.findByAltText('page');
+  await waitFor(() => expect(image.getAttribute('src')).toMatch(/^data:/));
+  fireEvent.load(image);
+  vi.spyOn(image, 'getBoundingClientRect').mockReturnValue({ x: 0, y: 0, width: 100, height: 100, top: 0, left: 0, right: 100, bottom: 100, toJSON: () => ({}) });
+  Object.defineProperty(image, 'setPointerCapture', { value: vi.fn(), configurable: true });
+  const pointer = (type: string, x: number) => {
+    const event = new MouseEvent(type, { bubbles: true, clientX: x, clientY: 20 });
+    Object.defineProperties(event, { pointerId: { value: 1 }, pointerType: { value: 'mouse' } });
+    fireEvent(image, event);
+  };
+  pointer('pointerdown', 10);
+  pointer('pointermove', 40);
+  if (isSupported) {
+    await waitFor(() => expect(actions).toHaveLength(1));
+    expect(actions[0]).toMatchObject({ surface: 'page', input: { kind: 'drag-stream', phase: 'begin', viewerId: attachedViewer, sequence: 0 } });
+    pointer('pointermove', 60);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(actions).toHaveLength(1);
+    await act(async () => acknowledge?.());
+    await waitFor(() => expect(actions).toHaveLength(2));
+    expect(actions[1]).toMatchObject({ surface: 'page', input: { kind: 'drag-stream', phase: 'move', x: 60, sequence: 1 } });
+  } else expect(actions).toEqual([]);
+  pointer('pointerup', 60);
+  await waitFor(() => expect(actions).toHaveLength(isSupported ? 3 : 1));
+  expect(actions.at(-1)).toMatchObject({ surface: 'page', input: { kind: isSupported ? 'drag-stream' : 'drag', ...(isSupported ? { phase: 'end', sequence: 2 } : {}) } });
+  expect(host.error).not.toHaveBeenCalled();
+});
+
 it('rejects clipboard text for an old tab after a permission delay and accepts a fresh edit in the new tab', async () => {
   const base = activeSession();
   let session = { ...base, capabilities: { ...base.capabilities, clipboardText: true, dragInput: true }, tabs: [...base.tabs, { id: 'other-tab', title: 'Other', url: 'https://example.test/other' }] };
