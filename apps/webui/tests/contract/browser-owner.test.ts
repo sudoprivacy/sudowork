@@ -1,13 +1,22 @@
 import { describe, expect, test, vi } from 'vitest'
-import { MossHttpError } from '@sudowork/moss-client'
+import { MossHttpError, type MossFetch, type MossSessionPort } from '@sudowork/moss-client'
+import type { Principal } from '../../src/server/features/auth/principalRepository'
 import { browserOwnerInfo, invokeBrowserSession } from '../../src/server/features/conversations/browserSessionService'
 
-const PRINCIPAL = { id: 'p1', mossUserId: 'owner', orgId: 'org', username: 'owner' }
+const PRINCIPAL: Principal = {
+  id: 'p1',
+  mossUserId: 'owner',
+  orgId: 'org',
+  username: 'owner',
+  mossBaseUrl: null,
+  createdAt: new Date(),
+  lastLoginAt: new Date(),
+}
 const CTX = { accessToken: 'tk', baseUrl: 'http://moss.test' }
 const SESSION = { sessionId: 's1', userId: 'owner', orgId: 'org', status: 'active' }
 
 function deps(mossFetch: ReturnType<typeof vi.fn>) {
-  return { moss: { get: async () => SESSION }, mossFetch }
+  return { moss: { get: async () => SESSION } as unknown as MossSessionPort, mossFetch: mossFetch as unknown as MossFetch }
 }
 
 describe('browser session upstream errors', () => {
