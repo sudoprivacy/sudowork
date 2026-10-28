@@ -138,16 +138,6 @@ export function initMossBridge(): void {
       return { success: false, msg: error instanceof Error ? error.message : 'unavailable' };
     }
   });
-  ipcBridge.conversation.terminateMossSession.provider(async ({ conversation_id }) => {
-    try {
-      const api = await ensureMossApiInitialized();
-      if (!api) return { success: false, msg: 'unavailable' };
-      await api.terminateSession(await remoteSessionId(conversation_id));
-      return { success: true };
-    } catch (error) {
-      return { success: false, msg: error instanceof Error ? error.message : 'unavailable' };
-    }
-  });
   // moss.is-enterprise-mode
   ipcBridge.moss.isEnterpriseMode.provider(async () => {
     return isEnterpriseMode();

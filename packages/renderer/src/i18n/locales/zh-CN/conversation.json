@@ -52,10 +52,9 @@
       "browser_session_not_found": "该会话不存在或已结束。"
     },
     "occupiedEmpty": "浏览器正被其他会话使用",
-    "occupiedRunning": "会话 {{sessionId}} 正在使用浏览器",
+    "occupiedRunning": "会话 {{sessionId}} 正在使用浏览器，可启动并接管",
     "occupiedIdle": "浏览器空闲，由会话 {{sessionId}} 持有，可启动并接管",
     "takeover": "启动并接管",
-    "terminateOccupant": "结束那个会话",
     "start": "启动浏览器",
     "launchMode": "浏览器显示模式",
     "transport": "浏览器连接方式",

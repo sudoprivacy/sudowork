@@ -4,7 +4,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import type { BrowserSessionState } from '@sudowork/contracts/browser-session';
 import BrowserSessionPanel from '@renderer/components/browser/BrowserSessionPanel';
 
-const host = vi.hoisted(() => ({ invoke: vi.fn(), ownerInfo: vi.fn(), terminate: vi.fn(), error: vi.fn(), confirm: vi.fn(), info: vi.fn() }));
+const host = vi.hoisted(() => ({ invoke: vi.fn(), ownerInfo: vi.fn(), error: vi.fn(), confirm: vi.fn(), info: vi.fn() }));
 
 vi.mock('@renderer/components/browser/WindowStreamSurface', () => ({
   default: () => <div data-testid='streamed-window' />,
@@ -14,7 +14,6 @@ vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
     invoke: { invoke: (...args: unknown[]) => host.invoke(...args) },
     ownerInfo: { invoke: (...args: unknown[]) => host.ownerInfo(...args) },
   },
-  conversation: { terminateMossSession: { invoke: (...args: unknown[]) => host.terminate(...args) } },
 }));
 vi.mock('react-i18next', () => {
   const t = (key: string) => key.split('.').at(-1);
@@ -70,15 +69,13 @@ afterEach(() => {
   vi.restoreAllMocks();
   host.invoke.mockReset();
   host.ownerInfo.mockReset();
-  host.terminate.mockReset();
 });
 
-it('shows who holds the profile and keeps takeover disabled while the occupant runs', async () => {
+it('shows who holds the profile and keeps takeover enabled while the occupant runs', async () => {
   occupyProfile({ desiredState: 'active' }, true);
   render(<BrowserSessionPanel conversationId='conversation-a' />);
   await waitFor(() => expect(screen.getByText('occupiedRunning')).toBeTruthy());
-  expect(screen.getByText('takeover').closest('button')?.disabled).toBe(true);
-  expect(screen.getByText('terminateOccupant').closest('button')?.disabled).toBe(false);
+  expect(screen.getByText('takeover').closest('button')?.disabled).toBe(false);
 });
 
 it('takes over an idle browser through the explicit start action', async () => {
@@ -89,14 +86,4 @@ it('takes over an idle browser through the explicit start action', async () => {
   expect(takeover?.disabled).toBe(false);
   fireEvent.click(takeover!);
   await waitFor(() => expect(host.invoke).toHaveBeenCalledWith(expect.objectContaining({ action: expect.objectContaining({ kind: 'start' }) })));
-});
-
-it('ends the occupying conversation on demand and then allows takeover', async () => {
-  occupyProfile({ desiredState: 'active' }, true);
-  host.terminate.mockResolvedValue({ success: true });
-  render(<BrowserSessionPanel conversationId='conversation-a' />);
-  await waitFor(() => expect(screen.getByText('terminateOccupant').closest('button')?.disabled).toBe(false));
-  fireEvent.click(screen.getByText('terminateOccupant').closest('button')!);
-  await waitFor(() => expect(host.terminate).toHaveBeenCalledWith({ conversation_id: 'occupant-session-123456789' }));
-  await waitFor(() => expect(screen.getByText('takeover').closest('button')?.disabled).toBe(false));
 });

@@ -416,10 +416,9 @@
       "browser_session_not_found": "The conversation no longer exists."
     },
     "occupiedEmpty": "The browser is in use by another conversation",
-    "occupiedRunning": "Conversation {{sessionId}} is using the browser",
+    "occupiedRunning": "Conversation {{sessionId}} is using the browser; start to take it over",
     "occupiedIdle": "The browser is idle, held by conversation {{sessionId}}; start to take it over",
     "takeover": "Start and take over",
-    "terminateOccupant": "End that conversation",
     "start": "Start browser",
     "launchMode": "Browser launch mode",
     "transport": "Browser connection",
