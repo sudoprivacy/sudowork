@@ -55,6 +55,7 @@ jobs:
           python -m pip --isolated install --index-url https://pypi.org/simple -r .native-review-acceptance/compiler/requirements.txt "ai-dev-browser[remote]==$version"
           bun run --filter=@sudowork/contracts build
           bun build ./apps/desktop/tests/integration/sudographReviewLaunch.live.ts --target=node --format=esm --outfile=./sudograph-review-live.mjs
+          bun build ./apps/desktop/tests/integration/sudographModelRuntime.live.ts --target=node --format=esm --outfile=./sudograph-model-runtime-live.mjs
       - name: Verify actual protected HTML and controlled browser handoff
         shell: bash
         env:
@@ -66,6 +67,7 @@ jobs:
           set -euo pipefail
           export SUDOGRAPH_PYTHON="$(python -c 'import sys; print(sys.executable)')"
           export SUDOWORK_BROWSER_LIVE_PYTHON="$SUDOGRAPH_PYTHON"
+          node ./sudograph-model-runtime-live.mjs
           node ./sudograph-review-live.mjs
           if [[ "$RUNNER_OS" == "Linux" ]]; then
             xvfb-run -a node ./sudograph-review-live.mjs --headful
