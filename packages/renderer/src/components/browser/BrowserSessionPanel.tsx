@@ -126,7 +126,8 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     setIsTextComposing(false);
     fileChoiceRef.current = null;
     if (!isActive || !conversationId) return;
-    let occupancyCheckedAt = 0;
+    // performance.now() counts from process start; zero would falsely throttle the first read.
+    let occupancyCheckedAt = -Infinity;
     const refreshOccupancy = async () => {
       if (performance.now() - occupancyCheckedAt < 5_000) return;
       occupancyCheckedAt = performance.now();
