@@ -581,7 +581,6 @@ export type I18nKey =
   | 'conversation.browserSession.stopConfirmTitle'
   | 'conversation.browserSession.stoppedHuman'
   | 'conversation.browserSession.takeover'
-  | 'conversation.browserSession.terminateOccupant'
   | 'conversation.browserSession.tab'
   | 'conversation.browserSession.take'
   | 'conversation.browserSession.text'

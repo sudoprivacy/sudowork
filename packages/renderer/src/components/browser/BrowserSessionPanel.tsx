@@ -246,8 +246,8 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
   const isSessionKnown = session !== null;
   const isDragSupported = session?.capabilities.dragInput === true;
   const isPageLiveDragSupported = session?.capabilities.liveDragSurfaces?.includes('page') === true;
-  // Takeover mirrors the registry claim rule: only an active session keeps a running browser.
-  const isOccupancyTakeoverEnabled = occupancy !== null && !(occupancy.owner?.desiredState === 'active' && occupancy.browserRunning);
+  // Takeover mirrors the registry claim rule: an explicit start can always claim the profile.
+  const isOccupancyTakeoverEnabled = occupancy !== null;
   const occupantSessionId = occupancy?.owner ? occupancy.owner.sessionId.slice(0, 8) : '';
   const occupancyView = occupancy ? (
     <div className='flex flex-wrap items-center gap-2' data-testid='browser-session-occupied'>
@@ -259,14 +259,14 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
       <Button size='mini' disabled={!isOccupancyTakeoverEnabled || isTransferring} onClick={() => void onStart()}>
         {t('conversation.browserSession.takeover')}
       </Button>
-      <Button size='mini' disabled={!occupancy.owner || isTransferring} onClick={() => void onTerminateOccupant()}>
-        {t('conversation.browserSession.terminateOccupant')}
-      </Button>
     </div>
   ) : null;
->>>>>>> 134f5dbe (feat(browser): add profile occupancy handling and takeover controls)
   const isController = isConversationControlSupported && session?.state === 'human' && session.isController && !isTransferring && !isFileTransferring && !error;
   const isStoppedController = isConversationControlSupported && session?.state === 'stopped' && session.isController && session.isHumanControlHeld && !isTransferring && !error;
+  // AI control can be interrupted to run lifecycle actions as the human controller.
+  const isLifecycleInterruptible =
+    isConversationControlSupported && session?.state === 'ai' && !isTransferring && !isFileTransferring && !error;
+  const isLifecycleActor = isController || isLifecycleInterruptible;
   isInteractiveRef.current = !!isController && isFrameReady && !isPanning;
 
   const onStreamReady = (size: { width: number; height: number }) => {
@@ -410,11 +410,12 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
   );
 
   const interruptRef = useRef(false);
-  const onBrowserInterrupt = async () => {
-    if (interruptRef.current || isPanning || !isFrameReady || sessionRef.current?.state !== 'ai' || !isConversationControlSupported) return;
-    const generation = generationRef.current;
+  // Interrupt the AI turn and wait until this conversation holds human control.
+  // Shared by the viewport gesture and lifecycle actions; reentry-guarded so the
+  // two can never issue a second conversation.stop while one is in flight.
+  const interruptAiControl = async (generation: number): Promise<boolean> => {
+    if (interruptRef.current) return false;
     interruptRef.current = true;
-    setIsTransferring(true);
     try {
       // This is the existing task interrupt, including host acknowledgements.
       // The initiating gesture is discarded: it was aimed at an older frame.
@@ -423,16 +424,27 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
       const deadline = performance.now() + 30_000;
       while (generationRef.current === generation) {
         const next = await invoke({ kind: 'state' });
-        if (generationRef.current !== generation) return;
+        if (generationRef.current !== generation) return false;
         update(next.session);
-        if (next.session.state === 'human' && next.session.isController) return;
+        if (next.session.state === 'human' && next.session.isController) return true;
         if (next.session.state === 'error' || performance.now() >= deadline) throw new Error(t('conversation.browserSession.unavailable'));
         await new Promise((resolve) => setTimeout(resolve, 250));
       }
     } catch (failure) {
       if (generationRef.current === generation) Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
+      return false;
     } finally {
       interruptRef.current = false;
+    }
+    return false;
+  };
+  const onBrowserInterrupt = async () => {
+    if (isPanning || !isFrameReady || sessionRef.current?.state !== 'ai' || !isConversationControlSupported) return;
+    const generation = generationRef.current;
+    setIsTransferring(true);
+    try {
+      await interruptAiControl(generation);
+    } finally {
       if (generationRef.current === generation) setIsTransferring(false);
     }
   };
@@ -560,26 +572,6 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     }
   };
 
-  const onTerminateOccupant = async () => {
-    const occupant = occupancy?.owner;
-    if (!occupant) return;
-    const generation = generationRef.current;
-    setIsTransferring(true);
-    try {
-      const reply = await ipcBridge.conversation.terminateMossSession.invoke({ conversation_id: occupant.sessionId });
-      if (!reply?.success) {
-        throw new Error(t(`conversation.browserSession.errors.${reply?.msg || 'unavailable'}`, { defaultValue: t('conversation.browserSession.unavailable') }));
-      }
-      if (generationRef.current === generation) {
-        setOccupancy({ owner: { sessionId: occupant.sessionId, desiredState: 'terminated' }, browserRunning: occupancy?.browserRunning ?? false });
-      }
-    } catch (failure) {
-      if (generationRef.current === generation) Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
-    } finally {
-      if (generationRef.current === generation) setIsTransferring(false);
-    }
-  };
-
   const onInspectExisting = async () => {
     const generation = generationRef.current;
     setIsTransferring(true);
@@ -665,14 +657,22 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
       okText: t(`conversation.browserSession.${kind}`),
       cancelText: t('common.cancel'),
       onOk: async () => {
-        const current = sessionRef.current;
-        if (generationRef.current !== generation || !current || current.state !== 'human' || !current.isController) return;
+        if (generationRef.current !== generation) return;
+        let current = sessionRef.current;
+        if (!current) return;
         setIsTransferring(true);
-        surfaceRef.current?.clear();
-        isFrameReadyRef.current = false;
-        isInteractiveRef.current = false;
-        setIsFrameReady(false);
         try {
+          if (current.state !== 'human' || !current.isController) {
+            // AI control is interrupted first; the drained lease then carries fresh epochs.
+            if (current.state !== 'ai' || !isConversationControlSupported) return;
+            if (!(await interruptAiControl(generation))) return;
+            current = sessionRef.current;
+            if (generationRef.current !== generation || !current || current.state !== 'human' || !current.isController) return;
+          }
+          surfaceRef.current?.clear();
+          isFrameReadyRef.current = false;
+          isInteractiveRef.current = false;
+          setIsFrameReady(false);
           const epochs = { controlEpoch: current.controlEpoch, targetEpoch: current.targetEpoch };
           const action: BrowserSessionAction = kind === 'stop' ? { kind, ...epochs } : { kind, ...requestedMode, acknowledgeStateLoss: true, ...epochs };
           const reply = await invoke(action);
@@ -838,7 +838,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
               {t('conversation.browserSession.personalDisconnect')}
             </Button>
           ) : null}
-          {!session?.personalExtension && (session?.state === 'stopped' || (isController && session?.capabilities.lifecycle)) ? (
+          {!session?.personalExtension && (session?.state === 'stopped' || (isLifecycleActor && session?.capabilities.lifecycle)) ? (
             <div className='flex flex-wrap items-center gap-2'>
               <Select
                 aria-label={t('conversation.browserSession.launchMode')}
@@ -865,10 +865,10 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
                 </Button>
               ) : (
                 <>
-                  <Button size='mini' disabled={!isController} onClick={() => onLifecycle('restart')}>
+                  <Button size='mini' disabled={!isLifecycleActor} onClick={() => onLifecycle('restart')}>
                     {t('conversation.browserSession.restart')}
                   </Button>
-                  <Button size='mini' disabled={!isController} onClick={() => onLifecycle('stop')}>
+                  <Button size='mini' disabled={!isLifecycleActor} onClick={() => onLifecycle('stop')}>
                     {t('conversation.browserSession.stop')}
                   </Button>
                 </>

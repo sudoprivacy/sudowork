@@ -1659,14 +1659,6 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
       return fail(errMessage(error))
     }
   },
-  'conversation.terminate-moss-session': async (req) => {
-    try {
-      await apiFetch(`/api/conversations/${encodeURIComponent(String(req.conversation_id || ''))}/terminate`, { method: 'POST' })
-      return ok(undefined)
-    } catch (error) {
-      return fail(errMessage(error))
-    }
-  },
   'secret.get': async (req) => {
     const path = mossSecretPath(String(req.namespace), String(req.key))
     const data = mossSecretResult(await apiFetch<MossResponse<{ value: string }>>(path))
