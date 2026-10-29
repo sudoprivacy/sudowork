@@ -24,6 +24,7 @@ COPY packages/ontology-engine/package.json packages/ontology-engine/
 COPY packages/ontology-runtime/package.json packages/ontology-runtime/
 COPY packages/ontology-ui/package.json packages/ontology-ui/
 COPY packages/renderer/package.json packages/renderer/
+COPY packages/sudograph-runtime/package.json packages/sudograph-runtime/
 COPY patches/ patches/
 
 # --ignore-scripts: this build only produces the webui, so skip every workspace
@@ -74,6 +75,7 @@ COPY packages/ontology-engine/package.json packages/ontology-engine/
 COPY packages/ontology-runtime/package.json packages/ontology-runtime/
 COPY packages/ontology-ui/package.json packages/ontology-ui/
 COPY packages/renderer/package.json packages/renderer/
+COPY packages/sudograph-runtime/package.json packages/sudograph-runtime/
 COPY patches/ patches/
 ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1 \
     PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 \

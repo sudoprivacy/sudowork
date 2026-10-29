@@ -46,6 +46,8 @@ const aliases = [
   { find: /^@sudowork\/ontology-common$/, replacement: path.resolve(__dirname, '../../packages/ontology-common/src/index.ts') },
   { find: /^@sudowork\/ontology-runtime\/(.*)$/, replacement: path.resolve(__dirname, '../../packages/ontology-runtime/src') + '/$1' },
   { find: /^@sudowork\/ontology-runtime$/, replacement: path.resolve(__dirname, '../../packages/ontology-runtime/src') + '/index.ts' },
+  { find: /^@sudowork\/sudograph-runtime\/(.*)$/, replacement: path.resolve(__dirname, '../../packages/sudograph-runtime/src') + '/$1' },
+  { find: /^@sudowork\/sudograph-runtime$/, replacement: path.resolve(__dirname, '../../packages/sudograph-runtime/src/index.ts') },
   { find: /^@sudowork\/ontology-engine\/(.*)$/, replacement: path.resolve(__dirname, '../../packages/ontology-engine/src') + '/$1' },
   { find: /^@sudowork\/ontology-engine$/, replacement: path.resolve(__dirname, '../../packages/ontology-engine/src/index.ts') },
   { find: /^@sudowork\/ontology-ui\/(.*)$/, replacement: path.resolve(__dirname, '../../packages/ontology-ui/src') + '/$1' },
