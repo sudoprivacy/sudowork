@@ -15,7 +15,7 @@ jobs:
     uses: ./.github/workflows/_build-reusable.yml
     with:
       ref: ${{ github.sha }}
-      matrix: '{"include":[{"platform":"macos-arm64","os":"macos-14","command":"node scripts/build-with-builder.js arm64 --mac --arm64","artifact-name":"agent-candidate-macos-arm64","arch":"arm64"}]}'
+      matrix: '{"include":[{"platform":"macos-arm64","os":"macos-15","command":"node scripts/build-with-builder.js arm64 --mac --arm64","artifact-name":"agent-candidate-macos-arm64","arch":"arm64"}]}'
       append_commit_hash: true
       strict_macos_candidate: true
     secrets: inherit
