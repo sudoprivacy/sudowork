@@ -5,13 +5,19 @@ export interface IMossCatalogItem {
   id: string;
   kind: MossCatalogKind;
   source: MossCatalogSource;
+  /** Provider/source type shown on expert cards; it never changes availability semantics. */
+  expertType?: string;
+  replacesId?: string;
   name: string;
   displayName: string;
   description: string;
   icon?: string;
   emoji?: string;
   categories: string[];
+  /** Internal revision used for preparation and cache invalidation. */
   version: string;
+  /** Human-readable asset version; never the catalog update timestamp. */
+  displayVersion?: string;
   status?: string;
   isAvailable: boolean;
   isLocalAllowed?: boolean;

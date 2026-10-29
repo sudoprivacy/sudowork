@@ -75,8 +75,8 @@
   "tray.showWindow": "显示 Sudowork",
   "tray.quit": "退出",
   "siderMenu": {
-    "agent": "智能体库",
-    "skillStore": "技能商店",
+    "agent": "专家库",
+    "skillStore": "技能库",
     "localKb": "本地知识库",
     "ontology": "本体工作台",
     "security": "安全防护",

@@ -54,7 +54,8 @@
     "filterLocal": "Yerel çalıştırma",
     "createFailed": "Agent oluşturulamadı. Lütfen tekrar deneyin.",
     "open": "Agent aç",
-    "openFailed": "Agent görüşmeleri açılamadı. Lütfen tekrar deneyin."
+    "openFailed": "Agent görüşmeleri açılamadı. Lütfen tekrar deneyin.",
+    "menuTitle": "Projelerim"
   },
   "external.title": "Harici ajanlar (pilot)",
   "external.pilot": "Yalnızca onaylı ajanlar ve sentetik test verileri kullanılabilir. Müşteri verisi, gerçek iş verisi veya gizli bilgi girmeyin.",

@@ -21,7 +21,7 @@ export async function resolveMossCatalogSelection(assistantId?: string, skillIds
     if (reference.startsWith('moss-prepared:')) return reference;
     const exact = installed.filter((item) => item.kind === kind && (item.id === reference || item.runtimeName === reference));
     let matches = exact.length ? exact : installed.filter((item) => item.kind === kind && item.name === reference);
-    if (!matches.length && kind === 'agents' && /^[a-f0-9-]{36}$/i.test(reference)) {
+    if ((!matches.length || matches.some((item) => !item.preparationId)) && kind === 'agents' && /^[a-f0-9-]{36}$/i.test(reference)) {
       const templates = z.array(z.object({ id: z.string(), name: z.string(), enabled: z.boolean().optional() })).parse(await (await requestMossCatalog('/api/v1/agent-templates/installed')).json());
       const template = templates.find((item) => item.id === reference);
       if (template) {
@@ -48,7 +48,9 @@ export async function resolveMossCatalogSelection(assistantId?: string, skillIds
       return reference;
     }
     if (matches.length !== 1) throw new Error('Ambiguous resource name; select the resource by ID');
-    const item = await installMossCatalog(matches[0]);
+    // A new task follows the published version. Existing conversations retain
+    // their immutable preparation paths through readMossAssistantSnapshot.
+    const item = await installMossCatalog({ ...matches[0], isUpdate: true });
     await validateCatalogInstallation(item);
     selected.push(item);
     return item.runtimeRef;
@@ -96,4 +98,56 @@ export async function prepareLocalCatalogSelection(assistantId?: string, skillId
     }
   }
   return { unresolved: selection.unresolved, presetContext, enabledSkills, resources: [...selected.values()].map((item) => ({ id: item.id, kind: item.kind, source: item.source, digest: item.digest, path: item.path })) };
+}
+
+/** Prepare remote selections on Moss; do not download packages to the desktop. */
+export async function resolveServerCatalogSelection(assistantId?: string, skillIds: string[] = []) {
+  const installed = await getMossCatalogInstallations();
+  async function resolve(kind: MossCatalogKind, reference: string): Promise<string> {
+    if (reference.startsWith('moss-prepared:')) return reference;
+    if (kind === 'agents' && isPersonalAgentRef(reference)) {
+      await requireMossPersonalAgent(reference);
+      return reference;
+    }
+    const local = installed.find((item) => item.kind === kind && (item.id === reference || item.runtimeName === reference));
+    if (local && !local.preparationId) {
+      // Legacy local downloads also include the owner's private assets. They
+      // must retain their server identity instead of becoming Hub lookups.
+      const route = kind === 'agents' ? '/api/v1/agent-templates/installed' : '/api/v1/skills/installed';
+      const owned = z.array(z.object({ id: z.string(), enabled: z.boolean().optional(), isHubInstalled: z.boolean().optional() })).parse(await (await requestMossCatalog(route)).json());
+      const resource = owned.find((item) => item.id === local.id && item.isHubInstalled === false);
+      if (resource) {
+        if (resource.enabled === false) throw new Error('Selected resource is disabled');
+        return resource.id;
+      }
+    }
+    let input = local ? { kind, source: local.source, id: local.id } : undefined;
+    if (!input) {
+      const tenant = await listMossCatalog({ kind, source: 'tenant' });
+      const candidates = tenant.items.filter((item) => item.id === reference || item.name === reference);
+      if (candidates.length > 1) throw new Error('Ambiguous resource name; select the resource by ID');
+      if (candidates[0]) input = { kind, source: 'tenant', id: candidates[0].id };
+      else if (/^[a-f0-9-]{36}$/i.test(reference)) {
+        // Private templates are usable by their owner before publication.
+        const privatePath = kind === 'agents' ? '/api/v1/agent-templates/installed' : '/api/v1/skills/installed';
+        const owned = z.array(z.object({ id: z.string(), enabled: z.boolean().optional() })).parse(await (await requestMossCatalog(privatePath)).json());
+        const privateResource = owned.find((item) => item.id === reference);
+        if (privateResource) {
+          if (privateResource.enabled === false) throw new Error('Selected resource is disabled');
+          return reference;
+        }
+        await detailMossCatalog({ kind, source: 'hub', id: reference });
+        input = { kind, source: 'hub', id: reference };
+      }
+    }
+    if (!input) return reference;
+    const result = z.object({ resources: z.array(z.object({ id: z.string(), kind: z.string(), runtimeRef: z.string().startsWith('moss-prepared:') })) }).parse(await (await requestMossCatalog('/api/v1/client/catalog/install', input)).json());
+    const selected = result.resources.find((item) => item.id === input.id && item.kind === kind);
+    if (!selected) throw new Error('Prepared resource is missing');
+    return selected.runtimeRef;
+  }
+  const assistantReference = assistantId ? await resolve('agents', assistantId) : undefined;
+  const skillReferences: string[] = [];
+  for (const id of skillIds) skillReferences.push(await resolve('skills', id));
+  return { assistantReference, skillReferences };
 }

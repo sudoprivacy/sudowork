@@ -2381,6 +2381,8 @@ export interface ISkillHubMeta {
   uploaded?: boolean;
   /** Timestamp when uploaded to Moss Server */
   uploaded_at?: string;
+  /** Moss organization asset id; local id remains stable across uploads. */
+  moss_id?: string;
   /** Publish status for tenant-exclusive skills */
   publish_status?: 'pending' | 'approved' | 'rejected';
   /** Timestamp when published as tenant-exclusive */
@@ -3533,6 +3535,16 @@ export const eeclaw = {
       sourcePath?: string;
     }
   >('eeclaw.upload-custom-assistant'),
+  /** Export a local custom skill to the user's Downloads directory. */
+  exportCustomSkill: bridge.buildProvider<
+    IBridgeResponse<{ filePath: string }>,
+    { skillName: string; displayName: string; sourcePath?: string }
+  >('eeclaw.export-custom-skill'),
+  /** Export a local custom expert to the user's Downloads directory. */
+  exportCustomAssistant: bridge.buildProvider<
+    IBridgeResponse<{ filePath: string }>,
+    { assistantName: string; assistantId: string; displayName: string; sourcePath?: string }
+  >('eeclaw.export-custom-assistant'),
 
   // === Tenant Skill/Assistant ===
   /** Fetch tenant-exclusive skills from Moss Server */

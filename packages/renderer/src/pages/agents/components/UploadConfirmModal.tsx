@@ -16,7 +16,7 @@ export default function UploadConfirmModal({ isVisible, isUploading, assistant, 
 
   return (
     <Modal
-      title={t('settings.uploadAssistantTitle', '上传智能体')}
+      title={t('settings.mossCatalog.uploadPrivateTitle')}
       visible={isVisible}
       onCancel={onCancel}
       onOk={onConfirm}
@@ -27,7 +27,7 @@ export default function UploadConfirmModal({ isVisible, isUploading, assistant, 
       wrapStyle={{ zIndex: 10000 }}
       maskStyle={{ zIndex: 9999 }}
     >
-      <p className='mt-0'>{t('settings.uploadAssistantConfirm', 'Confirm upload this agent to the agent store? Other users in the same tenant will be able to download and use it after upload.')}</p>
+      <p className='mt-0'>{t('settings.mossCatalog.uploadPrivateDescription')}</p>
       {/* Agent preview */}
       {assistant && (
         <div className='mt-3 p-3 bg-control rounded-xl flex items-center gap-3'>

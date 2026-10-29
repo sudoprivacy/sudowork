@@ -85,6 +85,7 @@ export const createAcpAgent = async (options: ICreateConversationParams): Promis
       // 预设助手 ID，用于在会话面板显示助手名称和头像
       // Preset assistant ID for displaying name and avatar in conversation panel
       presetAssistantId: extra.presetAssistantId,
+      templateRef: extra.templateRef,
       // Initial session mode selected on Guid page (from AgentModeSelector)
       sessionMode: extra.sessionMode,
       // Pre-selected model from Guid page (cached model list)
@@ -147,6 +148,7 @@ export const createRemoteAgent = async (options: ICreateConversationParams): Pro
       agentName: extra.agentName,
       customAgentId: extra.customAgentId,
       presetAssistantId: extra.presetAssistantId,
+      templateRef: extra.templateRef,
       presetContext: extra.presetContext,
       enabledSkills,
       sessionMode: extra.sessionMode,

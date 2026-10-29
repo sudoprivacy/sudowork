@@ -6,13 +6,13 @@
 
 import React from 'react';
 import { Button, Spin, Popconfirm, Switch, Tooltip } from '@arco-design/web-react';
-import { Trash2, Shield, Zap, Download, Upload } from 'lucide-react';
+import { Archive, Trash2, Shield, Zap, Download, Upload } from 'lucide-react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import type { IInstalledSkillInfo } from '@sudowork/host-bridge/ipcBridge';
 import { getInstalledSkillDisplay, normalizeSkillVersion, handleSkillIconError } from '@renderer/utils/skillDisplay';
 
-export default function InstalledSkillCard({ skill, onUninstall, uninstalling, onToggleEnabled, togglingEnabled, onClick, hasUpdate, onUpdate, updating, onUpload, uploading, uploadStatus, enterprisePublishButton, hideUninstall, canManage = true }: IInstalledSkillCardProps) {
+export default function InstalledSkillCard({ skill, onUninstall, uninstalling, onToggleEnabled, togglingEnabled, onClick, hasUpdate, onUpdate, updating, onUpload, uploading, onExport, uploadStatus, enterprisePublishButton, hideUninstall, canManage = true }: IInstalledSkillCardProps) {
   const { displayName, description, icon, emoji } = getInstalledSkillDisplay(skill);
   const displayVersion = normalizeSkillVersion(skill.version);
   const isUninstallAllowed = !skill.isBuiltin && !hideUninstall;
@@ -56,8 +56,13 @@ export default function InstalledSkillCard({ skill, onUninstall, uninstalling, o
         )}
         {uploadStatus}
         {!uploadStatus && onUpload && (
-          <Tooltip content={t('settings.skill.uploadToHub', '上传到 SkillHub')}>
+          <Tooltip content={t('settings.mossCatalog.uploadToMoss')}>
             <Button icon={<Upload size={13} />} loading={uploading} onClick={() => onUpload()} className='!size-7' />
+          </Tooltip>
+        )}
+        {onExport && (
+          <Tooltip content={t('settings.skill.export', '导出技能包')}>
+            <Button icon={<Archive size={13} />} onClick={() => onExport()} className='!size-7' />
           </Tooltip>
         )}
         {enterprisePublishButton}
@@ -98,6 +103,7 @@ interface IInstalledSkillCardProps {
   /** Personal mode: upload this custom skill to SkillHub for tenant approval. */
   onUpload?: () => void;
   uploading?: boolean;
+  onExport?: () => void;
   uploadStatus?: React.ReactNode;
   /** Enterprise mode: publish button element */
   enterprisePublishButton?: React.ReactNode;

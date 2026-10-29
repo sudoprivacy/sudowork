@@ -1434,6 +1434,9 @@
   "enterprise": "Enterprise Settings",
   "mcpService": "MCP Service",
   "mossCatalog": {
+    "uploadToMoss": "Upload to my Moss assets",
+    "uploadPrivateTitle": "Upload to My experts",
+    "uploadPrivateDescription": "Save to your private experts in Moss. To share, submit for review in Moss; the visibility scope takes effect after publication.",
     "agentLibrary": "Agent library",
     "skillLibrary": "Skill library",
     "exclusiveAgents": "Organization agents",
@@ -1476,7 +1479,8 @@
     "skillInstructions": "Skill instructions",
     "noInstructions": "The server has not provided additional instructions.",
     "scenarios": "Use cases",
-    "features": "Core capabilities"
+    "features": "Core capabilities",
+    "serviceUnavailable": "Some service experts could not be loaded. Please refresh and try again."
   },
   "mcpPersonalEmptyTitle": "No personal MCP servers",
   "mcpPersonalEmptyInstallHint": "Browse the MCP library to install a server, or use the button above to install from JSON.",

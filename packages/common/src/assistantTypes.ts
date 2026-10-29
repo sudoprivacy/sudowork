@@ -90,7 +90,11 @@ export interface IAssistantMeta {
   is_builtin?: boolean;
   enabled?: boolean;
   installed_version?: string;
+  /** Version declared by a locally authored asset. */
+  version?: string;
   installed_at?: string;
+  /** Moss organization asset id; local id remains stable across uploads. */
+  moss_id?: string;
   // Hub API fields
   /** Source tag from Hub API: 'hub' (store), 'custom' (user-created), 'system' (builtin), 'tenant' (enterprise-exclusive) */
   tag?: 'hub' | 'custom' | 'system' | 'tenant';

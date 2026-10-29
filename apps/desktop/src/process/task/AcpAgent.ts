@@ -187,6 +187,7 @@ export interface AcpAgentData extends IMossConversationExecution {
   sessionMode?: string;
   currentModelId?: string;
   presetAssistantId?: string;
+  templateRef?: string;
   /** Per-member team MCP server config (K2 wire, injected via session/new.mcp_servers, see A1); undefined for non-team conversations */
   teamMcpConfig?: { name: string; command: string; args?: string[]; env?: Array<{ name: string; value: string }> };
   /** Extra MCP configs injected into session/new.mcp_servers (e.g. ontology-builder). Same wire shape as teamMcpConfig; kept separate so team-only behaviour (auto-approval, sleep-nudge) does not fire for these. */
@@ -521,7 +522,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       // Apply preset-specific runtime configuration (env vars, scripts, model configs)
       const cdpPort = chromiumCdpPort || 9230;
       const presetRuntimeContext = {
-        presetAssistantId: isPersonalAgentRef(this.extra.presetAssistantId) ? undefined : this.extra.presetAssistantId,
+        presetAssistantId: this.options.templateRef || (isPersonalAgentRef(this.extra.presetAssistantId) ? undefined : this.extra.presetAssistantId),
         backend: this.extra.backend,
         workspace: this.extra.workspace,
         cdpPort,
@@ -530,9 +531,9 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       if (!this.isOntologySession && this.options.mossAccountScope && isPersonalAgentRef(this.options.presetAssistantId)) {
         const runtime = await resolveMossPersonalRuntime(this.options.presetAssistantId!, this.options.mossAccountScope);
         this.connection.managedAgentId = runtime.agentId;
-        this.connection.systemPromptAppend = runtime.systemPromptAppend;
+        this.connection.systemPromptAppend = [runtime.systemPromptAppend, assistantSnapshot?.presetContext].filter(Boolean).join('\n\n');
         const governanceBlock = extractGovernanceBlock(this.options.presetContext);
-        this.options.presetContext = [runtime.systemPromptAppend, governanceBlock].filter(Boolean).join('\n\n');
+        this.options.presetContext = [runtime.systemPromptAppend, assistantSnapshot?.presetContext, governanceBlock].filter(Boolean).join('\n\n');
         customEnv = { ...customEnv, SUDOCODE_MEMORY_DIR: runtime.memoryDirectory };
       }
       const presetResult = assistantSnapshot ? applyPresetRuntimeFromMeta(assistantSnapshot.meta, presetRuntimeContext, assistantSnapshot.directory) : await applyPresetRuntime(presetRuntimeContext);
@@ -1085,8 +1086,9 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
       if (this.options.purpose !== 'ontology' && this.options.mossAccountScope && isPersonalAgentRef(this.options.presetAssistantId)) {
         const runtime = await resolveMossPersonalRuntime(this.options.presetAssistantId!, this.options.mossAccountScope);
         this.options.agentName = runtime.displayName;
+        const template = await readMossAssistantSnapshot(this.options);
         const governanceBlock = extractGovernanceBlock(this.options.presetContext);
-        this.options.presetContext = [runtime.systemPromptAppend, governanceBlock].filter(Boolean).join('\n\n');
+        this.options.presetContext = [runtime.systemPromptAppend, template?.presetContext, governanceBlock].filter(Boolean).join('\n\n');
       } else if (this.options.purpose !== 'ontology' && this.options.mossAccountScope && this.options.presetAssistantId) {
         const snapshot = await readMossAssistantSnapshot(this.options);
         if (!snapshot) throw new Error('Assistant snapshot is missing');
@@ -3416,7 +3418,7 @@ This identity statement takes priority over the default identity in USER.md.
     const skillList = skillNames.map((skillName) => `- ${skillName}`).join('\n');
     const allUpdated = skills.every((skill) => skill.status === 'updated');
     const actionText = allUpdated ? '更新' : '安装/更新';
-    const content = skillNames.length === 1 ? `技能已${actionText}到自定义技能：${skillNames[0]}\n\n你可以在“技能商店 > 我的技能 > 自定义技能”中查看。` : `以下技能已${actionText}到自定义技能：\n\n${skillList}\n\n你可以在“技能商店 > 我的技能 > 自定义技能”中查看。`;
+    const content = skillNames.length === 1 ? `技能已${actionText}到自定义技能：${skillNames[0]}\n\n你可以在“技能库 > 我的技能 > 自定义技能”中查看。` : `以下技能已${actionText}到自定义技能：\n\n${skillList}\n\n你可以在“技能库 > 我的技能 > 自定义技能”中查看。`;
 
     this.emitMessage({
       id: uuid(),

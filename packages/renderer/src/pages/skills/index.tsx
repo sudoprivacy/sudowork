@@ -8,7 +8,7 @@ import MossCatalogBrowser from '@renderer/components/MossCatalogBrowser';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Spin, Message, Input, Modal, Tooltip } from '@arco-design/web-react';
 import { IconSearch } from '@arco-design/web-react/icon';
-import { X, Shield, Zap, Upload, Share2, Plus, Check } from 'lucide-react';
+import { X, Shield, Zap, Upload, Plus, Check } from 'lucide-react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -135,7 +135,6 @@ const SkillSettings: React.FC = () => {
   }, []);
 
   // Upload/Publish state for enterprise mode
-  const [publishingSkillName, setPublishingSkillName] = useState<string | null>(null);
   const [uploadingSkillName, setUploadingSkillName] = useState<string | null>(null);
 
   // Track if sync has been triggered for current tab session (avoid loop)
@@ -229,6 +228,7 @@ const SkillSettings: React.FC = () => {
       const displayName = skill.meta?.display_name || skillName;
       const description = skill.meta?.description || '';
 
+      setUploadingSkillName(skillName);
       try {
         const res = await eeclaw.uploadCustomSkill.invoke({ skillName, displayName, description });
         if (res.success && res.data) {
@@ -242,88 +242,34 @@ const SkillSettings: React.FC = () => {
           await fetchInstalledList();
           return { success: true };
         } else {
+          Message.error(t('settings.skill.uploadFailed', { msg: res.msg || 'Unknown error' }));
           return { success: false, msg: res.msg || 'Unknown error' };
         }
       } catch (err) {
         console.error('Failed to upload custom skill:', err);
+        Message.error(t('settings.skill.uploadFailed', { msg: String(err) }));
         return { success: false, msg: String(err) };
+      } finally {
+        setUploadingSkillName(null);
       }
     },
     [fetchInstalledList, t]
   );
 
-  const onConfirmUploadSkillToHub = useCallback(
-    async (skill: IInstalledSkillInfo) => {
-      if (!isElectronDesktop() || isEnterprise) return;
-
-      const tenantId = enterpriseCode?.trim();
-      if (!tenantId) {
-        Message.warning(t('settings.skill.uploadNoTenantId', '当前账号没有租户 ID，无法上传技能'));
-        return;
+  const handleExportCustomSkill = useCallback(async (skill: IInstalledSkillInfo) => {
+    if (!isEnterprise) return;
+    const displayName = skill.meta?.display_name || skill.name;
+    try {
+      const result = await eeclaw.exportCustomSkill.invoke({ skillName: skill.name, displayName });
+      if (result.success && result.data?.filePath) {
+        Message.success(t('settings.skill.exportSuccess', { path: result.data.filePath, defaultValue: `技能包已导出到 ${result.data.filePath}` }));
+      } else {
+        Message.error(t('settings.skill.exportFailed', { msg: result.msg || 'Unknown error', defaultValue: `导出失败: ${result.msg || 'Unknown error'}` }));
       }
-
-      const skillName = skill.name;
-      const displayName = skill.meta?.display_name || skillName;
-      setUploadingSkillName(skillName);
-      try {
-        const res = await skillHub.uploadSkillToHub.invoke({ skillName, tenantId });
-        if (res.success && res.data) {
-          Message.success(
-            t('settings.skill.uploadSubmittedSuccess', {
-              name: displayName,
-              defaultValue: '技能 "{{name}}" 已提交审批，等待管理员审核',
-            })
-          );
-          await fetchInstalledSkills();
-          await fetchInstalledList();
-          emitter.emit('skills.changed');
-        } else {
-          Message.error(
-            t('settings.skill.uploadFailed', {
-              msg: res.msg || 'Unknown error',
-              defaultValue: '上传失败: {{msg}}',
-            })
-          );
-        }
-      } catch (err) {
-        console.error('Failed to upload skill to SkillHub:', err);
-        Message.error(
-          t('settings.skill.uploadFailed', {
-            msg: String(err),
-            defaultValue: '上传失败: {{msg}}',
-          })
-        );
-      } finally {
-        setUploadingSkillName(null);
-      }
-    },
-    [enterpriseCode, fetchInstalledSkills, fetchInstalledList, isEnterprise, t]
-  );
-
-  const onUploadSkillToHub = useCallback(
-    (skill: IInstalledSkillInfo) => {
-      if (!isElectronDesktop() || isEnterprise) return;
-
-      const tenantId = enterpriseCode?.trim();
-      if (!tenantId) {
-        Message.warning(t('settings.skill.uploadNoTenantId', '当前账号没有租户 ID，无法上传技能'));
-        return;
-      }
-
-      const displayName = skill.meta?.display_name || skill.name;
-      Modal.confirm({
-        title: t('settings.skill.uploadConfirmTitle', '上传技能'),
-        content: t('settings.skill.uploadConfirmContent', {
-          name: displayName,
-          defaultValue: '确认将技能 "{{name}}" 上传到 SkillHub？上传后需要管理员审批，审批通过后同租户用户可在专属技能中使用。',
-        }),
-        okText: t('common.confirm', '确定'),
-        cancelText: t('common.cancel', '取消'),
-        onOk: () => onConfirmUploadSkillToHub(skill),
-      });
-    },
-    [enterpriseCode, isEnterprise, onConfirmUploadSkillToHub, t]
-  );
+    } catch (error) {
+      Message.error(t('settings.skill.exportFailed', { msg: String(error), defaultValue: `导出失败: ${String(error)}` }));
+    }
+  }, [isEnterprise, t]);
 
   const handleImportLocalSkill = useCallback(
     async (source?: LocalSkillImportSource) => {
@@ -352,24 +298,6 @@ const SkillSettings: React.FC = () => {
           setAuditReportSkillName(importedSkillName);
           setAuditReportVisible(true);
 
-          // Enterprise mode: sync upload to Moss Server after import
-          if (isEnterprise) {
-            const installedRes = await skillHub.getInstalledSkills.invoke();
-            if (installedRes.success && installedRes.data) {
-              const newSkill = installedRes.data.find((s) => s.name === importedSkillName);
-              if (newSkill) {
-                const uploadRes = await handleUploadCustomSkill(newSkill);
-                if (!uploadRes.success) {
-                  Message.error(
-                    t('settings.skill.uploadFailed', {
-                      msg: uploadRes.msg,
-                      defaultValue: '上传失败: {{msg}}',
-                    })
-                  );
-                }
-              }
-            }
-          }
         } else {
           Message.error(
             t('settings.skill.importFailed', {
@@ -388,51 +316,13 @@ const SkillSettings: React.FC = () => {
         );
       }
     },
-    [fetchInstalledSkills, fetchInstalledList, t, isEnterprise, handleUploadCustomSkill]
+    [fetchInstalledSkills, fetchInstalledList, t]
   );
 
   const onImportButtonClick = useCallback(() => {
     setImportSourceVisible(true);
   }, []);
 
-  // ---- Enterprise mode: Publish skill as tenant-exclusive ----
-  const handlePublishTenantSkill = useCallback(
-    async (skillId: string, skillName: string) => {
-      if (!isElectronDesktop()) return;
-
-      setPublishingSkillName(skillName);
-      try {
-        const res = await eeclaw.publishTenantSkill.invoke({ skillId });
-        if (res.success && res.data) {
-          Message.success(
-            t('settings.skill.publishSuccess', {
-              name: skillName,
-              defaultValue: '技能 "{{name}}" 已提交发布申请，等待管理员审批',
-            })
-          );
-          await fetchInstalledList();
-        } else {
-          Message.error(
-            t('settings.skill.publishFailed', {
-              msg: res.msg || 'Unknown error',
-              defaultValue: '发布失败: {{msg}}',
-            })
-          );
-        }
-      } catch (err) {
-        console.error('Failed to publish tenant skill:', err);
-        Message.error(
-          t('settings.skill.publishFailed', {
-            msg: String(err),
-            defaultValue: '发布失败: {{msg}}',
-          })
-        );
-      } finally {
-        setPublishingSkillName(null);
-      }
-    },
-    [fetchInstalledList, t]
-  );
 
   // ---- Enterprise mode: Install tenant skill ----
   // ---- Fetch latest versions ----
@@ -1062,18 +952,6 @@ const SkillSettings: React.FC = () => {
         // Pass category to handlers for precise skill location
         const skillCategory = skill.category as 'custom' | 'hub' | 'system' | 'tenant' | undefined;
         const isCustomSkill = skillCategory === 'custom' || (!skillCategory && !skill.isBuiltin && skill.meta?.source_type === 'upload');
-        const skillHubPublishStatus = skill.meta?.publish_status || (skill.meta?.uploaded ? 'pending' : undefined);
-        const uploadStatus =
-          !isEnterprise && isCustomSkill && skillHubPublishStatus === 'pending' ? (
-            <Tooltip content={t('settings.skill.uploadPending', '上传审批中')}>
-              <span className='store-action-badge'>{t('settings.skill.publishPendingShort', '审核中')}</span>
-            </Tooltip>
-          ) : !isEnterprise && isCustomSkill && skillHubPublishStatus === 'approved' ? (
-            <Tooltip content={t('settings.skill.uploadApproved', '已通过审批')}>
-              <span className='store-action-badge text-success'>{t('settings.skill.publishedShort', '已发布')}</span>
-            </Tooltip>
-          ) : undefined;
-        const canUploadToHub = !isEnterprise && isCustomSkill && skillHubPublishStatus !== 'pending' && skillHubPublishStatus !== 'approved';
         return (
           <InstalledSkillCard
             key={`${skill.name}:${installedListRevision}`}
@@ -1086,9 +964,8 @@ const SkillSettings: React.FC = () => {
             hasUpdate={skillHasUpdate}
             onUpdate={() => skillHubId && void handleUpdate(skillHubId, skill.name, skill.meta)}
             updating={updatingSkillId === skillHubId}
-            onUpload={canUploadToHub ? () => onUploadSkillToHub(skill) : undefined}
+            onUpload={isCustomSkill ? () => void handleUploadCustomSkill(skill) : undefined}
             uploading={uploadingSkillName === skill.name}
-            uploadStatus={uploadStatus}
             hideUninstall={hideUninstall}
             onClick={
               skill.meta
@@ -1104,40 +981,12 @@ const SkillSettings: React.FC = () => {
     </div>
   );
 
-  // Render custom skills with enterprise action buttons (publish only, auto-upload on create)
+  // Client only provides use/upload/export; review and publication stay in Moss.
   const renderCustomSkillGridWithEnterpriseActions = (skillList: IInstalledSkillInfo[]) => (
     <div className='grid gap-4' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
       {skillList.map((skill) => {
-        const skillHubId = skill.meta?.id;
-        const isPublishing = publishingSkillName === skill.name;
-        const publishStatus = skill.meta?.publish_status;
         // Custom skills have category 'custom'
         const skillCategory = skill.category as 'custom' | undefined;
-
-        // Enterprise publish button element - placed below delete button
-        const enterprisePublishButton =
-          isEnterprise && isElectronDesktop() && !publishStatus ? (
-            <Tooltip content={t('settings.skill.publishAsTenant', '发布为专属技能')}>
-              <button
-                className='store-action-icon'
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (skillHubId) void handlePublishTenantSkill(skillHubId, skill.name);
-                }}
-                disabled={isPublishing || !skillHubId}
-              >
-                {isPublishing ? <Spin size={12} /> : <Share2 size={12} />}
-              </button>
-            </Tooltip>
-          ) : isEnterprise && publishStatus === 'pending' ? (
-            <Tooltip content={t('settings.skill.publishPending', '发布审批中')}>
-              <span className='store-action-badge'>{t('settings.skill.publishPendingShort', '审核中')}</span>
-            </Tooltip>
-          ) : isEnterprise && publishStatus === 'approved' ? (
-            <Tooltip content={t('settings.skill.publishApproved', '已发布为专属技能')}>
-              <span className='store-action-badge text-success'>{t('settings.skill.publishedShort', '已发布')}</span>
-            </Tooltip>
-          ) : undefined;
 
         return (
           <InstalledSkillCard
@@ -1149,6 +998,9 @@ const SkillSettings: React.FC = () => {
             togglingEnabled={togglingSkillName === skill.name}
             canManage={canManage}
             hasUpdate={false}
+            onUpload={() => void handleUploadCustomSkill(skill)}
+            uploading={uploadingSkillName === skill.name}
+            onExport={isEnterprise ? () => void handleExportCustomSkill(skill) : undefined}
             onClick={
               skill.meta
                 ? () => {
@@ -1157,7 +1009,6 @@ const SkillSettings: React.FC = () => {
                   }
                 : undefined
             }
-            enterprisePublishButton={enterprisePublishButton}
           />
         );
       })}
