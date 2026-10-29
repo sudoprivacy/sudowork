@@ -2,7 +2,7 @@ name: Release Sudograph host runtime
 
 on:
   push:
-    tags: ['sudograph-runtime-v*']
+    tags: ["sudograph-runtime-v*"]
 
 permissions:
   contents: read
@@ -26,10 +26,10 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@v6
         with:
-          node-version: '22.22.1'
+          node-version: "22.22.1"
       - uses: actions/setup-python@v6
         with:
-          python-version: '3.12'
+          python-version: "3.12"
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: package.json
@@ -55,4 +55,4 @@ jobs:
       - name: Publish the accepted archive and integrity receipts
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" "$RUNNER_TEMP"/sudograph-host-package/* --verify-tag --generate-notes
+        run: gh release create "$GITHUB_REF_NAME" "$RUNNER_TEMP"/sudograph-host-package/* --verify-tag --generate-notes --latest=false
