@@ -25,6 +25,7 @@ import runtimeVersions from '@/shared/runtime-versions.json';
 import scodePlatforms from '@/shared/scode-platforms.json';
 import { extractTarGzWithProgress, extractZipWithProgress, listTarGzEntries, listZipEntries } from '../archiveProgress';
 import { SCODE_BIN_HOME } from './scodePaths';
+import { retireScodeService } from './retireScodeService';
 
 const TAG = 'ScodeInstallService';
 
@@ -446,6 +447,11 @@ export async function ensureScodeInstalled(options?: { forceReinstall?: boolean;
     const { strip, topLevelNames } = await analyzeArchiveStructure(archivePath);
     mainLog(TAG, `Archive analysis: strip=${strip}, entries=[${[...topLevelNames].join(', ')}]`);
 
+    const previousVersion = getInstalledScodeVersion();
+    if (previousVersion && semver.gte(previousVersion, '0.2.36')) {
+      await retireScodeService(getInstalledScodePath());
+    }
+
     // Ensure bin directory exists
     fs.mkdirSync(binDir, { recursive: true });
 
@@ -453,6 +459,20 @@ export async function ensureScodeInstalled(options?: { forceReinstall?: boolean;
     const toRemove = new Set(topLevelNames);
     toRemove.add(SCODE_READY_MARKER);
     toRemove.add(getScodeExeName());
+
+    // Remove the executable first. An idle supervisor may still be releasing
+    // its handle after acknowledging shutdown; never erase its receipt first.
+    const executable = getInstalledScodePath();
+    const releaseDeadline = Date.now() + 10_000;
+    while (fs.existsSync(executable)) {
+      try {
+        await fs.promises.unlink(executable);
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        if (process.platform !== 'win32' || !['EBUSY', 'EPERM'].includes(code ?? '') || Date.now() >= releaseDeadline) throw error;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+    }
 
     for (const name of toRemove) {
       const target = path.join(binDir, name);
