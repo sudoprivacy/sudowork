@@ -435,5 +435,42 @@ worker: 3,601 passed and 30 existing skips. Type checking, scoped lint and the
 initial-document/profile probe and exact-session fixture cleanup following a
 Windows startup timeout in full CI. Candidate `15fc78a` passed 316 Python unit
 cases and 20 real Windows startup/scroll cases, with all nine generated startup
-cases unchanged. Fresh combined consumer checks and final public-package/model
-acceptance remain required.
+cases unchanged. Its fresh full CI passed all ten jobs; SDK #49 merged as
+`997a399` and the official publisher released public `0.58.14`.
+
+### Public 0.58.14 and real-model embedded panel
+
+The exact public wheel has SHA-256
+`5575a811d253ffbaf71103b8e54288c53312ed66068d954f360990b90578a334`.
+All 204 installed files and seven signed extension assets matched the published
+package. Installed Windows acceptance passed 35 cases with 14 existing skips;
+managed Linux acceptance passed 20 with two existing fixture skips. The old
+0.58.10 profile survived graceful upgrade and forced crash with ordinary and
+HttpOnly cookies, extension identity, exclusive ownership and the first frame
+MCP result intact. The private signing key was not accessed.
+
+The combined host source passed 3,601 cases with 30 existing skips before commit
+`660ae2d`. A normally built Desktop then cold-installed public `0.58.14` through
+its regular first-use installer. Real GPT 6 Luna launched the browser and asked
+its native question. Embedded-panel pointer input paused the task and cancelled
+that question across a renderer reload. Exact drag-selection copy, trusted
+multiline paste, Chromium composition without early submission, one trusted
+form submission and ordinary same-conversation continuation all passed. The
+model read back the exact human value from the same browser.
+
+The first embedded test assumed an empty paste field even though the model had
+prefilled it. The fixture now uses trusted Select All before paste; the exact
+assertion and deadlines remain unchanged. Its failure is preserved separately.
+
+Native-window presentation is still a separate gate. An earlier CDP-driven run
+did not observe task Chrome in the foreground within ten seconds. A subsequent
+Windows mouse attempt stopped before clicking because its owned button was
+covered. Read-only native hit testing identified Windows PickerHost over the
+fixture window at DPI 96 and device pixel ratio 1. No unrelated window was
+closed and no forced activation API was used. These results do not qualify the
+native presentation or establish a browser foregrounding defect.
+
+Ladder #133 merged after 146 policy cases and three actual Chrome input cases
+passed with the installed public package. Moss #470 merged after full CI and
+managed-profile acceptance. Final packaged Desktop, WebUI deployment, cloud
+graph/comment/context delivery and physical-phone browser input remain open.

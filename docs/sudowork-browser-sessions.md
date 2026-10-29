@@ -2,7 +2,7 @@
 
 Status, 30 October: a fresh read-only process check confirms production Moss `0.1.90`; this browser workline did not perform that controller upgrade. The last qualified browser baseline is public SDK `0.58.10` within the three-owner rollout, native execution image `0.1.85`, and WebUI image `9c559fe61fb5d016e387cedf452ed7618082d33f`. Refresh the browser/runtime configuration and active-runner inventory before promotion. This browser workline has not deployed the current page drag and child-frame candidate.
 
-SudoWork #1323 and Moss #467 have merged. The audited SudoWork `0.2.40` release predates #1323, so that stable package does not establish delivery of the new page drag. SDK #47 is merged and public `0.58.13` passed exact artifact and installed Windows/Linux qualification. A subsequent real-model Desktop run exposed a completed-drag/copy race; SDK #49 and the shared host integration address it. Public `0.58.14`, the final application artifacts and production acceptance remain gates. Source, candidate, published package and production acceptance are tracked separately below.
+SudoWork #1323 and Moss #467 have merged. The audited SudoWork `0.2.40` release predates #1323, so that stable package does not establish delivery of the new page drag. SDK #49 is merged and public `0.58.14` passed exact artifact and installed Windows/Linux qualification. Its completed-drag/copy fix passed the real-model Desktop embedded-panel journey. Ladder #133 and Moss #470 consume that public package and have merged. Final application artifacts, native-window presentation and production promotion remain gates. Source, published package and production acceptance are tracked separately below.
 
 The production WebUI journey passed authenticated full-window streaming and refresh, exact remote selection, Unicode clipboard and Chromium composition, one trusted submission, retained login after browser restart, and real-model observation and ordinary chat continuation in the same conversation. It passed both before and after the controller upgrade. The source Desktop also passed its original real-model browser journey with a normal cold installation of public SDK `0.58.10`. Its new official package still needs acceptance. See [the streaming implementation and acceptance gates](browser-window-stream-acceptance.md).
 
@@ -12,7 +12,7 @@ See the [browser/Sudograph joint acceptance checklist](browser-joint-acceptance.
 
 | Area                                         | Evidence and remaining gate                                                                                                                                                                                                                                                                                                                                |
 | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Desktop standalone and shared viewer         | Source Desktop with public SDK `0.58.10` passed AI launch, native question, ordinary interrupt, persisted cancellation, clipboard/composition, one submission and exact model readback. Official packaging remains open.                                                                                                                                   |
+| Desktop standalone and shared viewer         | Source Desktop with public SDK `0.58.14` passed AI launch, native question, ordinary interrupt, persisted cancellation, exact selection/copy, multiline paste/composition, one submission and exact model readback through the embedded panel. Native-window foreground and official packaging remain open.                                                |
 | Desktop existing personal Chrome             | Real SDK/host recovery cases and earlier packaged model journeys passed with isolated profiles. The final package must retain the existing Chrome and its cookies after disconnect.                                                                                                                                                                        |
 | WebUI cloud extension and full-window viewer | Production Moss `0.1.84` and SDK `0.58.10` passed the complete public profile/model journey. Refresh retained the input lease; explicit browser restart retained login.                                                                                                                                                                                    |
 | Headless and CDP combinations                | Real SDK and host cases exist. Each final application combination still needs its own acceptance; a source or transport test does not establish production coverage.                                                                                                                                                                                       |
@@ -31,8 +31,8 @@ extension `0.4.8`. The consumer now vendors SDK #49 candidate `15fc78a` and targ
 `0.58.14`; these changes do not modify the extension identity or assets. The
 candidate also sequences initial-document and profile-network readiness after
 the Windows full CI retained a startup CookieManager timeout. All 20 local
-startup/scroll cases and 316 Python unit cases passed; the fresh full CI and
-final public package remain required.
+startup/scroll cases and 316 Python unit cases passed. SDK #49's fresh full CI
+then passed all ten jobs and the official publisher released `0.58.14`.
 
 The combined candidate passed 315 Python unit tests, 22 extension state tests,
 the exact Windows viewer command (35 passed, 14 existing skips), and nine
@@ -41,8 +41,12 @@ extension-readiness/bridge checks. Installed Linux Chrome 156.0.8078.73 passed
 upgraded from extension 0.4.6 to 0.4.8 and survived a forced crash with cookies,
 input exclusion and the first frame MCP call intact. All 204 installed package
 files and the signed extension assets matched the candidate wheel. These results
-qualify the integrated candidate; cross-platform CI, the public release, final
-application artifacts and production acceptance remain separate gates.
+qualify the integrated candidate. The exact public `0.58.14` wheel subsequently
+passed 35 Windows cases with 14 existing skips and 20 managed Linux cases with
+two existing skips. Its 204 installed files and signed extension assets matched
+the public package; the profile upgrade/crash journey retained cookies and
+extension identity. Final application artifacts and production acceptance remain
+separate gates.
 
 ### Public mobile viewport acceptance, 28 October
 
