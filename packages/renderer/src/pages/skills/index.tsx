@@ -256,20 +256,23 @@ const SkillSettings: React.FC = () => {
     [fetchInstalledList, t]
   );
 
-  const handleExportCustomSkill = useCallback(async (skill: IInstalledSkillInfo) => {
-    if (!isEnterprise) return;
-    const displayName = skill.meta?.display_name || skill.name;
-    try {
-      const result = await eeclaw.exportCustomSkill.invoke({ skillName: skill.name, displayName });
-      if (result.success && result.data?.filePath) {
-        Message.success(t('settings.skill.exportSuccess', { path: result.data.filePath, defaultValue: `技能包已导出到 ${result.data.filePath}` }));
-      } else {
-        Message.error(t('settings.skill.exportFailed', { msg: result.msg || 'Unknown error', defaultValue: `导出失败: ${result.msg || 'Unknown error'}` }));
+  const handleExportCustomSkill = useCallback(
+    async (skill: IInstalledSkillInfo) => {
+      if (!isEnterprise) return;
+      const displayName = skill.meta?.display_name || skill.name;
+      try {
+        const result = await eeclaw.exportCustomSkill.invoke({ skillName: skill.name, displayName });
+        if (result.success && result.data?.filePath) {
+          Message.success(t('settings.skill.exportSuccess', { path: result.data.filePath, defaultValue: `技能包已导出到 ${result.data.filePath}` }));
+        } else {
+          Message.error(t('settings.skill.exportFailed', { msg: result.msg || 'Unknown error', defaultValue: `导出失败: ${result.msg || 'Unknown error'}` }));
+        }
+      } catch (error) {
+        Message.error(t('settings.skill.exportFailed', { msg: String(error), defaultValue: `导出失败: ${String(error)}` }));
       }
-    } catch (error) {
-      Message.error(t('settings.skill.exportFailed', { msg: String(error), defaultValue: `导出失败: ${String(error)}` }));
-    }
-  }, [isEnterprise, t]);
+    },
+    [isEnterprise, t]
+  );
 
   const handleImportLocalSkill = useCallback(
     async (source?: LocalSkillImportSource) => {
@@ -297,7 +300,6 @@ const SkillSettings: React.FC = () => {
           // Open standalone audit report modal (just the audit summary, not the full detail page)
           setAuditReportSkillName(importedSkillName);
           setAuditReportVisible(true);
-
         } else {
           Message.error(
             t('settings.skill.importFailed', {
@@ -322,7 +324,6 @@ const SkillSettings: React.FC = () => {
   const onImportButtonClick = useCallback(() => {
     setImportSourceVisible(true);
   }, []);
-
 
   // ---- Enterprise mode: Install tenant skill ----
   // ---- Fetch latest versions ----

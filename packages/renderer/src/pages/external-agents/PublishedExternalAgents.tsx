@@ -15,25 +15,29 @@ export default function PublishedExternalAgents({ query = '' }: IPublishedExtern
   return (
     <>
       {isFailed && <Alert className='col-span-full' type='warning' content={t('settings.mossCatalog.serviceUnavailable')} />}
-        {agents
-          .filter((agent) => agent.name.toLocaleLowerCase().includes(query.toLocaleLowerCase()))
-          .map((agent) => (
-            <article key={agent.id} className={styles.card}>
-              <div className={styles.cardHeading}>
-                <Bot size={24} />
-                <Typography.Text bold>{agent.name}</Typography.Text>
-                <Tag>{agent.protocol || (['dify', 'custom_http'].includes(agent.provider) ? t(`agent.external.provider.${agent.provider}`) : agent.provider)}</Tag>
-              </div>
-              {agent.publishedVersion && <Tag>{t('settings.mossCatalog.version')}: {agent.publishedVersion}</Tag>}
-              <p className={styles.description}>{t('agent.external.published.scope')}</p>
-              <ExternalAgentUsageDetails agent={agent} />
-              <div className={styles.actions}>
-                <Button type='primary' icon={<ArrowUpRight size={14} />} onClick={() => void navigate(newExternalConversationPath(agent.id))}>
-                  {t('settings.mossCatalog.use')}
-                </Button>
-              </div>
-            </article>
-          ))}
+      {agents
+        .filter((agent) => agent.name.toLocaleLowerCase().includes(query.toLocaleLowerCase()))
+        .map((agent) => (
+          <article key={agent.id} className={styles.card}>
+            <div className={styles.cardHeading}>
+              <Bot size={24} />
+              <Typography.Text bold>{agent.name}</Typography.Text>
+              <Tag>{agent.protocol || (['dify', 'custom_http'].includes(agent.provider) ? t(`agent.external.provider.${agent.provider}`) : agent.provider)}</Tag>
+            </div>
+            {agent.publishedVersion && (
+              <Tag>
+                {t('settings.mossCatalog.version')}: {agent.publishedVersion}
+              </Tag>
+            )}
+            <p className={styles.description}>{t('agent.external.published.scope')}</p>
+            <ExternalAgentUsageDetails agent={agent} />
+            <div className={styles.actions}>
+              <Button type='primary' icon={<ArrowUpRight size={14} />} onClick={() => void navigate(newExternalConversationPath(agent.id))}>
+                {t('settings.mossCatalog.use')}
+              </Button>
+            </div>
+          </article>
+        ))}
     </>
   );
 }

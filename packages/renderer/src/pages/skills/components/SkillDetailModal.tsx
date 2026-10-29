@@ -119,7 +119,11 @@ export default function SkillDetailModal({
             <div className='flex flex-col items-center mb-5'>
               <div className='size-18 rd-14px overflow-hidden mb-3'>{skill.icon ? <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <div className='w-full h-full f-center text-34px'>{skill.emoji || '📦'}</div>}</div>
               <div className='font-semibold text-17px text-foreground text-center'>{skill.display_name}</div>
-              {(installedVersion || latestVersionInfo?.version || detail?.versions?.[0]?.version) && <div className='text-secondary text-xs mt-2'>{t('settings.mossCatalog.version')}: {installedVersion || latestVersionInfo?.version || detail?.versions?.[0]?.version}</div>}
+              {(installedVersion || latestVersionInfo?.version || detail?.versions?.[0]?.version) && (
+                <div className='text-secondary text-xs mt-2'>
+                  {t('settings.mossCatalog.version')}: {installedVersion || latestVersionInfo?.version || detail?.versions?.[0]?.version}
+                </div>
+              )}
               {skill.categories && skill.categories.length > 0 && (
                 <div className='flex gap-1 mt-1.5 flex-wrap justify-center'>
                   {skill.categories.map((cat, idx) => (
