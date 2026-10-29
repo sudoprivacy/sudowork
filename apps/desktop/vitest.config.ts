@@ -158,6 +158,7 @@ export default defineConfig({
         'src/common/scode/filesClient.ts',
         'src/common/scode/sessionsClient.ts',
         'src/process/services/scode/ScodeRuntimeService.ts',
+        'src/process/services/scode/retireScodeService.ts',
         '../../packages/common/src/types/tenantConfig.ts',
         '../../packages/renderer/src/components/TenantLogo.tsx',
         '../../packages/renderer/src/layouts/components/UpdateModal.tsx',
