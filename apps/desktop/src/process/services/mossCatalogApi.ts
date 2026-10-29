@@ -75,10 +75,13 @@ async function normalize(value: unknown, kind: MossCatalogKind, source: MossCata
     name: item.name,
     displayName: string(item.display_name) || string(item.displayName) || item.name,
     description: string(item.description),
+    replacesId: string(item.replaces_id) || undefined,
+    expertType: kind === 'agents' ? string(item.expert_type) || string(item.provider_type) || string(item.source_type) || string(item.agent_type) || (source === 'hub' ? 'hub' : 'moss_runtime') : undefined,
     ...catalogDescriptions(item),
     ...(await catalogAppearance(item)),
     categories: strings(parseJson(item.categories)).length ? strings(parseJson(item.categories)) : [string(item.category)].filter(Boolean),
     version: string(item.catalogVersion) || string(item.version) || string(latest.version),
+    displayVersion: string(item.version) || string(latest.version) || string(Array.isArray(item.versions) ? item.versions[0]?.version : undefined),
     status: string(item.status) || undefined,
     isAvailable: item.isAvailable === true,
     isLocalAllowed: item.agent_type !== 'workflow' && !['enabledMcpServers', 'enabled_wikis', 'enabledWikis', 'enabled_corp_apps', 'enabledCorpApps'].some((key) => strings(item[key]).length),
@@ -108,7 +111,14 @@ async function fetchMossCatalog(input: { kind: MossCatalogKind; source: MossCata
         .parse(data)
         .map((item) => normalize(item, kind, source))
     );
-    return { items: items.filter((item) => (!category || item.categories.includes(category)) && `${item.displayName} ${item.name} ${item.description}`.toLowerCase().includes(query.toLowerCase())), nextCursor: null, categories: [...new Set(items.flatMap((item) => item.categories))].sort() };
+    // The tenant endpoint also returns the caller's own pending/rejected
+    // submissions so the account owner can inspect them. Those records belong
+    // in "我的专家/我的技能", never in the consumption list.
+    return {
+      items: items.filter((item) => item.isAvailable && (!category || item.categories.includes(category)) && `${item.displayName} ${item.name} ${item.description}`.toLowerCase().includes(query.toLowerCase())),
+      nextCursor: null,
+      categories: [...new Set(items.flatMap((item) => item.categories))].sort(),
+    };
   }
   const base = kind === 'agents' ? 'agent-hub' : 'skill-hub';
   const resource = kind === 'agents' ? 'assistants' : 'skills';

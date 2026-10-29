@@ -54,7 +54,8 @@
     "filterLocal": "本地执行",
     "createFailed": "创建失败，请重试。",
     "open": "进入 Agent",
-    "openFailed": "无法打开 Agent 的会话，请重试。"
+    "openFailed": "无法打开 Agent 的会话，请重试。",
+    "menuTitle": "我的项目"
   },
   "external.title": "外部智能体（试点）",
   "external.pilot": "仅用于已审批的测试智能体和合成数据。请勿输入客户资料、真实业务数据或密钥。",

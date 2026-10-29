@@ -1,5 +1,5 @@
 import { Collapse, Typography } from '@arco-design/web-react';
-import type { ExternalAgent } from '@sudowork/contracts/external-provider';
+import type { PublishedExternalAgent } from './useExternalDirectory';
 import { useTranslation } from 'react-i18next';
 
 export default function ExternalAgentUsageDetails({ agent }: IExternalAgentUsageDetailsProps) {
@@ -8,6 +8,7 @@ export default function ExternalAgentUsageDetails({ agent }: IExternalAgentUsage
   return (
     <Collapse bordered={false} className='my-2'>
       <Collapse.Item name='usage' header={t('agent.external.usage.title')}>
+        {agent.publishedVersion && <Typography.Paragraph>{t('settings.mossCatalog.version')}: {agent.publishedVersion}</Typography.Paragraph>}
         {usage ? (
           <div className='text-xs'>
             <Typography.Paragraph>{t('agent.external.usage.scope')}</Typography.Paragraph>
@@ -45,5 +46,5 @@ export default function ExternalAgentUsageDetails({ agent }: IExternalAgentUsage
 }
 
 interface IExternalAgentUsageDetailsProps {
-  agent: ExternalAgent;
+  agent: PublishedExternalAgent;
 }

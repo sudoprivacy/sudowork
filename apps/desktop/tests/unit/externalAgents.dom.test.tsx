@@ -94,7 +94,7 @@ it('starts from the organization directory and uses the conversation route witho
   await screen.findByText('Dify pilot');
   expect(screen.queryByText('agent.mine.create')).toBeNull();
   expect(screen.queryByRole('button', { name: 'agent.external.manage.title' })).toBeNull();
-  fireEvent.click(screen.getByRole('button', { name: 'agent.external.published.start' }));
+  fireEvent.click(screen.getByRole('button', { name: 'settings.mossCatalog.use' }));
   await screen.findByRole('log');
   expect(screen.getByTestId('location')).toHaveTextContent('/conversation/external%3Anew?agent=agent-1');
 });
@@ -394,7 +394,7 @@ it('usage details keep absent metadata unconfirmed and separate capabilities fro
   expect(screen.queryByText('agent.external.usage.unavailable')).toBeNull();
 });
 
-it('the published directory exposes usage details without a per-agent fetch', async () => {
+it('the published directory shows the stable version without fetching execution evidence', async () => {
   render(
     <MemoryRouter>
       <PublishedExternalAgents />
@@ -402,7 +402,8 @@ it('the published directory exposes usage details without a per-agent fetch', as
   );
   fireEvent.click(await screen.findByText('agent.external.usage.title'));
   expect(await screen.findByText('agent.external.usage.unavailable')).toBeTruthy();
-  expect(mocks.versions).not.toHaveBeenCalled();
+  expect(mocks.versions).toHaveBeenCalledWith({ agentId: agent.id });
+  expect(screen.getAllByText('settings.mossCatalog.version: 1.0.0')).toHaveLength(2);
   expect(mocks.evidence).not.toHaveBeenCalled();
   expect(mocks.agents).toHaveBeenCalledTimes(1);
 });

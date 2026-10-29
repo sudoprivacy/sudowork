@@ -54,7 +54,8 @@
     "filterLocal": "로컬 실행",
     "createFailed": "Agent를 만들지 못했습니다. 다시 시도해 주세요.",
     "open": "Agent 열기",
-    "openFailed": "Agent 대화를 열 수 없습니다. 다시 시도해 주세요."
+    "openFailed": "Agent 대화를 열 수 없습니다. 다시 시도해 주세요.",
+    "menuTitle": "내 프로젝트"
   },
   "external.title": "외부 에이전트(시범 운영)",
   "external.pilot": "승인된 에이전트와 합성 테스트 데이터만 사용하세요. 고객 데이터, 실제 업무 데이터, 비밀 정보를 입력하지 마세요.",

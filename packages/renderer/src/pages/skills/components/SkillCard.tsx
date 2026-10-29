@@ -6,7 +6,7 @@
 
 import React from 'react';
 import { Button, Progress, Tooltip } from '@arco-design/web-react';
-import { Download } from 'lucide-react';
+import { ArrowUpRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { ISkillHubSkill } from '@sudowork/host-bridge/ipcBridge';
 import { handleSkillIconError } from '@renderer/utils/skillDisplay';
@@ -35,17 +35,9 @@ export default function SkillCard({ skill, isInstalled, hasVersion, installing, 
           <div className='w-13'>
             <Progress percent={installProgress} size='mini' />
           </div>
-        ) : isInstalled && hasUpdate ? (
-          <Tooltip content={t('settings.skill.update', '更新')}>
-            <Button icon={<Download size={13} />} onClick={onUpdate} className='!size-7' />
-          </Tooltip>
-        ) : isInstalled ? (
-          <span className='store-action-badge' style={{ backgroundColor: 'rgba(var(--ui-accent-orange-rgb), 0.10)', color: 'var(--ui-accent-orange)' }}>
-            {t('settings.skill.installed', '已安装')}
-          </span>
-        ) : !isInstalled && hasVersion ? (
-          <Tooltip content={t('settings.skill.install', '安装')}>
-            <Button icon={<Download size={13} />} onClick={onInstall} className='!size-7' />
+        ) : hasVersion ? (
+          <Tooltip content='使用'>
+            <Button icon={<ArrowUpRight size={13} />} onClick={onInstall} className='!size-7' />
           </Tooltip>
         ) : null}
       </div>

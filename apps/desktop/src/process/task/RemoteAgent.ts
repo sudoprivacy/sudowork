@@ -573,8 +573,8 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
 
     try {
       if (data.skills?.length && ProcessConfig.getSync('eeclaw.accountScope')) {
-        const { resolveMossCatalogSelection } = await import('../services/mossCatalogSelection');
-        const selection = await resolveMossCatalogSelection(undefined, data.skills);
+        const { resolveServerCatalogSelection } = await import('../services/mossCatalogSelection');
+        const selection = await resolveServerCatalogSelection(undefined, data.skills);
         this.options.enabledSkills = [...new Set([...(this.options.enabledSkills || []), ...selection.skillReferences])];
       }
       mainLog('RemoteAgent', 'Calling initAgent...');

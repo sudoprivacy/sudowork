@@ -22,7 +22,7 @@ vi.mock('@process/task/AcpSkillManager', () => ({ AcpSkillManager: { resetInstan
 vi.mock('@process/utils/mainLogger', () => ({ mainLog: vi.fn(), mainWarn: vi.fn() }));
 import { getMossCatalogInstallations, installMossCatalog, changeCatalogInstallation, isCatalogPathVisible, detailLocalMossCatalog } from '@process/services/mossCatalogInstall';
 import { listMossCatalog } from '@process/services/mossCatalogApi';
-import { prepareLocalCatalogSelection } from '@process/services/mossCatalogSelection';
+import { prepareLocalCatalogSelection, resolveServerCatalogSelection } from '@process/services/mossCatalogSelection';
 import { listWorkspaceSkillTargets } from '@process/utils/workspaceSkillTargets';
 import { ENTERPRISE_SKILL_SUBDIRS } from '@process/constants/skillStorage';
 
@@ -63,7 +63,7 @@ beforeEach(async () => {
     if (url.includes('/client/catalog/preparations/')) return state.isAvailable ? Response.json({}) : new Response('', { status: 404 });
     if (url.endsWith('/agents/tenant'))
       return Response.json([
-        { id: 'visible', name: 'Visible', categories: ['sales'], isAvailable: true },
+        { id: 'visible', name: 'Visible', categories: ['sales'], version: '1.0.1', catalogVersion: '2026-10-28T01:02:03Z', isAvailable: true },
         { id: 'pending', name: 'Pending', categories: ['other'], isAvailable: false },
       ]);
     throw new Error(`Unexpected request: ${url}`);
@@ -96,12 +96,25 @@ afterEach(async () => {
 });
 
 describe('organization catalog and local installations', () => {
+  it('prepares the latest published expert and dependencies for a new task while retaining old snapshots', async () => {
+    const first = await installMossCatalog(agent);
+    const oldRules = await fs.readFile(path.join(first.path, 'system.md'), 'utf8');
+    state.version = '2';
+    const prepared = await prepareLocalCatalogSelection(agent.id);
+    expect(prepared?.presetContext).toContain('Resource agent-1 version 2');
+    const latestSkill = prepared?.resources.find((resource) => resource.kind === 'skills');
+    expect(await fs.readFile(path.join(latestSkill!.path, 'SKILL.md'), 'utf8')).toContain('version 2');
+    expect(prepared?.resources.find((resource) => resource.kind === 'agents')?.path).not.toBe(first.path);
+    expect(await fs.readFile(path.join(first.path, 'system.md'), 'utf8')).toBe(oldRules);
+  });
+
   it('browses visible tenant entries and categories without downloading or marking them installed', async () => {
     expect(await getMossCatalogInstallations()).toEqual([]);
     const page = await listMossCatalog({ kind: 'agents', source: 'tenant', category: 'sales' });
     expect(page.items.map((item) => item.id)).toEqual(['visible']);
     expect(page.categories).toEqual(['other', 'sales']);
-    expect((await listMossCatalog({ kind: 'agents', source: 'tenant' })).items[1].isAvailable).toBe(false);
+    expect(page.items[0]).toMatchObject({ displayVersion: '1.0.1', version: '2026-10-28T01:02:03Z' });
+    expect((await listMossCatalog({ kind: 'agents', source: 'tenant' })).items.map((item) => item.id)).toEqual(['visible']);
     expect(await getMossCatalogInstallations()).toEqual([]);
     expect(request.mock.calls.every(([url]) => url.endsWith('/agents/tenant'))).toBe(true);
   });
@@ -220,15 +233,17 @@ describe('organization catalog and local installations', () => {
 
 // This journey writes and validates several real archive versions on disk.
 // Cold Windows filesystem scans can exceed the default 10s unit-test deadline.
-it('pins an agent dependency across a standalone skill update and rejects incompatible selections', { timeout: 30_000 }, async () => {
+it('refreshes the dependency graph for a new task without mutating earlier task snapshots', { timeout: 30_000 }, async () => {
   const installed = await installMossCatalog(agent);
   const before = await prepareLocalCatalogSelection(installed.id);
   state.version = '2';
   await installMossCatalog({ ...skill, isUpdate: true });
   const after = await prepareLocalCatalogSelection(installed.id);
-  expect(after?.resources).toEqual(before?.resources);
-  expect(after?.presetContext).toContain('version 1');
-  await expect(prepareLocalCatalogSelection(installed.id, [skill.id])).rejects.toThrow('different versions');
+  expect(after?.resources).not.toEqual(before?.resources);
+  expect(after?.presetContext).toContain('version 2');
+  const oldSkill = before!.resources.find((resource) => resource.kind === 'skills')!;
+  expect(await fs.readFile(path.join(oldSkill.path, 'SKILL.md'), 'utf8')).toContain('version 1');
+  expect((await prepareLocalCatalogSelection(installed.id, [skill.id]))?.resources).toEqual(after?.resources);
 });
 
 it('does not show a record as downloaded after its required files disappear', async () => {
@@ -280,4 +295,22 @@ it('shows downloaded instructions and packaged icons offline without requiring a
   expect(detail.content).toContain('Resource skill-1 version 1');
   expect(detail.icon).toBe('data:image/png;base64,iVBORw==');
   expect(detail.emoji).toBe('📦');
+});
+
+it('prepares a server expert and its dependencies without any local archive download', async () => {
+  const selection = await resolveServerCatalogSelection('visible');
+  expect(selection.assistantReference).toContain('moss-prepared:');
+  expect(request.mock.calls.some(([url]) => url.endsWith('/download'))).toBe(false);
+  expect(await getMossCatalogInstallations()).toEqual([]);
+});
+
+it('resolves an owned unpublished skill for server execution without looking it up in the public hub', async () => {
+  const id = '74aa9941-a2d0-435d-a742-7e73b86f35a3';
+  request.mockImplementation(async (url: string) => {
+    if (url.endsWith('/skills/tenant')) return Response.json([]);
+    if (url.endsWith('/skills/installed')) return Response.json([{ id, enabled: true }]);
+    throw new Error(`Unexpected request: ${url}`);
+  });
+  expect((await resolveServerCatalogSelection(undefined, [id])).skillReferences).toEqual([id]);
+  expect(request).toHaveBeenCalledTimes(2);
 });

@@ -55,7 +55,7 @@ async function prepareLocalOntologySkills(skillIds: string[]): Promise<{ enabled
 }
 
 /** Read the exact assistant version bound to a managed conversation. */
-export async function readMossAssistantSnapshot(extra: IMossConversationExecution & { presetAssistantId?: string }): Promise<{ meta: IAssistantMeta; directory: string; presetContext: string } | undefined> {
+export async function readMossAssistantSnapshot(extra: IMossConversationExecution & { presetAssistantId?: string; templateRef?: string }): Promise<{ meta: IAssistantMeta; directory: string; presetContext: string } | undefined> {
   if (!extra.mossAccountScope || !extra.presetAssistantId) return;
   if (extra.mossAccountScope !== ProcessConfig.getSync('eeclaw.accountScope')) throw new Error('Conversation belongs to a different Moss account');
   if (extra.presetAssistantId.startsWith('ontology-')) {
@@ -74,9 +74,9 @@ export async function readMossAssistantSnapshot(extra: IMossConversationExecutio
   }
   if (isPersonalAgentRef(extra.presetAssistantId)) {
     await requireMossPersonalAgent(extra.presetAssistantId);
-    return;
+    if (!extra.templateRef) return;
   }
-  const resource = extra.mossResources?.find((item) => item.kind === 'agents' && item.id === extra.presetAssistantId);
+  const resource = extra.mossResources?.find((item) => item.kind === 'agents' && item.id === (extra.templateRef || extra.presetAssistantId));
   if (!resource) throw new Error('Assistant snapshot is missing');
   const root = resource.source === 'tenant' ? getEnterpriseTenantAssistantsDir() : getHubAssistantsDir();
   const directory = safeResourcePath(root, path.relative(root, resource.path));

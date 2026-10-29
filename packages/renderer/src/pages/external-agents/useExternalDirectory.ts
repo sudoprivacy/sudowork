@@ -26,18 +26,22 @@ export function useExternalIdentity() {
     };
     const off = addEventListener('chat.history.refresh', onVisible);
     document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('expert-library-refresh', onVisible);
     return () => {
       isActive = false;
       off();
       document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('expert-library-refresh', onVisible);
     };
   }, [authIdentity]);
   return authIdentity && context.authIdentity === authIdentity && context.identity ? `${authIdentity}:${context.identity}` : '';
 }
 
-export function useExternalDirectory() {
+export type PublishedExternalAgent = ExternalAgent & { publishedVersion?: string };
+
+export function useExternalDirectory(isVersionVisible = false) {
   const identity = useExternalIdentity();
-  const [state, setState] = useState<{ identity: string; agents: ExternalAgent[]; isLoading: boolean; isFailed: boolean }>({ identity: '', agents: [], isLoading: true, isFailed: false });
+  const [state, setState] = useState<{ identity: string; agents: PublishedExternalAgent[]; isLoading: boolean; isFailed: boolean }>({ identity: '', agents: [], isLoading: true, isFailed: false });
   const generation = useRef(0);
   const onRefresh = useCallback(async () => {
     const current = ++generation.current;
@@ -47,20 +51,30 @@ export function useExternalDirectory() {
       const result = await sharedExternalRead(identity, 'agents', () => externalProviders.agents.invoke());
       if (generation.current !== current) return;
       if (!result.success || !Array.isArray(result.data)) throw new Error('Directory unavailable');
-      setState({ identity, agents: result.data, isLoading: false, isFailed: false });
+      const agents = await Promise.all(result.data.map(async (agent): Promise<PublishedExternalAgent> => {
+        try {
+          if (!isVersionVisible) return agent;
+          const versions = await sharedExternalRead(identity, `versions:${agent.id}`, () => externalProviders.versions.invoke({ agentId: agent.id }));
+          return { ...agent, publishedVersion: versions.success ? versions.data?.channels.find(channel => channel.name === 'stable' && channel.enabled)?.version : undefined };
+        } catch { return agent; }
+      }));
+      if (generation.current !== current) return;
+      setState({ identity, agents, isLoading: false, isFailed: false });
     } catch {
       if (generation.current === current) setState({ identity, agents: [], isLoading: false, isFailed: true });
     }
-  }, [identity]);
+  }, [identity, isVersionVisible]);
   useEffect(() => {
     void onRefresh();
     const onVisible = () => {
       if (!document.hidden) void onRefresh();
     };
     document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('expert-library-refresh', onVisible);
     return () => {
       generation.current++;
       document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('expert-library-refresh', onVisible);
     };
   }, [onRefresh]);
   return { ...(state.identity === identity && identity ? state : { agents: [], isLoading: Boolean(identity), isFailed: false }), identity, onRefresh };

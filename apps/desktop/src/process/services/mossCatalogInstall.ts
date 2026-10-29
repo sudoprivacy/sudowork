@@ -293,7 +293,7 @@ export async function detailLocalMossCatalog(input: { kind: MossCatalogKind; sou
   const meta = JSON.parse(await fs.readFile(path.join(item.path, '_moss_meta.json'), 'utf8')) as Record<string, unknown>;
   const content = await fs.readFile(safeResourcePath(item.path, item.kind === 'skills' ? 'SKILL.md' : String(meta.ruleFile || 'system.md')), 'utf8');
   assertMossCatalogIdentity(identity);
-  return { ...item, ...catalogDescriptions(meta), categories: Array.isArray(meta.categories) ? meta.categories.filter((value): value is string => typeof value === 'string') : [], content, isAvailable: item.isEnabled };
+  return { ...item, displayVersion: typeof meta.version === 'string' ? meta.version : undefined, ...catalogDescriptions(meta), categories: Array.isArray(meta.categories) ? meta.categories.filter((value): value is string => typeof value === 'string') : [], content, isAvailable: item.isEnabled };
 }
 
 export async function changeCatalogInstallation(input: { kind: MossCatalogKind; source: MossCatalogSource; id: string; isEnabled?: boolean }): Promise<void> {

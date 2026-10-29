@@ -3,7 +3,8 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import MossCatalogBrowser from '@renderer/components/MossCatalogBrowser';
 
-const state = vi.hoisted(() => ({ user: { id: 'a', enterprise_code: 'org' }, list: vi.fn(), installed: vi.fn(), install: vi.fn(), detail: vi.fn(), remove: vi.fn(), navigate: vi.fn(), error: vi.fn(), history: vi.fn(), emit: vi.fn() }));
+const state = vi.hoisted(() => ({ mode: 'local' as 'local' | 'remote', user: { id: 'a', enterprise_code: 'org' }, list: vi.fn(), installed: vi.fn(), install: vi.fn(), detail: vi.fn(), remove: vi.fn(), navigate: vi.fn(), error: vi.fn(), history: vi.fn(), emit: vi.fn() }));
+vi.mock('@renderer/pages/guid/hooks/useGuidAgentSelection', () => ({ getRendererSessionMode: () => state.mode }));
 vi.mock('@renderer/pages/conversation/context/ConversationHistoryContext', () => ({ useConversationHistory: () => ({ scopeKey: `${state.user.id}:${state.user.enterprise_code}`, getFreshConversations: state.history }) }));
 vi.mock('@renderer/utils/emitter', () => ({ emitter: { emit: state.emit } }));
 vi.mock('@renderer/context/AuthContext', () => ({ useAuth: () => ({ user: state.user }) }));
@@ -64,6 +65,7 @@ const remote = { kind: 'agents', source: 'hub', id: 'a1', name: 'Agent', display
 const props = { kind: 'agents' as const, customContent: React.createElement('div', null, 'Local custom'), onCreate: vi.fn(), onInstalled: vi.fn(async () => {}) };
 beforeEach(() => {
   vi.clearAllMocks();
+  state.mode = 'local';
   state.user = { id: 'a', enterprise_code: 'org' };
   state.list.mockResolvedValue({ success: true, data: { items: [remote], categories: [], nextCursor: null } });
   state.installed.mockResolvedValue({ success: true, data: [] });
@@ -82,16 +84,13 @@ it('opens published details without a download and keeps image failure usable', 
   expect(state.install).not.toHaveBeenCalled();
 });
 
-it('opens My resource details from the downloaded version and displays failures', async () => {
+it('shows account-owned resources in My resources without duplicating published catalog entries', async () => {
   state.installed.mockResolvedValue({ success: true, data: [{ ...remote, isEnabled: true }] });
-  state.detail.mockResolvedValue({ success: false, msg: 'Snapshot missing' });
   render(<MossCatalogBrowser {...props} />);
   await screen.findByText('Catalog agent');
-  fireEvent.click(screen.getByText('myAgents'));
-  fireEvent.click(screen.getByText('details'));
-  await screen.findByRole('alert', { name: '' });
-  await screen.findByText('Snapshot missing');
-  expect(state.detail).toHaveBeenCalledWith({ kind: 'agents', source: 'hub', id: 'a1', isLocal: true });
+  fireEvent.click(screen.getByText('我的专家'));
+  expect(screen.getByText('Local custom')).toBeTruthy();
+  expect(screen.queryByText('Catalog agent')).toBeNull();
 });
 afterEach(cleanup);
 
@@ -115,23 +114,19 @@ it('shows the server catalog before any download, and My contains only local rec
   render(<MossCatalogBrowser {...props} />);
   await screen.findByText('Catalog agent');
   expect(state.install).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByText('myAgents'));
+  fireEvent.click(screen.getByText('我的专家'));
   expect(screen.queryByText('Catalog agent')).toBeNull();
   expect(screen.getByText('Local custom')).toBeTruthy();
 });
 
-it('shows organization-published agents only in the exclusive directory', async () => {
+it('shows organization-published and hosted agents in the available directory', async () => {
   render(<MossCatalogBrowser {...props} publishedContent={(query) => <div>Organization agent: {query}</div>} hostedContent={(query) => <div>Hosted agent: {query}</div>} />);
   await screen.findByText('Catalog agent');
-  expect(screen.queryByText('Organization agent:')).toBeNull();
-  fireEvent.click(screen.getByText('exclusiveAgents'));
   expect(screen.getByText('Organization agent:')).toBeTruthy();
   fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Dify' } });
   expect(screen.getByText('Organization agent: Dify')).toBeTruthy();
   expect(screen.getByText('Hosted agent: Dify')).toBeTruthy();
-  fireEvent.click(screen.getByText('myAgents'));
-  expect(screen.queryByText(/Organization agent:/)).toBeNull();
-  expect(screen.queryByText(/Hosted agent:/)).toBeNull();
+  fireEvent.click(screen.getByText('我的专家'));
   expect(screen.getByText('Local custom')).toBeTruthy();
   expect(state.install).not.toHaveBeenCalled();
 });
@@ -142,7 +137,7 @@ it('does not enter a conversation or show an installation when preparation fails
   fireEvent.click(await screen.findByText('use'));
   await waitFor(() => expect(state.error).toHaveBeenCalledWith('Dependency failed'));
   expect(state.navigate).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByText('myAgents'));
+  fireEvent.click(screen.getByText('我的专家'));
   expect(screen.queryByText('Catalog agent')).toBeNull();
 });
 
@@ -160,4 +155,59 @@ it('discards a download response when the account changes', async () => {
   await act(async () => resolve({ success: true, data: { ...remote, runtimeName: 'local-a1' } }));
   expect(state.navigate).not.toHaveBeenCalled();
   expect(props.onInstalled).not.toHaveBeenCalled();
+});
+
+it('uses remote experts without downloading packages on the desktop', async () => {
+  state.mode = 'remote';
+  render(<MossCatalogBrowser {...props} />);
+  fireEvent.click(await screen.findByText('use'));
+  await waitFor(() => expect(state.navigate).toHaveBeenCalledWith('/guid?assistant=a1'));
+  expect(state.install).not.toHaveBeenCalled();
+});
+
+it('automatically refreshes a cached local expert when the published version changes', async () => {
+  state.installed.mockResolvedValue({ success: true, data: [{ ...remote, version: 'old', isEnabled: true }] });
+  state.install.mockResolvedValue({ success: true, data: { id: 'a1', runtimeName: 'Agent' } });
+  render(<MossCatalogBrowser {...props} />);
+  fireEvent.click(await screen.findByText('use'));
+  await waitFor(() => expect(state.install).toHaveBeenCalledWith({ kind: 'agents', source: 'hub', id: 'a1', isUpdate: true }));
+});
+
+it('shows service experts beside file experts and refreshes the entire directory', async () => {
+  const onRefresh = vi.fn();
+  window.addEventListener('expert-library-refresh', onRefresh);
+  try {
+    render(<MossCatalogBrowser {...props} publishedContent={() => <article>Dify arithmetic expert</article>} hostedContent={() => <article>Runtime expert</article>} />);
+    const file = await screen.findByText('Catalog agent');
+    const service = screen.getByText('Dify arithmetic expert');
+    const runtime = screen.getByText('Runtime expert');
+    expect(file.closest('article')?.parentElement).toBe(service.parentElement);
+    expect(runtime.parentElement).toBe(service.parentElement);
+    fireEvent.click(screen.getByText('refresh'));
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+  } finally {
+    window.removeEventListener('expert-library-refresh', onRefresh);
+  }
+});
+
+it('replaces a Hub listing with its published organization revision', async () => {
+  state.list.mockImplementation(async ({ source }: { source: string }) => ({
+    success: true,
+    data: { items: source === 'hub' ? [remote] : [{ ...remote, id: 'organization-v2', source: 'tenant', displayName: 'Published revision', replacesId: remote.id, version: '2' }], categories: [], nextCursor: null },
+  }));
+  render(<MossCatalogBrowser {...props} />);
+  await screen.findByText('Published revision');
+  expect(screen.queryByText('Catalog agent')).toBeNull();
+});
+
+it.each(['agents', 'skills'] as const)('shows the published %s version on cards and details instead of the cache revision', async (kind) => {
+  const item = { ...remote, kind, source: 'tenant', displayVersion: '1.0.1', version: '2026-10-28T01:02:03Z' };
+  state.list.mockResolvedValue({ success: true, data: { items: [item], categories: [], nextCursor: null } });
+  state.detail.mockResolvedValue({ success: true, data: { ...item, content: 'Published content' } });
+  render(<MossCatalogBrowser {...props} kind={kind} />);
+  await screen.findByText('version: 1.0.1');
+  expect(screen.queryByText(/2026-10-28T/)).toBeNull();
+  fireEvent.click(screen.getByText('details'));
+  await waitFor(() => expect(screen.getAllByText('version: 1.0.1')).toHaveLength(2));
+  expect(screen.queryByText(/2026-10-28T/)).toBeNull();
 });

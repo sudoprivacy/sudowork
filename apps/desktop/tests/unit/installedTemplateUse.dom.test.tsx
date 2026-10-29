@@ -21,20 +21,20 @@ describe('installed template Use entry', () => {
     const onUse = vi.fn();
     const onClick = vi.fn();
     render(<InstalledAssistantCard assistant={assistant} isExtension={false} localeKey='en-US' onClick={onClick} onUse={onUse} onToggleEnabled={vi.fn()} onDelete={vi.fn()} onDuplicate={vi.fn()} canManage={false} />);
-    fireEvent.click(screen.getByRole('button', { name: '去使用' }));
+    fireEvent.click(screen.getByRole('button', { name: 'settings.mossCatalog.use' }));
     expect(onUse).toHaveBeenCalledTimes(1);
     expect(onClick).not.toHaveBeenCalled();
   });
 
   it('disables Use for a disabled installed template', () => {
     render(<InstalledAssistantCard assistant={{ ...assistant, enabled: false }} isExtension={false} localeKey='en-US' onClick={vi.fn()} onUse={vi.fn()} onToggleEnabled={vi.fn()} onDelete={vi.fn()} onDuplicate={vi.fn()} canManage={false} />);
-    expect((screen.getByRole('button', { name: '去使用' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: 'settings.mossCatalog.use' }) as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('keeps the template viewer available when no launch callback is supplied', () => {
     const onClick = vi.fn();
     render(<InstalledAssistantCard assistant={assistant} isExtension={false} localeKey='en-US' onClick={onClick} onToggleEnabled={vi.fn()} onDelete={vi.fn()} onDuplicate={vi.fn()} canManage={false} />);
-    expect(screen.queryByRole('button', { name: '去使用' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'settings.mossCatalog.use' })).toBeNull();
     fireEvent.click(screen.getByTitle('Recruiter template'));
     expect(onClick).toHaveBeenCalledTimes(1);
   });

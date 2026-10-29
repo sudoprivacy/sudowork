@@ -27,9 +27,11 @@ export function useHostedDirectory() {
       if (!document.hidden) void onRefresh();
     };
     document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('expert-library-refresh', onVisible);
     return () => {
       generation.current++;
       document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('expert-library-refresh', onVisible);
     };
   }, [onRefresh]);
   return { ...(state.identity === identity && identity ? state : { agents: [], isLoading: Boolean(identity), isFailed: false }), identity, onRefresh };

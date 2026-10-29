@@ -7,7 +7,7 @@ import PublishedExternalAgents from '@renderer/pages/external-agents/PublishedEx
  */
 
 import { Button, Input, Message, Spin, Tooltip, Typography } from '@arco-design/web-react';
-import { Bot, Check, Plus, Search, Share2, Shield } from 'lucide-react';
+import { Bot, Check, Plus, Search, Shield } from 'lucide-react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -152,7 +152,6 @@ const AgentSettings: React.FC = () => {
   const { isEnterprise } = useAppMode();
 
   // Upload/Publish state for enterprise mode
-  const [publishingAssistantName, setPublishingAssistantName] = useState<string | null>(null);
 
   // Track if sync has been triggered for current tab session (avoid loop)
   // Skip the debounced-search effect's first mount run — initial load is handled by the category-change effect
@@ -667,7 +666,7 @@ const AgentSettings: React.FC = () => {
           _category: info.category,
           _isHubInstalled: info.isHubInstalled,
           _hubId: isPersonalHubAssistant ? info.meta?.id : undefined,
-          _installedVersion: isPersonalHubAssistant ? normalizeAssistantVersion(info.meta?.installed_version) : undefined,
+          _installedVersion: normalizeAssistantVersion(info.meta?.version || info.meta?.installed_version),
           _hubMeta: isPersonalHubAssistant ? assistantInfoToHubSkill(info) : undefined,
           _uploaded: !isEnterprise && info.meta?.uploaded === true,
           _publishStatus: !isEnterprise ? info.meta?.publish_status : undefined,
@@ -978,15 +977,10 @@ const AgentSettings: React.FC = () => {
   // Open upload confirm modal for custom assistant
   const handleUploadAssistant = useCallback(
     (assistant: AssistantListItem) => {
-      // Check tenantId - required for upload
-      if (!enterpriseCode) {
-        Message.warning(t('settings.assistant.uploadNoTenantId', '用户无租户ID，无法上传助手'));
-        return;
-      }
       setUploadAssistant(assistant);
       setUploadConfirmVisible(true);
     },
-    [enterpriseCode, t]
+    []
   );
 
   // Upload assistant to Hub
@@ -997,130 +991,55 @@ const AgentSettings: React.FC = () => {
       return;
     }
 
-    // Check tenantId again before upload
-    if (!enterpriseCode) {
-      Message.warning(t('settings.assistant.uploadNoTenantId', '用户无租户ID，无法上传助手'));
-      setUploadConfirmVisible(false);
-      setUploadAssistant(null);
-      return;
-    }
-
     setUploading(true);
     try {
       const displayName = uploadAssistant.nameI18n?.[localeKey] || uploadAssistant.name;
       const description = uploadAssistant.descriptionI18n?.[localeKey] || uploadAssistant.description;
 
-      // Upload to Hub with tenantId
-      const result = await ipcBridge.assistantHub.uploadAssistantToHub.invoke({
-        name: uploadAssistant.id,
-        displayName,
-        profession: displayName, // Use display name as profession
-        description,
-        categories: uploadAssistant._category ? [uploadAssistant._category] : undefined,
-        skills: uploadAssistant.enabledSkills,
-        tenantId: enterpriseCode,
-      });
-
-      if (result.success) {
-        Message.success(t('settings.assistant.uploadSuccess', { name: displayName, defaultValue: `助手 "${displayName}" 已上传成功` }));
-        setUploadConfirmVisible(false);
-        setUploadAssistant(null);
-        await loadAssistants();
-      } else {
-        Message.error(t('settings.assistant.uploadFailed', { msg: result.msg || 'Unknown error', defaultValue: `上传失败: ${result.msg || 'Unknown error'}` }));
+      {
+        const result = await eeclaw.uploadCustomAssistant.invoke({
+          assistantName: displayName,
+          assistantId: uploadAssistant.id,
+          displayName,
+          description,
+          version: uploadAssistant._installedVersion,
+          enabledSkills: uploadAssistant.enabledSkills,
+        });
+        if (result.success) {
+          Message.success(t('settings.assistant.uploadSuccess', { name: displayName, defaultValue: `专家 "${displayName}" 已上传到 Moss 私有资产` }));
+          setUploadConfirmVisible(false);
+          setUploadAssistant(null);
+          await loadAssistants();
+        } else {
+          Message.error(t('settings.assistant.uploadFailed', { msg: result.msg || 'Unknown error', defaultValue: `上传失败: ${result.msg || 'Unknown error'}` }));
+        }
+        return;
       }
+
     } catch (err) {
       console.error('Failed to upload assistant:', err);
       Message.error(t('settings.assistant.uploadFailed', { msg: String(err), defaultValue: `上传失败: ${String(err)}` }));
     } finally {
       setUploading(false);
     }
-  }, [uploadAssistant, localeKey, enterpriseCode, loadAssistants, t]);
+  }, [uploadAssistant, localeKey, loadAssistants, t]);
 
-  // ---- Enterprise mode: Upload custom assistant to Moss Server ----
-  const handleUploadCustomAssistant = useCallback(
-    async (assistant: AssistantListItem): Promise<{ success: boolean; msg?: string }> => {
-      console.log('[handleUploadCustomAssistant] Starting upload for assistant:', assistant.id);
-      if (!isElectronDesktop()) {
-        console.log('[handleUploadCustomAssistant] Not desktop, returning');
-        return { success: false, msg: 'Not desktop' };
-      }
+  const handleExportAssistant = useCallback(async (assistant: AssistantListItem) => {
+    if (!isEnterprise) return;
+    const displayName = assistant.nameI18n?.[localeKey] || assistant.name;
+    const result = await eeclaw.exportCustomAssistant.invoke({
+      assistantName: displayName,
+      assistantId: assistant.id,
+      displayName,
+    });
+    if (result.success && result.data?.filePath) {
+      Message.success(t('settings.assistant.exportSuccess', { path: result.data.filePath, defaultValue: `专家包已导出到 ${result.data.filePath}` }));
+    } else {
+      Message.error(t('settings.assistant.exportFailed', { msg: result.msg || 'Unknown error', defaultValue: `导出失败: ${result.msg || 'Unknown error'}` }));
+    }
+  }, [isEnterprise, localeKey, t]);
 
-      // Use assistant name (display name) as assistantName, not UUID
-      const assistantName = assistant.nameI18n?.[localeKey] || assistant.name;
-      const displayName = assistantName;
-      const description = assistant.descriptionI18n?.[localeKey] || assistant.description || '';
-      const assistantId = assistant.id; // UUID for server reference
 
-      try {
-        console.log('[handleUploadCustomAssistant] Calling eeclaw.uploadCustomAssistant.invoke with:', { assistantName, assistantId, displayName, description });
-        const res = await eeclaw.uploadCustomAssistant.invoke({
-          assistantName,
-          assistantId,
-          displayName,
-          description,
-          enabledSkills: assistant.enabledSkills,
-        });
-        console.log('[handleUploadCustomAssistant] Upload response:', res);
-        if (res.success && res.data) {
-          Message.success(
-            t('settings.assistant.uploadSuccess', {
-              name: displayName,
-              defaultValue: `助手 "${displayName}" 已上传到服务器`,
-            })
-          );
-          // Refresh installed list
-          void loadAssistants();
-          return { success: true };
-        } else {
-          return { success: false, msg: res.msg || 'Unknown error' };
-        }
-      } catch (err) {
-        console.error('Failed to upload custom assistant:', err);
-        return { success: false, msg: String(err) };
-      }
-    },
-    [localeKey, loadAssistants, t]
-  );
-
-  // ---- Enterprise mode: Publish assistant as tenant-exclusive ----
-  const handlePublishTenantAssistant = useCallback(
-    async (assistantId: string, assistantName: string) => {
-      if (!isElectronDesktop()) return;
-
-      setPublishingAssistantName(assistantName);
-      try {
-        const res = await eeclaw.publishTenantAssistant.invoke({ assistantId });
-        if (res.success && res.data) {
-          Message.success(
-            t('settings.assistant.publishSuccess', {
-              name: assistantName,
-              defaultValue: `助手 "${assistantName}" 已提交发布申请，等待管理员审批`,
-            })
-          );
-          void loadAssistants();
-        } else {
-          Message.error(
-            t('settings.assistant.publishFailed', {
-              msg: res.msg || 'Unknown error',
-              defaultValue: `发布失败: ${res.msg || '未知错误'}`,
-            })
-          );
-        }
-      } catch (err) {
-        console.error('Failed to publish tenant assistant:', err);
-        Message.error(
-          t('settings.assistant.publishFailed', {
-            msg: String(err),
-            defaultValue: `发布失败: ${String(err)}`,
-          })
-        );
-      } finally {
-        setPublishingAssistantName(null);
-      }
-    },
-    [loadAssistants, t]
-  );
 
   // ---- Duplicate assistant to custom list ----
   const handleDuplicateConfirm = useCallback(async () => {
@@ -1169,22 +1088,6 @@ const AgentSettings: React.FC = () => {
           ruleContent: ruleContent,
         });
 
-        // Enterprise mode: upload to Moss Server
-        if (isEnterprise) {
-          const result = await ipcBridge.assistantHub.getInstalledAssistants.invoke();
-          if (result.success && result.data) {
-            const newAssistantInfo = result.data.find((a) => a.meta?.id === customId || a.name === customId);
-            if (newAssistantInfo) {
-              const newAssistant: AssistantListItem = {
-                ...toBackendConfig(newAssistantInfo),
-                _category: newAssistantInfo.category,
-                _isHubInstalled: newAssistantInfo.isHubInstalled,
-              };
-              await handleUploadCustomAssistant(newAssistant);
-            }
-          }
-        }
-
         Message.success(t('settings.assistant.duplicateSuccess', { name: customName, defaultValue: `已复制到自定义列表: ${customName}` }));
       }
 
@@ -1224,22 +1127,6 @@ const AgentSettings: React.FC = () => {
           ruleContent: ruleContent,
         });
 
-        // Enterprise mode: upload to Moss Server
-        if (isEnterprise) {
-          const result = await ipcBridge.assistantHub.getInstalledAssistants.invoke();
-          if (result.success && result.data) {
-            const newAssistantInfo = result.data.find((a) => a.meta?.id === customId || a.name === customId);
-            if (newAssistantInfo) {
-              const newAssistant: AssistantListItem = {
-                ...toBackendConfig(newAssistantInfo),
-                _category: newAssistantInfo.category,
-                _isHubInstalled: newAssistantInfo.isHubInstalled,
-              };
-              await handleUploadCustomAssistant(newAssistant);
-            }
-          }
-        }
-
         Message.success(t('settings.assistant.duplicateSuccess', { name: customName, defaultValue: `已复制到自定义列表: ${customName}` }));
       }
 
@@ -1277,22 +1164,6 @@ const AgentSettings: React.FC = () => {
           ruleContent: ruleContent,
         });
 
-        // Enterprise mode: upload to Moss Server
-        if (isEnterprise) {
-          const result = await ipcBridge.assistantHub.getInstalledAssistants.invoke();
-          if (result.success && result.data) {
-            const newAssistantInfo = result.data.find((a) => a.meta?.id === customId || a.name === customId);
-            if (newAssistantInfo) {
-              const newAssistant: AssistantListItem = {
-                ...toBackendConfig(newAssistantInfo),
-                _category: newAssistantInfo.category,
-                _isHubInstalled: newAssistantInfo.isHubInstalled,
-              };
-              await handleUploadCustomAssistant(newAssistant);
-            }
-          }
-        }
-
         Message.success(t('settings.assistant.duplicateSuccess', { name: customName, defaultValue: `已复制到自定义列表: ${customName}` }));
       }
 
@@ -1305,7 +1176,7 @@ const AgentSettings: React.FC = () => {
       console.error('Failed to duplicate assistant:', err);
       Message.error(t('settings.assistant.duplicateFailed', '复制失败'));
     }
-  }, [duplicateAssistant, duplicateInstalledAssistant, duplicateTenantAssistant, hubInstalledAssistants, localeKey, loadAssistants, t, isEnterprise, handleUploadCustomAssistant]);
+  }, [duplicateAssistant, duplicateInstalledAssistant, duplicateTenantAssistant, hubInstalledAssistants, localeKey, loadAssistants, t, isEnterprise]);
 
   const activeAssistant = assistants.find((assistant) => assistant.id === activeAssistantId) || null;
   // Only custom assistants can be edited; hub/tenant-installed, builtin, and extension assistants are readonly.
@@ -1486,37 +1357,7 @@ const AgentSettings: React.FC = () => {
         setActiveAssistantId(newId);
         await loadAssistants();
 
-        // Enterprise mode: sync upload to Moss Server after create
-        console.log('[AgentModalContent] isEnterprise:', isEnterprise);
-        if (isEnterprise && isElectronDesktop()) {
-          console.log('[AgentModalContent] Enterprise mode: starting sync upload to Moss Server');
-          const result = await ipcBridge.assistantHub.getInstalledAssistants.invoke();
-          if (result.success && result.data) {
-            const newAssistantInfo = result.data.find((a) => a.meta?.id === newId || a.name === newId);
-            console.log('[AgentModalContent] newAssistantInfo:', newAssistantInfo);
-            if (newAssistantInfo) {
-              const newAssistant: AssistantListItem = {
-                ...toBackendConfig(newAssistantInfo),
-                _category: newAssistantInfo.category,
-                _isHubInstalled: newAssistantInfo.isHubInstalled,
-              };
-              console.log('[AgentModalContent] Calling handleUploadCustomAssistant');
-              const uploadRes = await handleUploadCustomAssistant(newAssistant);
-              console.log('[AgentModalContent] uploadRes:', uploadRes);
-              if (uploadRes.success) {
-                Message.success(t('common.createSuccess', 'Created successfully'));
-              } else {
-                Message.error(t('settings.assistant.uploadFailed', { msg: uploadRes.msg, defaultValue: `上传失败: ${uploadRes.msg}` }));
-              }
-            } else {
-              Message.success(t('common.createSuccess', 'Created successfully'));
-            }
-          } else {
-            Message.success(t('common.createSuccess', 'Created successfully'));
-          }
-        } else {
-          Message.success(t('common.createSuccess', 'Created successfully'));
-        }
+        Message.success(t('common.createSuccess', 'Created successfully'));
       } else {
         if (!activeAssistant) return;
         const lookupName = resolveAssistantName(activeAssistant.id);
@@ -1606,15 +1447,7 @@ const AgentSettings: React.FC = () => {
 
   const editAvatarImage = resolveAvatarImageSrc(editAvatar);
 
-  const getAssistantUploadPublishStatus = (assistant: AssistantListItem) => assistant._publishStatus || (assistant._uploaded ? 'pending' : undefined);
-
-  const canUploadAssistant = (assistant: AssistantListItem) => {
-    if (!isEnterprise) {
-      const publishStatus = getAssistantUploadPublishStatus(assistant);
-      return !assistant.isBuiltin && !assistant._isHubInstalled && !isExtensionAssistant(assistant) && publishStatus !== 'pending' && publishStatus !== 'approved';
-    }
-    return assistant._category === 'custom' || (!assistant._category && !assistant.isBuiltin && !assistant._isHubInstalled && !isExtensionAssistant(assistant));
-  };
+  const canUploadAssistant = (assistant: AssistantListItem) => !assistant.isBuiltin && !assistant._isHubInstalled && !isExtensionAssistant(assistant) && (!assistant._category || assistant._category === 'custom');
 
   const renderAssistantGrid = (list: AssistantListItem[], hideDelete = false, allowToggle = false, allowDelete = false) => (
     <div className='grid gap-4' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
@@ -1624,18 +1457,6 @@ const AgentSettings: React.FC = () => {
         const latestVersion = hubAssistantForUpdate ? getResolvedAssistantLatestVersion(hubAssistantForUpdate) : undefined;
         const installedVersion = !isEnterprise ? normalizeAssistantVersion(assistant._installedVersion) : '';
         const hasUpdate = Boolean(!isEnterprise && assistant._isHubInstalled && hubId && latestVersion && isAssistantVersionNewer(latestVersion.version, installedVersion));
-        const uploadPublishStatus = !isEnterprise && !assistant.isBuiltin && !assistant._isHubInstalled && !isExtensionAssistant(assistant) ? getAssistantUploadPublishStatus(assistant) : undefined;
-        const uploadStatus =
-          uploadPublishStatus === 'pending' ? (
-            <Tooltip content={t('settings.assistant.uploadPending', '上传审批中')}>
-              <span className='store-action-badge'>{t('settings.assistant.publishPendingShort', '审核中')}</span>
-            </Tooltip>
-          ) : uploadPublishStatus === 'approved' ? (
-            <Tooltip content={t('settings.assistant.uploadApproved', '已通过审批')}>
-              <span className='store-action-badge text-success'>{t('settings.assistant.publishedShort', '已发布')}</span>
-            </Tooltip>
-          ) : undefined;
-
         return (
           <InstalledAssistantCard
             key={assistant.id}
@@ -1649,7 +1470,6 @@ const AgentSettings: React.FC = () => {
             hasUpdate={!isEnterprise && hasUpdate}
             updating={!isEnterprise && hubId ? updatingAssistantId === hubId : false}
             onUpload={canUploadAssistant(assistant) ? () => handleUploadAssistant(assistant) : undefined}
-            uploadStatus={uploadStatus}
             onClick={() => void handleEdit(assistant)}
             onUse={() => void onUseAssistantReference(assistant.id)}
             isOpening={openingReference === getEntryReference(assistant.id)}
@@ -1665,38 +1485,12 @@ const AgentSettings: React.FC = () => {
     </div>
   );
 
-  // Render custom assistants with enterprise action buttons (publish only, auto-upload on create)
+  // Client only provides use/upload/export; review and publication stay in Moss.
   const renderCustomAssistantGridWithEnterpriseActions = (list: AssistantListItem[]) => (
     <div className='grid gap-4' style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
       {list.map((assistant) => {
         const assistantId = assistant.id;
-        const isPublishing = publishingAssistantName === assistantId;
-        const publishStatus = (assistant as any).publish_status;
-
-        // Enterprise publish button element - placed below delete button
-        const enterprisePublishButton =
-          isEnterprise && isElectronDesktop() && !publishStatus ? (
-            <Tooltip content={t('settings.assistant.publishAsTenant', '发布为专属助手')}>
-              <button
-                className='store-action-icon'
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void handlePublishTenantAssistant(assistantId, assistant.name);
-                }}
-                disabled={isPublishing}
-              >
-                {isPublishing ? <Spin size={12} /> : <Share2 size={12} />}
-              </button>
-            </Tooltip>
-          ) : isEnterprise && publishStatus === 'pending' ? (
-            <Tooltip content={t('settings.assistant.publishPending', '发布审批中')}>
-              <span className='store-action-badge'>{t('settings.assistant.publishPendingShort', '审核中')}</span>
-            </Tooltip>
-          ) : isEnterprise && publishStatus === 'approved' ? (
-            <Tooltip content={t('settings.assistant.publishApproved', '已发布为专属助手')}>
-              <span className='store-action-badge text-success'>{t('settings.assistant.publishedShort', '已发布')}</span>
-            </Tooltip>
-          ) : undefined;
+        const enterprisePublishButton: React.ReactNode = undefined;
 
         return (
           <InstalledAssistantCard
@@ -1707,6 +1501,9 @@ const AgentSettings: React.FC = () => {
             onToggleEnabled={(enabled) => void handleToggleEnabled(assistant, enabled)}
             onDelete={() => void handleDeleteFromCard(assistant)}
             onDuplicate={() => handleOpenDuplicateModalFromInstalled(assistant)}
+            onUpload={canUploadAssistant(assistant) ? () => handleUploadAssistant(assistant) : undefined}
+            uploading={uploading && uploadAssistant?.id === assistant.id}
+            onExport={isEnterprise ? () => void handleExportAssistant(assistant) : undefined}
             hasUpdate={false}
             onClick={() => void handleEdit(assistant)}
             onUse={() => void onUseAssistantReference(assistant.id)}
@@ -2022,6 +1819,7 @@ const AgentSettings: React.FC = () => {
 
         {/* ==================== Edit Drawer ==================== */}
         <AssistantOperateDrawer
+          version={activeAssistant?._installedVersion}
           visible={editVisible}
           isCreating={isCreating}
           isSaving={isSaving}

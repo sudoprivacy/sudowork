@@ -23,6 +23,7 @@ export default function AssistantOperateDrawer({
   editAvatar,
   editAvatarImage,
   editName,
+  version,
   editDescription,
   editContext,
   promptViewMode,
@@ -82,6 +83,7 @@ export default function AssistantOperateDrawer({
     >
       <div className='flex flex-col h-full overflow-hidden'>
         <div className='flex flex-col flex-1 gap-4 pr-2 overflow-y-auto'>
+          {!isCreating && version && <Typography.Text type='secondary'>{t('settings.mossCatalog.version')}: {version}</Typography.Text>}
           {/* Name & Avatar */}
           <div className='flex-shrink-0'>
             <Typography.Text bold>
@@ -198,6 +200,7 @@ export default function AssistantOperateDrawer({
 }
 
 interface IAssistantOperateDrawerProps {
+  version?: string;
   visible: boolean;
   isCreating: boolean;
   isSaving?: boolean;

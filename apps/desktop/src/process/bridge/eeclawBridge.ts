@@ -1027,6 +1027,26 @@ export function initEeclawBridge(): void {
     }
   });
 
+  ipcBridge.eeclaw.exportCustomSkill.provider(async (params) => {
+    try {
+      const { exportCustomSkillArchive } = await import('@process/sync/customUpload');
+      const result = await exportCustomSkillArchive(params);
+      return result.success && result.filePath ? { success: true, data: { filePath: result.filePath } } : { success: false, msg: result.error };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcBridge.eeclaw.exportCustomAssistant.provider(async (params) => {
+    try {
+      const { exportCustomAssistantArchive } = await import('@process/sync/customUpload');
+      const result = await exportCustomAssistantArchive(params);
+      return result.success && result.filePath ? { success: true, data: { filePath: result.filePath } } : { success: false, msg: result.error };
+    } catch (error) {
+      return { success: false, msg: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
   // === Tenant Skill/Assistant ===
   ipcBridge.eeclaw.getTenantSkills.provider(async () => {
     try {

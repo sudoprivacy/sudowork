@@ -77,7 +77,7 @@ async function ready(name: string) {
 it('uses organization hosted directory and shared conversation without a personal agent', async () => {
   page('/app/agent');
   await screen.findByText(agent.name);
-  await ready('agent.external.published.start');
+  await ready('settings.mossCatalog.use');
   expect(screen.getByTestId('location')).toHaveTextContent('/conversation/hosted%3Anew?agent=agent-1');
   expect(await screen.findByRole('log')).toBeVisible();
   expect(screen.queryByText('agent.mine.create')).toBeNull();
