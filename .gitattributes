@@ -29,3 +29,6 @@
 *.woff binary
 *.woff2 binary
 *.ttf binary
+
+# The portable compiler host package retains the same source bytes on all hosts.
+packages/sudograph-runtime/** text eol=lf

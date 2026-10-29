@@ -19,6 +19,7 @@
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@sudowork/sudograph-runtime": "workspace:*",
     "@sudowork/ontology-common": "workspace:*",
     "@sudowork/ontology-engine": "workspace:*",
     "basic-ftp": "^6.2.1",
