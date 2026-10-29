@@ -3,16 +3,16 @@ import type RFB from '@novnc/novnc/lib/rfb.js';
 import { InputSurface } from '@ai-dev-browser/remote-page';
 
 /** Read-only pixels with the same checked gesture mapper as the JPEG viewer. */
-export default function WindowStreamSurface({ stream, isInteractive, isDragSupported, isLiveDragSupported = false, isTouchDragging, zoom, label, onInput, onReady, onDisconnect }: IWindowStreamSurfaceProps) {
+export default function WindowStreamSurface({ stream, isInteractive, isDragSupported, isLiveDragSupported = false, isTouchDragging, zoom, label, onInput, onInputSurface, onReady, onDisconnect }: IWindowStreamSurfaceProps) {
   const targetRef = useRef<HTMLDivElement>(null);
   const clientRef = useRef<RFB | null>(null);
   const inputRef = useRef<InputSurface | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const callbacksRef = useRef({ onInput, onReady, onDisconnect });
+  const callbacksRef = useRef({ onInput, onInputSurface, onReady, onDisconnect });
   const optionsRef = useRef({ isInteractive, isDragSupported, isLiveDragSupported, isTouchDragging, zoom, label });
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [isPainted, setIsPainted] = useState(false);
-  callbacksRef.current = { onInput, onReady, onDisconnect };
+  callbacksRef.current = { onInput, onInputSurface, onReady, onDisconnect };
   optionsRef.current = { isInteractive, isDragSupported, isLiveDragSupported, isTouchDragging, zoom, label };
 
   const sendInput = useCallback((value: unknown, isClosed = false) => {
@@ -57,6 +57,7 @@ export default function WindowStreamSurface({ stream, isInteractive, isDragSuppo
         inputCanvas = canvas;
         canvas.addEventListener('mousedown', onLegacyMouseDown, true);
         inputRef.current = new InputSurface(canvas, (value) => sendInput(value, isClosed), { drag: optionsRef.current.isDragSupported, touchDrag: optionsRef.current.isTouchDragging, liveDrag: optionsRef.current.isLiveDragSupported, viewerId: stream.viewerId });
+        callbacksRef.current.onInputSurface?.(inputRef.current);
       }
       canvas.setAttribute('aria-label', optionsRef.current.label);
       canvas.tabIndex = optionsRef.current.isInteractive ? 0 : -1;
@@ -128,6 +129,7 @@ export default function WindowStreamSurface({ stream, isInteractive, isDragSuppo
       inputRef.current?.dispose();
       inputCanvas?.removeEventListener('mousedown', onLegacyMouseDown, true);
       inputRef.current = null;
+      callbacksRef.current.onInputSurface?.(null);
       canvasRef.current = null;
       client?.disconnect();
       if (clientRef.current === client) clientRef.current = null;
@@ -139,6 +141,7 @@ export default function WindowStreamSurface({ stream, isInteractive, isDragSuppo
     if (!canvas) return;
     inputRef.current?.dispose();
     inputRef.current = new InputSurface(canvas, (value) => sendInput(value), { drag: isDragSupported, touchDrag: isTouchDragging, liveDrag: isLiveDragSupported, viewerId: stream.viewerId });
+    callbacksRef.current.onInputSurface?.(inputRef.current);
     inputRef.current.resize(canvas.width, canvas.height);
     canvas.tabIndex = isInteractive ? 0 : -1;
     canvas.style.pointerEvents = isInteractive ? 'auto' : 'none';
@@ -174,6 +177,7 @@ interface IWindowStreamSurfaceProps {
   zoom: number | null;
   label: string;
   onInput: (value: unknown) => Promise<void>;
+  onInputSurface?: (surface: InputSurface | null) => void;
   onReady: (size: { width: number; height: number }) => void;
   onDisconnect: () => void;
 }

@@ -409,6 +409,99 @@ it.each([false, true])('negotiates page drag streaming and retains acknowledgeme
   expect(host.error).not.toHaveBeenCalled();
 });
 
+it('reads the exact selection after a released drag is acknowledged, while starting clipboard write in the click', async () => {
+  const base = activeSession();
+  const session = { ...base, capabilities: { ...base.capabilities, selectionRead: true, dragInput: true, liveDragSurfaces: ['page' as const] } };
+  let acknowledgeBegin!: () => void;
+  let acknowledgeEnd!: () => void;
+  const inputs: BrowserSessionAction[] = [];
+  const clipboard = {
+    write: vi.fn(async (items: { data: Record<string, Promise<Blob>> }[]) => {
+      return (await items[0].data['text/plain']).text();
+    }),
+  };
+  class SelectionClipboardItem {
+    constructor(public data: Record<string, Promise<Blob>>) {}
+  }
+  vi.stubGlobal('ClipboardItem', SelectionClipboardItem);
+  vi.stubGlobal('Blob', NodeBlob);
+  vi.stubGlobal('isSecureContext', true);
+  vi.stubGlobal('navigator', { clipboard });
+  host.invoke.mockImplementation(async ({ action }: { action: BrowserSessionAction }) => {
+    if (action.kind === 'input') {
+      inputs.push(action);
+      if (action.input.kind === 'drag-stream') {
+        return new Promise((resolve) => {
+          const acknowledge = () => resolve({ success: true, data: { session } });
+          if (action.input.kind === 'drag-stream' && action.input.phase === 'begin') acknowledgeBegin = acknowledge;
+          else acknowledgeEnd = acknowledge;
+        });
+      }
+      return { success: true, data: { session, selection: { text: 'Exact selected phrase', isAvailable: true } } };
+    }
+    return { success: true, data: { session, ...(action.kind === 'frame' ? { frame: { data: 'eA==', width: 100, height: 100, controlEpoch: 4, targetEpoch: 2 } } : {}) } };
+  });
+  render(<BrowserSessionPanel conversationId='owned-conversation' />);
+  const image = await screen.findByAltText('page');
+  await waitFor(() => expect(image.getAttribute('src')).toMatch(/^data:/));
+  fireEvent.load(image);
+  vi.spyOn(image, 'getBoundingClientRect').mockReturnValue({ x: 0, y: 0, width: 100, height: 100, top: 0, left: 0, right: 100, bottom: 100, toJSON: () => ({}) });
+  Object.defineProperty(image, 'setPointerCapture', { value: vi.fn(), configurable: true });
+  const pointer = (type: string, x: number) => {
+    const event = new MouseEvent(type, { bubbles: true, clientX: x, clientY: 20 });
+    Object.defineProperties(event, { pointerId: { value: 1 }, pointerType: { value: 'mouse' } });
+    fireEvent(image, event);
+  };
+  pointer('pointerdown', 10);
+  pointer('pointermove', 40);
+  await waitFor(() => expect(acknowledgeBegin).toBeTypeOf('function'));
+  pointer('pointerup', 60);
+  fireEvent.blur(image);
+  fireEvent.click(screen.getByRole('button', { name: 'copySelection' }));
+  expect(clipboard.write).toHaveBeenCalledOnce();
+  expect(inputs).toHaveLength(1);
+  await act(async () => acknowledgeBegin());
+  await waitFor(() => expect(acknowledgeEnd).toBeTypeOf('function'));
+  expect(inputs).toHaveLength(2);
+  expect(inputs[1]).toMatchObject({ input: { kind: 'drag-stream', phase: 'end', x: 60 } });
+  await act(async () => acknowledgeEnd());
+  await waitFor(() => expect(inputs).toHaveLength(3));
+  expect(inputs[2]).toMatchObject({ input: { kind: 'copy-selection' } });
+  await expect(clipboard.write.mock.results[0].value).resolves.toBe('Exact selected phrase');
+  expect(host.error).not.toHaveBeenCalled();
+});
+
+it('waits for the streamed-window input mapper before reading its selection', async () => {
+  const clipboard = { writeText: vi.fn(async () => {}) };
+  vi.stubGlobal('isSecureContext', true);
+  vi.stubGlobal('navigator', { clipboard });
+  const base = activeSession();
+  const session = { ...base, isHeadless: false, capabilities: { ...base.capabilities, windowView: true, windowStream: true, selectionRead: true } };
+  let finish!: () => void;
+  const idle = new Promise<void>((resolve) => {
+    finish = resolve;
+  });
+  host.invoke.mockImplementation(async ({ action }: { action: BrowserSessionAction }) => ({
+    success: true,
+    data: { session, ...(action.kind === 'window-stream' ? { stream: { protocol: 'rfb', isViewOnly: true, password: 'fixture-only', socketPath: '/ws/browser/owned-conversation' } } : {}), ...(action.kind === 'input' ? { selection: { text: 'Window selection', isAvailable: true } } : {}) },
+  }));
+  render(<BrowserSessionPanel conversationId='owned-conversation' isViewer />);
+  await waitFor(() => expect(host.stream).toHaveBeenCalled());
+  const [, props] = host.stream.mock.calls.at(-1)!;
+  await act(async () => {
+    props.onInputSurface({ whenIdle: () => idle });
+    props.onReady({ width: 1280, height: 900 });
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'copySelection' }));
+  await act(async () => Promise.resolve());
+  expect(host.invoke.mock.calls.filter(([input]) => input.action.kind === 'input')).toHaveLength(0);
+  await act(async () => finish());
+  await waitFor(() => expect(host.invoke.mock.calls.filter(([input]) => input.action.kind === 'input')).toHaveLength(1));
+  expect(host.invoke).toHaveBeenCalledWith({ conversationId: 'owned-conversation', action: { kind: 'input', input: { kind: 'copy-selection' }, surface: 'window', controlEpoch: 4, targetEpoch: 2 } });
+  await waitFor(() => expect(clipboard.writeText).toHaveBeenCalledWith('Window selection'));
+  expect(host.error).not.toHaveBeenCalled();
+});
+
 it('rejects clipboard text for an old tab after a permission delay and accepts a fresh edit in the new tab', async () => {
   const base = activeSession();
   let session = { ...base, capabilities: { ...base.capabilities, clipboardText: true, dragInput: true }, tabs: [...base.tabs, { id: 'other-tab', title: 'Other', url: 'https://example.test/other' }] };

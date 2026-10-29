@@ -15,7 +15,7 @@ import {
   type BrowserSessionReply,
   type BrowserSessionState,
 } from '@sudowork/contracts/browser-session';
-import { PageSurface } from '@ai-dev-browser/remote-page';
+import { PageSurface, type InputSurface } from '@ai-dev-browser/remote-page';
 import { copyTextFromPromise } from '../../utils/clipboard';
 import WindowStreamSurface, { type IWindowStreamContext } from './WindowStreamSurface';
 import { openBrowserSessionWindow } from './openBrowserSessionWindow';
@@ -67,6 +67,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
   const fileInputRef = useRef<HTMLInputElement>(null);
   const fileChoiceRef = useRef<{ generation: number; chooserId: string; controlEpoch: number; targetEpoch: number } | null>(null);
   const surfaceRef = useRef<PageSurface | null>(null);
+  const streamInputRef = useRef<InputSurface | null>(null);
   const sessionRef = useRef<BrowserSessionState | null>(null);
   const invokeRef = useRef<((action: BrowserSessionAction) => Promise<BrowserSessionReply>) | undefined>(undefined);
   const isInteractiveRef = useRef(false);
@@ -297,6 +298,10 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     setIsFrameReady(false);
   };
 
+  const onStreamInputSurface = useCallback((surface: InputSurface | null) => {
+    streamInputRef.current = surface;
+  }, []);
+
   useEffect(() => {
     setImageZoom(null);
     setIsPanning(false);
@@ -352,31 +357,36 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
       const observed = context ? context.session : sessionRef.current;
       const generation = context ? context.generation : generationRef.current;
       const surface = context ? context.surface : surfaceModeRef.current;
-      const operation = pendingInputsRef.current.then(() => {
-        const current = sessionRef.current;
-        if (
-          !observed ||
-          !current ||
-          (!isFrameReadyRef.current && !isLiveDragCancellation(input)) ||
-          generationRef.current !== generation ||
-          current.browserSessionId !== observed.browserSessionId ||
-          current.profileId !== observed.profileId ||
-          current.controlEpoch !== observed.controlEpoch ||
-          current.targetEpoch !== observed.targetEpoch ||
-          current.state !== 'human' ||
-          !current.isController ||
-          !invokeRef.current
-        )
-          throw new Error(t('conversation.browserSession.unavailable'));
-        return invokeRef.current({ kind: 'input', input, surface, controlEpoch: observed.controlEpoch, targetEpoch: observed.targetEpoch });
-      });
-      // Mouse, keyboard and the Unicode input box share one acknowledged order.
-      // A failed operation still releases the queue; each caller reports its error.
-      pendingInputsRef.current = operation.then(
-        () => {},
-        () => {}
-      );
-      return operation;
+      const enqueue = () => {
+        const operation = pendingInputsRef.current.then(() => {
+          const current = sessionRef.current;
+          if (
+            !observed ||
+            !current ||
+            (!isFrameReadyRef.current && !isLiveDragCancellation(input)) ||
+            generationRef.current !== generation ||
+            current.browserSessionId !== observed.browserSessionId ||
+            current.profileId !== observed.profileId ||
+            current.controlEpoch !== observed.controlEpoch ||
+            current.targetEpoch !== observed.targetEpoch ||
+            current.state !== 'human' ||
+            !current.isController ||
+            !invokeRef.current
+          )
+            throw new Error(t('conversation.browserSession.unavailable'));
+          return invokeRef.current({ kind: 'input', input, surface, controlEpoch: observed.controlEpoch, targetEpoch: observed.targetEpoch });
+        });
+        // A failed operation releases the queue; each caller reports its error.
+        pendingInputsRef.current = operation.then(
+          () => {},
+          () => {}
+        );
+        return operation;
+      };
+      // A released pointer can still have an unsent terminal drag packet.
+      // Wait before joining the queue so that packet can enter and complete.
+      const mapper = windowStreamRef.current && surface === 'window' ? streamInputRef.current : surfaceRef.current;
+      return input.kind === 'drag-stream' ? enqueue() : (mapper?.whenIdle() ?? Promise.resolve()).then(enqueue);
     },
     [t]
   );
@@ -1045,6 +1055,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
               zoom={imageZoom}
               label={t('conversation.browserSession.page')}
               onInput={onStreamInput}
+              onInputSurface={onStreamInputSurface}
               onReady={onStreamReady}
               onDisconnect={onStreamDisconnect}
             />
