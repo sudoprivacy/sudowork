@@ -132,7 +132,7 @@ async function fileChecksum(filePath: string): Promise<IFileChecksum> {
 }
 
 /** Reuse one immutable CLI blob without copying and rescanning it for every model edit. */
-async function materializeRuntimeCli(root: string, content: string | Uint8Array, target: string): Promise<void> {
+export async function materializeRuntimeCli(root: string, content: string | Uint8Array, target: string): Promise<void> {
   const digest = contentHash(content);
   const directory = path.join(root, '.cli');
   const blob = path.join(directory, digest + '.cjs');

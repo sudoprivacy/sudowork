@@ -30,7 +30,12 @@ export interface MossSessionPort {
   get(ctx: MossCallContext, sessionId: string): Promise<MossSessionSummary | null>
   create(
     ctx: MossCallContext,
-    input: { assistantName: string; templateRef?: string; enabledSkills: string[] },
+    input: {
+      assistantName: string
+      templateRef?: string
+      enabledSkills: string[]
+      ontologyProjectId?: string
+    },
   ): Promise<{
     sessionId: string
     taskId?: string
@@ -114,6 +119,9 @@ export function createMossSessionPort(mossFetch: MossFetch): MossSessionPort {
           body: {
             assistant_name: input.assistantName,
             ...(input.templateRef ? { template_ref: input.templateRef } : {}),
+            ...(input.ontologyProjectId !== undefined
+              ? { ontology_project_id: input.ontologyProjectId }
+              : {}),
             enabled_skills: input.enabledSkills,
             // 对齐桌面端 MossWsConnection 默认（false）：工具执行走 control_request 审批，
             // 而非跳过权限。moss 服务端缺省值不可考，显式传递以确定行为。

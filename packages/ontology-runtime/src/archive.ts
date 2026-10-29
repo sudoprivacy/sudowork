@@ -8,7 +8,9 @@ import { Transform } from 'node:stream';
 import JSZip from 'jszip';
 import type { IOntologyPackageExportResult } from '@sudowork/ontology-common';
 import type { IOntologyArtifact } from './artifact.js';
-import { canonicalJson, contentHash, listPackageFiles, loadOntologyArtifact, OntologyPackageError, packageFilePath, sealPackage, verifyPackage, writePackageFile } from './artifact.js';
+import { canonicalJson, contentHash, listPackageFiles, loadOntologyArtifact, materializeRuntimeCli, OntologyPackageError, packageFilePath, readPackageFile, sealPackage, verifyPackage, writePackageFile } from './artifact.js';
+
+const REUSABLE_CLI_LIMIT = 32 * 1024 * 1024;
 
 export interface IOntologyArchiveOptions {
   targetPath: string;
@@ -25,7 +27,10 @@ export async function exportOntologyArchive(artifact: IOntologyArtifact, options
   const staging = await fs.mkdtemp(path.join(path.dirname(artifact.directory), '.export-'));
   const temporaryOutput = options.targetPath + '.tmp-' + randomUUID();
   try {
-    await fs.cp(artifact.directory, staging, { recursive: true, force: false });
+    const cli = artifact.manifest.entrypoints.cli === 'scripts/ontology.cjs' ? packageFilePath(artifact.directory, artifact.manifest.entrypoints.cli) : undefined;
+    const cliContent = cli && (await fs.stat(cli)).size <= REUSABLE_CLI_LIMIT ? await readPackageFile(artifact.directory, artifact.manifest.entrypoints.cli) : undefined;
+    await fs.cp(artifact.directory, staging, { recursive: true, force: false, filter: (source) => !cliContent || source !== cli });
+    if (cliContent) await materializeRuntimeCli(path.dirname(artifact.directory), cliContent, packageFilePath(staging, artifact.manifest.entrypoints.cli));
     const manifest = structuredClone(artifact.manifest);
     await fs.rm(path.join(staging, 'assets'), { recursive: true, force: true });
     let completed = 0;
@@ -100,6 +105,12 @@ export async function exportOntologyArchive(artifact: IOntologyArtifact, options
 export async function extractOntologyArchive(archivePath: string, targetDirectory: string): Promise<void> {
   if ((await fs.stat(archivePath)).size > 512 * 1024 * 1024) throw new OntologyPackageError('PACKAGE_INVALID', 'Archive exceeds size limit.');
   const bytes = await fs.readFile(archivePath);
+  return extractOntologyArchiveBytes(bytes, targetDirectory);
+}
+
+/** Extract the same bounded snapshot the host already read and fingerprinted. */
+export async function extractOntologyArchiveBytes(bytes: Buffer, targetDirectory: string, cliCacheRoot?: string): Promise<void> {
+  if (bytes.length > 512 * 1024 * 1024) throw new OntologyPackageError('PACKAGE_INVALID', 'Archive exceeds size limit.');
   validateZipDirectory(bytes);
   const archive = await JSZip.loadAsync(bytes);
   const entries = Object.values(archive.files).filter((entry) => !entry.dir);
@@ -123,7 +134,31 @@ export async function extractOntologyArchive(archivePath: string, targetDirector
           else callback(null, chunk);
         },
       });
-      await pipeline(entry.nodeStream(), limiter, createWriteStream(target, { flags: 'wx', mode: 0o600 }));
+      let isReusableCli = Boolean(cliCacheRoot && entry.name === 'scripts/ontology.cjs');
+      let bufferedBytes = 0;
+      let chunks: Buffer[] = [];
+      const collector = new Transform({
+        transform(chunk: Buffer, _encoding, callback) {
+          if (isReusableCli && bufferedBytes + chunk.length <= REUSABLE_CLI_LIMIT) {
+            chunks.push(Buffer.from(chunk));
+            bufferedBytes += chunk.length;
+            callback();
+            return;
+          }
+          if (isReusableCli) {
+            // Larger CLIs retain the original bounded streaming path.
+            isReusableCli = false;
+            for (const buffered of chunks) this.push(buffered);
+            chunks = [];
+          }
+          callback(null, chunk);
+        },
+      });
+      await pipeline(entry.nodeStream(), limiter, collector, createWriteStream(target, { flags: 'wx', mode: 0o600 }));
+      if (isReusableCli) {
+        await fs.rm(target);
+        await materializeRuntimeCli(cliCacheRoot!, Buffer.concat(chunks, bufferedBytes), target);
+      }
     }
     await verifyPackage(targetDirectory);
   } catch (error) {

@@ -77,6 +77,7 @@ export default defineConfig({
         '../../packages/contracts/src/inputDelivery.ts',
         '../../packages/moss-client/src/InputDeliveryClient.ts',
         '../../packages/moss-client/src/MossHostedTaskClient.ts',
+        '../../packages/moss-client/src/MossOntologyClient.ts',
         '../../packages/renderer/src/pages/hosted-agents/**/*.{ts,tsx}',
         'src/**/*.{ts,tsx}',
       ],

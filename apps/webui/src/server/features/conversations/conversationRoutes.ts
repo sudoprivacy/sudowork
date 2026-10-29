@@ -19,6 +19,7 @@ import {
   deleteConversation,
   getConversation,
   getConversationModel,
+  getConversationProject,
   getConversationOptions,
   getUserModel,
   getContext,
@@ -295,6 +296,18 @@ export function createConversationRouter(deps: ConversationDeps): Router {
       const id = z.string().min(1).parse(req.params.id)
       const ctx = await resolveCtx(req as AuthedRequest)
       res.status(200).json(await getContext(deps, principal, id, ctx))
+    })().catch((err: unknown) => convErrorHandler(err, res, next))
+  })
+
+  router.get('/:id/ontology-project', requireSession, (req, res, next) => {
+    res.setHeader('Cache-Control', 'no-store')
+    void (async () => {
+      const principal = await resolvePrincipal(req as AuthedRequest)
+      if (!principal) return void res.status(401).json({ error: 'SESSION_REQUIRED' })
+      const ctx = await resolveCtx(req as AuthedRequest)
+      res.status(200).json({
+        project: await getConversationProject(deps, principal, String(req.params.id), ctx),
+      })
     })().catch((err: unknown) => convErrorHandler(err, res, next))
   })
 

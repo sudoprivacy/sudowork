@@ -56,6 +56,7 @@ import { createSkillRouter } from './features/skills/skillRoutes.js'
 import { createCronRouter } from './features/cron/cronRoutes.js'
 import { createSettingsRouter } from './features/settings/settingsRoutes.js'
 import { createMcpRouter } from './features/mcp/mcpRoutes.js'
+import { createOntologyRouter } from './features/ontology/ontologyRoutes.js'
 import {
   TerminalManager,
   TerminalLimitError,
@@ -298,6 +299,7 @@ export function registerApiRoutes(app: Express, deps: ApiDeps): ApiHandles {
   const mcp = deps.mcp ?? createMossMcpPort(mossFetch)
   app.use('/api/settings', createSettingsRouter({ pool, config, auth, mcp }))
   app.use('/api/mcp', createMcpRouter({ pool, config, auth, mcp }))
+  app.use('/api/ontology', createOntologyRouter({ auth, request: mossFetch }))
 
   // 全局错误中间件：兜住各路由 next(err) 的未识别错误，统一返回 JSON（杜绝 Express 默认
   // HTML 错误页——前端对非 {error} JSON 只能显示 UNKNOWN）。必须注册在全部 /api 路由之后。
