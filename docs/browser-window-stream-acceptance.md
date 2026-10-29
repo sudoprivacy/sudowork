@@ -365,3 +365,29 @@ trace received its final content byte at 129.893 seconds, before creating the
 review iframe. DOM readiness, model round trips, neutral forms and local graph
 fixtures do not qualify this cold public route. Preserve the complete published
 model and original readiness bound when investigating content delivery.
+
+A subsequent socket-level observation returned the same HTTP 200 and gzip
+representation in 1.957 seconds but received only 2,230,307 of 6,865,571 body
+bytes before the unchanged thirty-second budget expired. The connection used
+HTTP/1.1 to the existing resolved endpoint. Linux reported 882 incoming
+out-of-order packets among 1,597 incoming data segments. This records reordering;
+it does not establish a packet-loss rate or the faulty network hop. No proxy,
+DNS, socket buffer or route settings changed. Content transfer remains the
+observed bottleneck before iframe creation.
+
+### Combined frame and connection-readiness candidate
+
+SDK #47 was rebased onto merged #48 and versions its combined extension as
+`0.4.8`. Source `2926e25` passed the exact Windows viewer command with 35 passes
+and 14 existing skips, including all nine unchanged startup cases. All 14 Chrome
+logs passed the executable-access guard with the Windows sandbox enabled.
+
+The installed Linux candidate on signed Chrome 156.0.8078.73 passed 20 cases
+with two existing fixture skips. Its 204 installed package files and signed
+extension assets matched the wheel. The same persistent profile upgraded from
+public SDK 0.58.10/extension 0.4.6 to the candidate/extension 0.4.8, retained
+ordinary and HttpOnly cookies, input exclusion and exclusive ownership, and
+passed the first frame MCP command after both graceful upgrade and forced crash.
+The owned fixtures were removed; the production controller stayed unchanged
+during those tests. Public SDK publication, final application packaging and the
+deployed viewer journey still require acceptance.

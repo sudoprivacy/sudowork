@@ -65,6 +65,15 @@ Profile occupancy work in SudoWork #1325/Moss #464 is also independent: an
 explicit move between conversations does not add business-level human/AI handoff
 buttons or make idle time an authorization signal.
 
+The current SDK #47 candidate also integrates merged #48's extension readiness
+and explicit consent recovery. Combined source `2926e25` and extension `0.4.8`
+passed 315 Python unit tests, 22 extension state tests, nine readiness/bridge
+checks, the Windows viewer command (35 passed, 14 existing skips), and installed
+Linux browser suites (20 passed, two existing fixture skips). The isolated
+upgrade/crash journey retained the signed profile, cookies, input exclusion and
+first frame command. The earlier `e625f3d` results above remain historical
+evidence; final CI and public artifact qualification must use the combined source.
+
 ## Remaining joint journey
 
 1. Qualify the exact public SDK and consumer artifacts; promote the managed

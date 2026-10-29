@@ -1,6 +1,6 @@
 # Shared browser sessions for Desktop and WebUI
 
-Status, 29 October: the production controller is Moss `0.1.88`; the managed browser still uses public SDK `0.58.10` within the existing three-owner rollout. The native execution image is `0.1.85`. The default WebUI remains the official image from `9c559fe61fb5d016e387cedf452ed7618082d33f`. Fresh inventory checks were read-only. Current live page drag and child-frame work has not been promoted to this production route.
+Status, 29 October: a fresh read-only process check confirms production Moss `0.1.89`, upgraded by another workline. The last qualified browser baseline is public SDK `0.58.10` within the three-owner rollout, native execution image `0.1.85`, and WebUI image `9c559fe61fb5d016e387cedf452ed7618082d33f`. Refresh the browser/runtime configuration and active-runner inventory before promotion. This browser workline has not deployed the current page drag and child-frame candidate.
 
 SudoWork #1323 and Moss #467 have merged. The audited SudoWork `0.2.40` release predates #1323, so that stable package does not establish delivery of the new page drag. SDK #47 has local real-browser and installed-candidate evidence; its new cross-platform CI, public release and exact consumer qualification remain gates. Source, candidate, published package and production acceptance are tracked separately below.
 
@@ -22,6 +22,23 @@ See the [browser/Sudograph joint acceptance checklist](browser-joint-acceptance.
 | External empty conversation links            | SudoWork #1316 is merged and delivered in the official production WebUI. Two real model turns retained the exact externally created conversation ID and recovered its context after reload, both in the isolated canary and on the default public route.                                                                                                   |
 
 The complete matrix is still open. The optional cloud-to-local extension relay remains unimplemented. Conversation Stop and normal conversation continuation are the user controls; there are no business-level handoff buttons. This document is the source for [the shared design page](https://s.shareone.vip/md/sudowork-browser-sessions).
+
+### Integrated browser candidate, 29 October
+
+SDK #47 now includes the merged extension readiness and explicit consent recovery
+from #48. The combined source is `2926e25d514f15c6d36c2c52c80ddfebd2df13c0`, with
+extension `0.4.8`. The consumer vendors this source while its public runtime
+release remains a delivery gate.
+
+The combined candidate passed 315 Python unit tests, 22 extension state tests,
+the exact Windows viewer command (35 passed, 14 existing skips), and nine
+extension-readiness/bridge checks. Installed Linux Chrome 156.0.8078.73 passed
+20 browser cases with two existing fixture skips. The same signed profile
+upgraded from extension 0.4.6 to 0.4.8 and survived a forced crash with cookies,
+input exclusion and the first frame MCP call intact. All 204 installed package
+files and the signed extension assets matched the candidate wheel. These results
+qualify the integrated candidate; cross-platform CI, the public release, final
+application artifacts and production acceptance remain separate gates.
 
 ### Public mobile viewport acceptance, 28 October
 
