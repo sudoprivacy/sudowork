@@ -391,3 +391,49 @@ passed the first frame MCP command after both graceful upgrade and forced crash.
 The owned fixtures were removed; the production controller stayed unchanged
 during those tests. Public SDK publication, final application packaging and the
 deployed viewer journey still require acceptance.
+
+### Completed drag and clipboard ordering, 30 October
+
+SDK #47 is now public `0.58.13`; exact public package checks and installed
+Windows/Linux acceptance passed. The later real-model Desktop run verified
+that Show browser window foregrounded the actual bound Chrome window without
+creating an Electron viewer. Shared-panel input then failed the unchanged exact
+selection assertion: focus on Copy cancelled an already released drag before
+its terminal packet was sent. This result does not qualify native-window input.
+
+SDK #49 candidate `d4c04ae` keeps that terminal end and exposes `whenIdle()`.
+Dependent panel and streamed-window input waits before joining the host queue,
+allowing the pending end to enter and receive acknowledgement. Clipboard write
+still starts during the user's click, with its data resolved afterwards for
+WebKit activation. Explicit disposal and blur during a held press still cancel;
+failed packets are reported without replay. The shared Node contract suite
+passed 28 cases. Real sandboxed Windows Chrome passed the new delayed-response
+case; the managed Linux image passed both CDP and signed-extension variants.
+These candidate checks are separate from final public-package/model acceptance.
+
+The approved normal-Chrome alternate-origin comparison returned HTTP 200 from
+`shareone.vip`, while retaining the worker's original 15-second navigation
+timeout and the graph's 30-second readiness bound. The graph was not ready in
+that bound; a subsequent command reported a disconnected browser. Owned
+containers were removed. This narrows the script-client 403 investigation but
+does not establish a passing cold graph load or browser access to the second
+origin. No browser signature, proxy, routing or access rules changed.
+
+A subsequent fresh, isolated Chrome comparison loaded the direct public graph
+through `shareone.vip` in 15.082 seconds with all 19 nodes and 18 edges. Actual
+window pixels were captured; the CDP connection remained alive and cgroup
+memory/PID counters showed no limit or OOM events. The full `/s/` viewer then
+failed its unchanged 30-second bound: the browser had received 7,313,003 decoded
+file bytes and had not yet created the content iframe. Its connection was still
+alive and memory was about 401 MB. Both owned containers were removed. One
+passing direct-file sample does not qualify the cold viewer, comments or remote
+input latency, and does not establish a permanent network fix.
+
+The final shared host source passed the complete SudoWork command with one
+worker: 3,601 passed and 30 existing skips. Type checking, scoped lint and the
+22 input-order DOM cases also passed. SDK #49 subsequently gained an ordered
+initial-document/profile probe and exact-session fixture cleanup following a
+Windows startup timeout in full CI. Candidate `15fc78a` passed 316 Python unit
+cases and 20 real Windows startup/scroll cases, with all nine generated startup
+cases unchanged. Fresh combined consumer checks and final public-package/model
+acceptance remain required.

@@ -1,8 +1,8 @@
 # Shared browser sessions for Desktop and WebUI
 
-Status, 29 October: a fresh read-only process check confirms production Moss `0.1.89`, upgraded by another workline. The last qualified browser baseline is public SDK `0.58.10` within the three-owner rollout, native execution image `0.1.85`, and WebUI image `9c559fe61fb5d016e387cedf452ed7618082d33f`. Refresh the browser/runtime configuration and active-runner inventory before promotion. This browser workline has not deployed the current page drag and child-frame candidate.
+Status, 30 October: a fresh read-only process check confirms production Moss `0.1.90`; this browser workline did not perform that controller upgrade. The last qualified browser baseline is public SDK `0.58.10` within the three-owner rollout, native execution image `0.1.85`, and WebUI image `9c559fe61fb5d016e387cedf452ed7618082d33f`. Refresh the browser/runtime configuration and active-runner inventory before promotion. This browser workline has not deployed the current page drag and child-frame candidate.
 
-SudoWork #1323 and Moss #467 have merged. The audited SudoWork `0.2.40` release predates #1323, so that stable package does not establish delivery of the new page drag. SDK #47 has local real-browser and installed-candidate evidence; its new cross-platform CI, public release and exact consumer qualification remain gates. Source, candidate, published package and production acceptance are tracked separately below.
+SudoWork #1323 and Moss #467 have merged. The audited SudoWork `0.2.40` release predates #1323, so that stable package does not establish delivery of the new page drag. SDK #47 is merged and public `0.58.13` passed exact artifact and installed Windows/Linux qualification. A subsequent real-model Desktop run exposed a completed-drag/copy race; SDK #49 and the shared host integration address it. Public `0.58.14`, the final application artifacts and production acceptance remain gates. Source, candidate, published package and production acceptance are tracked separately below.
 
 The production WebUI journey passed authenticated full-window streaming and refresh, exact remote selection, Unicode clipboard and Chromium composition, one trusted submission, retained login after browser restart, and real-model observation and ordinary chat continuation in the same conversation. It passed both before and after the controller upgrade. The source Desktop also passed its original real-model browser journey with a normal cold installation of public SDK `0.58.10`. Its new official package still needs acceptance. See [the streaming implementation and acceptance gates](browser-window-stream-acceptance.md).
 
@@ -26,9 +26,13 @@ The complete matrix is still open. The optional cloud-to-local extension relay r
 ### Integrated browser candidate, 29 October
 
 SDK #47 now includes the merged extension readiness and explicit consent recovery
-from #48. The combined source is `2926e25d514f15c6d36c2c52c80ddfebd2df13c0`, with
-extension `0.4.8`. The consumer vendors this source while its public runtime
-release remains a delivery gate.
+from #48. The published baseline is `2926e25d514f15c6d36c2c52c80ddfebd2df13c0`, with
+extension `0.4.8`. The consumer now vendors SDK #49 candidate `15fc78a` and targets
+`0.58.14`; these changes do not modify the extension identity or assets. The
+candidate also sequences initial-document and profile-network readiness after
+the Windows full CI retained a startup CookieManager timeout. All 20 local
+startup/scroll cases and 316 Python unit cases passed; the fresh full CI and
+final public package remain required.
 
 The combined candidate passed 315 Python unit tests, 22 extension state tests,
 the exact Windows viewer command (35 passed, 14 existing skips), and nine

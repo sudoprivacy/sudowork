@@ -10,11 +10,13 @@ No browser control, agent output, takeover acknowledgement, or model is mocked.
 import argparse
 import asyncio
 import base64
+import ctypes
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
 import threading
 import time
+import sys
 from uuid import uuid4
 
 import aiohttp
@@ -175,6 +177,24 @@ async def wait_for(probe, timeout, description):
         await asyncio.sleep(.25)
 
 
+def foreground_chrome_window(title):
+    """Observe the real Windows foreground window without activating it."""
+    if sys.platform != 'win32':
+        return {'verified': False, 'platform': sys.platform}
+    user32 = ctypes.WinDLL('user32', use_last_error=True)
+    user32.GetForegroundWindow.restype = ctypes.c_void_p
+    user32.GetWindowTextW.argtypes = (ctypes.c_void_p, ctypes.c_wchar_p, ctypes.c_int)
+    user32.GetClassNameW.argtypes = (ctypes.c_void_p, ctypes.c_wchar_p, ctypes.c_int)
+    handle = user32.GetForegroundWindow()
+    actual_title = ctypes.create_unicode_buffer(512)
+    window_class = ctypes.create_unicode_buffer(128)
+    user32.GetWindowTextW(handle, actual_title, len(actual_title))
+    user32.GetClassNameW(handle, window_class, len(window_class))
+    if title in actual_title.value and window_class.value.startswith('Chrome_WidgetWin_'):
+        return {'verified': True, 'title': actual_title.value, 'class': window_class.value}
+    return None
+
+
 async def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--port', type=int, required=True)
@@ -207,7 +227,7 @@ async def main():
             pass
 
         def do_GET(self):
-            html = f'''<!doctype html><meta charset="utf-8"><style>body{{font:22px sans-serif;margin:0}}h1{{position:absolute;left:40px;top:10px}}label{{position:absolute;left:40px;top:80px}}input{{position:absolute;left:40px;top:110px;width:300px;height:40px;font:22px sans-serif}}button{{position:absolute;left:40px;top:170px;width:300px;height:40px;font:22px sans-serif}}p{{position:absolute;left:40px;top:230px}}</style><h1>Browser handoff {nonce}</h1><label for="handoff">Handoff value</label><input id="handoff"><button id="submit">Submit once</button><p id="status">Awaiting user</p><script>submit.onclick=event=>fetch('/receipt',{{method:'POST',body:JSON.stringify({{value:handoff.value,trusted:event.isTrusted}})}}).then(()=>{{document.cookie='handoff={nonce}; Path=/';document.querySelector('#status').textContent='{status}'}});</script>'''
+            html = f'''<!doctype html><meta charset="utf-8"><title>Browser handoff {nonce}</title><style>body{{font:22px sans-serif;margin:0}}h1{{position:absolute;left:40px;top:10px}}label{{position:absolute;left:40px;top:80px}}input{{position:absolute;left:40px;top:110px;width:300px;height:40px;font:22px sans-serif}}button{{position:absolute;left:40px;top:170px;width:300px;height:40px;font:22px sans-serif}}p{{position:absolute;left:40px;top:230px}}</style><h1>Browser handoff {nonce}</h1><label for="handoff">Handoff value</label><input id="handoff"><button id="submit">Submit once</button><p id="status">Awaiting user</p><script>submit.onclick=event=>fetch('/receipt',{{method:'POST',body:JSON.stringify({{value:handoff.value,trusted:event.isTrusted}})}}).then(()=>{{document.cookie='handoff={nonce}; Path=/';document.querySelector('#status').textContent='{status}'}});</script>'''
             html += """<script>const field=document.querySelector('#handoff');field.addEventListener('input',event=>fetch('/prefill',{method:'POST',body:JSON.stringify({value:field.value,trusted:event.isTrusted})}));</script>"""
             if args.verify_selection_clipboard:
                 html += '<span id="review-phrase" style="position:absolute;left:40px;top:290px;font:20px monospace;white-space:pre">' + selected_phrase + '</span>'
@@ -382,10 +402,28 @@ document.querySelector('#clipboard-submit').onclick=event=>fetch('/clipboard-sub
                 text = await control_ui.text()
                 return 'SudoWork 正在操作' in text or 'SudoWork is operating' in text
             await wait_for(browser_ready, 20, 'The panel did not connect to the AI browser')
-            await control_ui.click_text('独立查看', 'Open separately')
-            async def new_viewer():
-                return next((t for t in await targets() if '#/browser-viewer/' in t.get('url', '')), None)
-            viewer = UI(session, await wait_for(new_viewer, 20, 'The separate viewer did not open'))
+            bound_route = await app.read('location.hash')
+            native_window = await control_ui.read("[...document.querySelectorAll('button')].some(e=>['打开浏览器窗口','Show browser window'].includes(e.textContent.trim())&&!e.disabled)")
+            if native_window:
+                previous_viewers = {t['id'] for t in await targets() if '#/browser-viewer/' in t.get('url', '')}
+                await control_ui.click_text('打开浏览器窗口', 'Show browser window')
+                async def native_foreground():
+                    return foreground_chrome_window(f'Browser handoff {nonce}')
+                native_proof = await wait_for(native_foreground, 10, 'The task Chrome window did not become foreground')
+                assert {t['id'] for t in await targets() if '#/browser-viewer/' in t.get('url', '')} == previous_viewers, 'Showing native Chrome opened an unexpected Electron viewer'
+                evidence.update(browserPresentation='native-window-and-embedded-panel', nativeWindowRequested=True, nativeWindowOpened=native_proof.get('verified') is True,
+                                nativeWindowForeground=native_proof, separateViewerOpened=False)
+                # Observe and input through the same shared panel after proving
+                # the normal Desktop action reveals the actual task Chrome.
+                if controls:
+                    await app.click_text('浏览器', 'Browser')
+                viewer = app
+            else:
+                await control_ui.click_text('独立查看', 'Open separately')
+                async def new_viewer():
+                    return next((t for t in await targets() if '#/browser-viewer/' in t.get('url', '')), None)
+                viewer = UI(session, await wait_for(new_viewer, 20, 'The separate viewer did not open'))
+                evidence.update(browserPresentation='separate-viewer', separateViewerOpened=True)
             async def viewer_ready():
                 # An image may arrive before the new window's stylesheets.
                 # Wait for its actual layout before mapping trusted coordinates.
@@ -532,14 +570,18 @@ document.querySelector('#clipboard-submit').onclick=event=>fetch('/clipboard-sub
                     return not await viewer.read("document.body.textContent.includes('已连接你的 Chrome profile') || document.body.textContent.includes('Your connected Chrome profile')")
                 await wait_for(disconnected_personal, 20, 'The selected personal Chrome did not disconnect')
                 evidence.update(existingPersonalProfile=True, explicitProfileSelection=True, personalDisconnected=True)
-            await viewer.click_text('打开会话', 'Open conversation')
-            async def bound_conversation_opened():
-                return await viewer.read('location.hash') == await app.read('location.hash') and nonce in await viewer.text()
-            await wait_for(bound_conversation_opened, 20, 'The viewer did not open its exact bound conversation')
-            evidence['sameConversationOpenedFromViewer'] = True
+            if native_window:
+                assert await app.read('location.hash') == bound_route and nonce in await app.text(), 'The native window/panel journey changed its bound conversation'
+                evidence['sameConversationRetainedInPanel'] = True
+            else:
+                await viewer.click_text('打开会话', 'Open conversation')
+                async def bound_conversation_opened():
+                    return await viewer.read('location.hash') == await app.read('location.hash') and nonce in await viewer.text()
+                await wait_for(bound_conversation_opened, 20, 'The viewer did not open its exact bound conversation')
+                evidence['sameConversationOpenedFromViewer'] = True
             evidence['trustedAiPrefill'] = {'value': f'AI_BEFORE_{nonce}', 'trusted': True}
             if controls:
-                evidence.update(compactControls=True, browserPanelHiddenDuringHandoff=True, noPixelViewerInControls=True, nativeAlwaysOnTop=bool(args.windows_evidence))
+                evidence.update(compactControls=True, browserPanelHiddenDuringHandoff=not native_window, noPixelViewerInControls=True, nativeAlwaysOnTop=bool(args.windows_evidence))
             evidence['passed'] = True
             print(json.dumps({'passed': True, 'evidence': str(args.output/'evidence.json')}), flush=True)
         except BaseException as error:

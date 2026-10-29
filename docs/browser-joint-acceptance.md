@@ -76,6 +76,22 @@ evidence; final CI and public artifact qualification must use the combined sourc
 
 ## Remaining joint journey
 
+SDK #47 was subsequently merged and released as `0.58.13`. The exact public
+wheel passed the Windows viewer command (35 passed, 14 existing skips) and the
+managed Linux suites (20 passed, two existing fixture skips), including signed
+profile upgrade/crash recovery. Ladder #131 consumed that public package and
+merged after its policy and actual input checks passed. Moss #470's full CI
+also passed; this workline has not promoted that candidate to production.
+
+The next actual-model Desktop run reached the native Chrome window and ordinary
+interrupt, then failed exact selection copy. A released drag awaiting its first
+acknowledgement was being cancelled when Copy took focus, and reading could
+overtake its unsent terminal packet. SDK #49 preserves the completed end and
+provides a completion barrier; the shared panel and streamed window wait before
+queueing dependent input. Six contract cases and real Windows CDP / Linux CDP
+and signed-extension cases pass. Final public `0.58.14` and actual-model consumer
+acceptance are still required. Earlier failing receipts remain distinct.
+
 1. Qualify the exact public SDK and consumer artifacts; promote the managed
    browser and application through their normal deployment paths. Preserve
    persistent profiles and any running co-host execution during maintenance.
