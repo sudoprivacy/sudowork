@@ -104,11 +104,15 @@ class UI:
             await self.command('Input.dispatchMouseEvent', {'type': kind, 'x': x, 'y': y, 'button': 'left', 'clickCount': 1})
         await asyncio.sleep(.15)
 
-    async def click_text(self, *labels):
+    async def click_text(self, *labels, native_app_pid=None):
         async def actionable():
             boxes = await self.read(f"[...document.querySelectorAll('body *')].filter(e=>{json.dumps(labels)}.includes(e.textContent.trim())).filter(e=>{{const r=e.getBoundingClientRect();const hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return !e.closest('button')?.disabled&&hit&&(hit===e||e.contains(hit))}}).map(e=>e.getBoundingClientRect().toJSON()).filter(r=>r.width>0&&r.height>0&&r.y>=0&&r.bottom<innerHeight).sort((a,b)=>a.width*a.height-b.width*b.height)")
             return boxes[0] if boxes else None
         box = await wait_for(actionable, 15, f'Visible control not found: {labels}')
+        if native_app_pid is not None:
+            viewport = await self.read('({width:innerWidth,height:innerHeight})')
+            return click_owned_windows_app(native_app_pid, box['x'] + box['width']/2,
+                                           box['y'] + box['height']/2, viewport)
         await self.click(box['x'] + box['width']/2, box['y'] + box['height']/2)
 
     async def key(self, key, code, number, modifiers=0):
@@ -177,6 +181,62 @@ async def wait_for(probe, timeout, description):
         await asyncio.sleep(.25)
 
 
+def click_owned_windows_app(pid, x, y, viewport):
+    """Click a visible fixture-owned button through normal Windows mouse input."""
+    assert sys.platform == 'win32' and pid > 0
+    from ctypes import wintypes
+    user = ctypes.WinDLL('user32', use_last_error=True)
+    user.GetWindowThreadProcessId.argtypes = (wintypes.HWND, ctypes.POINTER(wintypes.DWORD))
+    user.GetClientRect.argtypes = (wintypes.HWND, ctypes.POINTER(wintypes.RECT))
+    user.ClientToScreen.argtypes = (wintypes.HWND, ctypes.POINTER(wintypes.POINT))
+    user.IsWindowVisible.argtypes = (wintypes.HWND,)
+    user.WindowFromPoint.argtypes = (wintypes.POINT,)
+    user.WindowFromPoint.restype = wintypes.HWND
+    user.GetAncestor.argtypes = (wintypes.HWND, wintypes.UINT)
+    user.GetAncestor.restype = wintypes.HWND
+    user.GetCursorPos.argtypes = (ctypes.POINTER(wintypes.POINT),)
+    user.SetCursorPos.argtypes = (ctypes.c_int, ctypes.c_int)
+    user.mouse_event.argtypes = (wintypes.DWORD, wintypes.DWORD, wintypes.DWORD, wintypes.DWORD, ctypes.c_size_t)
+    callback = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    user.EnumWindows.argtypes = (callback, wintypes.LPARAM)
+    candidates = []
+
+    @callback
+    def visit(hwnd, unused):
+        owner = wintypes.DWORD()
+        user.GetWindowThreadProcessId(hwnd, ctypes.byref(owner))
+        if owner.value != pid or not user.IsWindowVisible(hwnd):
+            return True
+        rect, origin = wintypes.RECT(), wintypes.POINT()
+        if not user.GetClientRect(hwnd, ctypes.byref(rect)) or not user.ClientToScreen(hwnd, ctypes.byref(origin)):
+            return True
+        if rect.right <= 0 or rect.bottom <= 0:
+            return True
+        point = wintypes.POINT(round(origin.x + x * rect.right / viewport['width']),
+                              round(origin.y + y * rect.bottom / viewport['height']))
+        if user.GetAncestor(user.WindowFromPoint(point), 2) == hwnd:
+            candidates.append((hwnd, point))
+        return True
+
+    user.EnumWindows(visit, 0)
+    assert len(candidates) == 1, 'The fixture button must be visible in exactly one owned native window'
+    hwnd, point = candidates[0]
+    previous = wintypes.POINT()
+    assert user.GetCursorPos(ctypes.byref(previous))
+    assert user.SetCursorPos(point.x, point.y)
+    try:
+        assert user.GetAncestor(user.WindowFromPoint(point), 2) == hwnd, 'The owned button became covered before the mouse input'
+        user.mouse_event(0x0002, 0, 0, 0, 0)
+        user.mouse_event(0x0004, 0, 0, 0, 0)
+    finally:
+        current = wintypes.POINT()
+        is_unchanged = bool(user.GetCursorPos(ctypes.byref(current))) and (current.x, current.y) == (point.x, point.y)
+        if is_unchanged:
+            user.SetCursorPos(previous.x, previous.y)
+    return {'kind': 'windows-mouse', 'ownedPid': pid, 'x': point.x, 'y': point.y,
+            'cursorRestoredWithoutOverwritingNewerMovement': is_unchanged}
+
+
 def foreground_chrome_window(title):
     """Observe the real Windows foreground window without activating it."""
     if sys.platform != 'win32':
@@ -200,6 +260,8 @@ async def main():
     parser.add_argument('--port', type=int, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--controls-window', action='store_true', help='Open the bound viewer from the compact status window while BrowserPanel is hidden')
+    parser.add_argument('--embedded-panel', action='store_true', help='Exercise the same browser through the embedded panel; native-window presentation remains a separate acceptance case')
+    parser.add_argument('--native-app-pid', type=int, help='Fixture-owned Electron PID for a visible Windows mouse click on Show browser window')
     parser.add_argument('--windows-evidence', type=Path, help='Optional isolated Electron bootstrap window metadata')
     parser.add_argument('--existing-profile', action='store_true', help='Explicitly connect an isolated already-running extension Chrome instead of launching a managed browser')
     parser.add_argument('--offline-entry', action='store_true', help='Choose the ordinary local Desktop entry on a fresh login screen')
@@ -403,10 +465,16 @@ document.querySelector('#clipboard-submit').onclick=event=>fetch('/clipboard-sub
                 return 'SudoWork 正在操作' in text or 'SudoWork is operating' in text
             await wait_for(browser_ready, 20, 'The panel did not connect to the AI browser')
             bound_route = await app.read('location.hash')
-            native_window = await control_ui.read("[...document.querySelectorAll('button')].some(e=>['打开浏览器窗口','Show browser window'].includes(e.textContent.trim())&&!e.disabled)")
-            if native_window:
+            native_window = not args.embedded_panel and await control_ui.read("[...document.querySelectorAll('button')].some(e=>['打开浏览器窗口','Show browser window'].includes(e.textContent.trim())&&!e.disabled)")
+            if args.embedded_panel:
+                if controls:
+                    await app.click_text('浏览器', 'Browser')
+                viewer = app
+                evidence.update(browserPresentation='embedded-panel', nativeWindowRequested=False,
+                                nativeWindowOpened=False, separateViewerOpened=False)
+            elif native_window:
                 previous_viewers = {t['id'] for t in await targets() if '#/browser-viewer/' in t.get('url', '')}
-                await control_ui.click_text('打开浏览器窗口', 'Show browser window')
+                evidence['nativeWindowInvocationInput'] = await control_ui.click_text('打开浏览器窗口', 'Show browser window', native_app_pid=args.native_app_pid)
                 async def native_foreground():
                     return foreground_chrome_window(f'Browser handoff {nonce}')
                 native_proof = await wait_for(native_foreground, 10, 'The task Chrome window did not become foreground')
@@ -485,6 +553,10 @@ document.querySelector('#clipboard-submit').onclick=event=>fetch('/clipboard-sub
                     evidence['exactPhraseCopiedFromRemoteSelection'] = True
                     await viewer.clipboard(pasted)
                     await viewer.page_click(120, 380)
+                    # The model may have edited this field while preparing the
+                    # task. Replace through normal user input before checking
+                    # exact paste contents; paste itself inserts at the caret.
+                    await viewer.key('a', 'KeyA', 65, 2)
                     await viewer.click_text('粘贴到页面', 'Paste into page')
                     evidence['pasteUiText'] = (await viewer.text())[-800:]
                     await wait_for(lambda: asyncio.sleep(0, result={'value': pasted, 'trusted': True} in clipboard_inputs), 15, 'The real page did not receive trusted multiline clipboard text')
@@ -570,7 +642,7 @@ document.querySelector('#clipboard-submit').onclick=event=>fetch('/clipboard-sub
                     return not await viewer.read("document.body.textContent.includes('已连接你的 Chrome profile') || document.body.textContent.includes('Your connected Chrome profile')")
                 await wait_for(disconnected_personal, 20, 'The selected personal Chrome did not disconnect')
                 evidence.update(existingPersonalProfile=True, explicitProfileSelection=True, personalDisconnected=True)
-            if native_window:
+            if native_window or args.embedded_panel:
                 assert await app.read('location.hash') == bound_route and nonce in await app.text(), 'The native window/panel journey changed its bound conversation'
                 evidence['sameConversationRetainedInPanel'] = True
             else:
@@ -581,7 +653,7 @@ document.querySelector('#clipboard-submit').onclick=event=>fetch('/clipboard-sub
                 evidence['sameConversationOpenedFromViewer'] = True
             evidence['trustedAiPrefill'] = {'value': f'AI_BEFORE_{nonce}', 'trusted': True}
             if controls:
-                evidence.update(compactControls=True, browserPanelHiddenDuringHandoff=not native_window, noPixelViewerInControls=True, nativeAlwaysOnTop=bool(args.windows_evidence))
+                evidence.update(compactControls=True, browserPanelHiddenDuringHandoff=not (native_window or args.embedded_panel), noPixelViewerInControls=True, nativeAlwaysOnTop=bool(args.windows_evidence))
             evidence['passed'] = True
             print(json.dumps({'passed': True, 'evidence': str(args.output/'evidence.json')}), flush=True)
         except BaseException as error:
