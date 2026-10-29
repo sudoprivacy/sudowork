@@ -115,6 +115,7 @@ export default defineConfig({
         '../../packages/moss-client/src/InputDeliveryClient.ts',
         '../../packages/renderer/src/hooks/useInputDelivery.ts',
         '../../packages/ontology-runtime/src/**/*.ts',
+        '../../packages/sudograph-runtime/src/**/*.ts',
         '../../packages/ontology-common/src/runtimePackage.ts',
         '../../packages/ontology-ui/src/studio/StudioPackageExport.tsx',
         '../../packages/ontology-ui/src/studio/StudioPackageImport.tsx',

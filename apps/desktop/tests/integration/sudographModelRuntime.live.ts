@@ -2,11 +2,13 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
+import { pathToFileURL } from 'node:url';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { SudographModelClient, type ISudographContext } from '@sudowork/ontology-runtime/SudographModelClient';
 import { SudographSourceProvider } from '@sudowork/ontology-runtime/SudographSourceProvider';
+import { SudographModelClient as PublicModelClient, SudographSourceProvider as PublicSourceProvider } from '@sudowork/sudograph-runtime';
 import { SudographModelClient as DesktopModelClient } from '../../src/process/services/ontology/SudographModelClient';
 import { SudographSourceProvider as DesktopSourceProvider } from '../../src/process/services/ontology/SudographSourceProvider';
 
@@ -15,6 +17,8 @@ const compilerRoot = process.env.SUDOGRAPH_COMPILER_ROOT;
 if (!python || !compilerRoot) throw new Error('Set SUDOGRAPH_PYTHON and SUDOGRAPH_COMPILER_ROOT to the checked compiler runtime.');
 assert.equal(SudographModelClient, DesktopModelClient, 'Desktop must use the shared implementation.');
 assert.equal(SudographSourceProvider, DesktopSourceProvider, 'Desktop must use the shared source provider.');
+assert.equal(SudographModelClient, PublicModelClient, 'The public host package must own the same client.');
+assert.equal(SudographSourceProvider, PublicSourceProvider, 'The public host package must own the same provider.');
 assert.equal(process.versions.electron, undefined, 'This acceptance must run in ordinary Node.');
 const output = process.env.SUDOWORK_REVIEW_LIVE_EVIDENCE || os.tmpdir();
 mkdirSync(output, { recursive: true });
@@ -28,7 +32,14 @@ const created = spawnSync(
 assert.equal(created.status, 0, 'Fixture source creation failed.');
 const sourceHash = () => createHash('sha256').update(readFileSync(database)).digest('hex');
 const before = sourceHash();
-const client = new SudographModelClient({ python, compilerRoot, modelDirectory: root });
+const installedRoot = process.env.SUDOGRAPH_HOST_PACKAGE_ROOT;
+const RuntimeClient: typeof SudographModelClient = installedRoot ? (await import(pathToFileURL(path.join(installedRoot, 'dist/index.js')).href)).SudographModelClient : SudographModelClient;
+if (installedRoot) {
+  assert.equal(path.isAbsolute(installedRoot), true);
+  assert.equal(JSON.parse(readFileSync(path.join(installedRoot, 'package.json'), 'utf8')).name, '@sudowork/sudograph-runtime');
+  assert.notEqual(RuntimeClient, SudographModelClient, 'Installed acceptance must execute the separately installed archive.');
+}
+const client = new RuntimeClient({ python, compilerRoot, modelDirectory: root });
 const intake = { source: `sqlite:///${database.split(path.sep).join('/')}`, namespace: 'support', operationId: randomUUID(), language: 'en' as const };
 const registration = await client.registerSource('model', 'fixture-registrar', intake);
 assert.equal(registration.registration.scan.objects, 2);
@@ -87,6 +98,7 @@ assert.deepEqual(live.rows, [[1, 9]], 'An on-demand read must observe the source
 const after = await client.invoke<{ revision: string }>('model', 'alice', { operation: 'overview' });
 assert.equal(after.revision, context.revision, 'A record read must not manufacture another model revision.');
 const receipt = {
+  installed_host_package: Boolean(installedRoot),
   status: 'passed',
   execution: 'ordinary Node with real Python compiler',
   desktop_and_shared_constructor_identical: true,

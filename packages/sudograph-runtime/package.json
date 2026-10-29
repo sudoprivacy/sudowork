@@ -1,0 +1,40 @@
+{
+  "name": "@sudowork/sudograph-runtime",
+  "version": "0.1.0",
+  "description": "Host-only transport for the installed Sudograph compiler and registered database providers",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/sudoprivacy/sudowork",
+  "type": "module",
+  "engines": {
+    "node": ">=22.21.0"
+  },
+  "exports": {
+    ".": {
+      "bun": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./*": {
+      "bun": "./src/*.ts",
+      "types": "./dist/*.d.ts",
+      "default": "./dist/*.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "mysql2": "3.24.4",
+    "pg": "8.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.1",
+    "@types/pg": "^8.15.5"
+  }
+}
