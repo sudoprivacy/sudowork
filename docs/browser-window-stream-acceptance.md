@@ -350,3 +350,18 @@ The source and existing comments were preserved. No generated HTML was edited,
 records removed, cache policy changed or timeout widened to make this pass.
 Content delivery needs further work before this page can qualify public graph
 dragging, zooming and comments.
+
+### Fresh content-path check, 29 October
+
+A fresh read from the production VM used the same public ShareOne file endpoint,
+requested gzip, and kept a thirty-second total budget. It returned HTTP 200 in
+1.967 seconds, declared 6,865,571 compressed bytes, and delivered 2,247,397 bytes
+before that budget expired. No browser/profile, credentials, route or policy was
+changed. The failure receipt is retained; it is not a passing viewer result.
+
+The current ShareOne source already compresses this content path. Adding gzip
+again cannot resolve this observed transfer cost. The earlier complete browser
+trace received its final content byte at 129.893 seconds, before creating the
+review iframe. DOM readiness, model round trips, neutral forms and local graph
+fixtures do not qualify this cold public route. Preserve the complete published
+model and original readiness bound when investigating content delivery.

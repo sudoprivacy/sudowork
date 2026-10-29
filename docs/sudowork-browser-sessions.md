@@ -1,10 +1,14 @@
 # Shared browser sessions for Desktop and WebUI
 
-Status, 28 October: production runs official Moss `0.1.84` and public browser SDK `0.58.10`. The verified worker is the default within the existing three-owner rollout. Other owners have not been enabled. The compatible native execution image remains `0.1.83`, with scode `0.2.36`, Nexus `0.8.23` and plugin ABI `7`; its authenticated model flow passed after the controller upgrade. The default WebUI is the official image from `9c559fe61fb5d016e387cedf452ed7618082d33f`. No database restore or profile reset was performed.
+Status, 29 October: the production controller is Moss `0.1.88`; the managed browser still uses public SDK `0.58.10` within the existing three-owner rollout. The native execution image is `0.1.85`. The default WebUI remains the official image from `9c559fe61fb5d016e387cedf452ed7618082d33f`. Fresh inventory checks were read-only. Current live page drag and child-frame work has not been promoted to this production route.
+
+SudoWork #1323 and Moss #467 have merged. The audited SudoWork `0.2.40` release predates #1323, so that stable package does not establish delivery of the new page drag. SDK #47 has local real-browser and installed-candidate evidence; its new cross-platform CI, public release and exact consumer qualification remain gates. Source, candidate, published package and production acceptance are tracked separately below.
 
 The production WebUI journey passed authenticated full-window streaming and refresh, exact remote selection, Unicode clipboard and Chromium composition, one trusted submission, retained login after browser restart, and real-model observation and ordinary chat continuation in the same conversation. It passed both before and after the controller upgrade. The source Desktop also passed its original real-model browser journey with a normal cold installation of public SDK `0.58.10`. Its new official package still needs acceptance. See [the streaming implementation and acceptance gates](browser-window-stream-acceptance.md).
 
 ## Current acceptance summary
+
+See the [browser/Sudograph joint acceptance checklist](browser-joint-acceptance.md) for the six owner checks, concrete evidence and remaining production/device gates.
 
 | Area                                         | Evidence and remaining gate                                                                                                                                                                                                                                                                                                                                |
 | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
