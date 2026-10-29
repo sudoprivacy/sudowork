@@ -975,13 +975,10 @@ const AgentSettings: React.FC = () => {
   }, []);
 
   // Open upload confirm modal for custom assistant
-  const handleUploadAssistant = useCallback(
-    (assistant: AssistantListItem) => {
-      setUploadAssistant(assistant);
-      setUploadConfirmVisible(true);
-    },
-    []
-  );
+  const handleUploadAssistant = useCallback((assistant: AssistantListItem) => {
+    setUploadAssistant(assistant);
+    setUploadConfirmVisible(true);
+  }, []);
 
   // Upload assistant to Hub
   const handleUploadConfirm = useCallback(async () => {
@@ -1015,7 +1012,6 @@ const AgentSettings: React.FC = () => {
         }
         return;
       }
-
     } catch (err) {
       console.error('Failed to upload assistant:', err);
       Message.error(t('settings.assistant.uploadFailed', { msg: String(err), defaultValue: `上传失败: ${String(err)}` }));
@@ -1024,22 +1020,23 @@ const AgentSettings: React.FC = () => {
     }
   }, [uploadAssistant, localeKey, loadAssistants, t]);
 
-  const handleExportAssistant = useCallback(async (assistant: AssistantListItem) => {
-    if (!isEnterprise) return;
-    const displayName = assistant.nameI18n?.[localeKey] || assistant.name;
-    const result = await eeclaw.exportCustomAssistant.invoke({
-      assistantName: displayName,
-      assistantId: assistant.id,
-      displayName,
-    });
-    if (result.success && result.data?.filePath) {
-      Message.success(t('settings.assistant.exportSuccess', { path: result.data.filePath, defaultValue: `专家包已导出到 ${result.data.filePath}` }));
-    } else {
-      Message.error(t('settings.assistant.exportFailed', { msg: result.msg || 'Unknown error', defaultValue: `导出失败: ${result.msg || 'Unknown error'}` }));
-    }
-  }, [isEnterprise, localeKey, t]);
-
-
+  const handleExportAssistant = useCallback(
+    async (assistant: AssistantListItem) => {
+      if (!isEnterprise) return;
+      const displayName = assistant.nameI18n?.[localeKey] || assistant.name;
+      const result = await eeclaw.exportCustomAssistant.invoke({
+        assistantName: displayName,
+        assistantId: assistant.id,
+        displayName,
+      });
+      if (result.success && result.data?.filePath) {
+        Message.success(t('settings.assistant.exportSuccess', { path: result.data.filePath, defaultValue: `专家包已导出到 ${result.data.filePath}` }));
+      } else {
+        Message.error(t('settings.assistant.exportFailed', { msg: result.msg || 'Unknown error', defaultValue: `导出失败: ${result.msg || 'Unknown error'}` }));
+      }
+    },
+    [isEnterprise, localeKey, t]
+  );
 
   // ---- Duplicate assistant to custom list ----
   const handleDuplicateConfirm = useCallback(async () => {

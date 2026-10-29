@@ -17,17 +17,25 @@ const itemKey = (item: { source: string; id: string }) => `${item.source}:${item
 
 function expertTypeLabel(value?: string) {
   switch ((value || '').toLowerCase()) {
-    case 'local': return '本地服务';
-    case 'dify': return 'Dify';
-    case 'a2a': return 'A2A';
+    case 'local':
+      return '本地服务';
+    case 'dify':
+      return 'Dify';
+    case 'a2a':
+      return 'A2A';
     case 'custom_http':
-    case 'api': return '外部 API';
+    case 'api':
+      return '外部 API';
     case 'static':
-    case 'file': return '静态描述文件';
+    case 'file':
+      return '静态描述文件';
     case 'moss_runtime':
-    case 'runtime': return '运行时专家';
-    case 'hub': return '平台专家';
-    default: return value || '组织专家';
+    case 'runtime':
+      return '运行时专家';
+    case 'hub':
+      return '平台专家';
+    default:
+      return value || '组织专家';
   }
 }
 
@@ -213,9 +221,7 @@ export default function MossCatalogBrowser({ kind, customContent, builtinContent
       </Typography.Paragraph>
       <div className={styles.toolbar}>
         <Input value={query} onChange={setQuery} placeholder={label('search')} prefix={<Search size={16} />} allowClear className={styles.search} />
-        {tab === 'available' && (
-          <Select value={category} onChange={setCategory} style={{ width: 180 }} options={[{ value: '', label: label('allCategories') }, ...categories.map((value) => ({ value, label: value }))]} />
-        )}
+        {tab === 'available' && <Select value={category} onChange={setCategory} style={{ width: 180 }} options={[{ value: '', label: label('allCategories') }, ...categories.map((value) => ({ value, label: value }))]} />}
         <Button
           icon={<RefreshCw size={14} />}
           onClick={() => {
@@ -264,7 +270,11 @@ export default function MossCatalogBrowser({ kind, customContent, builtinContent
                     </div>
                     <p className={styles.description}>{item.description || label('noDescription')}</p>
                     <div className={styles.tags}>
-                      {item.displayVersion && <Tag>{label('version')}: {item.displayVersion}</Tag>}
+                      {item.displayVersion && (
+                        <Tag>
+                          {label('version')}: {item.displayVersion}
+                        </Tag>
+                      )}
                       {item.categories.slice(0, 2).map((value) => (
                         <Tag key={value}>{value}</Tag>
                       ))}

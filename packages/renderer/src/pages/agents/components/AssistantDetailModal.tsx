@@ -176,7 +176,11 @@ const AssistantDetailModal: React.FC<AssistantDetailModalProps> = ({ assistant, 
                 )}
               </div>
               <div className='font-semibold text-17px text-foreground text-center'>{displayName}</div>
-              {(installedVersion || latestVersionValue) && <div className='text-secondary text-xs mt-2'>{t('settings.mossCatalog.version')}: {installedVersion || latestVersionValue}</div>}
+              {(installedVersion || latestVersionValue) && (
+                <div className='text-secondary text-xs mt-2'>
+                  {t('settings.mossCatalog.version')}: {installedVersion || latestVersionValue}
+                </div>
+              )}
               {assistant.categories && assistant.categories.length > 0 && (
                 <div className='flex gap-1 mt-1.5 flex-wrap justify-center'>
                   {assistant.categories.map((cat, idx) => (

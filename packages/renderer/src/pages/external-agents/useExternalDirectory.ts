@@ -51,13 +51,17 @@ export function useExternalDirectory(isVersionVisible = false) {
       const result = await sharedExternalRead(identity, 'agents', () => externalProviders.agents.invoke());
       if (generation.current !== current) return;
       if (!result.success || !Array.isArray(result.data)) throw new Error('Directory unavailable');
-      const agents = await Promise.all(result.data.map(async (agent): Promise<PublishedExternalAgent> => {
-        try {
-          if (!isVersionVisible) return agent;
-          const versions = await sharedExternalRead(identity, `versions:${agent.id}`, () => externalProviders.versions.invoke({ agentId: agent.id }));
-          return { ...agent, publishedVersion: versions.success ? versions.data?.channels.find(channel => channel.name === 'stable' && channel.enabled)?.version : undefined };
-        } catch { return agent; }
-      }));
+      const agents = await Promise.all(
+        result.data.map(async (agent): Promise<PublishedExternalAgent> => {
+          try {
+            if (!isVersionVisible) return agent;
+            const versions = await sharedExternalRead(identity, `versions:${agent.id}`, () => externalProviders.versions.invoke({ agentId: agent.id }));
+            return { ...agent, publishedVersion: versions.success ? versions.data?.channels.find((channel) => channel.name === 'stable' && channel.enabled)?.version : undefined };
+          } catch {
+            return agent;
+          }
+        })
+      );
       if (generation.current !== current) return;
       setState({ identity, agents, isLoading: false, isFailed: false });
     } catch {

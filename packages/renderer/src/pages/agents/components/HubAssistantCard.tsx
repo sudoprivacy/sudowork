@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next';
 import type { IAssistantHubSkill } from '@sudowork/host-bridge/ipcBridge';
 import { isElectronDesktop } from '@renderer/utils/platform';
 
-const HubAssistantCard: React.FC<HubAssistantCardProps> = ({ assistant, isInstalled, installing, installProgress, onInstall, onUpdate, onDuplicate, onClick, hasUpdate, updating, latestVersion }) => {
+const HubAssistantCard: React.FC<HubAssistantCardProps> = ({ assistant, isInstalled, installing, installProgress, onInstall, onDuplicate, onClick, updating, latestVersion }) => {
   const { t } = useTranslation();
 
   const displayName = assistant.display_name || assistant.name;
@@ -79,7 +79,7 @@ const HubAssistantCard: React.FC<HubAssistantCardProps> = ({ assistant, isInstal
             <Progress percent={installProgress} size='mini' />
           </div>
         ) : hasDownloadUrl ? (
-          <Tooltip content='使用'>
+          <Tooltip content={t('settings.mossCatalog.use')}>
             <button type='button' className='store-action-icon' onClick={onInstall}>
               <ArrowUpRight size={13} />
             </button>

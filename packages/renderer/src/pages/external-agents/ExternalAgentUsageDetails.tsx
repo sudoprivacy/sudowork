@@ -8,7 +8,11 @@ export default function ExternalAgentUsageDetails({ agent }: IExternalAgentUsage
   return (
     <Collapse bordered={false} className='my-2'>
       <Collapse.Item name='usage' header={t('agent.external.usage.title')}>
-        {agent.publishedVersion && <Typography.Paragraph>{t('settings.mossCatalog.version')}: {agent.publishedVersion}</Typography.Paragraph>}
+        {agent.publishedVersion && (
+          <Typography.Paragraph>
+            {t('settings.mossCatalog.version')}: {agent.publishedVersion}
+          </Typography.Paragraph>
+        )}
         {usage ? (
           <div className='text-xs'>
             <Typography.Paragraph>{t('agent.external.usage.scope')}</Typography.Paragraph>

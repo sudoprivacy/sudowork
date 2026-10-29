@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next';
 import type { ISkillHubSkill } from '@sudowork/host-bridge/ipcBridge';
 import { handleSkillIconError } from '@renderer/utils/skillDisplay';
 
-export default function SkillCard({ skill, isInstalled, hasVersion, installing, installProgress, onInstall, onClick, hasUpdate, onUpdate, updating, latestVersion }: ISkillCardProps) {
+export default function SkillCard({ skill, hasVersion, installing, installProgress, onInstall, onClick, updating, latestVersion }: ISkillCardProps) {
   const { t } = useTranslation();
   return (
     <div className='card group flex items-start gap-3 relative overflow-hidden' onClick={onClick}>
@@ -36,7 +36,7 @@ export default function SkillCard({ skill, isInstalled, hasVersion, installing, 
             <Progress percent={installProgress} size='mini' />
           </div>
         ) : hasVersion ? (
-          <Tooltip content='使用'>
+          <Tooltip content={t('settings.mossCatalog.use')}>
             <Button icon={<ArrowUpRight size={13} />} onClick={onInstall} className='!size-7' />
           </Tooltip>
         ) : null}
