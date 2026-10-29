@@ -118,6 +118,8 @@ export const MossWorkspaceNodeSchema: z.ZodType<MossWorkspaceNode> = z.lazy(() =
 // ---------- 浏览器请求/响应 DTO（白名单） ----------
 
 export const CreateConversationRequestSchema = z.object({
+  /** Registered business model, independently authorized by Moss before runtime startup. */
+  ontologyProjectId: z.string().uuid().optional(),
   /** 空串 = 不指定智能体，由 Moss 走默认（部署版实测空 assistant_name 创建 200） */
   assistantName: z.string().trim().max(255),
   templateRef: z.string().trim().min(1).max(255).optional(),
@@ -126,6 +128,30 @@ export const CreateConversationRequestSchema = z.object({
   modelId: z.string().trim().min(1).max(255).optional(),
 })
 export type CreateConversationRequest = z.infer<typeof CreateConversationRequestSchema>
+
+const CanonicalReferenceSchema = z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/)
+
+/** Explicit response whitelist: never carry model content, worker locations or credentials. */
+export const MossOntologyProjectSchema = z
+  .object({
+    project_id: z.string().uuid(),
+    authority_ref: CanonicalReferenceSchema,
+    model_ref: CanonicalReferenceSchema,
+    source_refs: z.array(CanonicalReferenceSchema).max(1000),
+  })
+  .transform((value) => ({
+    projectId: value.project_id,
+    authorityRef: value.authority_ref,
+    modelRef: value.model_ref,
+    sourceRefs: value.source_refs,
+  }))
+export type CanonicalModelProject = z.infer<typeof MossOntologyProjectSchema>
+export const MossOntologyProjectsResponseSchema = z.object({
+  projects: z.array(MossOntologyProjectSchema),
+})
+export const MossSessionProjectResponseSchema = z.object({
+  project: MossOntologyProjectSchema.nullable(),
+})
 
 /** 用户级模型偏好（Moss 用户偏好 GET/PUT /api/v1/users/me/model 的 webui 代理 DTO） */
 export const SetUserModelRequestSchema = z.object({

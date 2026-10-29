@@ -282,6 +282,27 @@ fixture, and production model/comment delivery remains separate acceptance.
 
 ## Acceptance boundary
 
+### Cloud canonical project references
+
+The shared Moss client provides project discovery and owner-scoped conversation
+binding reads. WebUI exposes `GET /api/ontology/projects` and
+`GET /api/conversations/:id/ontology-project` through its existing authenticated
+session. Explicit response schemas retain only project, authority, model and
+source references; worker locations, credentials and model content cannot pass
+through as additional response properties. Upstream refusal remains an error,
+not an empty catalogue or a cached authorization result.
+
+The ordinary conversation request accepts optional `ontologyProjectId`, distinct
+from the LLM `modelId`. The same session client forwards it to Moss as
+`ontology_project_id`; Moss owns current authorization and atomic session/model
+binding before runner startup. The WebUI database does not store another model
+binding or business snapshot. Omitting it preserves ordinary conversations.
+
+These are client/server entry contracts, not a deployed cloud Studio, source
+intake, authenticated review/comment journey or proof of supported engine
+adoption. The WebUI project selector and review provider must use these current
+references rather than inventing a client-owned model authority.
+
 ### Local UX review before a public SDK release
 
 The normal Desktop entry uses the official installer; no development interpreter

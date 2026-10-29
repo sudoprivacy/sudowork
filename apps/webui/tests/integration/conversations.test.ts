@@ -77,6 +77,7 @@ const SESSIONS: MossSessionSummary[] = [
 let fakeUserModelId: string | null = null
 let fakeSystemDefaultModel: string | null = null
 let fakeUserModelError: unknown = new MossHttpError(404, '', '')
+let lastCreatedSessionInput: Parameters<MossSessionPort['create']>[1] | undefined
 
 function createFakeMossSession(): MossSessionPort {
   return {
@@ -87,6 +88,7 @@ function createFakeMossSession(): MossSessionPort {
       return SESSIONS.find((s) => s.sessionId === sessionId) ?? null
     },
     async create(_accessToken, input) {
+      lastCreatedSessionInput = input
       return { sessionId: `created-${input.assistantName}`, wsUrl: 'ws://moss.test/ws/sessions/x' }
     },
     async setUserModel() {},
@@ -173,6 +175,7 @@ const fakeMossAuth: MossAuthPort = {
 
 describe('conversation REST (real PostgreSQL + fake moss)', () => {
   const runtimeRequests: { path: string; method?: string; accessToken?: string }[] = []
+  const projectRequests: { path: string; accessToken?: string }[] = []
   let pool: Pool
   let principalA: Principal
   let principalB: Principal
@@ -187,6 +190,20 @@ describe('conversation REST (real PostgreSQL + fake moss)', () => {
       _base: string,
       req: { path: string; method?: string; accessToken?: string },
     ): Promise<unknown> => {
+      if (req.path.endsWith('/ontology-project')) {
+        projectRequests.push(req)
+        return {
+          project: req.path.includes('/sess-a1/')
+            ? {
+                project_id: '9ab3a688-1b15-431e-8b69-5a9f0c9d9dab',
+                authority_ref: 'sales',
+                model_ref: 'sales-model',
+                source_refs: ['sales-source'],
+                worker_url: 'must-not-escape',
+              }
+            : null,
+        }
+      }
       if (req.path === '/api/v1/agent-runtimes/moss-a/upgrade') {
         runtimeRequests.push(req)
         return { runtime: { ownerId: 'moss-a', privateConnection: 'must-not-leak' } }
@@ -562,6 +579,70 @@ describe('conversation REST (real PostgreSQL + fake moss)', () => {
       .send({ assistantName: 'helper', enabledSkills: ['ghost-skill'] })
     expect(badSkill.status).toBe(400)
     expect(badSkill.body.field).toBe('enabledSkills')
+  })
+
+  test('canonical project selection reaches the ordinary Moss creation entry as an opaque reference', async () => {
+    const app = await buildApp()
+    const ontologyProjectId = '9ab3a688-1b15-431e-8b69-5a9f0c9d9dab'
+    const response = await request(app)
+      .post('/api/conversations')
+      .set('Cookie', cookieA)
+      .set('Origin', testConfig.publicOrigin)
+      .send({ assistantName: 'helper', enabledSkills: [], ontologyProjectId })
+    expect(response.status).toBe(201)
+    expect(lastCreatedSessionInput).toEqual({
+      assistantName: 'helper',
+      enabledSkills: [],
+      ontologyProjectId,
+    })
+    const accepted = lastCreatedSessionInput
+    const invalid = await request(app)
+      .post('/api/conversations')
+      .set('Cookie', cookieA)
+      .set('Origin', testConfig.publicOrigin)
+      .send({
+        assistantName: 'helper',
+        enabledSkills: [],
+        ontologyProjectId: '/srv/customer-model',
+      })
+    expect(invalid.status).toBe(400)
+    expect(lastCreatedSessionInput).toBe(accepted)
+  })
+
+  test('session project recovery enforces current ownership before reading the binding', async () => {
+    const app = await buildApp()
+    projectRequests.length = 0
+    expect((await request(app).get('/api/conversations/sess-a1/ontology-project')).status).toBe(401)
+    expect(
+      (await request(app).get('/api/conversations/sess-a1/ontology-project').set('Cookie', cookieB))
+        .status,
+    ).toBe(403)
+    expect(
+      (await request(app).get('/api/conversations/missing/ontology-project').set('Cookie', cookieA))
+        .status,
+    ).toBe(404)
+    expect(projectRequests).toEqual([])
+    const result = await request(app)
+      .get('/api/conversations/sess-a1/ontology-project')
+      .set('Cookie', cookieA)
+    expect(result.status).toBe(200)
+    expect(result.headers['cache-control']).toBe('no-store')
+    expect(result.body).toEqual({
+      project: {
+        projectId: '9ab3a688-1b15-431e-8b69-5a9f0c9d9dab',
+        authorityRef: 'sales',
+        modelRef: 'sales-model',
+        sourceRefs: ['sales-source'],
+      },
+    })
+    expect(projectRequests).toEqual([
+      { path: '/api/v1/sessions/sess-a1/ontology-project', method: 'GET', accessToken: 'at' },
+    ])
+    const ordinary = await request(app)
+      .get('/api/conversations/sess-a2/ontology-project')
+      .set('Cookie', cookieA)
+    expect(ordinary.status).toBe(200)
+    expect(ordinary.body).toEqual({ project: null })
   })
 
   test('terminate enforces ownership and returns ok', async () => {

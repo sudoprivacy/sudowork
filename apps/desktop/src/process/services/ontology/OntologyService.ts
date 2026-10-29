@@ -60,7 +60,7 @@ import type {
   IOntologyWorkbenchDraftInput,
   IOntologyWorkbenchSnapshot,
 } from '@sudowork/ontology-common';
-import { exportOntologyArchive, extractOntologyArchive } from '@sudowork/ontology-runtime/archive';
+import { exportOntologyArchive, extractOntologyArchiveBytes } from '@sudowork/ontology-runtime/archive';
 import { contentHash, loadOntologyArtifact, readPackageFile, OntologyPackageError } from '@sudowork/ontology-runtime/artifact';
 import { restoreOntologyAuthoring } from '@sudowork/ontology-runtime/authoring';
 import { mergeOntologyBindings, ontologyBindingsSchema } from '@sudowork/ontology-runtime/bindings';
@@ -168,11 +168,9 @@ export class OntologyService {
     if (bytes.length > 512 * 1024 * 1024) throw new OntologyPackageError('PACKAGE_INVALID', 'Unsupported package size.');
     await fs.mkdir(this.scripts.directory, { recursive: true, mode: 0o700 });
     const staging = await fs.mkdtemp(path.join(this.scripts.directory, '.import-'));
-    const archive = path.join(staging, 'input.sudoonto');
     try {
-      await fs.writeFile(archive, bytes, { mode: 0o600 });
       const directory = path.join(staging, 'package');
-      await extractOntologyArchive(archive, directory);
+      await extractOntologyArchiveBytes(bytes, directory, path.join(this.scripts.directory, 'artifacts'));
       const manifest = (await loadOntologyArtifact(directory, {}, true)).manifest;
       if (manifest.versionId === 'draft' || manifest.version === 'draft') throw new OntologyPackageError('PACKAGE_INVALID', 'Export a published version before importing it as a Sudowork ontology package.');
       return { staging, directory, fingerprint: contentHash(bytes) };

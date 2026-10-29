@@ -14,6 +14,7 @@ import {
   MossHttpError,
   MossNetworkError,
   mossFetchAsset,
+  createMossOntologyPort,
 } from '@sudowork/moss-client'
 import type {
   ConversationListItem,
@@ -248,6 +249,9 @@ export async function createConversation(
     deps.moss.create(ctx, {
       assistantName,
       ...(templateRef ? { templateRef } : {}),
+      ...(input.ontologyProjectId !== undefined
+        ? { ontologyProjectId: input.ontologyProjectId }
+        : {}),
       enabledSkills: input.enabledSkills,
     }),
   )
@@ -263,6 +267,16 @@ export async function createConversation(
   }
   // ws_url 只留在服务端（协调器 resume 时使用）
   return { id: created.sessionId, taskId: created.taskId ?? created.sessionId }
+}
+
+export async function getConversationProject(
+  deps: ConversationDeps,
+  principal: Principal,
+  sessionId: string,
+  ctx: MossCallContext,
+) {
+  await requireAccessibleSession(deps, principal, sessionId, ctx)
+  return mapMossErrors(() => createMossOntologyPort(deps.mossFetch).sessionProject(ctx, sessionId))
 }
 
 /** 计划 3.3：打开会话先重新查询该 Session 并校验归属。 */

@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createDefaultOntologyWorkbenchSnapshot } from '@sudowork/ontology-common';
 import type { IOntologyWorkbenchSnapshot, IOntologyScriptResponse } from '@sudowork/ontology-common';
 import { buildOntologyArtifact, canonicalJson, loadOntologyArtifact, sealPackage, verifyPackage } from '@sudowork/ontology-runtime/artifact';
-import { exportOntologyArchive, extractOntologyArchive } from '@sudowork/ontology-runtime/archive';
+import { exportOntologyArchive, extractOntologyArchive, extractOntologyArchiveBytes } from '@sudowork/ontology-runtime/archive';
 
 const cliFile = path.resolve(__dirname, '../../resources/ontology-cli/ontology.cjs');
 let directory: string;
@@ -117,6 +117,42 @@ async function invoke(root: string, command: string[], bindings?: string, inputA
 
 // Real CLI processes and complete archive round trips use the integration budget.
 describe('portable ontology scripts', () => {
+  it.each([128, 32 * 1024 * 1024 + 1])(
+    'preserves all %i foreign CLI bytes through archive staging',
+    async (size) => {
+      const input = path.join(directory, 'foreign.cjs');
+      const content = Buffer.alloc(size, ' ');
+      content.write("throw new Error('must not execute while staging');");
+      content[content.length - 1] = 10;
+      await fs.writeFile(input, content);
+      const artifact = await buildOntologyArtifact(snapshot, { root: path.join(directory, 'artifacts'), cliFile: input });
+      const archive = path.join(directory, 'foreign.zip');
+      await exportOntologyArchive(artifact, { targetPath: archive, embeddedResourceIds: [] });
+      const target = path.join(directory, 'staged');
+      await extractOntologyArchiveBytes(await fs.readFile(archive), target, path.join(directory, 'import-cache'));
+      expect((await fs.readFile(path.join(target, 'scripts/ontology.cjs'))).equals(content)).toBe(true);
+      expect((await verifyPackage(target)).runtimeDigest).toBe(artifact.manifest.runtimeDigest);
+    },
+    60_000
+  );
+
+  it('rejects a corrupted import CLI blob and removes the partially staged package', async () => {
+    const input = path.join(directory, 'foreign.cjs');
+    await fs.writeFile(input, "throw new Error('must not execute while staging');\n");
+    const artifact = await buildOntologyArtifact(snapshot, { root: path.join(directory, 'artifacts'), cliFile: input });
+    const archive = path.join(directory, 'foreign.zip');
+    await exportOntologyArchive(artifact, { targetPath: archive, embeddedResourceIds: [] });
+    const bytes = await fs.readFile(archive);
+    const cache = path.join(directory, 'import-cache');
+    await extractOntologyArchiveBytes(bytes, path.join(directory, 'first-import'), cache);
+    const blob = path.join(cache, '.cli', (await fs.readdir(path.join(cache, '.cli')))[0]);
+    await fs.chmod(blob, 0o600);
+    await fs.writeFile(blob, 'corrupted');
+    const target = path.join(directory, 'rejected-import');
+    await expect(extractOntologyArchiveBytes(bytes, target, cache)).rejects.toMatchObject({ code: 'PACKAGE_INTEGRITY_FAILED' });
+    await expect(fs.stat(target)).rejects.toMatchObject({ code: 'ENOENT' });
+  }, 60_000);
+
   it('keeps published CLI bytes pinned across source rebuilds and rejects a corrupted shared blob', async () => {
     const input = path.join(directory, 'fixture.cjs');
     const root = path.join(directory, 'artifacts');
