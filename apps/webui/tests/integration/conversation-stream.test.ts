@@ -100,6 +100,7 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
   /** When set, `resume` hands back this ws_url instead of the matching one — used to exercise rejection. */
   let upstreamWsUrlOverride: string | null = null
   let upstreamAttemptId = 'fixture-attempt'
+  let browserContinuation: (() => Promise<boolean>) | null = null
   const upstreamConnections: WebSocket[] = []
   const upstreamReceived: WsEvent[] = []
   const upstreamAuthHeaders: string[] = []
@@ -324,6 +325,7 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
       config: testConfig,
       auth,
       moss: fakeSessionPort,
+      browserControl: async () => (browserContinuation ? browserContinuation() : false),
     })
     registerApiRoutes(app, {
       config: testConfig,
@@ -1201,6 +1203,91 @@ describe('conversation stream (browser WS ⇄ coordinator ⇄ upstream moss WS)'
         .post(`/api/conversations/${SID}/terminate`)
         .set('Cookie', cookie1)
         .set('Origin', 'http://localhost:5273')
+      await sleep(150)
+    }
+  }, 20_000)
+
+  test('delivers one chat prompt despite an idle snapshot during the browser continuation barrier', async () => {
+    let release!: () => void
+    let entered!: () => void
+    const barrier = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const reached = new Promise<void>((resolve) => {
+      entered = resolve
+    })
+    browserContinuation = async () => {
+      entered()
+      await barrier
+      return true
+    }
+    upstreamMode = 'hold'
+    const writer = await browserWs(cookie1)
+    const observer = await browserWs(cookie2)
+    const events = collector(writer)
+    const observerEvents = collector(observer)
+    const start = upstreamReceived.length
+    try {
+      writer.send(JSON.stringify({ kind: 'send', text: 'Observe the persisted login.' }))
+      await reached
+      const upstream = upstreamConnections.at(-1)!
+      const inputState = (revision: number, running: boolean) => ({
+        type: 'input_delivery_update',
+        update: {
+          kind: 'state',
+          state: { revision, running, paused: false, activeTurnId: null, pending: [] },
+        },
+      })
+      upstream.send(JSON.stringify(inputState(1, false)))
+      await events.waitFor(
+        (event) =>
+          event.kind === 'upstream' &&
+          (event.event as { type?: string })?.type === 'input_delivery_update',
+      )
+      const lock = await pool.query<{ state: string }>(
+        'SELECT state FROM conversation_locks WHERE principal_id=$1 AND moss_session_id=$2',
+        [principal.id, SID],
+      )
+      expect(lock.rows[0]?.state).toBe('running')
+      observer.send(JSON.stringify({ kind: 'send', text: 'A competing prompt' }))
+      expect((await observerEvents.waitFor((event) => event.kind === 'error')).code).toBe(
+        'CONVERSATION_BUSY',
+      )
+      expect(upstreamReceived.slice(start).filter((frame) => frame.type === 'user')).toHaveLength(0)
+      release()
+      await vi.waitFor(() =>
+        expect(upstreamReceived.slice(start).filter((frame) => frame.type === 'user')).toHaveLength(
+          1,
+        ),
+      )
+      expect(upstreamReceived.at(-1)).toMatchObject({
+        type: 'user',
+        message: { content: [{ type: 'text', text: 'Observe the persisted login.' }] },
+      })
+      upstream.send(JSON.stringify(inputState(2, true)))
+      upstream.send(JSON.stringify(inputState(3, false)))
+      await events.waitFor((event) => {
+        const payload = event.event as { update?: { state?: { revision?: number } } } | undefined
+        return event.kind === 'upstream' && payload?.update?.state?.revision === 3
+      })
+      const completedLock = await pool.query<{ state: string }>(
+        'SELECT state FROM conversation_locks WHERE principal_id=$1 AND moss_session_id=$2',
+        [principal.id, SID],
+      )
+      expect(completedLock.rows[0]?.state).toBe('idle')
+      upstream.send(JSON.stringify({ type: 'result', status: 'success', is_error: false }))
+      await events.waitFor(
+        (event) =>
+          event.kind === 'upstream' && (event.event as { type?: string })?.type === 'result',
+      )
+      expect(upstreamReceived.slice(start).filter((frame) => frame.type === 'user')).toHaveLength(1)
+    } finally {
+      release()
+      browserContinuation = null
+      upstreamMode = 'auto'
+      writer.close()
+      observer.close()
+      await coordinator.terminate(principal.id, SID)
       await sleep(150)
     }
   }, 20_000)
