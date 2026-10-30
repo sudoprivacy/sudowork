@@ -1,9 +1,18 @@
 # Sudograph host runtime
 
-The same compiler client and registered PostgreSQL/MySQL provider used by
+The same compiler client, registered PostgreSQL/MySQL provider and review
+transport used by
 SudoWork Desktop, available to ordinary Node hosts. This package has no Electron,
 renderer, RDF model, UI connector catalogue or private workspace dependency.
 The existing Desktop and ontology-runtime modules re-export these constructors.
+
+`SudographReviewHost` and `ShareoneReviewAssets` provide the existing authenticated
+loopback review transport and checksum-checked ShareOne shell loader. Hosts inject
+current authorization, canonical reads and comment delivery; this package creates
+no tenant authority, credential store or comment registry. Desktop re-exports the
+same classes. Cloud hosts must supply their existing current-user policy and
+authenticated browser handoff rather than treating a local cookie as a tenant
+grant. Launch credentials remain non-enumerable and out of URLs and JSON.
 
 Deploy a verified, pinned `sudograph-compiler` wheel in a dedicated Python
 environment. Construct `SudographModelClient` with that interpreter, an empty

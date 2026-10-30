@@ -43,15 +43,41 @@ assert.equal(JSON.parse(readFileSync(path.join(installedRoot, 'package.json'), '
 // Check public declarations without monorepo paths or workspace type packages.
 writeFileSync(
   path.join(consumer, 'probe.ts'),
-  `import { SudographModelClient, type ISudographRuntime, type ISudographContext, type ISudographSourceConnector } from '@sudowork/sudograph-runtime';
+  `import { SudographModelClient, SudographReviewHost, ShareoneReviewAssets, type ISudographReviewLaunch, type ISudographRuntime, type ISudographContext, type ISudographSourceConnector } from '@sudowork/sudograph-runtime';
 const source: ISudographSourceConnector = { sourceType: 'postgresql', host: 'localhost', database: 'fixture' };
 const runtime: ISudographRuntime = { python: 'python', compilerRoot: '/worker', modelDirectory: '/models', source: { dsn: 'registered://fixture', connector: source } };
 const result: Promise<ISudographContext> = new SudographModelClient(runtime).invoke('fixture', 'host', { operation: 'read', product: 'context' });
 void result;
+const assets = new ShareoneReviewAssets();
+const file: { body: Uint8Array; contentType: string } | undefined = assets.get('entry.js');
+const host = new SudographReviewHost({ authorize: async () => {}, read: async () => ({}) });
+const launch: Promise<ISudographReviewLaunch> = host.createSession({ workspaceId: 'fixture', conversationId: 'conversation' });
+void file; void launch;
 `
 );
 writeFileSync(path.join(consumer, 'tsconfig.json'), JSON.stringify({ compilerOptions: { module: 'NodeNext', moduleResolution: 'NodeNext', target: 'ES2022', strict: true, skipLibCheck: false, types: [], noEmit: true }, files: ['probe.ts'] }));
 run(process.execPath, [path.join(root, 'node_modules/typescript/bin/tsc'), '-p', path.join(consumer, 'tsconfig.json')], consumer);
+writeFileSync(
+  path.join(consumer, 'review.mjs'),
+  `import assert from 'node:assert/strict';
+import { SudographReviewHost, ShareoneReviewAssets } from '@sudowork/sudograph-runtime';
+assert.equal(typeof new ShareoneReviewAssets().load, 'function');
+const host = new SudographReviewHost({ authorize: async () => {}, read: async () => '<html>installed-review-transport</html>' });
+try {
+  const launch = await host.createSession({ workspaceId: 'fixture', conversationId: 'conversation' });
+  assert.deepEqual(JSON.parse(JSON.stringify(launch)), { url: launch.url });
+  assert(!launch.url.includes(launch.cookie.value));
+  assert.equal((await fetch(launch.url)).status, 403);
+  const headers = { Cookie: launch.cookie.name + '=' + launch.cookie.value };
+  const response = await fetch(launch.url, { headers });
+  assert.equal(response.status, 200);
+  assert.equal(await response.text(), '<html>installed-review-transport</html>');
+  launch.revoke();
+  assert.equal((await fetch(launch.url, { headers })).status, 403);
+} finally { await host.close(); }
+`
+);
+run(process.execPath, [path.join(consumer, 'review.mjs')], consumer);
 const probeEnv = { ...process.env, PYTHONNOUSERSITE: '1' };
 for (const key of ['PYTHONPATH', 'PYTHONHOME', 'PYTHONUSERBASE']) delete probeEnv[key];
 const compiler = JSON.parse(
@@ -96,6 +122,7 @@ const receipt = {
   outside_checkout: true,
   declarations_without_workspace_types: true,
   real_compiler_probe: true,
+  installed_review_transport: true,
   source_write_back: false,
   scope: 'Installable host transport and actual canonical compiler fixture; not tenant permissions, production source registration, WebUI or engine publication.',
 };
