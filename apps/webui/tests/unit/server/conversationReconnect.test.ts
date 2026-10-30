@@ -170,6 +170,54 @@ beforeEach(() => {
 })
 
 describe('conversation reconnect during generation', () => {
+  test('keeps a new chat reservation when an idle snapshot arrives during browser continuation', async () => {
+    let release!: () => void
+    const barrier = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const control = vi.fn(async () => {
+      await barrier
+      return true
+    })
+    const service = coordinator(undefined, control)
+    const browser = connection()
+    service.subscribe(browser)
+    const sending = service.handleClientMessage(browser, {
+      kind: 'send',
+      text: 'Observe the signed-in page.',
+    })
+    await vi.waitFor(() => expect(control).toHaveBeenCalledOnce())
+    state.sockets[0]!.onEvent({
+      type: 'input_delivery_update',
+      update: {
+        kind: 'state',
+        state: { revision: 1, running: false, paused: false, activeTurnId: null, pending: [] },
+      },
+    })
+    await vi.waitFor(() =>
+      expect(browser.ws.send).toHaveBeenCalledWith(
+        expect.stringContaining('input_delivery_update'),
+      ),
+    )
+    try {
+      expect(state.lock).toEqual({ state: 'running', writerWebSessionId: 'web-a' })
+      await service.handleClientMessage(browser, { kind: 'send', text: 'A second turn' })
+      expect(browser.ws.send).toHaveBeenCalledWith(expect.stringContaining('CONVERSATION_BUSY'))
+    } finally {
+      release()
+      await sending
+    }
+    expect(state.sockets[0]!.send).toHaveBeenCalledOnce()
+    expect(state.sockets[0]!.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'user',
+        message: expect.objectContaining({
+          content: [{ type: 'text', text: 'Observe the signed-in page.' }],
+        }),
+      }),
+    )
+  })
+
   test('uses one normal chat turn after the browser observation barrier and the existing stop for interruption', async () => {
     const intents: string[] = []
     const service = coordinator(undefined, async (_ctx, _sid, intent) => {

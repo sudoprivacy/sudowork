@@ -672,13 +672,17 @@ export class ConversationCoordinator {
     if (
       !state.running &&
       (state.paused || state.pending.length === 0) &&
+      // The engine cannot acknowledge a prompt still waiting on the browser
+      // continuation barrier. An idle snapshot must preserve that reservation.
+      entry.pendingDelivery?.phase !== 'preparing' &&
       ![...entry.inputRequests.values()].some((request) => request.isMutation)
     ) {
+      const delivery = entry.pendingDelivery
       await releaseToIdle(this.deps.pool, {
         principalId: entry.principalId,
         mossSessionId: entry.mossSessionId,
       })
-      entry.pendingDelivery = null
+      if (entry.pendingDelivery === delivery) entry.pendingDelivery = null
       await this.broadcastLockState(entry)
     }
   }
