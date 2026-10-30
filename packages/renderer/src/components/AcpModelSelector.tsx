@@ -22,6 +22,7 @@ import ActionChip from '@renderer/components/ui/ActionChip';
 import { usePreviewContext } from '@renderer/pages/conversation/preview';
 import { getModelDisplayLabel } from '@renderer/utils/agentUiDisplay';
 import { buildProviderModelGroups } from '@renderer/utils/modelProviderGroups';
+import ModelSearchPanel from '@renderer/components/ModelSearchPanel';
 
 function buildFallbackModelInfo(modelId?: string | null): AcpModelInfo | null {
   if (!modelId) return null;
@@ -433,43 +434,45 @@ const AcpModelSelector: React.FC<IAcpModelSelectorProps> = ({ conversationId, ba
       popupVisible={dropdownOpen}
       onVisibleChange={setDropdownOpen}
       droplist={
-        <div className='flex flex-col gap-0.5 p-1.5 rd-12px border bg-popup max-h-[min(60vh,420px)] overflow-y-auto scrollbar-hide' style={{ minWidth: 200, boxShadow: '0 8px 28px rgba(0, 0, 0, 0.12)' }}>
-          {providerModelGroups.map((group, groupIndex) => (
-            <div key={group.key} className='flex flex-col gap-0.5'>
-              <div className='flex items-center justify-between gap-2 pl-2.5 pr-0.5 pt-1 pb-0.5 min-h-6'>
-                <span className='text-12px leading-18px text-secondary truncate'>{group.name || t('common.other', { defaultValue: 'Other' })}</span>
-                {backend === 'scode' && !isGuest && groupIndex === 0 && (
-                  <span onClick={(e) => e.stopPropagation()}>
-                    <Tooltip content={t('common.refresh')} position='top'>
-                      <Button size='mini' shape='circle' type='text' icon={<IconRefresh spin={refreshingModels} />} loading={refreshingModels} onClick={handleRefreshModels} />
-                    </Tooltip>
-                  </span>
-                )}
-              </div>
-              {group.models.map((model) => {
-                // 获取模型健康状态
-                const providerConfig = group.provider || modelConfig?.find((p) => p.platform?.includes(backend || ''));
-                const healthStatus = providerConfig?.modelHealth?.[model.id]?.status || 'unknown';
-                const healthColor = healthStatus === 'healthy' ? 'bg-green-500' : healthStatus === 'unhealthy' ? 'bg-red-500' : 'bg-gray-400';
-                const selected = model.id === modelInfo.currentModelId;
+        <ModelSearchPanel groups={providerModelGroups} isOpen={dropdownOpen}>
+          {(filteredGroups) =>
+            filteredGroups.map((group, groupIndex) => (
+              <div key={group.key} className='flex flex-col gap-0.5 shrink-0'>
+                <div className='flex items-center justify-between gap-2 pl-2.5 pr-0.5 pt-1 pb-0.5 min-h-6'>
+                  <span className='text-12px leading-18px text-secondary truncate'>{group.name || t('common.other', { defaultValue: 'Other' })}</span>
+                  {backend === 'scode' && !isGuest && groupIndex === 0 && (
+                    <span onClick={(e) => e.stopPropagation()}>
+                      <Tooltip content={t('common.refresh')} position='top'>
+                        <Button size='mini' shape='circle' type='text' icon={<IconRefresh spin={refreshingModels} />} loading={refreshingModels} onClick={handleRefreshModels} />
+                      </Tooltip>
+                    </span>
+                  )}
+                </div>
+                {group.models.map((model) => {
+                  // 获取模型健康状态
+                  const providerConfig = group.provider || modelConfig?.find((p) => p.platform?.includes(backend || ''));
+                  const healthStatus = providerConfig?.modelHealth?.[model.id]?.status || 'unknown';
+                  const healthColor = healthStatus === 'healthy' ? 'bg-green-500' : healthStatus === 'unhealthy' ? 'bg-red-500' : 'bg-gray-400';
+                  const selected = model.id === modelInfo.currentModelId;
 
-                return (
-                  <div
-                    key={`${group.key}-${model.id}`}
-                    className={classNames('flex items-center gap-2 px-2.5 h-9.5 rd-8px cursor-pointer text-14px text-foreground transition-colors hover:bg-hover active:bg-active', selected && 'bg-2')}
-                    onClick={() => {
-                      handleSelectModel(model.id);
-                      setDropdownOpen(false);
-                    }}
-                  >
-                    {healthStatus !== 'unknown' && <div className={`size-1.5 rounded-full shrink-0 ${healthColor}`} />}
-                    <span className='truncate'>{model.label}</span>
-                  </div>
-                );
-              })}
-            </div>
-          ))}
-        </div>
+                  return (
+                    <div
+                      key={`${group.key}-${model.id}`}
+                      className={classNames('flex items-center gap-2 px-2.5 h-9.5 rd-8px cursor-pointer text-14px text-foreground transition-colors hover:bg-hover active:bg-active', selected && 'bg-2')}
+                      onClick={() => {
+                        handleSelectModel(model.id);
+                        setDropdownOpen(false);
+                      }}
+                    >
+                      {healthStatus !== 'unknown' && <div className={`size-1.5 rounded-full shrink-0 ${healthColor}`} />}
+                      <span className='truncate'>{model.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            ))
+          }
+        </ModelSearchPanel>
       }
     >
       {renderTrigger(displayLabel, true)}

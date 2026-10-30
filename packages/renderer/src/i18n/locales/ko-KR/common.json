@@ -50,6 +50,8 @@
   "notSet": "미설정",
   "default": "기본",
   "defaultModel": "기본 모델",
+  "searchModels": "모델 또는 제공업체 검색",
+  "noMatchingModels": "일치하는 모델이 없습니다",
   "modelSwitchSuccess": "{{model}}(으)로 전환되었습니다",
   "modelListRefreshed": "모델 목록이 새로고침되었습니다",
   "modelListRefreshFailed": "모델 목록 새로고침 실패",

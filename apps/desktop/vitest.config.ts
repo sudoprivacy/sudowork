@@ -113,6 +113,7 @@ export default defineConfig({
       // 新增功能时，将对应的源文件路径添加到此数组
       // 例如: 'src/process/services/newService.ts'
       include: [
+        '../../packages/renderer/src/components/ModelSearchPanel.tsx',
         '../../packages/contracts/src/inputDelivery.ts',
         '../../packages/moss-client/src/InputDeliveryClient.ts',
         '../../packages/renderer/src/hooks/useInputDelivery.ts',
