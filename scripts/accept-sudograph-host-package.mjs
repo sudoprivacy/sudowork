@@ -43,7 +43,7 @@ assert.equal(JSON.parse(readFileSync(path.join(installedRoot, 'package.json'), '
 // Check public declarations without monorepo paths or workspace type packages.
 writeFileSync(
   path.join(consumer, 'probe.ts'),
-  `import { SudographModelClient, SudographReviewHost, SudographReviewComments, ShareoneReviewAssets, type ISudographReviewStore, type ISudographReviewLaunch, type ISudographRuntime, type ISudographContext, type ISudographSourceConnector } from '@sudowork/sudograph-runtime';
+  `import { SudographModelClient, SudographReviewHost, SudographReviewComments, ShareoneReviewAssets, type ISudographReviewGrantStore, type ISudographReviewStore, type ISudographReviewLaunch, type ISudographRuntime, type ISudographContext, type ISudographSourceConnector } from '@sudowork/sudograph-runtime';
 const source: ISudographSourceConnector = { sourceType: 'postgresql', host: 'localhost', database: 'fixture' };
 const runtime: ISudographRuntime = { python: 'python', compilerRoot: '/worker', modelDirectory: '/models', source: { dsn: 'registered://fixture', connector: source } };
 const result: Promise<ISudographContext> = new SudographModelClient(runtime).invoke('fixture', 'host', { operation: 'read', product: 'context' });
@@ -53,6 +53,12 @@ const file: { body: Uint8Array; contentType: string } | undefined = assets.get('
 const host = new SudographReviewHost({ authorize: async () => {}, read: async () => ({}) });
 const launch: Promise<ISudographReviewLaunch> = host.createSession({ workspaceId: 'fixture', conversationId: 'conversation' });
 void file; void launch;
+declare const grants: ISudographReviewGrantStore;
+const embedded = new SudographReviewHost({ authorize: async () => 'ownership-generation',
+  read: async (_workspace, _request, binding) => ({ conversation: binding.conversationId }),
+  embedded: { origin: 'https://review.example', grants } });
+const revoked: Promise<void> = embedded.createSession({ workspaceId: 'fixture', conversationId: 'conversation', authorizationRef: 'ownership-generation' }).then(async launch => { await launch.revoke(); });
+void revoked;
 declare const database: ISudographReviewStore;
 const comments = new SudographReviewComments({ database, baseUrl: 'https://review.example', currentAccount: () => 'fixture', getKey: async () => null,
   setKey: async () => {}, authorize: async () => {}, head: async () => ({ revision: 'revision', context_digest: 'digest' }),
@@ -66,6 +72,7 @@ run(process.execPath, [path.join(root, 'node_modules/typescript/bin/tsc'), '-p',
 writeFileSync(
   path.join(consumer, 'review.mjs'),
   `import assert from 'node:assert/strict';
+import { createServer } from 'node:http';
 import { SudographReviewHost, SudographReviewComments, ShareoneReviewAssets } from '@sudowork/sudograph-runtime';
 assert.equal(typeof new ShareoneReviewAssets().load, 'function');
 const host = new SudographReviewHost({ authorize: async () => {}, read: async () => '<html>installed-review-transport</html>' });
@@ -78,7 +85,7 @@ try {
   const response = await fetch(launch.url, { headers });
   assert.equal(response.status, 200);
   assert.equal(await response.text(), '<html>installed-review-transport</html>');
-  launch.revoke();
+  await launch.revoke();
   assert.equal((await fetch(launch.url, { headers })).status, 403);
 } finally { await host.close(); }
 const comments = new SudographReviewComments({
@@ -92,6 +99,52 @@ try {
   assert.deepEqual(await comments.status('fixture', 'conversation'), { delivered: 3 });
   assert.equal(await comments.prepare('fixture', 'conversation'), null);
 } finally { comments.close(); }
+const shared = new Map();
+const grants = {
+  create: async (id, value) => { assert(!shared.has(id)); shared.set(id, structuredClone(value)); },
+  get: async id => { const value = shared.get(id); return value ? structuredClone(value) : undefined; },
+  update: async (id, expected, changes) => {
+    const current = shared.get(id);
+    if (!current || current.credentialHash !== expected.credentialHash || current.authorizationRef !== expected.authorizationRef) return false;
+    Object.assign(current, changes); return true;
+  },
+  delete: async id => { shared.delete(id); },
+};
+let current;
+const server = createServer((request, response) => {
+  void current.handleRequest(request, response).then(handled => { if (!handled) response.writeHead(404).end(); });
+});
+await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+const origin = 'http://127.0.0.1:' + server.address().port;
+let authorizationRef = 'epoch-1';
+const make = () => new SudographReviewHost({ embedded: { origin, grants },
+  authorize: async binding => { assert.equal(binding.authorizationRef, authorizationRef); return authorizationRef; },
+  read: async (_workspace, _request, binding) => '<html>' + binding.conversationId + '</html>',
+});
+const first = make(); current = first;
+let second;
+try {
+  await assert.rejects(first.createSession({ workspaceId: 'fixture', conversationId: 'conversation' }), /durable authorization reference/);
+  const launch = await first.createSession({ workspaceId: 'fixture', conversationId: 'conversation', authorizationRef });
+  assert.equal(new URL(launch.url).origin, origin);
+  assert(!JSON.stringify([...shared.values()]).includes(launch.cookie.value));
+  const headers = { Cookie: launch.cookie.name + '=' + launch.cookie.value };
+  assert.equal((await fetch(launch.url)).status, 403);
+  assert.equal(await (await fetch(launch.url, { headers })).text(), '<html>conversation</html>');
+  second = make(); current = second;
+  await first.close();
+  assert.equal(await (await fetch(launch.url, { headers })).text(), '<html>conversation</html>');
+  authorizationRef = 'epoch-2';
+  assert.equal((await fetch(launch.url, { headers })).status, 403);
+  const fresh = await second.createSession({ workspaceId: 'fixture', conversationId: 'conversation', authorizationRef });
+  assert.equal((await fetch(fresh.url, { headers: { Cookie: fresh.cookie.name + '=' + fresh.cookie.value } })).status, 200);
+  await fresh.revoke();
+  assert.equal((await fetch(fresh.url, { headers: { Cookie: fresh.cookie.name + '=' + fresh.cookie.value } })).status, 403);
+} finally {
+  await first.close(); await second?.close();
+  server.closeAllConnections();
+  await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+}
 `
 );
 run(process.execPath, [path.join(consumer, 'review.mjs')], consumer);
@@ -141,6 +194,7 @@ const receipt = {
   real_compiler_probe: true,
   installed_review_transport: true,
   installed_comment_provider: true,
+  installed_embedded_review_transport: true,
   source_write_back: false,
   scope: 'Installable host transport and actual canonical compiler fixture; not tenant permissions, production source registration, WebUI or engine publication.',
 };
