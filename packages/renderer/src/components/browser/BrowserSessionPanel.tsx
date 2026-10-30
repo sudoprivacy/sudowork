@@ -835,7 +835,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     return (
       <div className='h-full min-h-0 box-border flex flex-col gap-2 overflow-auto p-2' data-testid='browser-session-controls'>
         {controls}
-        <p className='text-xs text-t-secondary'>{t(`conversation.browserSession.${isConversationControlSupported ? 'conversationControl' : 'conversationUpdateRequired'}`)}</p>
+        {isSessionKnown ? <p className='text-xs text-t-secondary'>{t(`conversation.browserSession.${isConversationControlSupported ? 'conversationControl' : 'conversationUpdateRequired'}`)}</p> : null}
         {error ? <div role='alert'>{error}</div> : null}
         {occupancyView}
       </div>
@@ -844,7 +844,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
   return (
     <div className='h-full min-h-0 box-border flex flex-col gap-2 overflow-auto p-2' data-testid='browser-session-panel'>
       {controls}
-      <p className='text-xs text-t-secondary'>{t(`conversation.browserSession.${isConversationControlSupported ? 'conversationControl' : 'conversationUpdateRequired'}`)}</p>
+      {isSessionKnown ? <p className='text-xs text-t-secondary'>{t(`conversation.browserSession.${isConversationControlSupported ? 'conversationControl' : 'conversationUpdateRequired'}`)}</p> : null}
       {occupancyView}
       <Collapse bordered={false}>
         <Collapse.Item header={t('conversation.browserSession.browserSource')} name='browser-source'>
@@ -859,7 +859,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
               {t('conversation.browserSession.personalDisconnect')}
             </Button>
           ) : null}
-          {!session?.personalExtension && (session?.state === 'stopped' || (isLifecycleActor && session?.capabilities.lifecycle)) ? (
+          {!session?.personalExtension && (occupancy !== null || session?.state === 'stopped' || (isLifecycleActor && session?.capabilities.lifecycle)) ? (
             <div className='flex flex-wrap items-center gap-2'>
               <Select
                 aria-label={t('conversation.browserSession.launchMode')}
@@ -878,13 +878,13 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
                 disabled={isTransferring}
                 onChange={setTransport}
                 style={{ width: 220 }}
-                options={[...(!session.capabilities.existingExtension ? [{ value: 'extension', label: t('conversation.browserSession.extension') }] : []), { value: 'cdp', label: t('conversation.browserSession.cdp') }]}
+                options={[...(!session?.capabilities.existingExtension ? [{ value: 'extension', label: t('conversation.browserSession.extension') }] : []), { value: 'cdp', label: t('conversation.browserSession.cdp') }]}
               />
-              {session.state === 'stopped' ? (
+              {session?.state === 'stopped' ? (
                 <Button size='mini' disabled={!isConversationControlSupported || isTransferring || !!error} onClick={() => void onStart()}>
                   {t('conversation.browserSession.start')}
                 </Button>
-              ) : (
+              ) : session ? (
                 <>
                   <Button size='mini' disabled={!isLifecycleActor} onClick={() => onLifecycle('restart')}>
                     {t('conversation.browserSession.restart')}
@@ -893,7 +893,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
                     {t('conversation.browserSession.stop')}
                   </Button>
                 </>
-              )}
+              ) : null}
             </div>
           ) : null}
         </Collapse.Item>

@@ -420,60 +420,63 @@ if(response.ok){clearInterval(ticker);document.body.style.background='rgb(0,128,
                 )
                 session_id = (await response.json())["id"]
                 evidence["sessionId"] = session_id
+                owner_response = await context.request.get(
+                    origin + "/api/conversations/" + session_id + "/browser-owner"
+                )
+                await require_status(owner_response, "Read passive profile ownership")
+                occupancy = await owner_response.json()
+                evidence["preStartOwnerMetadata"] = occupancy
+                previous_owner = occupancy.get("owner")
+                assert occupancy["browserRunning"] is False, (
+                    "Preserve an existing running browser"
+                )
+                assert previous_owner is None or (
+                    previous_owner["desiredState"] == "terminated"
+                    and previous_owner["sessionId"]
+                    in config.get("allowedPreviousFixtureSessions", [])
+                ), "Only an explicitly owned, terminated fixture may precede this test"
                 await page.goto(
                     origin + "/#/browser-viewer/" + session_id,
                     wait_until="domcontentloaded",
                 )
                 panel = page.get_by_test_id("browser-session-panel")
-                response = await context.request.post(
-                    origin + "/api/conversations/" + session_id + "/browser",
-                    headers={"Origin": origin},
-                    data={"kind": "state"},
-                )
-                await require_status(response, "Read initial browser state")
+                # State polls are passive. Choose the mode before the explicit
+                # start, including when an ended conversation still holds the profile.
+                await open_browser_source(panel, labels)
+                await panel.get_by_role(
+                    "combobox", name=labels["launchMode"], exact=True
+                ).click()
+                await page.get_by_role(
+                    "option", name=labels["headful"], exact=True
+                ).click()
+                async with page.expect_response(
+                    lambda reply: reply.request.method == "POST"
+                    and reply.url.endswith("/browser")
+                    and reply.request.post_data_json.get("kind") == "start"
+                ) as starting:
+                    label = "takeover" if previous_owner else "start"
+                    await panel.get_by_role(
+                        "button", name=labels[label], exact=True
+                    ).click()
+                response = await starting.value
+                await require_status(response, "Explicit UI browser startup")
                 initial = (await response.json())["session"]
-                if initial["state"] == "stopped":
-                    await open_browser_source(panel, labels)
-                    await expect(
-                        panel.get_by_role("button", name=labels["start"], exact=True)
-                    ).to_be_enabled(timeout=30000)
-                    await panel.get_by_role(
-                        "combobox", name=labels["launchMode"], exact=True
-                    ).click()
-                    await page.get_by_role(
-                        "option", name=labels["headful"], exact=True
-                    ).click()
-                    await panel.get_by_role(
-                        "button", name=labels["start"], exact=True
-                    ).click()
-                    deadline = time.monotonic() + 90
-                    while initial["state"] in ("stopped", "pausing"):
-                        assert time.monotonic() < deadline, (
-                            "The requested real Chrome did not finish starting"
-                        )
-                        await asyncio.sleep(0.25)
-                        response = await context.request.post(
-                            origin + "/api/conversations/" + session_id + "/browser",
-                            headers={"Origin": origin},
-                            data={"kind": "state"},
-                        )
-                        await require_status(
-                            response, "Read requested browser startup state"
-                        )
-                        initial = (await response.json())["session"]
-                else:
-                    allowed = config.get("allowedExistingFixtureOrigins", [])
-                    assert allowed and all(
-                        any(tab["url"].startswith(value + "/") for value in allowed)
-                        or tab["url"] in ("about:blank", "chrome://newtab/")
-                        for tab in initial["tabs"]
-                    ), (
-                        "An existing browser is outside this test's explicit fixture scope; no navigation attempted"
+                is_browser_owned = True
+                deadline = time.monotonic() + 90
+                while initial["state"] in ("stopped", "pausing"):
+                    assert time.monotonic() < deadline, (
+                        "The requested real Chrome did not finish starting"
                     )
-                    assert (
-                        initial["isHeadless"] is False
-                        and initial["transport"] == "extension"
+                    await asyncio.sleep(0.25)
+                    response = await context.request.post(
+                        origin + "/api/conversations/" + session_id + "/browser",
+                        headers={"Origin": origin},
+                        data={"kind": "state"},
                     )
+                    await require_status(response, "Read requested browser startup state")
+                    initial = (await response.json())["session"]
+                assert initial["isHeadless"] is False and initial["transport"] == "extension"
+                evidence["windowedModeSelectedBeforeExplicitStart"] = True
                 if initial["state"] == "ai":
                     await interrupt_shared_browser(page, panel, labels)
                 else:

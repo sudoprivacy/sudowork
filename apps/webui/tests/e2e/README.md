@@ -1,5 +1,21 @@
 # Live shared-browser acceptance
 
+## Browser startup and profile ownership
+
+`live_browser_view_performance.py` reads profile ownership before opening its
+fresh conversation. Passive state polling must not move a profile from another
+conversation. The test chooses the windowed mode in the normal connection
+settings, then clicks the explicit Start action. An ended fixture's profile uses
+the visible Start and take over action with the same chosen mode; no intermediate
+headless browser or restart is needed.
+
+For a persistent acceptance account, the private JSON configuration may list
+`allowedPreviousFixtureSessions`, containing only session IDs from its recorded,
+terminated fixtures. The test also requires the browser to be stopped. It leaves
+running browsers and unrecognised holders alone. Fresh accounts need no list.
+The remaining refresh, input, clipboard, profile and real-model assertions retain
+their existing deadlines.
+
 ## Exact conversation links
 
 `live_conversation_links.py` creates an empty session outside the renderer's
