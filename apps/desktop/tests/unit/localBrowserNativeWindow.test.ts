@@ -80,6 +80,14 @@ it('rejects helper scripts outside the pinned installation before running them',
   expect(host.kill).toHaveBeenCalledOnce();
 });
 
+it('checks the installed package beside a base interpreter used by native review hosts', async () => {
+  const runtime = path.join(root, 'base-runtime');
+  metadata = { python: path.join(runtime, 'python.exe'), script: path.join(runtime, 'Lib', 'site-packages', 'ai_dev_browser', 'remote', 'native_window.py') };
+  worker = new LocalBrowserWorker({ root: path.join(root, 'profile'), python: metadata.python, binding });
+  await expect(worker.start()).resolves.toBeUndefined();
+  expect(mocks.spawn).toHaveBeenCalledOnce();
+});
+
 it('requires a supporting runtime and does not fall back to a tab-only success', async () => {
   metadata = null;
   await worker.start();
