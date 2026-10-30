@@ -795,9 +795,9 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
         current = acquired.session;
       }
       if (!current.activeTargetId || !current.capabilities.nativeWindow || current.state !== 'human' || !current.isController) throw new Error(t('conversation.browserSession.unavailable'));
-      // Selecting the existing target brings its native Chrome window forward.
-      // It keeps the page, cookies, drafts and shared panel on that same target.
-      const reply = await invoke({ kind: 'select-tab', targetId: current.activeTargetId, controlEpoch: current.controlEpoch, targetEpoch: current.targetEpoch });
+      // The host reveals this exact native window after its input barrier.
+      // A tab activation alone does not establish Windows foreground ownership.
+      const reply = await invoke({ kind: 'show-window', targetId: current.activeTargetId, controlEpoch: current.controlEpoch, targetEpoch: current.targetEpoch });
       if (generationRef.current === generation) update(reply.session);
     } catch (failure) {
       if (generationRef.current === generation) Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));

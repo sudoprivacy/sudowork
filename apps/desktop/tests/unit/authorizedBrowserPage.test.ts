@@ -23,7 +23,8 @@ let state: {
   targetEpoch: number;
   isController: boolean;
   isHumanControlHeld: boolean;
-  isHeadless: boolean;
+  isHeadless: boolean | null;
+  personalExtension?: { sessionId: string; profileId: string; isHeadless: boolean | null };
   transport: string;
   capabilities: { authorizedPageLaunch?: boolean; pageView: boolean; windowView: boolean; persistentProfile: boolean };
   activeTargetId: string | null;
@@ -89,6 +90,17 @@ describe('private browser host review launch', () => {
     expect(mocks.invoke.mock.calls.some(([action]) => action.kind === 'return')).toBe(false);
   });
 
+  it('allows explicit personal Chrome presentation without claiming a known headless browser has a window', async () => {
+    const { host } = fixture();
+    state.state = 'human';
+    state.isHeadless = null;
+    state.personalExtension = { sessionId: 'extension-run', profileId: 'selected-profile', isHeadless: null };
+    await host.invoke('conversation', { kind: 'inspect-existing-extension' });
+    expect((await host.invoke('conversation', { kind: 'state' })).session.capabilities.nativeWindow).toBe(true);
+    state.isHeadless = true;
+    expect((await host.invoke('conversation', { kind: 'state' })).session.capabilities.nativeWindow).toBe(false);
+  });
+
   it('keeps new-account prompts blocked when the old browser cannot confirm shutdown', async () => {
     const { host, control } = fixture(async () => false);
     await host.openAuthorizedPage('old-account', input);
@@ -113,6 +125,7 @@ describe('private browser host review launch', () => {
     expect(JSON.stringify(result)).not.toContain(input.cookie.value);
     expect(mocks.invoke).toHaveBeenCalledWith({ kind: 'start', isHeadless: false, transport: 'cdp' });
     expect(mocks.invoke).toHaveBeenCalledWith(expect.objectContaining({ kind: 'open-authorized-page', url: input.url, cookie: input.cookie, controlEpoch: 1, targetEpoch: 0 }));
+    expect(mocks.invoke).toHaveBeenCalledWith({ kind: 'show-window', targetId: 'review', controlEpoch: 1, targetEpoch: 1 });
     expect(mocks.invoke.mock.calls.some(([action]) => action.kind === 'take')).toBe(false);
     expect(control.status()).toMatchObject({ state: 'human', owner: 'conversation' });
   });

@@ -161,6 +161,11 @@ const operation = { controlEpoch: EpochSchema, targetEpoch: EpochSchema };
 
 export const BrowserSessionActionSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("state") }),
+  z.object({
+    kind: z.literal("show-window"),
+    targetId: z.string().min(1).max(256),
+    ...operation,
+  }),
   z.object({ kind: z.literal("inspect-existing-extension") }),
   ExistingExtensionSchema.extend({
     kind: z.literal("connect-existing-extension"),

@@ -115,7 +115,7 @@ it('shows the existing local Chrome target without opening another application w
   host.invoke.mockImplementation(async () => ({ success: true, data: { session } }));
   render(<BrowserSessionPanel conversationId='owned-conversation' />);
   fireEvent.click(await screen.findByRole('button', { name: 'openNative' }));
-  await waitFor(() => expect(host.invoke).toHaveBeenCalledWith({ conversationId: 'owned-conversation', action: { kind: 'select-tab', targetId: 'owned-tab', controlEpoch: 4, targetEpoch: 2 } }));
+  await waitFor(() => expect(host.invoke).toHaveBeenCalledWith({ conversationId: 'owned-conversation', action: { kind: 'show-window', targetId: 'owned-tab', controlEpoch: 4, targetEpoch: 2 } }));
   expect(opened).not.toHaveBeenCalled();
 });
 
@@ -127,7 +127,7 @@ it('keeps a remote browser in a separate viewer tab even on a Desktop host', asy
   render(<BrowserSessionPanel conversationId='owned-conversation' />);
   fireEvent.click(await screen.findByRole('button', { name: 'openViewer' }));
   expect(opened).toHaveBeenCalledWith(expect.stringContaining('#/browser-viewer/owned-conversation'), '_blank', 'noopener');
-  expect(host.invoke.mock.calls.some(([input]) => input.action.kind === 'select-tab')).toBe(false);
+  expect(host.invoke.mock.calls.some(([input]) => input.action.kind === 'show-window')).toBe(false);
 });
 
 it('waits for acknowledged control before showing the local browser', async () => {
@@ -139,8 +139,8 @@ it('waits for acknowledged control before showing the local browser', async () =
   });
   render(<BrowserSessionPanel conversationId='owned-conversation' />);
   fireEvent.click(await screen.findByRole('button', { name: 'openNative' }));
-  await waitFor(() => expect(host.invoke).toHaveBeenCalledWith({ conversationId: 'owned-conversation', action: { kind: 'select-tab', targetId: 'owned-tab', controlEpoch: 5, targetEpoch: 2 } }));
-  expect(host.invoke.mock.calls.findIndex(([input]) => input.action.kind === 'take')).toBeLessThan(host.invoke.mock.calls.findIndex(([input]) => input.action.kind === 'select-tab'));
+  await waitFor(() => expect(host.invoke).toHaveBeenCalledWith({ conversationId: 'owned-conversation', action: { kind: 'show-window', targetId: 'owned-tab', controlEpoch: 5, targetEpoch: 2 } }));
+  expect(host.invoke.mock.calls.findIndex(([input]) => input.action.kind === 'take')).toBeLessThan(host.invoke.mock.calls.findIndex(([input]) => input.action.kind === 'show-window'));
 });
 
 it('acknowledges live drag only after the checked input reply for the attached viewer', async () => {
