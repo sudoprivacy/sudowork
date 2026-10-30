@@ -39,7 +39,7 @@ describe('Sudograph authenticated host review boundary', () => {
     const host = new SudographReviewHost({
       authorize: vi.fn(),
       read: async (_workspace, input) => (input.operation === 'document' ? { html: '<html>Original graph</html>', revision: 'r1' } : { revision: 'r1' }),
-      comments: { assets: { shell: (_prefix: string, config: unknown) => JSON.stringify(config) } as ShareoneReviewAssets, prepare, proxy: vi.fn(), status: () => ({}) },
+      comments: { assets: { shell: (_prefix: string, config: unknown) => JSON.stringify(config) } as ShareoneReviewAssets, prepare, proxy: vi.fn(), status: async () => ({ delivered: 1 }) },
     });
     hosts.push(host);
     const launch = await host.createSession({ workspaceId: 'source', conversationId: 'chat-1' });
@@ -52,6 +52,7 @@ describe('Sudograph authenticated host review boundary', () => {
     expect(unavailable.status).toBe(503);
     expect(await unavailable.json()).toEqual({ state: 'unavailable', error: 'REVIEW_CONNECTION_UNAVAILABLE' });
     expect(await (await fetch(`${launch.url}content`, { headers })).text()).toBe('<html>Original graph</html>');
+    expect(await (await fetch(`${launch.url}delivery`, { headers })).json()).toEqual({ delivered: 1 });
     expect(await (await fetch(`${launch.url}connection`, { headers })).json()).toEqual({ state: 'ready', share_id: 'existing-private-share' });
     expect(prepare).toHaveBeenCalledTimes(2);
     expect(await (await fetch(`${launch.url}connection`, { headers })).json()).toMatchObject({ state: 'ready' });

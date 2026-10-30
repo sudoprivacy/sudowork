@@ -248,7 +248,7 @@ export class SudographReviewHost {
       return send(200, document.html, true);
     }
     if (request.method === 'GET' && route === 'head') return send(200, await this.options.read(session.workspaceId, { operation: 'head' }));
-    if (request.method === 'GET' && route === 'delivery') return send(200, provider.status(session));
+    if (request.method === 'GET' && route === 'delivery') return send(200, await provider.status(session));
     if (route.startsWith('api/v1/')) {
       let body: Record<string, unknown> | undefined;
       if (['POST', 'PUT', 'DELETE'].includes(request.method || '')) {

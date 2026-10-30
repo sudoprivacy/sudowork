@@ -43,7 +43,7 @@ assert.equal(JSON.parse(readFileSync(path.join(installedRoot, 'package.json'), '
 // Check public declarations without monorepo paths or workspace type packages.
 writeFileSync(
   path.join(consumer, 'probe.ts'),
-  `import { SudographModelClient, SudographReviewHost, ShareoneReviewAssets, type ISudographReviewLaunch, type ISudographRuntime, type ISudographContext, type ISudographSourceConnector } from '@sudowork/sudograph-runtime';
+  `import { SudographModelClient, SudographReviewHost, SudographReviewComments, ShareoneReviewAssets, type ISudographReviewStore, type ISudographReviewLaunch, type ISudographRuntime, type ISudographContext, type ISudographSourceConnector } from '@sudowork/sudograph-runtime';
 const source: ISudographSourceConnector = { sourceType: 'postgresql', host: 'localhost', database: 'fixture' };
 const runtime: ISudographRuntime = { python: 'python', compilerRoot: '/worker', modelDirectory: '/models', source: { dsn: 'registered://fixture', connector: source } };
 const result: Promise<ISudographContext> = new SudographModelClient(runtime).invoke('fixture', 'host', { operation: 'read', product: 'context' });
@@ -53,6 +53,12 @@ const file: { body: Uint8Array; contentType: string } | undefined = assets.get('
 const host = new SudographReviewHost({ authorize: async () => {}, read: async () => ({}) });
 const launch: Promise<ISudographReviewLaunch> = host.createSession({ workspaceId: 'fixture', conversationId: 'conversation' });
 void file; void launch;
+declare const database: ISudographReviewStore;
+const comments = new SudographReviewComments({ database, baseUrl: 'https://review.example', currentAccount: () => 'fixture', getKey: async () => null,
+  setKey: async () => {}, authorize: async () => {}, head: async () => ({ revision: 'revision', context_digest: 'digest' }),
+  deliver: async () => ({ success: true }), messageExists: async () => false });
+const status = comments.status('fixture', 'conversation');
+void status;
 `
 );
 writeFileSync(path.join(consumer, 'tsconfig.json'), JSON.stringify({ compilerOptions: { module: 'NodeNext', moduleResolution: 'NodeNext', target: 'ES2022', strict: true, skipLibCheck: false, types: [], noEmit: true }, files: ['probe.ts'] }));
@@ -60,7 +66,7 @@ run(process.execPath, [path.join(root, 'node_modules/typescript/bin/tsc'), '-p',
 writeFileSync(
   path.join(consumer, 'review.mjs'),
   `import assert from 'node:assert/strict';
-import { SudographReviewHost, ShareoneReviewAssets } from '@sudowork/sudograph-runtime';
+import { SudographReviewHost, SudographReviewComments, ShareoneReviewAssets } from '@sudowork/sudograph-runtime';
 assert.equal(typeof new ShareoneReviewAssets().load, 'function');
 const host = new SudographReviewHost({ authorize: async () => {}, read: async () => '<html>installed-review-transport</html>' });
 try {
@@ -75,6 +81,17 @@ try {
   launch.revoke();
   assert.equal((await fetch(launch.url, { headers })).status, 403);
 } finally { await host.close(); }
+const comments = new SudographReviewComments({
+  database: { reviewDeliverySummary: async () => ({ delivered: 3 }) },
+  baseUrl: 'https://review.example', currentAccount: () => 'fixture', getKey: async () => null, setKey: async () => {},
+  authorize: async () => {}, head: async () => ({ revision: 'revision', context_digest: 'digest' }),
+  deliver: async () => ({ success: true }), messageExists: async () => false,
+  fetcher: async () => { throw new Error('No anonymous provider requests permitted'); },
+});
+try {
+  assert.deepEqual(await comments.status('fixture', 'conversation'), { delivered: 3 });
+  assert.equal(await comments.prepare('fixture', 'conversation'), null);
+} finally { comments.close(); }
 `
 );
 run(process.execPath, [path.join(consumer, 'review.mjs')], consumer);
@@ -123,6 +140,7 @@ const receipt = {
   declarations_without_workspace_types: true,
   real_compiler_probe: true,
   installed_review_transport: true,
+  installed_comment_provider: true,
   source_write_back: false,
   scope: 'Installable host transport and actual canonical compiler fixture; not tenant permissions, production source registration, WebUI or engine publication.',
 };
