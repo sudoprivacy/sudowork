@@ -50,6 +50,8 @@
   "notSet": "未設定",
   "default": "デフォルト",
   "defaultModel": "デフォルトモデル",
+  "searchModels": "モデルやプロバイダーを検索",
+  "noMatchingModels": "一致するモデルがありません",
   "modelSwitchSuccess": "{{model}} に切り替えました",
   "modelListRefreshed": "モデルリストを更新しました",
   "modelListRefreshFailed": "モデルリストの更新に失敗しました",

@@ -52,6 +52,8 @@
   "deleteFailed": "Failed to delete",
   "default": "Default",
   "defaultModel": "Default Model",
+  "searchModels": "Search models or providers",
+  "noMatchingModels": "No matching models",
   "modelSwitchSuccess": "Switched to {{model}}",
   "notSet": "Not set",
   "modelListRefreshed": "Model list refreshed",

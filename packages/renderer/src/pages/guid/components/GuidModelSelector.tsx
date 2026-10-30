@@ -14,6 +14,7 @@ import useSWR from 'swr';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import type { IProvider, TProviderWithModel } from '@sudowork/common/storage';
 import ActionChip from '@renderer/components/ui/ActionChip';
+import ModelSearchPanel from '@renderer/components/ModelSearchPanel';
 import { getModelDisplayLabel } from '@renderer/utils/agentUiDisplay';
 import { buildProviderModelGroups } from '@renderer/utils/modelProviderGroups';
 import type { AcpModelInfo, RemoteModelStatus } from '../types';
@@ -255,34 +256,36 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({ isGeminiMode, mod
           popupVisible={acpOpen}
           onVisibleChange={setAcpOpen}
           droplist={
-            <div className={PANEL_CLASS} style={PANEL_STYLE}>
-              {acpProviderModelGroups.map((group) => (
-                <div key={group.key} className='flex flex-col gap-2px'>
-                  <div className={GROUP_TITLE_CLASS}>{group.name || t('common.other', { defaultValue: 'Other' })}</div>
-                  {group.models.map((model) => {
-                    // 获取模型健康状态
-                    const backend = currentAcpCachedModelInfo.source;
-                    const providerConfig = group.provider || modelConfig?.find((p) => p.platform?.includes(backend || ''));
-                    const healthStatus = providerConfig?.modelHealth?.[model.id]?.status || 'unknown';
-                    const selected = model.id === selectedAcpModel;
+            <ModelSearchPanel groups={acpProviderModelGroups} isOpen={acpOpen}>
+              {(filteredGroups) =>
+                filteredGroups.map((group) => (
+                  <div key={group.key} className='flex flex-col gap-0.5 shrink-0'>
+                    <div className={GROUP_TITLE_CLASS}>{group.name || t('common.other', { defaultValue: 'Other' })}</div>
+                    {group.models.map((model) => {
+                      // 获取模型健康状态
+                      const backend = currentAcpCachedModelInfo.source;
+                      const providerConfig = group.provider || modelConfig?.find((p) => p.platform?.includes(backend || ''));
+                      const healthStatus = providerConfig?.modelHealth?.[model.id]?.status || 'unknown';
+                      const selected = model.id === selectedAcpModel;
 
-                    return (
-                      <div
-                        key={model.id}
-                        className={classNames(ROW_CLASS, selected && 'bg-2')}
-                        onClick={() => {
-                          setSelectedAcpModel(model.id);
-                          setAcpOpen(false);
-                        }}
-                      >
-                        <HealthDot status={healthStatus} />
-                        <span className='truncate'>{model.label}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
+                      return (
+                        <div
+                          key={model.id}
+                          className={classNames(ROW_CLASS, selected && 'bg-2')}
+                          onClick={() => {
+                            setSelectedAcpModel(model.id);
+                            setAcpOpen(false);
+                          }}
+                        >
+                          <HealthDot status={healthStatus} />
+                          <span className='truncate'>{model.label}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))
+              }
+            </ModelSearchPanel>
           }
         >
           <ActionChip aria-label={t('conversation.welcome.selectModel')} icon={<Brain theme='outline' size='14' fill='currentColor' />} label={`${t('conversation.welcome.selectModel')} · ${acpButtonLabel}`} />

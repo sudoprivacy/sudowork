@@ -49,6 +49,8 @@
   "notSet": "Ayarlanmamış",
   "default": "Varsayılan",
   "defaultModel": "Varsayılan Model",
+  "searchModels": "Model veya sağlayıcı ara",
+  "noMatchingModels": "Eşleşen model yok",
   "modelSwitchSuccess": "{{model}} modeline geçildi",
   "modelListRefreshed": "Model listesi yenilendi",
   "modelListRefreshFailed": "Model listesi yenilenemedi",
