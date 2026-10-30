@@ -1,6 +1,6 @@
 {
   "name": "@sudowork/sudograph-runtime",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Host-only transport for the installed Sudograph compiler and registered database providers",
   "license": "Apache-2.0",
   "repository": "https://github.com/sudoprivacy/sudowork",

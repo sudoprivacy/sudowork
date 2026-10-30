@@ -218,6 +218,15 @@ recovery. Ordinary browser actions and chat cannot take another conversation's l
 
 ## Default-on private comments
 
+The Node host runtime package also owns `SudographReviewHost` and
+`ShareoneReviewAssets`. Desktop re-exports these same implementations; cloud
+integration can supply its existing authorization, canonical-read and comment
+ports without copying the transport. The package has no Electron or workspace
+dependency. Installed-artifact acceptance checks private launch credentials,
+anonymous refusal, authenticated rendering and revocation outside the checkout.
+This shared transport does not establish deployed cloud authorization or comment
+delivery.
+
 The normal host installs the pinned ShareOne review shell through the standard
 development/package scripts and includes its checked assets in `extraResources`.
 No caller must remember an environment override. Only an unpackaged developer
