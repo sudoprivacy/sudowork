@@ -80,7 +80,7 @@ describe('Sudograph authenticated host review boundary', () => {
     expect(page.status).toBe(200);
     expect(page.headers.get('cache-control')).toBe('no-store');
     expect(await page.text()).toBe(`<html>${new URL(launch.url).pathname}v1</html>`);
-    expect(read).toHaveBeenCalledWith('source', { operation: 'html', endpoint: `${new URL(launch.url).pathname}v1` });
+    expect(read).toHaveBeenCalledWith('source', { operation: 'html', endpoint: `${new URL(launch.url).pathname}v1` }, expect.objectContaining({ workspaceId: 'source', conversationId: 'chat-1' }));
     const head = await post(launch, { view: 'source', operation: 'head' });
     expect(await head.json()).toEqual({ result: { revision: 'r1', context_digest: 'd1' } });
     expect((await fetch(launch.url, { headers: { Cookie: `${cookie(launch)}; ${cookie(launch)}` } })).status).toBe(403);
@@ -131,7 +131,7 @@ describe('Sudograph authenticated host review boundary', () => {
     expect(other.read).not.toHaveBeenCalled();
     const revocable = fixture();
     const revoked = await revocable.host.createSession({ workspaceId: 'source', conversationId: 'chat-1' });
-    revoked.revoke();
+    await revoked.revoke();
     expect((await fetch(revoked.url, { headers: { Cookie: cookie(revoked) } })).status).toBe(403);
   });
 
@@ -139,7 +139,7 @@ describe('Sudograph authenticated host review boundary', () => {
     const f = fixture();
     const launch = await f.host.createSession({ workspaceId: 'source', conversationId: 'chat-1' });
     f.read.mockImplementationOnce(async () => {
-      launch.revoke();
+      await launch.revoke();
       return 'private record';
     });
     const response = await fetch(launch.url, { headers: { Cookie: cookie(launch) } });
@@ -155,7 +155,7 @@ describe('Sudograph authenticated host review boundary', () => {
     f.authorize.mockImplementationOnce(() => undefined);
     f.authorize.mockImplementationOnce(async () => {
       await Promise.resolve();
-      launch.revoke();
+      await launch.revoke();
     });
     const response = await fetch(launch.url, { headers: { Cookie: cookie(launch) } });
     expect(response.status).toBe(403);

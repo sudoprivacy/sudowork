@@ -11,7 +11,8 @@ import { SudographReviewComments } from './SudographReviewComments';
 export interface IReviewProviderDependencies {
   database: OntologyStudioDatabase;
   authorize: ISudographReviewHostOptions['authorize'];
-  read: ISudographReviewHostOptions['read'];
+  // Desktop's account-scoped provider also reads heads outside a browser grant.
+  read: (workspaceId: string, request: Record<string, unknown>) => Promise<unknown>;
   own: (comments: SudographReviewComments) => void;
 }
 

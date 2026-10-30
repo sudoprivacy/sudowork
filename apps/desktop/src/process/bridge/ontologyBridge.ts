@@ -94,7 +94,7 @@ export function initOntologyBridge(): void {
       launch = await ontologyService.createStudioReviewSession(input);
       return ok(await getLocalBrowserSessions().openAuthorizedPage(input.conversationId, launch));
     } catch (error) {
-      launch?.revoke();
+      await launch?.revoke();
       mainError('Ontology review', 'Could not open the bound review.', error instanceof Error ? error.stack : String(error));
       return fail(error);
     }
