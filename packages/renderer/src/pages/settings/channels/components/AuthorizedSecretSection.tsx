@@ -13,7 +13,14 @@ import type { TenantConfigItem } from '../types';
 import { resolveEnterpriseConfigItemIconUrl } from '../utils';
 import PreferenceRow from './PreferenceRow';
 
-const ConfigItemIcon: React.FC<{ iconUrl?: string; name: string; baseUrl?: string }> = ({ iconUrl, name, baseUrl }) => {
+type SecretScope = 'system' | 'department';
+
+const SECTION_TEXT_KEYS: Record<SecretScope, { title: string; lockedTip: string }> = {
+  system: { title: 'settings.secrets.enterprise.title', lockedTip: 'settings.secrets.enterprise.lockedTip' },
+  department: { title: 'settings.secrets.department.title', lockedTip: 'settings.secrets.department.lockedTip' },
+};
+
+function ConfigItemIcon({ iconUrl, name, baseUrl }: { iconUrl?: string; name: string; baseUrl?: string }) {
   const [useDefault, setUseDefault] = useState(false);
 
   useEffect(() => {
@@ -22,9 +29,9 @@ const ConfigItemIcon: React.FC<{ iconUrl?: string; name: string; baseUrl?: strin
 
   const src = useDefault ? resolveEnterpriseConfigItemIconUrl(null) : resolveEnterpriseConfigItemIconUrl(iconUrl ?? null, baseUrl);
   return <img src={src} alt={name} className='size-4 object-contain shrink-0' onError={() => setUseDefault(true)} />;
-};
+}
 
-export const EnterpriseSecretSection: React.FC = () => {
+export function AuthorizedSecretSection({ scope }: IAuthorizedSecretSectionProps) {
   const { t } = useTranslation();
   const { ensureValidToken, user } = useAuth();
   const [items, setItems] = useState<TenantConfigItem[]>([]);
@@ -41,27 +48,27 @@ export const EnterpriseSecretSection: React.FC = () => {
       }
       const headers = { Authorization: `Bearer ${token}` };
 
-      // 1. Get authorized system config IDs
+      // 1. Get authorized config items for this scope (rows carry the scope field)
       const authRes = await fetch(`${serverUrl}/api/v1/me/authorized-system-configs`, { headers });
       const authData = await authRes.json();
       if (!authData.success) return;
-      const authorizedIds = new Set((authData.data as Array<{ id: number }>).map((i) => i.id));
+      const authorizedIds = new Set((authData.data as Array<{ id: number; scope?: string }>).filter((i) => i.scope === scope).map((i) => i.id));
       if (authorizedIds.size === 0) return;
 
-      // 2. Get full config items with entries, filter to authorized system items
+      // 2. Get full config items with entries, filter to authorized items of this scope
       const itemsRes = await fetch(`${serverUrl}/api/v1/config/items`, { headers });
       const itemsData = await itemsRes.json();
       if (!itemsData.success) return;
 
-      const systemItems: TenantConfigItem[] = itemsData.data.filter((item: TenantConfigItem) => item.scope === 'system' && authorizedIds.has(item.id)).map((item: TenantConfigItem) => item);
+      const scopedItems: TenantConfigItem[] = itemsData.data.filter((item: TenantConfigItem) => item.scope === scope && authorizedIds.has(item.id));
 
-      setItems(systemItems);
+      setItems(scopedItems);
     } catch {
       // Silently fail
     } finally {
       setLoading(false);
     }
-  }, [ensureValidToken, user?.id]);
+  }, [ensureValidToken, scope, user?.id]);
 
   useEffect(() => {
     void loadItems();
@@ -72,7 +79,7 @@ export const EnterpriseSecretSection: React.FC = () => {
   return (
     <div className='space-y-3'>
       <div className='flex items-center gap-2'>
-        <span className='text-13px font-500 text-secondary'>{t('settings.secrets.enterprise.title', '企业凭据')}</span>
+        <span className='text-13px font-500 text-secondary'>{t(SECTION_TEXT_KEYS[scope].title)}</span>
       </div>
       {items.map((item) => (
         <div key={item.id} className='overflow-hidden rd-12px border'>
@@ -86,13 +93,13 @@ export const EnterpriseSecretSection: React.FC = () => {
                   <span className='min-w-0 flex-1 truncate text-14px font-600 text-foreground'>{item.name}</span>
                 </div>
               }
-              name={`enterprise-${item.id}`}
+              name={`${scope}-${item.id}`}
             >
               <div className='space-y-3 border-t pt-3'>
                 {item.entries.map((entry) => (
                   <PreferenceRow key={entry.id} label={entry.name} description={entry.config_desc || undefined} required={entry.required === 1}>
-                    <Tooltip content={t('settings.secrets.enterprise.lockedTip', '企业凭据禁止操作')}>
-                      <Input.Password value='••••••••' style={{ width: 240 }} disabled />
+                    <Tooltip content={t(SECTION_TEXT_KEYS[scope].lockedTip)}>
+                      <Input.Password value='*****' style={{ width: 240 }} disabled />
                     </Tooltip>
                   </PreferenceRow>
                 ))}
@@ -103,4 +110,8 @@ export const EnterpriseSecretSection: React.FC = () => {
       ))}
     </div>
   );
-};
+}
+
+interface IAuthorizedSecretSectionProps {
+  scope: SecretScope;
+}

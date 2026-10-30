@@ -89,6 +89,29 @@ test.beforeAll(async () => {
           scope: 'user',
           entries: [{ id: 1, name: 'ShareOne Key', config_key: 'shareone_key', required: 1 }],
         },
+        {
+          id: 2,
+          name: 'Ent Vault',
+          pinyin: 'entvault',
+          scope: 'system',
+          entries: [{ id: 2, name: 'Ent Key', config_key: 'ent_key', required: 1 }],
+        },
+        {
+          id: 3,
+          name: 'Dept Vault',
+          pinyin: 'deptvault',
+          scope: 'department',
+          entries: [{ id: 3, name: 'Dept Key', config_key: 'dept_key', required: 1 }],
+        },
+      ],
+    })
+  })
+  moss.get('/api/v1/me/authorized-system-configs', (_req, res) => {
+    res.json({
+      success: true,
+      data: [
+        { id: 2, name: 'Ent Vault', pinyin: 'entvault', scope: 'system' },
+        { id: 3, name: 'Dept Vault', pinyin: 'deptvault', scope: 'department' },
       ],
     })
   })
@@ -246,4 +269,39 @@ test('Vault form saves, enables and restores after a full reload with owner isol
   await openForm()
   await expect(field).toHaveValue('')
   await expect(page.getByRole('switch')).not.toBeChecked()
+})
+
+test('enterprise and department sections render read-only ahead of user credentials', async ({
+  page,
+  context,
+}) => {
+  const login = await context.request.post(`${origin}/api/auth/login/password`, {
+    headers: { origin },
+    data: { username: 'vault-alice', password: 'fixture-password' },
+  })
+  expect(login.status()).toBe(200)
+  await page.goto(`${origin}/#/settings/channels`)
+  await page.getByRole('tab', { name: /我的凭据|My credentials/i }).click()
+
+  const enterpriseTitle = page.getByText(/企业凭据|Enterprise Credentials/)
+  const departmentTitle = page.getByText(/部门凭据|Department Credentials/)
+  const userTitle = page.getByText(/用户凭据|User Credentials/)
+  await expect(enterpriseTitle).toBeVisible()
+  await expect(departmentTitle).toBeVisible()
+  await expect(userTitle).toBeVisible()
+
+  const [enterpriseBox, departmentBox, userBox] = await Promise.all([
+    enterpriseTitle.boundingBox(),
+    departmentTitle.boundingBox(),
+    userTitle.boundingBox(),
+  ])
+  expect(enterpriseBox!.y).toBeLessThan(departmentBox!.y)
+  expect(departmentBox!.y).toBeLessThan(userBox!.y)
+
+  // Locked values are masked and disabled; no plaintext ever reaches the page.
+  await page.locator('.arco-collapse-item-header').filter({ hasText: 'Ent Vault' }).click()
+  const lockedInputs = page.locator('input[disabled]')
+  await expect(lockedInputs.first()).toHaveValue('*****')
+  const body = await page.locator('body').innerText()
+  expect(body).not.toContain('ent_key')
 })

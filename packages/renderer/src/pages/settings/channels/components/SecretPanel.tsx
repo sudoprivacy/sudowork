@@ -12,7 +12,7 @@ import AionScrollArea from '@renderer/components/base/AionScrollArea';
 import itemRefreshIcon from '@renderer/assets/item-refresh.svg';
 import { useAppMode } from '@renderer/hooks/useAppMode';
 import { ZentaoChannelItem } from './ZentaoConfigForm';
-import { EnterpriseSecretSection } from './EnterpriseSecretSection';
+import { AuthorizedSecretSection } from './AuthorizedSecretSection';
 import PwdLoginSection from './PwdLoginSection';
 import TenantConfigSection from './TenantConfigSection';
 
@@ -55,17 +55,20 @@ const SecretPanel: React.FC = () => {
             </div>
           </div>
           <div className={classNames('space-y-3', 'mt-4')}>
-            {/* 企业凭据只读区域 */}
-            {isEnterprise && <EnterpriseSecretSection />}
+            {/* 企业凭据只读区域（system scope） */}
+            {isEnterprise && <AuthorizedSecretSection scope='system' />}
+
+            {/* 部门凭据只读区域（department scope） */}
+            {isEnterprise && <AuthorizedSecretSection scope='department' />}
 
             {/* 禅道（仅C端） */}
             {!isEnterprise && <ZentaoChannelItem />}
 
+            {/* 租户配置项（用户凭据，可编辑） */}
+            <TenantConfigSection refreshTrigger={refreshCounter} />
+
             {/* 网站自动登录 (pwd_login) */}
             <PwdLoginSection />
-
-            {/* 租户配置项 */}
-            <TenantConfigSection refreshTrigger={refreshCounter} />
           </div>
         </div>
       </div>
