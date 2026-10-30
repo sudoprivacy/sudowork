@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import { inputActionSchema } from './inputDelivery.js'
 
+const OntologyProjectIdSchema = z.string().uuid()
+
 /**
  * 会话契约（计划 3.10 / Task 5）。
  * 浏览器 DTO 严格白名单：不返回 ws_url、work_dir/cwd/fullPath、Moss origin、原始错误 body。
@@ -29,6 +31,7 @@ export type MossSessionSummary = z.infer<typeof MossSessionSummarySchema>
 
 export const MossSessionListResponseSchema = z.object({
   sessions: z.array(MossSessionSummarySchema),
+  ontology_project_id: OntologyProjectIdSchema.optional(),
 })
 
 export const MossStartupFailureSchema = z.object({
@@ -117,9 +120,14 @@ export const MossWorkspaceNodeSchema: z.ZodType<MossWorkspaceNode> = z.lazy(() =
 
 // ---------- 浏览器请求/响应 DTO（白名单） ----------
 
+export const ConversationListQuerySchema = z
+  .object({ ontologyProjectId: OntologyProjectIdSchema.optional() })
+  .strict()
+export type ConversationListQuery = z.infer<typeof ConversationListQuerySchema>
+
 export const CreateConversationRequestSchema = z.object({
   /** Registered business model, independently authorized by Moss before runtime startup. */
-  ontologyProjectId: z.string().uuid().optional(),
+  ontologyProjectId: OntologyProjectIdSchema.optional(),
   /** 空串 = 不指定智能体，由 Moss 走默认（部署版实测空 assistant_name 创建 200） */
   assistantName: z.string().trim().max(255),
   templateRef: z.string().trim().min(1).max(255).optional(),
@@ -134,7 +142,7 @@ const CanonicalReferenceSchema = z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0
 /** Explicit response whitelist: never carry model content, worker locations or credentials. */
 export const MossOntologyProjectSchema = z
   .object({
-    project_id: z.string().uuid(),
+    project_id: OntologyProjectIdSchema,
     authority_ref: CanonicalReferenceSchema,
     model_ref: CanonicalReferenceSchema,
     source_refs: z.array(CanonicalReferenceSchema).max(1000),

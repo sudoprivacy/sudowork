@@ -6,7 +6,7 @@ import { createApp, registerApiRoutes } from '@server/app'
 import type { AppConfig } from '@server/config'
 import type { MossAuthPort } from '@sudowork/moss-client'
 import type { MossSessionPort } from '@sudowork/moss-client'
-import { MossHttpError } from '@sudowork/moss-client'
+import { MossHttpError, MossProjectScopeError } from '@sudowork/moss-client'
 import { ConversationCoordinator } from '@server/features/conversations/ConversationCoordinator'
 import { upsertConversationModel } from '@server/features/conversations/conversationMetaRepository'
 import { upsertPrincipal, type Principal } from '@server/features/auth/principalRepository'
@@ -284,6 +284,63 @@ describe('conversation REST (real PostgreSQL + fake moss)', () => {
       .set('Cookie', cookieB)
     expect(res.status).toBe(200)
     expect((res.body.conversations as { id: string }[]).map((c) => c.id)).toEqual(['sess-b1'])
+  })
+
+  test('project history validates its identity, retains session ownership and never falls back on denial', async () => {
+    const projectId = '9ab3a688-1b15-431e-8b69-5a9f0c9d9dab'
+    const deniedId = '8ab3a688-1b15-431e-8b69-5a9f0c9d9dab'
+    const unsupportedId = '7ab3a688-1b15-431e-8b69-5a9f0c9d9dab'
+    const calls: Parameters<MossSessionPort['list']>[] = []
+    const moss = createFakeMossSession()
+    moss.list = async (ctx, query) => {
+      calls.push([ctx, query])
+      if (query?.ontologyProjectId === deniedId)
+        throw new MossHttpError(403, 'private-model-worker', '/private')
+      if (query?.ontologyProjectId === unsupportedId) throw new MossProjectScopeError()
+      return [SESSIONS[0]!, SESSIONS[3]!]
+    }
+    const app = await buildApp(moss)
+    expect(
+      (await request(app).get('/api/conversations').query({ ontologyProjectId: projectId })).status,
+    ).toBe(401)
+    for (const query of [
+      { ontologyProjectId: '/private/model.db' },
+      { ontologyProjectId: '' },
+      { ontologyProjectId: [projectId, deniedId] },
+      { ontologyProjectId: projectId, worker_url: 'https://caller.invalid' },
+    ]) {
+      const rejected = await request(app)
+        .get('/api/conversations')
+        .query(query)
+        .set('Cookie', cookieA)
+      expect(rejected.status).toBe(400)
+    }
+    expect(calls).toHaveLength(0)
+    const response = await request(app)
+      .get('/api/conversations')
+      .query({ ontologyProjectId: projectId })
+      .set('Cookie', cookieA)
+    expect(response.status).toBe(200)
+    expect(response.headers['cache-control']).toBe('no-store')
+    expect(response.body.conversations.map((item: { id: string }) => item.id)).toEqual(['sess-a1'])
+    expect(calls[0]?.[1]).toEqual({ ontologyProjectId: projectId })
+    const denied = await request(app)
+      .get('/api/conversations')
+      .query({ ontologyProjectId: deniedId })
+      .set('Cookie', cookieA)
+    expect(denied.status).toBe(403)
+    expect(JSON.stringify(denied.body)).not.toContain('private-model-worker')
+    const unsupported = await request(app)
+      .get('/api/conversations')
+      .query({ ontologyProjectId: unsupportedId })
+      .set('Cookie', cookieA)
+    expect(unsupported.status).toBe(502)
+    expect(unsupported.body).toEqual({ error: 'PROJECT_SESSION_SCOPE_UNCONFIRMED' })
+    expect(calls.map(([, query]) => query?.ontologyProjectId)).toEqual([
+      projectId,
+      deniedId,
+      unsupportedId,
+    ])
   })
 
   test('opens an authorized empty browser session absent from history with the same safe projection', async () => {

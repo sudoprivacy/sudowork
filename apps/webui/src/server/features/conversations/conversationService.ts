@@ -22,6 +22,7 @@ import type {
   CreateConversationRequest,
   UserModelResponse,
   MossSessionSummary,
+  ConversationListQuery,
 } from '@sudowork/contracts/conversations'
 import { convertMossMessagesToTMessages } from '@sudowork/common/chatLib'
 import type { TMessage } from '@sudowork/common/chatLib'
@@ -166,8 +167,11 @@ export async function listConversations(
   deps: ConversationDeps,
   principal: Principal,
   ctx: MossCallContext,
+  query: ConversationListQuery = {},
 ): Promise<ConversationListItem[]> {
-  const sessions = await mapMossErrors(() => deps.moss.list(ctx))
+  const sessions = await mapMossErrors(() =>
+    query.ontologyProjectId ? deps.moss.list(ctx, query) : deps.moss.list(ctx),
+  )
   // A management actor sees only the sessions they initiated through Moss.
   const visible = sessions.filter(
     (s) => isSessionAccessible(s, principal) && s.status !== 'terminated',

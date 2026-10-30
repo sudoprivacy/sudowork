@@ -1,7 +1,7 @@
 import { describe, expect, test, vi } from 'vitest'
 import { createServer } from 'node:http'
 import { convertMossMessagesToTMessages } from '@sudowork/common/chatLib'
-import { createMossSessionPort, mossRequest } from '@sudowork/moss-client'
+import { createMossSessionPort, mossRequest, MossProjectScopeError } from '@sudowork/moss-client'
 import {
   buildAnswerQuestionMessage,
   buildControlResponseMessage,
@@ -50,6 +50,39 @@ describe('MossSessionPort request shapes (contract vs baseline)', () => {
       accessToken: 'tk',
     })
   })
+
+  test('project discovery uses the same session endpoint and validates the opaque identity', async () => {
+    const ontologyProjectId = '9ab3a688-1b15-431e-8b69-5a9f0c9d9dab'
+    const mock = vi.fn().mockResolvedValue({ sessions: [], ontology_project_id: ontologyProjectId })
+    const port = createMossSessionPort(mock)
+    await port.list(CTX, { ontologyProjectId })
+    expect(mock).toHaveBeenCalledExactlyOnceWith(BASE, {
+      method: 'GET',
+      path: `/api/v1/sessions?ontology_project_id=${ontologyProjectId}`,
+      accessToken: 'tk',
+    })
+    mock.mockClear()
+    for (const value of ['/private/model.db', 'uuid&source=other', '']) {
+      await expect(port.list(CTX, { ontologyProjectId: value })).rejects.toThrow()
+    }
+    expect(mock).not.toHaveBeenCalled()
+  })
+
+  test.each([undefined, null, '8ab3a688-1b15-431e-8b69-5a9f0c9d9dab'])(
+    'rejects an otherwise valid session list with unconfirmed project scope %s',
+    async (acknowledgement) => {
+      const mock = vi.fn().mockResolvedValue({
+        sessions: [{ sessionId: 'ordinary', userId: 'owner', orgId: 'org', status: 'active' }],
+        ...(acknowledgement === undefined ? {} : { ontology_project_id: acknowledgement }),
+      })
+      await expect(
+        createMossSessionPort(mock).list(CTX, {
+          ontologyProjectId: '9ab3a688-1b15-431e-8b69-5a9f0c9d9dab',
+        }),
+      ).rejects.toBeInstanceOf(MossProjectScopeError)
+      expect(mock).toHaveBeenCalledTimes(1)
+    },
+  )
 
   test('create posts assistant_name + enabled_skills + explicit skip_permissions=false, never cwd/runtime', async () => {
     const mock = vi.fn().mockResolvedValue({

@@ -298,6 +298,16 @@ from the LLM `modelId`. The same session client forwards it to Moss as
 binding before runner startup. The WebUI database does not store another model
 binding or business snapshot. Omitting it preserves ordinary conversations.
 
+Project history uses the same conversation list with optional
+`ontologyProjectId`. The shared client validates the opaque UUID and forwards it
+to Moss as `ontology_project_id`; Moss filters through its canonical SQL binding
+and current project access. WebUI retains its ordinary owner/management boundary
+and public response whitelist. Invalid filters fail before upstream discovery,
+and denied projects never fall back to ordinary history.
+The client also requires Moss to acknowledge the requested project in its reply.
+Missing or mismatched scope, including an older server ignoring the query, fails
+with `PROJECT_SESSION_SCOPE_UNCONFIRMED` instead of displaying unrelated history.
+
 These are client/server entry contracts, not a deployed cloud Studio, source
 intake, authenticated review/comment journey or proof of supported engine
 adoption. The WebUI project selector and review provider must use these current
