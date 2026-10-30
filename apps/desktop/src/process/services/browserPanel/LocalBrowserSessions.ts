@@ -177,10 +177,11 @@ export class LocalBrowserSessions {
   async openAuthorizedPage(conversationId: string, input: IHostPageNavigation, options: { isHeadless?: boolean } = {}): Promise<{ surface: 'native' | 'viewer'; conversationId: string }> {
     const worker = await this.worker(conversationId);
     let reply = await this.state(worker);
-    if (reply.session.personalExtension || (reply.session.state !== 'stopped' && reply.session.transport !== 'cdp')) throw new Error('ontology.studio.reviewTransportUnsupported');
+    if (reply.session.personalExtension) throw new Error('ontology.studio.reviewTransportUnsupported');
     if (!reply.session.capabilities.authorizedPageLaunch) throw new Error('ontology.studio.reviewRuntimeUnavailable');
     if (reply.session.state === 'stopped') reply = await this.invoke(conversationId, { kind: 'start', isHeadless: options.isHeadless ?? false, transport: 'cdp' }, false, true);
-    if (reply.session.transport !== 'cdp' || reply.session.personalExtension) throw new Error('ontology.studio.reviewTransportUnsupported');
+    if (reply.session.personalExtension) throw new Error('ontology.studio.reviewTransportUnsupported');
+    if (!reply.session.capabilities.authorizedPageLaunch) throw new Error('ontology.studio.reviewRuntimeUnavailable');
     const before = this.options.control.status();
     if (!reply.session.isController || reply.session.state !== 'human' || before.owner !== conversationId || before.state !== 'human') reply = await this.invoke(conversationId, { kind: 'take', controlEpoch: reply.session.controlEpoch, targetEpoch: reply.session.targetEpoch }, false, true);
     if (!reply.session.isController) throw new Error('Browser did not acknowledge human control');

@@ -139,14 +139,30 @@ describe('private browser host review launch', () => {
     expect(mocks.invoke).toHaveBeenCalledWith(expect.objectContaining({ kind: 'take' }));
   });
 
-  it('refuses old runtimes and transports; only explicit review navigation can switch control', async () => {
+  it.each([true, false])('reuses a managed extension profile with isHeadless=%s for private review', async (isHeadless) => {
+    const { host, control } = fixture();
+    state.state = 'ai';
+    state.transport = 'extension';
+    state.isHeadless = isHeadless;
+    const result = await host.openAuthorizedPage('conversation', input);
+    expect(result).toEqual({ surface: isHeadless ? 'viewer' : 'native', conversationId: 'conversation' });
+    expect(mocks.invoke.mock.calls.some(([action]) => ['start', 'restart'].includes(action.kind))).toBe(false);
+    expect(mocks.invoke).toHaveBeenCalledWith(expect.objectContaining({ kind: 'take' }));
+    expect(mocks.invoke).toHaveBeenCalledWith(expect.objectContaining({ kind: 'open-authorized-page', cookie: input.cookie }));
+    expect(control.status()).toMatchObject({ state: 'human', owner: 'conversation' });
+    expect(JSON.stringify(result)).not.toContain(input.cookie.value);
+  });
+
+  it('refuses old runtimes and personal browser attachments; only explicit review navigation can switch control', async () => {
     const { host, control } = fixture();
     delete state.capabilities.authorizedPageLaunch;
     await expect(host.openAuthorizedPage('conversation', input)).rejects.toThrow('reviewRuntimeUnavailable');
     state.capabilities.authorizedPageLaunch = true;
     state.state = 'human';
     state.transport = 'extension';
+    state.personalExtension = { sessionId: 'personal-session', profileId: 'personal-profile', isHeadless: false };
     await expect(host.openAuthorizedPage('conversation', input)).rejects.toThrow('reviewTransportUnsupported');
+    delete state.personalExtension;
     state.state = 'stopped';
     state.transport = 'cdp';
     await control.take('foreign', async () => {});
