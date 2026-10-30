@@ -26,7 +26,15 @@ vi.mock('@arco-design/web-react', () => ({
     </button>
   ),
   Input: () => null,
-  Select: () => null,
+  Select: ({ 'aria-label': label, value, onChange, options, disabled: isDisabled }: { 'aria-label': string; value: string; onChange: (value: string) => void; options: { value: string; label: string }[]; disabled?: boolean }) => (
+    <select aria-label={label} value={value} disabled={isDisabled} onChange={(event) => onChange(event.target.value)}>
+      {options.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  ),
   Empty: () => null,
   Collapse: Object.assign(({ children }: { children: React.ReactNode }) => <div>{children}</div>, {
     Item: ({ header, children }: { header: React.ReactNode; children: React.ReactNode }) => (
@@ -86,4 +94,17 @@ it('takes over an idle browser through the explicit start action', async () => {
   expect(takeover?.disabled).toBe(false);
   fireEvent.click(takeover!);
   await waitFor(() => expect(host.invoke).toHaveBeenCalledWith(expect.objectContaining({ action: expect.objectContaining({ kind: 'start' }) })));
+});
+
+it.each(['extension', 'cdp'])('chooses a windowed %s browser before claiming an ended conversation profile', async (transport) => {
+  occupyProfile({ desiredState: 'terminated' }, false);
+  render(<BrowserSessionPanel conversationId='conversation-a' />);
+  await waitFor(() => expect(screen.getByText('occupiedIdle')).toBeTruthy());
+  expect(screen.queryByText('conversationUpdateRequired')).toBeNull();
+  fireEvent.click(screen.getByText('browserSource'));
+  fireEvent.change(screen.getByRole('combobox', { name: 'launchMode' }), { target: { value: 'headful' } });
+  fireEvent.change(screen.getByRole('combobox', { name: 'transport' }), { target: { value: transport } });
+  fireEvent.click(screen.getByRole('button', { name: 'takeover' }));
+  await waitFor(() => expect(host.invoke).toHaveBeenCalledWith({ conversationId: 'conversation-a', action: { kind: 'start', isHeadless: false, transport } }));
+  expect(host.invoke.mock.calls.some(([request]) => request.action.kind === 'restart')).toBe(false);
 });
