@@ -114,7 +114,9 @@ export class LocalBrowserWorker {
         const binding = (await response.json()) as { nativeWindowHelper?: { python?: unknown; script?: unknown } | null };
         const helper = binding.nativeWindowHelper;
         if (process.platform === 'win32' && helper) {
-          const expected = path.join(path.dirname(path.dirname(this.options.python)), 'Lib', 'site-packages', 'ai_dev_browser', 'remote', 'native_window.py');
+          const interpreterDirectory = path.dirname(this.options.python);
+          const runtimeRoot = path.basename(interpreterDirectory).toLowerCase() === 'scripts' ? path.dirname(interpreterDirectory) : interpreterDirectory;
+          const expected = path.join(runtimeRoot, 'Lib', 'site-packages', 'ai_dev_browser', 'remote', 'native_window.py');
           if (typeof helper.python !== 'string' || !path.isAbsolute(helper.python) || path.basename(helper.python).toLowerCase() !== 'python.exe' || typeof helper.script !== 'string' || path.resolve(helper.script).toLowerCase() !== path.resolve(expected).toLowerCase())
             throw new Error('Local browser native helper is outside its pinned runtime');
           this.nativeWindowHelper = { python: helper.python, script: helper.script };
