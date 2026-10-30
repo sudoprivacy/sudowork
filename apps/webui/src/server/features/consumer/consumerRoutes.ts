@@ -31,6 +31,7 @@ import type { AuthDeps } from '../auth/authService.js'
 const FORWARDED = [
   { method: 'GET', path: '/agents/mine' },
   { method: 'GET', path: '/config/items' },
+  { method: 'GET', path: '/me/authorized-system-configs' },
   { method: 'GET', path: '/me/secrets' },
   { method: 'GET', path: '/me/secrets/:namespace/:key' },
   { method: 'PUT', path: '/me/secrets/:namespace/:key' },

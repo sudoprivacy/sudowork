@@ -43,6 +43,9 @@ const TenantConfigSection: React.FC<TenantConfigSectionProps> = ({ refreshTrigge
 
   return (
     <div className='space-y-3'>
+      <div className='flex items-center gap-2'>
+        <span className='text-13px font-500 text-secondary'>{t('settings.secrets.user.title', '用户凭据')}</span>
+      </div>
       {configItems.map((item) => (
         <TenantConfigItemGroup
           key={item.id}

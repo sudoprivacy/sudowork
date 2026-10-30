@@ -93,6 +93,22 @@ describe('user Vault forwarding', () => {
     expect(result.body.error.code).toBe('forbidden')
     expect((await request(setupApp()).get('/api/v1/admin/secrets')).status).toBe(404)
   })
+
+  test('loads the authorized system/department config items under the session', async () => {
+    const items = [
+      { id: 7, scope: 'system', name: 'Vault Service' },
+      { id: 8, scope: 'department', name: 'Dept Service' },
+    ]
+    fetchMock.mockResolvedValueOnce(jsonResponse({ success: true, data: items }))
+    const response = await request(setupApp())
+      .get('/api/v1/me/authorized-system-configs')
+      .set('Authorization', 'Bearer forged')
+    expect(response.body).toEqual({ success: true, data: items })
+    expect(fetchMock).toHaveBeenCalledExactlyOnceWith(
+      'http://moss.test/api/v1/me/authorized-system-configs',
+      expect.objectContaining({ headers: { Authorization: 'Bearer tok-1' } }),
+    )
+  })
 })
 
 describe('consumer 转发：recharge 路径', () => {
