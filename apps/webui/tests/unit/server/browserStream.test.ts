@@ -45,6 +45,128 @@ const operation = {
 }
 
 describe('real browser binary transport', () => {
+  it.each([
+    { limit: 'frame count', chunks: () => Array.from({ length: 65 }, () => Buffer.from([1])) },
+    {
+      limit: 'byte count',
+      chunks: () => [Buffer.alloc(9 * 1024 * 1024), Buffer.alloc(9 * 1024 * 1024)],
+    },
+  ])('bounds the queued $limit while authorization is pending', async ({ chunks }) => {
+    let releaseAuthorization!: (isAllowed: boolean) => void
+    const authorization = new Promise<boolean>((resolve) => {
+      releaseAuthorization = resolve
+    })
+    let beginAuthorization!: () => void
+    const authorizationStarted = new Promise<void>((resolve) => {
+      beginAuthorization = resolve
+    })
+    let remoteSocket!: WebSocket
+    const remote = createServer()
+    const remoteWs = new WebSocketServer({ server: remote })
+    webSockets.push(remoteWs)
+    remoteWs.on('connection', (socket) => {
+      remoteSocket = socket
+    })
+    const baseUrl = await listen(remote)
+    const gateway = createServer()
+    const gatewayWs = new WebSocketServer({ noServer: true })
+    webSockets.push(gatewayWs)
+    gateway.on('upgrade', (request, socket, head) => {
+      void openMossBrowserStream({ baseUrl, accessToken: 'bounded-owner' }, 'task-17', operation)
+        .then((upstream) => {
+          clients.push(upstream)
+          gatewayWs.handleUpgrade(request, socket, head, (downstream) => {
+            relayMossBrowserStream(downstream, upstream, async () => {
+              beginAuthorization()
+              return authorization
+            })
+          })
+        })
+        .catch(() => socket.destroy())
+    })
+    const gatewayUrl = await listen(gateway)
+    const client = new WebSocket(gatewayUrl.replace('http', 'ws'), ['binary'])
+    clients.push(client)
+    await once(client, 'open')
+    const exposed: unknown[] = []
+    client.on('message', (data) => exposed.push(data))
+    const closed = once(client, 'close')
+    const burst = chunks()
+    remoteSocket.send(burst[0]!, { binary: true })
+    await authorizationStarted
+    for (const chunk of burst.slice(1)) remoteSocket.send(chunk, { binary: true })
+    try {
+      expect((await closed)[0]).toBe(1009)
+      expect(exposed).toEqual([])
+    } finally {
+      releaseAuthorization(true)
+    }
+  })
+
+  it('forwards a queued RFB burst after one fresh authorization and blocks the next revoked burst', async () => {
+    const chunks = Array.from({ length: 32 }, (_, index) => Buffer.from([index, 255 - index]))
+    let releaseAuthorization!: (isAllowed: boolean) => void
+    const authorization = new Promise<boolean>((resolve) => {
+      releaseAuthorization = resolve
+    })
+    let receivedBurst!: () => void
+    const burstQueued = new Promise<void>((resolve) => {
+      receivedBurst = resolve
+    })
+    let beginAuthorization!: () => void
+    const authorizationStarted = new Promise<void>((resolve) => {
+      beginAuthorization = resolve
+    })
+    let checks = 0
+    let remoteSocket!: WebSocket
+    const remote = createServer()
+    const remoteWs = new WebSocketServer({ server: remote })
+    webSockets.push(remoteWs)
+    remoteWs.on('connection', (socket) => {
+      remoteSocket = socket
+    })
+    const baseUrl = await listen(remote)
+    const gateway = createServer()
+    const gatewayWs = new WebSocketServer({ noServer: true })
+    webSockets.push(gatewayWs)
+    gateway.on('upgrade', (request, socket, head) => {
+      void openMossBrowserStream({ baseUrl, accessToken: 'burst-owner' }, 'task-17', operation)
+        .then((upstream) => {
+          clients.push(upstream)
+          let queued = 0
+          upstream.on('message', () => {
+            if (++queued === chunks.length) receivedBurst()
+          })
+          gatewayWs.handleUpgrade(request, socket, head, (downstream) => {
+            relayMossBrowserStream(downstream, upstream, async () => {
+              beginAuthorization()
+              return ++checks === 1 ? authorization : false
+            })
+          })
+        })
+        .catch(() => socket.destroy())
+    })
+    const gatewayUrl = await listen(gateway)
+    const client = new WebSocket(gatewayUrl.replace('http', 'ws'), ['binary'])
+    clients.push(client)
+    await once(client, 'open')
+    const firstMessage = once(client, 'message')
+    for (const chunk of chunks) remoteSocket.send(chunk, { binary: true })
+    await Promise.all([burstQueued, authorizationStarted])
+    expect(checks).toBe(1)
+    releaseAuthorization(true)
+    const [message, isBinary] = await firstMessage
+    expect(isBinary).toBe(true)
+    expect(message).toEqual(Buffer.concat(chunks))
+    expect(checks).toBe(1)
+    const exposed: unknown[] = []
+    client.on('message', (data) => exposed.push(data))
+    const closed = once(client, 'close')
+    remoteSocket.send(Buffer.from('private-next-burst'), { binary: true })
+    expect((await closed)[0]).toBe(1008)
+    expect(exposed).toEqual([])
+  })
+
   it('preserves the unsolicited first RFB frame coalesced with the upstream upgrade', async () => {
     const banner = Buffer.from('RFB 003.008\n')
     const remote = createServer()

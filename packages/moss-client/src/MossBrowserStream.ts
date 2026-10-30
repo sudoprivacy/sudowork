@@ -92,9 +92,38 @@ export function relayMossBrowserStream(
     [client, upstream],
     [upstream, client],
   ] as const) {
-    let queue = Promise.resolve()
+    const pending: Buffer[] = []
     let pendingFrames = 0
     let pendingBytes = 0
+    let isDraining = false
+    const drain = async () => {
+      if (isDraining || isClosed) return
+      isDraining = true
+      try {
+        while (pending.length && !isClosed) {
+          if (!(await check())) {
+            close(1008, 'Browser permission revoked')
+            return
+          }
+          if (isClosed || destination.readyState !== destination.OPEN) return
+          // RFB is a byte stream. Forward the bytes already waiting after this
+          // fresh check together, so small rectangles do not each incur a
+          // serial authorization round trip. The next batch is checked again.
+          const batch = pending.splice(0)
+          const data = batch.length === 1 ? batch[0]! : Buffer.concat(batch)
+          await new Promise<void>((resolve, reject) => {
+            destination.send(data, { binary: true }, (error) => (error ? reject(error) : resolve()))
+          })
+          pendingFrames -= batch.length
+          pendingBytes -= data.length
+        }
+      } catch {
+        close(1011, 'Browser stream disconnected')
+      } finally {
+        isDraining = false
+        if (isClosed) pending.length = 0
+      }
+    }
     source.on('message', (value, isBinary) => {
       if (isClosed) return
       if (!isBinary) {
@@ -111,23 +140,8 @@ export function relayMossBrowserStream(
         close(1009, 'Browser stream queue exceeded')
         return
       }
-      queue = queue
-        .then(async () => {
-          if (isClosed) return
-          if (!(await check())) {
-            close(1008, 'Browser permission revoked')
-            return
-          }
-          if (isClosed || destination.readyState !== destination.OPEN) return
-          await new Promise<void>((resolve, reject) => {
-            destination.send(data, { binary: true }, (error) => (error ? reject(error) : resolve()))
-          })
-        })
-        .catch(() => close(1011, 'Browser stream disconnected'))
-        .finally(() => {
-          pendingFrames--
-          pendingBytes -= data.length
-        })
+      pending.push(data)
+      void drain()
     })
     source.once('close', () => close(1000, 'Browser stream disconnected'))
     source.once('error', () => close(1011, 'Browser stream disconnected'))
