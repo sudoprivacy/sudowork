@@ -1,5 +1,5 @@
 name: "hub empty state differentiates token-missing from actually-empty"
-locale: zh-CN  # clicks Chinese labels 技能商店 / 技能库 and judges Chinese copy
+locale: zh-CN  # clicks Chinese labels 技能库 and judges Chinese copy
 description: >
   Verify the HubEmptyState observability fix: when the skill-store
   catalog can't be fetched because sudowork-server hasn't provisioned
@@ -30,10 +30,10 @@ steps:
     timeout: 300
 
   # ── Phase 1: Navigate to skill store via sidebar ──
-  # 技能商店 is the sidebar item for the skill catalog. Clicking it
+  # 技能库 is the sidebar item for the skill catalog. Clicking it
   # opens SkillModalContent in the main area.
   - op: mouse_click
-    text: "技能商店"
+    text: "技能库"
     wait: 3
   - op: screenshot
     path: "screenshots/hub-empty-state-00-skill-store-opened.png"

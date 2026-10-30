@@ -24,7 +24,7 @@ import type { IMossCatalogPage, IMossCatalogItem, IMossCatalogInstallation, Moss
  */
 
 import { bridge } from '@office-ai/platform';
-import type { BrowserFile, BrowserSessionAction, BrowserSessionReply } from '@sudowork/contracts/browser-session';
+import type { BrowserFile, BrowserOwnerInfo, BrowserSessionAction, BrowserSessionReply } from '@sudowork/contracts/browser-session';
 import type { InputAction, InputDelivery, InputReceipt, InputState } from '@sudowork/contracts/input-delivery';
 import type { IConfirmation, IResponseMessage } from '@sudowork/common/chatTypes';
 import type { IAssistantInfo, IAssistantMeta } from '@sudowork/common/assistantTypes';
@@ -1563,6 +1563,8 @@ export const browserSession = {
     }
   >('browser-session:upload-file'),
   downloadFile: bridge.buildProvider<IBridgeResponse<Uint8Array>, { conversationId: string; fileId: string }>('browser-session:download-file'),
+  // Read-only: who currently holds this owner's browser profile (no claim side effects).
+  ownerInfo: bridge.buildProvider<IBridgeResponse<BrowserOwnerInfo>, { conversationId: string }>('browser-session:owner-info'),
 };
 
 export const browserPanel = {
@@ -2379,6 +2381,8 @@ export interface ISkillHubMeta {
   uploaded?: boolean;
   /** Timestamp when uploaded to Moss Server */
   uploaded_at?: string;
+  /** Moss organization asset id; local id remains stable across uploads. */
+  moss_id?: string;
   /** Publish status for tenant-exclusive skills */
   publish_status?: 'pending' | 'approved' | 'rejected';
   /** Timestamp when published as tenant-exclusive */
@@ -3531,6 +3535,16 @@ export const eeclaw = {
       sourcePath?: string;
     }
   >('eeclaw.upload-custom-assistant'),
+  /** Export a local custom skill to the user's Downloads directory. */
+  exportCustomSkill: bridge.buildProvider<
+    IBridgeResponse<{ filePath: string }>,
+    { skillName: string; displayName: string; sourcePath?: string }
+  >('eeclaw.export-custom-skill'),
+  /** Export a local custom expert to the user's Downloads directory. */
+  exportCustomAssistant: bridge.buildProvider<
+    IBridgeResponse<{ filePath: string }>,
+    { assistantName: string; assistantId: string; displayName: string; sourcePath?: string }
+  >('eeclaw.export-custom-assistant'),
 
   // === Tenant Skill/Assistant ===
   /** Fetch tenant-exclusive skills from Moss Server */

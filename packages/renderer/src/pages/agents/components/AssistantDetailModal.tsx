@@ -6,8 +6,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { Button, Modal, Progress, Spin } from '@arco-design/web-react';
-import { IconDownload } from '@arco-design/web-react/icon';
-import { Bot, Shield, Zap } from 'lucide-react';
+import { Bot, ArrowUpRight, Shield, Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { IInstalledSkillInfo, IAssistantHubSkill, ISkillHubSkill } from '@sudowork/host-bridge/ipcBridge';
 import { assistantHub } from '@sudowork/host-bridge/ipcBridge';
@@ -17,9 +16,8 @@ import { handleSkillIconError } from '@renderer/utils/skillDisplay';
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@renderer/utils/platform';
 import { useAppMode } from '@renderer/hooks/useAppMode';
 import type { AssistantLatestVersion } from '../types';
-import { isAssistantVersionNewer } from '../utils';
 
-const AssistantDetailModal: React.FC<AssistantDetailModalProps> = ({ assistant, visible, onClose, isInstalled, installing, installProgress, onInstall, latestVersionInfo, installedVersion, onUpdate, updating = false, onGoUse, installedSkills, isCloudInstall = false, canManage = true }) => {
+const AssistantDetailModal: React.FC<AssistantDetailModalProps> = ({ assistant, visible, onClose, isInstalled, installing, installProgress, onInstall, latestVersionInfo, installedVersion, onGoUse, installedSkills, isCloudInstall = false, canManage = true }) => {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [relatedSkillDetails, setRelatedSkillDetails] = useState<ISkillHubSkill[]>([]);
@@ -153,7 +151,6 @@ const AssistantDetailModal: React.FC<AssistantDetailModalProps> = ({ assistant, 
   const emojiRegex = /^(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(?:\u200D(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*$/u;
   const hasEmojiAvatar = Boolean(resolvedAvatar && emojiRegex.test(resolvedAvatar));
   const latestVersionValue = latestVersionInfo?.version || assistant.version;
-  const hasUpdate = Boolean(isInstalled && isAssistantVersionNewer(latestVersionValue, installedVersion));
   const associatedSkillIds = !isEnterprise && assistant.skills?.length > 0 ? assistant.skills : relatedSkillDetails.map((s) => s.id);
 
   return (
@@ -179,6 +176,11 @@ const AssistantDetailModal: React.FC<AssistantDetailModalProps> = ({ assistant, 
                 )}
               </div>
               <div className='font-semibold text-17px text-foreground text-center'>{displayName}</div>
+              {(installedVersion || latestVersionValue) && (
+                <div className='text-secondary text-xs mt-2'>
+                  {t('settings.mossCatalog.version')}: {installedVersion || latestVersionValue}
+                </div>
+              )}
               {assistant.categories && assistant.categories.length > 0 && (
                 <div className='flex gap-1 mt-1.5 flex-wrap justify-center'>
                   {assistant.categories.map((cat, idx) => (
@@ -212,7 +214,7 @@ const AssistantDetailModal: React.FC<AssistantDetailModalProps> = ({ assistant, 
                       <Zap size={14} className='text-primary' />
                       <span className='font-medium text-13px text-foreground'>{t('settings.assistant.relatedSkills', '关联技能')}</span>
                       <span className='text-12px text-secondary'>({relatedSkillDetails.length})</span>
-                      {installedSkillCount > 0 && <span className='text-12px text-secondary'>· {t('settings.assistant.skillsInstalled', { installed: installedSkillCount, defaultValue: `${installedSkillCount} 已安装` })}</span>}
+                      {installedSkillCount > 0 && <span className='text-12px text-secondary'>· {installedSkillCount} 个技能可用</span>}
                     </div>
                     {loadingSkills ? (
                       <div className='text-center text-secondary text-12px py-16px'>{t('common.loading', '加载中...')}</div>
@@ -253,13 +255,13 @@ const AssistantDetailModal: React.FC<AssistantDetailModalProps> = ({ assistant, 
                                 </div>
                                 <div className='text-11px text-secondary truncate'>{skill.description}</div>
                               </div>
-                              <span className={`px-1 py-0 text-10px rd-1 whitespace-nowrap ${isSkillInstalled ? 'text-primary' : 'bg-muted text-secondary'}`}>{isSkillInstalled ? t('settings.skill.installed', '已安装') : t('settings.skill.notInstalled', '未安装')}</span>
+                              <span className={`px-1 py-0 text-10px rd-1 whitespace-nowrap ${isSkillInstalled ? 'text-primary' : 'bg-muted text-secondary'}`}>{isSkillInstalled ? '已准备' : '按需准备'}</span>
                             </div>
                           );
                         })}
                       </div>
                     )}
-                    <div className='mt-3 text-11px text-secondary'>{t('settings.assistant.skillsInstallHint', '安装助手时会自动安装关联的技能')}</div>
+                    <div className='mt-3 text-11px text-secondary'>使用专家时会按执行模式自动准备关联技能。</div>
                   </div>
                 )}
               </div>
@@ -270,25 +272,21 @@ const AssistantDetailModal: React.FC<AssistantDetailModalProps> = ({ assistant, 
         {/* Action buttons */}
         <div className='px-2 pt-3 border-t border-light mt-1'>
           <div className='flex gap-2 items-center'>
-            {isInstalled && hasUpdate ? (
-              <Button type='primary' long size='large' className='flex-1' loading={updating} loadingFixedWidth icon={<IconDownload />} onClick={() => onUpdate?.(associatedSkillIds)}>
-                {t('settings.assistant.updateTo', { version: latestVersionValue, defaultValue: `更新至 v${latestVersionValue}` })}
-              </Button>
-            ) : isInstalled ? (
+            {isInstalled ? (
               <Button type='primary' long size='large' className='flex-1' onClick={onGoUse || onClose}>
-                {t('settings.skill.goUse', '去使用')}
+                使用
               </Button>
             ) : !canManage ? (
               <div className='flex-1 text-center text-secondary text-13px py-3'>{t('settings.storeAdminRequired')}</div>
             ) : !isCloudInstall && !hasDownloadUrl ? (
-              <div className='flex-1 text-center text-secondary text-13px py-12px'>{t('settings.assistant.noDownloadUrl', '该助手暂不支持安装，请联系管理员')}</div>
+              <div className='flex-1 text-center text-secondary text-13px py-12px'>该专家暂不可用，请联系管理员</div>
             ) : installing ? (
               <div className='flex-1'>
                 <Progress percent={installProgress} size='small' />
               </div>
             ) : (
-              <Button type='primary' long size='large' icon={<IconDownload />} onClick={() => onInstall(associatedSkillIds)}>
-                {t('settings.assistant.install', '安装助手')}
+              <Button type='primary' long size='large' icon={<ArrowUpRight size={15} />} onClick={() => onInstall(associatedSkillIds)}>
+                使用
               </Button>
             )}
           </div>

@@ -97,6 +97,8 @@ const mainAliases = [
   { find: /^@sudowork\/ontology-common$/, replacement: resolve('../../packages/ontology-common/src/index.ts') },
   { find: /^@sudowork\/ontology-runtime\/(.*)$/, replacement: resolve('../../packages/ontology-runtime/src') + '/$1' },
   { find: /^@sudowork\/ontology-runtime$/, replacement: resolve('../../packages/ontology-runtime/src') + '/index.ts' },
+  { find: /^@sudowork\/sudograph-runtime\/(.*)$/, replacement: resolve('../../packages/sudograph-runtime/src') + '/$1' },
+  { find: /^@sudowork\/sudograph-runtime$/, replacement: resolve('../../packages/sudograph-runtime/src/index.ts') },
   { find: /^@sudowork\/ontology-engine\/(.*)$/, replacement: resolve('../../packages/ontology-engine/src') + '/$1' },
   { find: /^@sudowork\/ontology-engine$/, replacement: resolve('../../packages/ontology-engine/src/index.ts') },
   { find: '@sudowork/contracts/auth', replacement: resolve('../../packages/contracts/src/auth.ts') },
@@ -184,6 +186,7 @@ export default defineConfig(({ mode }) => {
             '@sudowork/ontology-common',
             '@sudowork/ontology-engine',
             '@sudowork/ontology-runtime',
+            '@sudowork/sudograph-runtime',
           ],
         }),
         ...(!isDevelopment

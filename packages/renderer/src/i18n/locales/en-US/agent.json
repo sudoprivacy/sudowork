@@ -54,7 +54,8 @@
     "filterLocal": "Local execution",
     "createFailed": "Could not create the Agent. Please try again.",
     "open": "Open Agent",
-    "openFailed": "Could not open the Agent conversations. Please try again."
+    "openFailed": "Could not open the Agent conversations. Please try again.",
+    "menuTitle": "My Projects"
   },
   "external.title": "External agents (pilot)",
   "external.pilot": "Approved agents and synthetic inputs only. Do not enter customer data, real business data or secrets.",

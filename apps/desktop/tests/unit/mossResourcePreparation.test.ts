@@ -85,6 +85,16 @@ describe('Moss resource preparation', () => {
     expect(snapshot?.presetContext).toContain('Remote template rules');
   });
 
+  it('loads the pinned expert template alongside an owned personal Agent', async () => {
+    const id = 'published-template';
+    await fs.writeFile(path.join(state.root, '.moss-ready'), 'digest');
+    await fs.writeFile(path.join(state.root, '_moss_meta.json'), JSON.stringify({ id, name: 'expert', ruleFile: 'AGENT.md', mossDigest: 'digest' }));
+    await fs.writeFile(path.join(state.root, 'AGENT.md'), 'Always prefix answers with EXPERT-V2.');
+    const snapshot = await readMossAssistantSnapshot({ mossAccountScope: 'account', presetAssistantId: 'moss-agent:own:personal', templateRef: id, mossResources: [{ id, kind: 'agents', path: state.root, digest: 'digest' }] });
+    expect(state.requireAgent).toHaveBeenCalledWith('moss-agent:own:personal');
+    expect(snapshot?.presetContext).toContain('EXPERT-V2');
+    await expect(readMossAssistantSnapshot({ mossAccountScope: 'account', presetAssistantId: 'moss-agent:own:personal', templateRef: 'missing', mossResources: [] })).rejects.toThrow('snapshot is missing');
+  });
   it.each(['moss-agent:own:personal', 'sudowork-agent:local:personal'])('checks personal ownership without downloading a template or requiring its snapshot: %s', async (ref) => {
     const request = vi.fn();
     vi.stubGlobal('fetch', request);

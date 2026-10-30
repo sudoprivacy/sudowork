@@ -68,6 +68,36 @@ definition versions, base revisions and operation IDs. Graph, context and model
 advance together only after compilation succeeds. Ordinary model edits do not
 use the optional GitLab human-review publisher and do not change source data.
 
+The client and registered PostgreSQL/MySQL source provider live in the portable
+[`@sudowork/sudograph-runtime`](../packages/sudograph-runtime/README.md) package.
+The existing ontology-runtime and Desktop service modules re-export those
+constructors; they do not own a second implementation. The shared imports run in
+ordinary Node without Electron, UI storage or a desktop login. A cloud execution
+worker can therefore use the same pinned compiler transport where its authorized
+source is reachable. This does not itself supply a cloud project registry,
+tenant authorization, connector credential service or WebUI routes; those remain
+host responsibilities. A control-plane or WebUI VM must not reinterpret a source
+path belonging to another execution host.
+
+`scripts/accept-sudograph-host-package.mjs` packs the runtime twice, requires
+identical bytes, installs the archive outside the checkout and compiles a
+consumer without workspace type dependencies. It then runs the existing real
+compiler journey through the installed constructor, an installed Python wheel
+and an empty worker directory. The accepted archive and both integrity/model
+receipts are retained. Default Windows/Linux review CI runs this gate. The
+`sudograph-runtime-v<version>` release workflow requires a matching version
+already landed on `dev`, repeats installation acceptance and publishes that exact
+archive with its SHA-256. A workflow or local receipt alone does not establish
+publication or authorize production cloud access.
+
+`sudographModelRuntime.live.ts` runs the shared client in ordinary Node against
+the actual Python compiler. It checks complete registration and retry, business
+edits, matching graph/context revisions, stale-context rejection and live record
+reads. An external fixture update becomes visible without embedding rows or
+creating another model revision. The native review CI job runs this journey on
+Windows and Linux before its existing browser acceptance. This is portable host
+execution evidence, not acceptance of deployed cloud tenant permissions.
+
 The shared project CLI discovers four canonical model commands and the common
 `register_source` command:
 

@@ -36,6 +36,7 @@ export const BrowserSessionStateSchema = z.object({
     conversationControl: z.boolean().optional(),
     dragInput: z.boolean().optional(),
     liveDragInput: z.boolean().optional(),
+    liveDragSurfaces: z.array(SurfaceSchema).max(2).optional(),
     clipboardText: z.boolean().optional(),
     selectionRead: z.boolean().optional(),
     lifecycle: z.boolean().optional(),
@@ -273,6 +274,17 @@ export type BrowserSessionState = z.infer<typeof BrowserSessionStateSchema>;
 export type BrowserSessionAction = z.infer<typeof BrowserSessionActionSchema>;
 export type BrowserSessionReply = z.infer<typeof BrowserSessionReplySchema>;
 export type BrowserInput = z.infer<typeof BrowserInputSchema>;
+
+export const BrowserOwnerInfoSchema = z.object({
+  owner: z
+    .object({
+      sessionId: z.string().min(1).max(220),
+      desiredState: z.string().nullable(),
+    })
+    .nullable(),
+  browserRunning: z.boolean(),
+});
+export type BrowserOwnerInfo = z.infer<typeof BrowserOwnerInfoSchema>;
 
 /** A frame captured before a handoff or tab switch must never replace current pixels. */
 export function isCurrentBrowserFrame(

@@ -1,10 +1,11 @@
+import { getRendererSessionMode } from '@renderer/pages/guid/hooks/useGuidAgentSelection';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Button, Input, Message, Modal, Select, Space, Spin, Switch, Tabs, Tag, Typography } from '@arco-design/web-react';
+import { Alert, Button, Input, Message, Modal, Select, Space, Spin, Tabs, Tag, Typography } from '@arco-design/web-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { mossCatalog } from '@sudowork/host-bridge/ipcBridge';
 import type { IMossCatalogInstallation, IMossCatalogItem, MossCatalogKind, MossCatalogSource } from '@sudowork/common/mossCatalog';
-import { Bot, Zap, Download, ArrowUpRight, Search, RefreshCw, Trash2 } from 'lucide-react';
+import { Bot, Zap, ArrowUpRight, Search, RefreshCw } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { COS_HUB_BASE } from '@sudowork/common/cos';
@@ -14,13 +15,38 @@ import { useAgentEntry } from '@renderer/pages/conversation/hooks/useAgentEntry'
 
 const itemKey = (item: { source: string; id: string }) => `${item.source}:${item.id}`;
 
+function expertTypeLabel(value?: string) {
+  switch ((value || '').toLowerCase()) {
+    case 'local':
+      return '本地服务';
+    case 'dify':
+      return 'Dify';
+    case 'a2a':
+      return 'A2A';
+    case 'custom_http':
+    case 'api':
+      return '外部 API';
+    case 'static':
+    case 'file':
+      return '静态描述文件';
+    case 'moss_runtime':
+    case 'runtime':
+      return '运行时专家';
+    case 'hub':
+      return '平台专家';
+    default:
+      return value || '组织专家';
+  }
+}
+
 export default function MossCatalogBrowser({ kind, customContent, builtinContent, publishedContent, hostedContent, onCreate, onInstalled }: IMossCatalogBrowserProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { onOpenAgent } = useAgentEntry();
   const { user } = useAuth();
-  const [tab, setTab] = useState<'hub' | 'tenant' | 'installed'>('hub');
-  const [source, setSource] = useState('all');
+  // The client has two user-facing views: a consumption view and the
+  // account-owned workspace. Organization publication remains a Moss concern.
+  const [tab, setTab] = useState<'available' | 'mine'>('available');
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('');
   const [categories, setCategories] = useState<string[]>([]);
@@ -52,20 +78,26 @@ export default function MossCatalogBrowser({ kind, customContent, builtinContent
 
   const onLoad = useCallback(
     async (next?: string) => {
-      if (tab === 'installed') return;
+      if (tab === 'mine') return;
       const id = ++requestId.current;
       const token = identity;
       setIsLoading(true);
       setError('');
       try {
-        const result = await mossCatalog.list.invoke({ kind, source: tab, query, category, cursor: next });
+        const sources = next ? (['hub'] as const) : (['hub', 'tenant'] as const);
+        const results = await Promise.all(sources.map((source) => mossCatalog.list.invoke({ kind, source, query, category, cursor: source === 'hub' ? next : undefined })));
         if (id !== requestId.current || identityRef.current !== token) return;
-        if (!result.success || !result.data) throw new Error(result.msg || t('settings.mossCatalog.failed'));
-        const page = result.data;
-        setItems((previous) => (next ? [...previous, ...page.items.filter((item) => !previous.some((existing) => itemKey(existing) === itemKey(item)))] : page.items));
-        setCategories(page.categories);
-        setIsCached(page.isCached === true);
-        setCursor(page.nextCursor);
+        const failed = results.find((result) => !result.success || !result.data);
+        if (failed && !failed.data) throw new Error(failed.msg || t('settings.mossCatalog.failed'));
+        const pages = results.flatMap((result) => (result.success && result.data ? [result.data] : []));
+        const pageItems = pages.flatMap((page) => page.items);
+        setItems((previous) => {
+          const merged = next ? [...previous, ...pageItems] : pageItems;
+          return merged.filter((item, index) => merged.findIndex((candidate) => itemKey(candidate) === itemKey(item)) === index && !(item.source === 'hub' && merged.some((candidate) => candidate.source === 'tenant' && candidate.replacesId === item.id)));
+        });
+        setCategories([...new Set(pages.flatMap((page) => page.categories))].sort());
+        setIsCached(pages.some((page) => page.isCached === true));
+        setCursor(pages.find((page) => page.nextCursor)?.nextCursor || null);
       } catch (cause) {
         if (id === requestId.current && identityRef.current === token) setError(String(cause instanceof Error ? cause.message : cause));
       } finally {
@@ -98,11 +130,35 @@ export default function MossCatalogBrowser({ kind, customContent, builtinContent
     return mossCatalog.changed.on(refresh);
   }, [onRefreshInstalled]);
 
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState === 'hidden') return;
+      void onLoad();
+      window.dispatchEvent(new Event('expert-library-refresh'));
+    };
+    const unsubscribe = mossCatalog.changed.on(refresh);
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      unsubscribe();
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, [onLoad]);
+
   const onPrepare = async (item: { id: string; source: MossCatalogSource }, isUse: boolean, isUpdate = false) => {
     const token = identity;
     setBusy(itemKey(item));
     try {
-      const result = await mossCatalog.install.invoke({ kind, id: item.id, source: item.source, isUpdate });
+      if (isUse && getRendererSessionMode() === 'remote') {
+        setDetail(null);
+        if (kind === 'agents') await onOpenAgent(item.id);
+        else void navigate(`/guid?skill=${encodeURIComponent(item.id)}`);
+        return;
+      }
+      const available = items.find((candidate) => itemKey(candidate) === itemKey(item));
+      const current = installedMap.get(itemKey(item));
+      const result = await mossCatalog.install.invoke({ kind, id: item.id, source: item.source, isUpdate: isUpdate || (!!current && current.version !== available?.version) });
       if (identityRef.current !== token) return;
       if (!result.success || !result.data) throw new Error(result.msg || t('settings.mossCatalog.failed'));
       await onRefreshInstalled();
@@ -113,23 +169,6 @@ export default function MossCatalogBrowser({ kind, customContent, builtinContent
         if (kind === 'agents') await onOpenAgent(result.data.id);
         else void navigate(`/guid?skill=${encodeURIComponent(result.data.runtimeName)}`);
       } else Message.success(t('settings.mossCatalog.downloaded'));
-    } catch (cause) {
-      if (identityRef.current === token) Message.error(cause instanceof Error ? cause.message : String(cause));
-    } finally {
-      if (identityRef.current === token) setBusy(null);
-    }
-  };
-
-  const onChangeInstallation = async (item: IMossCatalogInstallation, isEnabled?: boolean) => {
-    const token = identity;
-    setBusy(itemKey(item));
-    try {
-      const input = { kind, source: item.source, id: item.id };
-      const result = isEnabled === undefined ? await mossCatalog.remove.invoke(input) : await mossCatalog.setEnabled.invoke({ ...input, isEnabled });
-      if (identityRef.current !== token) return;
-      if (!result.success) throw new Error(result.msg || t('settings.mossCatalog.failed'));
-      await onRefreshInstalled();
-      await onInstalled();
     } catch (cause) {
       if (identityRef.current === token) Message.error(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -157,14 +196,10 @@ export default function MossCatalogBrowser({ kind, customContent, builtinContent
   };
 
   const label = (key: string) => t(`settings.mossCatalog.${key}`);
-  const localItems = installed.filter((item) => item.kind === kind && (source === 'all' || item.source === source) && `${item.displayName} ${item.description}`.toLowerCase().includes(query.toLowerCase()));
-
   const onCloseDetail = () => {
     detailRequestId.current++;
     setDetail(null);
   };
-  const detailLocal = detail ? installedMap.get(itemKey(detail)) : undefined;
-  const isDetailUpdate = !!detailLocal && !!detail?.version && detailLocal.version !== detail.version && !isLocalDetail;
 
   return (
     <div className='flex flex-col flex-1 min-h-0 gap-3'>
@@ -176,118 +211,42 @@ export default function MossCatalogBrowser({ kind, customContent, builtinContent
           setError('');
         }}
       >
-        <Tabs.TabPane key='hub' title={label(kind === 'agents' ? 'agentLibrary' : 'skillLibrary')} />
-        <Tabs.TabPane key='tenant' title={label(kind === 'agents' ? 'exclusiveAgents' : 'exclusiveSkills')} />
-        <Tabs.TabPane key='installed' title={label(kind === 'agents' ? 'myAgents' : 'mySkills')} />
+        <Tabs.TabPane key='available' title={kind === 'agents' ? '可用专家' : '可用技能'} />
+        <Tabs.TabPane key='mine' title={kind === 'agents' ? '我的专家' : '我的技能'} />
       </Tabs>
+      <Typography.Paragraph className='text-xs text-secondary'>
+        {tab === 'available'
+          ? `可用${kind === 'agents' ? '专家' : '技能'}展示当前账号有权限使用的已发布版本；“我的”展示当前账号创建或导入的本地工作稿。同一资产可能同时出现，分别用于使用和继续编辑。`
+          : `“我的”仅展示当前账号创建或导入的本地${kind === 'agents' ? '专家' : '技能'}，可继续编辑、调试、上传或导出。`}
+      </Typography.Paragraph>
       <div className={styles.toolbar}>
         <Input value={query} onChange={setQuery} placeholder={label('search')} prefix={<Search size={16} />} allowClear className={styles.search} />
-        {tab === 'installed' ? (
-          <Select value={source} onChange={setSource} style={{ width: 180 }} options={['all', 'hub', 'tenant', 'custom', ...(builtinContent ? ['builtin'] : [])].map((value) => ({ value, label: label(`source.${value}`) }))} />
-        ) : (
-          <Select value={category} onChange={setCategory} style={{ width: 180 }} options={[{ value: '', label: label('allCategories') }, ...categories.map((value) => ({ value, label: value }))]} />
-        )}
+        {tab === 'available' && <Select value={category} onChange={setCategory} style={{ width: 180 }} options={[{ value: '', label: label('allCategories') }, ...categories.map((value) => ({ value, label: value }))]} />}
         <Button
           icon={<RefreshCw size={14} />}
           onClick={() => {
+            window.dispatchEvent(new Event('expert-library-refresh'));
             void onLoad();
             void onRefreshInstalled().catch((cause) => setError(String(cause)));
           }}
         >
           {label('refresh')}
         </Button>
-        {tab === 'installed' && <Button onClick={onCreate}>{label('create')}</Button>}
+        {tab === 'mine' && <Button onClick={onCreate}>{label('create')}</Button>}
       </div>
-      {isCached && tab !== 'installed' && <Alert type='warning' content={label('cached')} />}
+      {isCached && tab !== 'mine' && <Alert type='warning' content={label('cached')} />}
       {error && <Alert type='error' content={error} />}
       <div className='flex-1 min-h-0 overflow-auto pb-4'>
-        {tab === 'tenant' && publishedContent?.(query)}
-        {tab === 'tenant' && kind === 'agents' && <Typography.Title heading={5}>{t('agent.external.published.nativeTitle')}</Typography.Title>}
-        {tab === 'tenant' && kind === 'agents' && hostedContent?.(query)}
-        {tab === 'installed' ? (
+        {tab === 'mine' ? (
           <>
-            <div className={styles.grid}>
-              {localItems.map((item) => (
-                <article className={styles.card} key={itemKey(item)}>
-                  <div className={styles.cardHeading}>
-                    <CatalogIcon key={item.icon || item.emoji || item.id} item={item} />
-                    <div className='min-w-0 flex-1'>
-                      <Button
-                        type='text'
-                        className={styles.title}
-                        onClick={() => {
-                          void onDetail(item, true);
-                        }}
-                      >
-                        {item.displayName}
-                      </Button>
-                      <span className={styles.source}>{label(`source.${item.source}`)}</span>
-                    </div>
-                    <Tag color='green'>{label('downloaded')}</Tag>
-                  </div>
-                  <p className={styles.description}>{item.description || label('noDescription')}</p>
-                  <div className={styles.tags}>
-                    {!item.isLocalAllowed && <Tag>{label('cloudOnly')}</Tag>}
-                    {!item.isEnabled && <Tag>{label('disabled')}</Tag>}
-                  </div>
-                  <div className={styles.actions}>
-                    <Button
-                      type='text'
-                      icon={<ArrowUpRight size={14} />}
-                      onClick={() => {
-                        void onDetail(item, true);
-                      }}
-                    >
-                      {label('details')}
-                    </Button>
-                    <Switch
-                      checked={item.isEnabled}
-                      disabled={busy !== null}
-                      onChange={(value) => {
-                        void onChangeInstallation(item, value);
-                      }}
-                      aria-label={label('enabled')}
-                    />
-                    <Button
-                      status='danger'
-                      icon={<Trash2 size={14} />}
-                      aria-label={label('remove')}
-                      title={label('remove')}
-                      disabled={busy !== null}
-                      onClick={() => {
-                        void onChangeInstallation(item);
-                      }}
-                    />
-                    <span className='flex-1' />
-                    <Button
-                      disabled={busy !== null}
-                      onClick={() => {
-                        void onPrepare(item, false, true);
-                      }}
-                    >
-                      {label('update')}
-                    </Button>
-                    <Button
-                      type='primary'
-                      disabled={!item.isEnabled || busy !== null}
-                      loading={busy === itemKey(item)}
-                      onClick={() => {
-                        void onPrepare(item, true);
-                      }}
-                    >
-                      {label('use')}
-                    </Button>
-                  </div>
-                </article>
-              ))}
-            </div>
-            {(source === 'all' || source === 'builtin') && builtinContent && <div className='mt-4'>{builtinContent}</div>}
-            {(source === 'all' || source === 'custom') && <div className='mt-4'>{customContent}</div>}
-            {localItems.length === 0 && source !== 'all' && source !== 'custom' && <Typography.Paragraph>{label('noDownloads')}</Typography.Paragraph>}
+            {builtinContent && <div className='mt-4'>{builtinContent}</div>}
+            <div className='mt-4'>{customContent}</div>
           </>
         ) : (
           <>
             <div className={styles.grid}>
+              {!category && publishedContent?.(query)}
+              {!category && kind === 'agents' && hostedContent?.(query)}
               {items.map((item) => {
                 const local = installedMap.get(itemKey(item));
                 const isUpdateAvailable = !!local && !!item.version && local.version !== item.version;
@@ -305,12 +264,17 @@ export default function MossCatalogBrowser({ kind, customContent, builtinContent
                         >
                           {item.displayName}
                         </Button>
+                        {kind === 'agents' && <Tag color='arcoblue'>{expertTypeLabel(item.expertType)}</Tag>}
                         <span className={styles.source}>{label(`source.${item.source}`)}</span>
                       </div>
-                      {local && <Tag color='green'>{label('downloaded')}</Tag>}
                     </div>
                     <p className={styles.description}>{item.description || label('noDescription')}</p>
                     <div className={styles.tags}>
+                      {item.displayVersion && (
+                        <Tag>
+                          {label('version')}: {item.displayVersion}
+                        </Tag>
+                      )}
                       {item.categories.slice(0, 2).map((value) => (
                         <Tag key={value}>{value}</Tag>
                       ))}
@@ -330,16 +294,6 @@ export default function MossCatalogBrowser({ kind, customContent, builtinContent
                       </Button>
                       <span className='flex-1' />
                       <Button
-                        icon={<Download size={14} />}
-                        disabled={!item.isAvailable || busy !== null || (!!local && !isUpdateAvailable)}
-                        loading={busy === itemKey(item)}
-                        onClick={() => {
-                          void onPrepare(item, false, isUpdateAvailable);
-                        }}
-                      >
-                        {label(isUpdateAvailable ? 'update' : 'download')}
-                      </Button>
-                      <Button
                         type='primary'
                         disabled={!item.isAvailable || busy !== null || local?.isEnabled === false}
                         onClick={() => {
@@ -358,7 +312,7 @@ export default function MossCatalogBrowser({ kind, customContent, builtinContent
                 <Spin />
               </div>
             )}
-            {!isLoading && !items.length && !error && <Typography.Paragraph>{tab === 'tenant' && kind === 'agents' ? t('agent.external.published.nativeEmpty') : label('empty')}</Typography.Paragraph>}
+            {!isLoading && !items.length && !error && !publishedContent && !hostedContent && <Typography.Paragraph>{label('empty')}</Typography.Paragraph>}
             {cursor && (
               <Button
                 disabled={isLoading}
@@ -381,12 +335,12 @@ export default function MossCatalogBrowser({ kind, customContent, builtinContent
                 <h2 className={styles.detailTitle}>{detail.displayName}</h2>
                 <Space wrap>
                   <Tag>{label(`source.${detail.source}`)}</Tag>
-                  {detail.version && (
+                  {kind === 'agents' && <Tag color='arcoblue'>{expertTypeLabel(detail.expertType)}</Tag>}
+                  {detail.displayVersion && (
                     <span className={styles.source}>
-                      {label('version')}: {detail.version}
+                      {label('version')}: {detail.displayVersion}
                     </span>
                   )}
-                  {detailLocal && <Tag color='green'>{label('downloaded')}</Tag>}
                 </Space>
               </div>
             </div>
@@ -440,20 +394,9 @@ export default function MossCatalogBrowser({ kind, customContent, builtinContent
               )}
             </div>
             <div className={styles.detailActions}>
-              {!isLocalDetail && (
-                <Button
-                  icon={<Download size={14} />}
-                  disabled={!detail.isAvailable || busy !== null || (!!detailLocal && !isDetailUpdate)}
-                  onClick={() => {
-                    void onPrepare(detail, false, isDetailUpdate);
-                  }}
-                >
-                  {label(isDetailUpdate ? 'update' : 'download')}
-                </Button>
-              )}
               <Button
                 type='primary'
-                disabled={!detail.isAvailable || busy !== null || detailLocal?.isEnabled === false}
+                disabled={!detail.isAvailable || busy !== null}
                 loading={busy === itemKey(detail)}
                 onClick={() => {
                   void onPrepare(detail, true);

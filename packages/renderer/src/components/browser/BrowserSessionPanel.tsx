@@ -2,7 +2,19 @@ import { Button, Collapse, Empty, Input, Message, Modal, Select, Spin } from '@a
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
-import { BrowserFileSchema, BrowserInputSchema, BrowserSessionReplySchema, isCurrentBrowserFrame, type BrowserFile, type BrowserInput, type BrowserSessionAction, type BrowserSessionReply, type BrowserSessionState } from '@sudowork/contracts/browser-session';
+import {
+  BrowserFileSchema,
+  BrowserInputSchema,
+  BrowserOwnerInfoSchema,
+  BrowserSessionReplySchema,
+  isCurrentBrowserFrame,
+  type BrowserFile,
+  type BrowserInput,
+  type BrowserOwnerInfo,
+  type BrowserSessionAction,
+  type BrowserSessionReply,
+  type BrowserSessionState,
+} from '@sudowork/contracts/browser-session';
 import { PageSurface } from '@ai-dev-browser/remote-page';
 import { copyTextFromPromise } from '../../utils/clipboard';
 import WindowStreamSurface, { type IWindowStreamContext } from './WindowStreamSurface';
@@ -11,6 +23,16 @@ import { isElectronDesktop } from '../../utils/platform';
 
 function isLiveDragCancellation(input: BrowserInput) {
   return input.kind === 'drag-stream' && input.phase === 'cancel';
+}
+
+/** Carries the untranslated bridge error code so callers can branch on the cause. */
+class BrowserPanelError extends Error {
+  constructor(
+    message: string,
+    readonly code: string
+  ) {
+    super(message);
+  }
 }
 
 /** Shared remote browser UI. The host authenticates and enforces every action. */
@@ -35,6 +57,8 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
   const [isPanning, setIsPanning] = useState(false);
   const [isTouchDragging, setIsTouchDragging] = useState(false);
   const [windowStream, setWindowStream] = useState<IWindowStreamContext | null>(null);
+  const [pageViewerId, setPageViewerId] = useState<string | undefined>(undefined);
+  const [occupancy, setOccupancy] = useState<BrowserOwnerInfo | null>(null);
   const windowStreamRef = useRef<IWindowStreamContext | null>(null);
   const isTouchInputAvailable = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -56,7 +80,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
       const reply = await ipcBridge.browserSession.invoke.invoke({ conversationId, action });
       if (!reply?.success) {
         const code = reply?.msg || 'unavailable';
-        throw new Error(t(`conversation.browserSession.errors.${code}`, { defaultValue: t('conversation.browserSession.unavailable') }));
+        throw new BrowserPanelError(t(`conversation.browserSession.errors.${code}`, { defaultValue: t('conversation.browserSession.unavailable') }), code);
       }
       return BrowserSessionReplySchema.parse(reply.data);
     },
@@ -79,6 +103,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     }
     sessionRef.current = next;
     setSession(next);
+    setOccupancy(null);
     if ((!previous || !isSameBrowser) && next.state !== 'stopped') {
       if (next.isHeadless !== null) setIsHeadless(next.isHeadless);
       if (next.transport !== 'electron') setTransport(next.transport);
@@ -100,6 +125,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     let isStateNeeded = true;
     let unsupportedStreamBrowserId: string | undefined;
     const viewerId = crypto.randomUUID();
+    setPageViewerId(undefined);
     sessionRef.current = null;
     windowStreamRef.current = null;
     setWindowStream(null);
@@ -115,6 +141,19 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     setIsTextComposing(false);
     fileChoiceRef.current = null;
     if (!isActive || !conversationId) return;
+    // performance.now() counts from process start; zero would falsely throttle the first read.
+    let occupancyCheckedAt = -Infinity;
+    const refreshOccupancy = async () => {
+      if (performance.now() - occupancyCheckedAt < 5_000) return;
+      occupancyCheckedAt = performance.now();
+      try {
+        const reply = await ipcBridge.browserSession.ownerInfo.invoke({ conversationId });
+        if (isClosed || !reply?.success || !reply.data) return;
+        setOccupancy(BrowserOwnerInfoSchema.parse(reply.data));
+      } catch {
+        // The next poll cycle retries the occupancy read.
+      }
+    };
 
     async function poll() {
       const startedAt = performance.now();
@@ -141,6 +180,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
             update(attached.session);
             attachedBrowserId = attached.session.browserSessionId;
             attachedSurface = viewMode;
+            setPageViewerId(viewMode === 'page' ? viewerId : undefined);
           }
           const state = sessionRef.current!;
           const isStreamingSupported = viewMode === 'window' && state.capabilities.windowStream === true && unsupportedStreamBrowserId !== state.browserSessionId;
@@ -171,6 +211,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
           if (attachedBrowserId) await invoke({ kind: 'detach', viewerId });
           attachedBrowserId = undefined;
           attachedSurface = undefined;
+          setPageViewerId(undefined);
           isStateNeeded = true;
           windowStreamRef.current = null;
           setWindowStream(null);
@@ -181,10 +222,19 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
         isStateNeeded = true;
         attachedBrowserId = undefined;
         attachedSurface = undefined;
+        setPageViewerId(undefined);
         windowStreamRef.current = null;
         setWindowStream(null);
         if (!isClosed) {
-          setError(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
+          if (failure instanceof BrowserPanelError && failure.code === 'browser_profile_in_use') {
+            // Another conversation holds this owner's profile; show who instead of a transient error.
+            setOccupancy((previous) => previous ?? { owner: null, browserRunning: false });
+            void refreshOccupancy();
+            setError(null);
+          } else {
+            setOccupancy(null);
+            setError(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
+          }
           surfaceRef.current?.clear();
           isFrameReadyRef.current = false;
           isInteractiveRef.current = false;
@@ -211,23 +261,24 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
   const isConversationControlSupported = session?.capabilities.conversationControl === true;
   const isSessionKnown = session !== null;
   const isDragSupported = session?.capabilities.dragInput === true;
+  const isPageLiveDragSupported = session?.capabilities.liveDragSurfaces?.includes('page') === true;
+  // Takeover mirrors the registry claim rule: an explicit start can always claim the profile.
+  const isOccupancyTakeoverEnabled = occupancy !== null;
+  const occupantSessionId = occupancy?.owner ? occupancy.owner.sessionId.slice(0, 8) : '';
+  const occupancyView = occupancy ? (
+    <div className='flex flex-wrap items-center gap-2' data-testid='browser-session-occupied'>
+      <span role='status'>{occupancy.browserRunning ? t('conversation.browserSession.occupiedRunning', { sessionId: occupantSessionId }) : t('conversation.browserSession.occupiedIdle', { sessionId: occupantSessionId })}</span>
+      <Button size='mini' disabled={!isOccupancyTakeoverEnabled || isTransferring} onClick={() => void onStart()}>
+        {t('conversation.browserSession.takeover')}
+      </Button>
+    </div>
+  ) : null;
   const isController = isConversationControlSupported && session?.state === 'human' && session.isController && !isTransferring && !isFileTransferring && !error;
   const isStoppedController = isConversationControlSupported && session?.state === 'stopped' && session.isController && session.isHumanControlHeld && !isTransferring && !error;
+  // AI control can be interrupted to run lifecycle actions as the human controller.
+  const isLifecycleInterruptible = isConversationControlSupported && session?.state === 'ai' && !isTransferring && !isFileTransferring && !error;
+  const isLifecycleActor = isController || isLifecycleInterruptible;
   isInteractiveRef.current = !!isController && isFrameReady && !isPanning;
-
-  const onStreamInput = (value: unknown) => {
-    const input = BrowserInputSchema.safeParse(value);
-    if (!input.success || (!isInteractiveRef.current && !isLiveDragCancellation(input.data))) return Promise.reject(new Error(t('conversation.browserSession.unavailable')));
-    const generation = generationRef.current;
-    return queueInput(input.data)
-      .then((reply) => {
-        if (generationRef.current === generation) updateRef.current(reply.session);
-      })
-      .catch((failure: unknown) => {
-        if (generationRef.current === generation) Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
-        throw failure;
-      });
-  };
 
   const onStreamReady = (size: { width: number; height: number }) => {
     const state = sessionRef.current;
@@ -330,6 +381,23 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     [t]
   );
 
+  const onStreamInput = useCallback(
+    (value: unknown) => {
+      const input = BrowserInputSchema.safeParse(value);
+      if (!input.success || (!isInteractiveRef.current && !isLiveDragCancellation(input.data))) return Promise.reject(new Error(t('conversation.browserSession.unavailable')));
+      const generation = generationRef.current;
+      return queueInput(input.data)
+        .then((reply) => {
+          if (generationRef.current === generation) updateRef.current(reply.session);
+        })
+        .catch((failure: unknown) => {
+          if (generationRef.current === generation) Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
+          throw failure;
+        });
+    },
+    [queueInput, t]
+  );
+
   const onAction = useCallback(
     async (kind: 'navigate' | 'back' | 'forward' | 'reload' | 'new-tab' | 'select-tab' | 'close-tab', targetId?: string) => {
       const generation = generationRef.current;
@@ -353,11 +421,12 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
   );
 
   const interruptRef = useRef(false);
-  const onBrowserInterrupt = async () => {
-    if (interruptRef.current || isPanning || !isFrameReady || sessionRef.current?.state !== 'ai' || !isConversationControlSupported) return;
-    const generation = generationRef.current;
+  // Interrupt the AI turn and wait until this conversation holds human control.
+  // Shared by the viewport gesture and lifecycle actions; reentry-guarded so the
+  // two can never issue a second conversation.stop while one is in flight.
+  const interruptAiControl = async (generation: number): Promise<boolean> => {
+    if (interruptRef.current) return false;
     interruptRef.current = true;
-    setIsTransferring(true);
     try {
       // This is the existing task interrupt, including host acknowledgements.
       // The initiating gesture is discarded: it was aimed at an older frame.
@@ -366,16 +435,27 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
       const deadline = performance.now() + 30_000;
       while (generationRef.current === generation) {
         const next = await invoke({ kind: 'state' });
-        if (generationRef.current !== generation) return;
+        if (generationRef.current !== generation) return false;
         update(next.session);
-        if (next.session.state === 'human' && next.session.isController) return;
+        if (next.session.state === 'human' && next.session.isController) return true;
         if (next.session.state === 'error' || performance.now() >= deadline) throw new Error(t('conversation.browserSession.unavailable'));
         await new Promise((resolve) => setTimeout(resolve, 250));
       }
     } catch (failure) {
       if (generationRef.current === generation) Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
+      return false;
     } finally {
       interruptRef.current = false;
+    }
+    return false;
+  };
+  const onBrowserInterrupt = async () => {
+    if (isPanning || !isFrameReady || sessionRef.current?.state !== 'ai' || !isConversationControlSupported) return;
+    const generation = generationRef.current;
+    setIsTransferring(true);
+    try {
+      await interruptAiControl(generation);
+    } finally {
       if (generationRef.current === generation) setIsTransferring(false);
     }
   };
@@ -385,20 +465,13 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     const surface = new PageSurface(
       imageRef.current,
       (value: unknown) => {
-        const current = sessionRef.current;
-        if (!isInteractiveRef.current || !current || current.state !== 'human' || !current.isController) return;
-        const input = BrowserInputSchema.safeParse(value);
-        if (!input.success) return;
-        const generation = generationRef.current;
-        void queueInput(input.data)
-          .then((reply) => {
-            if (generationRef.current === generation) updateRef.current(reply.session);
-          })
-          .catch((failure: unknown) => {
-            if (generationRef.current === generation) Message.error(failure instanceof Error ? failure.message : t('conversation.browserSession.unavailable'));
-          });
+        const pending = onStreamInput(value);
+        // The shared mapper coalesces live positions until the checked API
+        // acknowledges each packet. Legacy one-shot input has no promise user.
+        if (value !== null && typeof value === 'object' && 'kind' in value && value.kind === 'drag-stream') return pending;
+        void pending.catch(() => {});
       },
-      { drag: isDragSupported, touchDrag: isTouchDragging }
+      { drag: isDragSupported, touchDrag: isTouchDragging, liveDrag: isPageLiveDragSupported && !!pageViewerId, viewerId: pageViewerId }
     );
     surfaceRef.current = surface;
     return () => {
@@ -408,7 +481,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
       setIsFrameReady(false);
       surfaceRef.current = null;
     };
-  }, [queueInput, t, isControlsOnly, isSessionKnown, isDragSupported, isTouchDragging, windowStream]);
+  }, [onStreamInput, isControlsOnly, isSessionKnown, isDragSupported, isPageLiveDragSupported, isTouchDragging, pageViewerId, windowStream]);
 
   const onTouchGestureChange = (value: string) => {
     // A second finger can change this control during an unfinished gesture.
@@ -595,14 +668,22 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
       okText: t(`conversation.browserSession.${kind}`),
       cancelText: t('common.cancel'),
       onOk: async () => {
-        const current = sessionRef.current;
-        if (generationRef.current !== generation || !current || current.state !== 'human' || !current.isController) return;
+        if (generationRef.current !== generation) return;
+        let current = sessionRef.current;
+        if (!current) return;
         setIsTransferring(true);
-        surfaceRef.current?.clear();
-        isFrameReadyRef.current = false;
-        isInteractiveRef.current = false;
-        setIsFrameReady(false);
         try {
+          if (current.state !== 'human' || !current.isController) {
+            // AI control is interrupted first; the drained lease then carries fresh epochs.
+            if (current.state !== 'ai' || !isConversationControlSupported) return;
+            if (!(await interruptAiControl(generation))) return;
+            current = sessionRef.current;
+            if (generationRef.current !== generation || !current || current.state !== 'human' || !current.isController) return;
+          }
+          surfaceRef.current?.clear();
+          isFrameReadyRef.current = false;
+          isInteractiveRef.current = false;
+          setIsFrameReady(false);
           const epochs = { controlEpoch: current.controlEpoch, targetEpoch: current.targetEpoch };
           const action: BrowserSessionAction = kind === 'stop' ? { kind, ...epochs } : { kind, ...requestedMode, acknowledgeStateLoss: true, ...epochs };
           const reply = await invoke(action);
@@ -746,6 +827,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
         {controls}
         <p className='text-xs text-t-secondary'>{t(`conversation.browserSession.${isConversationControlSupported ? 'conversationControl' : 'conversationUpdateRequired'}`)}</p>
         {error ? <div role='alert'>{error}</div> : null}
+        {occupancyView}
       </div>
     );
 
@@ -753,6 +835,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
     <div className='h-full min-h-0 box-border flex flex-col gap-2 overflow-auto p-2' data-testid='browser-session-panel'>
       {controls}
       <p className='text-xs text-t-secondary'>{t(`conversation.browserSession.${isConversationControlSupported ? 'conversationControl' : 'conversationUpdateRequired'}`)}</p>
+      {occupancyView}
       <Collapse bordered={false}>
         <Collapse.Item header={t('conversation.browserSession.browserSource')} name='browser-source'>
           <p className='text-xs text-t-secondary'>{t(`conversation.browserSession.${session?.personalExtension ? 'personalSourceDescription' : session?.capabilities.existingExtension ? 'localSourceDescription' : 'cloudSourceDescription'}`)}</p>
@@ -766,7 +849,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
               {t('conversation.browserSession.personalDisconnect')}
             </Button>
           ) : null}
-          {!session?.personalExtension && (session?.state === 'stopped' || (isController && session?.capabilities.lifecycle)) ? (
+          {!session?.personalExtension && (session?.state === 'stopped' || (isLifecycleActor && session?.capabilities.lifecycle)) ? (
             <div className='flex flex-wrap items-center gap-2'>
               <Select
                 aria-label={t('conversation.browserSession.launchMode')}
@@ -793,10 +876,10 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
                 </Button>
               ) : (
                 <>
-                  <Button size='mini' disabled={!isController} onClick={() => onLifecycle('restart')}>
+                  <Button size='mini' disabled={!isLifecycleActor} onClick={() => onLifecycle('restart')}>
                     {t('conversation.browserSession.restart')}
                   </Button>
-                  <Button size='mini' disabled={!isController} onClick={() => onLifecycle('stop')}>
+                  <Button size='mini' disabled={!isLifecycleActor} onClick={() => onLifecycle('stop')}>
                     {t('conversation.browserSession.stop')}
                   </Button>
                 </>
@@ -984,7 +1067,11 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
             />
           )}
         </div>
-        {!isFrameReady ? <div className='absolute inset-0 flex items-center justify-center'>{error ? <Empty description={error} /> : session?.state === 'stopped' ? <Empty description={t('conversation.browserSession.waiting')} /> : <Spin />}</div> : null}
+        {!isFrameReady ? (
+          <div className='absolute inset-0 flex items-center justify-center'>
+            {error ? <Empty description={error} /> : occupancy ? <Empty description={t('conversation.browserSession.occupiedEmpty')} /> : session?.state === 'stopped' ? <Empty description={t('conversation.browserSession.waiting')} /> : <Spin />}
+          </div>
+        ) : null}
       </div>
       {isController ? (
         <>

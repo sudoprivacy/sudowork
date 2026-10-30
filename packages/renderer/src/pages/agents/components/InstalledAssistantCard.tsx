@@ -6,7 +6,7 @@
 
 import React from 'react';
 import { Button, Popconfirm, Switch, Tooltip } from '@arco-design/web-react';
-import { ArrowUpRight, Bot, Copy, Download, Eye, SquarePen, Trash2, Upload, Zap } from 'lucide-react';
+import { Archive, ArrowUpRight, Bot, Copy, Download, Eye, SquarePen, Trash2, Upload, Zap } from 'lucide-react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import { isElectronDesktop } from '@renderer/utils/platform';
@@ -15,7 +15,7 @@ import { normalizeAssistantVersion, resolveAvatarImageSrc } from '../utils';
 
 export default function InstalledAssistantCard(props: IInstalledAssistantCardProps) {
   const { assistant, isExtension, localeKey } = props;
-  const { onToggleEnabled, onDelete, onDuplicate, onUpdate, hasUpdate, updating, onUpload, onClick, onUse, isOpening, isUseDisabled } = props;
+  const { onToggleEnabled, onDelete, onDuplicate, onUpdate, hasUpdate, updating, onUpload, uploading, onExport, onClick, onUse, isOpening, isUseDisabled } = props;
   const { uploadStatus, enterprisePublishButton, hideDelete, allowToggle, allowDelete, enterpriseMode, canManage = true } = props;
   const { t } = useTranslation();
   const isCustom = enterpriseMode ? assistant._category === 'custom' || (!assistant._category && !assistant.isBuiltin && !isExtension && !assistant._isHubInstalled) : !assistant.isBuiltin && !isExtension && !assistant._isHubInstalled;
@@ -33,7 +33,7 @@ export default function InstalledAssistantCard(props: IInstalledAssistantCardPro
   const avatarImage = resolveAvatarImageSrc(resolvedAvatar);
   const displayName = assistant.nameI18n?.[localeKey] || assistant.name;
   const description = assistant.descriptionI18n?.[localeKey] || assistant.description || '';
-  const displayVersion = enterpriseMode ? '' : normalizeAssistantVersion(assistant._installedVersion);
+  const displayVersion = normalizeAssistantVersion(assistant._installedVersion);
 
   return (
     <div className={classNames('card group flex items-start gap-3 relative overflow-hidden', !isEnabled && 'opacity-65')} onClick={onClick}>
@@ -80,7 +80,7 @@ export default function InstalledAssistantCard(props: IInstalledAssistantCardPro
                 onUse();
               }}
             >
-              {t('settings.skill.goUse', '去使用')}
+              {t('settings.mossCatalog.use')}
             </Button>
           </div>
         )}
@@ -109,8 +109,13 @@ export default function InstalledAssistantCard(props: IInstalledAssistantCardPro
         </Tooltip>
         {/* Upload button - only for custom assistants */}
         {isCustom && onUpload && (
-          <Tooltip content={t('settings.assistant.upload', '上传')}>
-            <Button shape='circle' className='!size-7' icon={<Upload size={13} />} onClick={onUpload} />
+          <Tooltip content={t('settings.mossCatalog.uploadToMoss')}>
+            <Button shape='circle' className='!size-7' loading={uploading} icon={<Upload size={13} />} onClick={onUpload} />
+          </Tooltip>
+        )}
+        {isCustom && onExport && (
+          <Tooltip content={t('settings.assistant.export', '导出专家包')}>
+            <Button shape='circle' className='!size-7' icon={<Archive size={13} />} onClick={onExport} />
           </Tooltip>
         )}
         {uploadStatus}
@@ -146,6 +151,8 @@ interface IInstalledAssistantCardProps {
   hasUpdate?: boolean;
   updating?: boolean;
   onUpload?: () => void;
+  uploading?: boolean;
+  onExport?: () => void;
   uploadStatus?: React.ReactNode;
   onClick: () => void;
   onUse?: () => void;

@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const state = vi.hoisted(() => ({ installed: [], request: vi.fn(), list: vi.fn(), detail: vi.fn(), install: vi.fn(), validate: vi.fn(), personal: vi.fn() }));
+const state = vi.hoisted(() => ({ installed: [] as Array<Record<string, unknown>>, request: vi.fn(), list: vi.fn(), detail: vi.fn(), install: vi.fn(), validate: vi.fn(), personal: vi.fn() }));
 vi.mock('../../src/process/services/mossCatalogApi', () => ({ requestMossCatalog: state.request, listMossCatalog: state.list, detailMossCatalog: state.detail }));
 vi.mock('../../src/process/services/mossCatalogInstall', () => ({ getMossCatalogInstallations: async () => state.installed, installMossCatalog: state.install, validateCatalogInstallation: state.validate, catalogResourceRoot: vi.fn(), catalogRuntimeName: vi.fn() }));
 vi.mock('../../src/process/services/mossPersonalAgents', () => ({ requireMossPersonalAgent: state.personal }));
-import { resolveMossCatalogSelection } from '../../src/process/services/mossCatalogSelection';
+import { resolveMossCatalogSelection, resolveServerCatalogSelection } from '../../src/process/services/mossCatalogSelection';
 
 const templateId = '2965314e-3f20-4847-ae17-71de9cb84687';
 beforeEach(() => {
@@ -22,6 +22,14 @@ describe('installed template references in managed conversations', () => {
     expect(state.list).not.toHaveBeenCalled();
   });
 
+  it('retains private identity after a local download when switching execution modes', async () => {
+    state.installed = [{ kind: 'agents', source: 'hub', id: templateId, runtimeName: 'private-copy' }];
+    state.request.mockImplementation(async () => Response.json([{ id: templateId, name: 'Private task template', enabled: true, isHubInstalled: false }]));
+    expect((await resolveServerCatalogSelection(templateId)).assistantReference).toBe(templateId);
+    expect((await resolveMossCatalogSelection(templateId)).unresolved).toEqual([templateId]);
+    expect(state.install).not.toHaveBeenCalled();
+    expect(state.detail).not.toHaveBeenCalled();
+  });
   it('preserves an installed private template without fetching unrelated catalogs', async () => {
     expect(await resolveMossCatalogSelection(templateId)).toEqual({ assistantReference: templateId, skillReferences: [], selected: [], unresolved: [templateId] });
     expect(state.request).toHaveBeenCalledWith('/api/v1/agent-templates/installed');

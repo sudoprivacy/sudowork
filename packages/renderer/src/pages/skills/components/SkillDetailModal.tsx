@@ -6,7 +6,6 @@
 
 import React, { useEffect, useState } from 'react';
 import { Button, Spin, Modal, Popconfirm, Progress } from '@arco-design/web-react';
-import { IconDownload, IconRefresh } from '@arco-design/web-react/icon';
 import { PackagePlus, Trash2, Shield } from 'lucide-react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
@@ -51,12 +50,9 @@ export default function SkillDetailModal({
   downloading,
   installProgress,
   onInstall,
-  onDownload,
   onUninstall,
   uninstalling,
   onGoUse,
-  onUpdate,
-  updating = false,
   installedVersion,
   skipApiFetch = false,
   hideActions = false,
@@ -113,7 +109,6 @@ export default function SkillDetailModal({
 
   const coreFeatures = parseCoreFeatures(skill.core_features);
   const applicableScenarios = parseJsonArray(skill.applicable_scenarios);
-  const hasUpdate = isInstalled && latestVersionInfo && (!installedVersion || latestVersionInfo.version !== installedVersion);
 
   return (
     <Modal visible={visible} onCancel={onClose} footer={null} maskClosable style={{ width: 480 }}>
@@ -124,6 +119,11 @@ export default function SkillDetailModal({
             <div className='flex flex-col items-center mb-5'>
               <div className='size-18 rd-14px overflow-hidden mb-3'>{skill.icon ? <img src={skill.icon} alt={skill.display_name} className='w-full h-full object-cover' onError={handleSkillIconError} /> : <div className='w-full h-full f-center text-34px'>{skill.emoji || '📦'}</div>}</div>
               <div className='font-semibold text-17px text-foreground text-center'>{skill.display_name}</div>
+              {(installedVersion || latestVersionInfo?.version || detail?.versions?.[0]?.version) && (
+                <div className='text-secondary text-xs mt-2'>
+                  {t('settings.mossCatalog.version')}: {installedVersion || latestVersionInfo?.version || detail?.versions?.[0]?.version}
+                </div>
+              )}
               {skill.categories && skill.categories.length > 0 && (
                 <div className='flex gap-1 mt-1.5 flex-wrap justify-center'>
                   {skill.categories.map((cat, idx) => (
@@ -189,15 +189,9 @@ export default function SkillDetailModal({
           <div className='flex gap-2 items-center'>
             {isInstalled ? (
               <>
-                {hasUpdate ? (
-                  <Button type='primary' long size='large' className='flex-1' loading={updating} loadingFixedWidth icon={<IconRefresh style={{ fontSize: 15 }} />} onClick={onUpdate}>
-                    {t('settings.skill.updateTo', { version: latestVersionInfo?.version || '', defaultValue: '更新至 v{{version}}' })}
-                  </Button>
-                ) : (
-                  <Button type='primary' long size='large' className='flex-1' onClick={onGoUse || onClose}>
-                    {t('settings.skill.goUse', '去使用')}
-                  </Button>
-                )}
+                <Button type='primary' long size='large' className='flex-1' onClick={onGoUse || onClose}>
+                  使用
+                </Button>
                 {canUninstall &&
                   (uninstalling ? (
                     <div className='size-9 f-center'>
@@ -214,16 +208,9 @@ export default function SkillDetailModal({
                 <Progress percent={installProgress} size='small' />
               </div>
             ) : isCloudInstall || hasVersion ? (
-              <>
-                <Button type='primary' long size='large' icon={<PackagePlus size={15} />} onClick={onInstall} disabled={downloading}>
-                  {t('settings.skill.install', '安装')}
-                </Button>
-                {!isCloudInstall && (
-                  <Button size='large' icon={<IconDownload style={{ fontSize: 15 }} />} loading={downloading} loadingFixedWidth onClick={onDownload} disabled={installing}>
-                    {t('common.download', '下载')}
-                  </Button>
-                )}
-              </>
+              <Button type='primary' long size='large' icon={<PackagePlus size={15} />} onClick={onInstall} disabled={downloading}>
+                使用
+              </Button>
             ) : null}
           </div>
 

@@ -73,7 +73,7 @@ describe('sidebar menu route selection', () => {
     );
     expect(screen.getByRole('button', { name: 'common.siderMenu.ontology' })).not.toHaveClass('!bg-active');
     expect(screen.getByRole('button', { name: 'common.siderMenu.agent' })).not.toHaveClass('!bg-active');
-    if (route === '/app/agents/mine') expect(screen.getByRole('button', { name: 'agent.mine.title' })).toHaveClass('!bg-active');
+    if (route === '/app/agents/mine') expect(screen.getByRole('button', { name: 'agent.mine.menuTitle' })).toHaveClass('!bg-active');
   });
 
   it('preserves the legacy guide menu selection', () => {

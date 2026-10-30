@@ -54,7 +54,8 @@
     "filterLocal": "ローカル実行",
     "createFailed": "Agent を作成できませんでした。再試行してください。",
     "open": "Agent を開く",
-    "openFailed": "Agent の会話を開けませんでした。もう一度お試しください。"
+    "openFailed": "Agent の会話を開けませんでした。もう一度お試しください。",
+    "menuTitle": "マイプロジェクト"
   },
   "external.title": "外部エージェント（試験運用）",
   "external.pilot": "承認済みエージェントと合成テストデータのみ使用できます。顧客データ、実業務データ、秘密情報を入力しないでください。",

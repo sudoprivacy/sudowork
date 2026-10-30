@@ -29,7 +29,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           repository: sudoprivacy/sudograph
-          ref: 8e56b55d2358ac672db021ae00c03c5d2a2863e0
+          ref: 635f222b8430b9a0ace4c17169fa8c582f61deea # Sudograph compiler 0.1.0.
           path: .native-review-acceptance/compiler
           persist-credentials: false
       - uses: actions/setup-node@v6
@@ -49,29 +49,46 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          bun install --frozen-lockfile
+          # This Node/Python browser journey does not run Electron or native
+          # SQLite. Do not download/rebuild those runtimes during installation.
+          bun install --frozen-lockfile --ignore-scripts
           version="$(bun -e "import { BROWSER_WORKER_VERSION } from './apps/desktop/src/process/services/python/browserRuntimeVersion.ts'; console.log(BROWSER_WORKER_VERSION)")"
           [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
-          python -m pip --isolated install --index-url https://pypi.org/simple -r .native-review-acceptance/compiler/requirements.txt "ai-dev-browser[remote]==$version"
-          bun run --filter=@sudowork/contracts build
+          python -m pip --isolated install --index-url https://pypi.org/simple .native-review-acceptance/compiler "ai-dev-browser[remote]==$version"
+          python -c 'import os; from pathlib import Path; (Path(os.environ["RUNNER_TEMP"])/"sudograph-worker").mkdir()'
+          # Node-targeted bundles resolve workspace exports through dist, while
+          # Bun execution can read src. Build the shared dependency chain so a
+          # fresh runner cannot depend on another command's retained outputs.
+          bun run build:packages
           bun build ./apps/desktop/tests/integration/sudographReviewLaunch.live.ts --target=node --format=esm --outfile=./sudograph-review-live.mjs
+          bun build ./apps/desktop/tests/integration/sudographModelRuntime.live.ts --target=node --format=esm --outfile=./sudograph-model-runtime-live.mjs
       - name: Verify actual protected HTML and controlled browser handoff
         shell: bash
         env:
           AI_DEV_BROWSER_CHROME: ${{ steps.chrome.outputs.chrome-path }}
-          SUDOGRAPH_COMPILER_ROOT: ${{ github.workspace }}/.native-review-acceptance/compiler
+          SUDOGRAPH_COMPILER_ROOT: ${{ runner.temp }}/sudograph-worker
           SUDOWORK_BROWSER_LIVE_PYTHONPATH: ""
           SUDOWORK_REVIEW_LIVE_EVIDENCE: ${{ runner.temp }}/sudograph-review
         run: |
           set -euo pipefail
           export SUDOGRAPH_PYTHON="$(python -c 'import sys; print(sys.executable)')"
           export SUDOWORK_BROWSER_LIVE_PYTHON="$SUDOGRAPH_PYTHON"
+          node ./sudograph-model-runtime-live.mjs
           node ./sudograph-review-live.mjs
           if [[ "$RUNNER_OS" == "Linux" ]]; then
             xvfb-run -a node ./sudograph-review-live.mjs --headful
           else
             node ./sudograph-review-live.mjs --headful
           fi
+      - name: Accept the separately installed host package and public declarations
+        shell: bash
+        env:
+          SUDOGRAPH_COMPILER_ROOT: ${{ runner.temp }}/sudograph-worker
+        run: |
+          set -euo pipefail
+          export SUDOGRAPH_PYTHON="$(python -c 'import sys; print(sys.executable)')"
+          export BUN_EXECUTABLE="$(bun -e 'console.log(process.execPath)')"
+          node scripts/accept-sudograph-host-package.mjs --directory "$RUNNER_TEMP/sudograph-host-package" --probe ./sudograph-model-runtime-live.mjs
       - uses: actions/upload-artifact@v6
         if: always()
         with:
@@ -80,6 +97,7 @@ jobs:
             ${{ runner.temp }}/sudograph-review/**/receipt.json
             ${{ runner.temp }}/sudograph-review/**/native-review.png
             ${{ runner.temp }}/sudograph-review/**/worker.log
+            ${{ runner.temp }}/sudograph-host-package/*
           if-no-files-found: warn
 
   streamed-window:
@@ -103,7 +121,9 @@ jobs:
       - name: Build the actual shared React and noVNC surface
         env:
           GOMAXPROCS: "1"
-        run: node apps/desktop/node_modules/vite/bin/vite.js build --config apps/desktop/tests/e2e/browser_stream_surface/vite.config.ts
+        run: |
+          node apps/desktop/node_modules/vite/bin/vite.js build --config apps/desktop/tests/e2e/browser_stream_surface/vite.config.ts
+          node apps/desktop/node_modules/vite/bin/vite.js build --config apps/desktop/tests/e2e/browser_page_panel/vite.config.ts
       - name: Build the isolated managed Chrome fixture
         shell: bash
         run: |
@@ -127,6 +147,19 @@ jobs:
             /consumer/apps/desktop/tests/e2e/live_window_stream_surface.py \
             --assets /consumer/apps/desktop/tests/e2e/browser_stream_surface/dist \
             --evidence /tmp/browser-stream-evidence
+      - name: Verify the actual shared page panel and disconnect cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --init --name "sudowork-browser-page-$GITHUB_RUN_ID" \
+            --label "sudo.acceptance.owner=sudowork-browser-page-$GITHUB_RUN_ID" \
+            --network none --memory=1536m --shm-size=256m --pids-limit=384 --cpus=1 --cpuset-cpus=0 \
+            --cap-drop ALL --security-opt no-new-privileges \
+            --mount "type=bind,source=$PWD,target=/consumer,readonly" \
+            sudowork-browser-stream:ci /opt/browser/venv/bin/python \
+            /consumer/apps/desktop/tests/e2e/live_page_session_panel.py \
+            --assets /consumer/apps/desktop/tests/e2e/browser_page_panel/dist \
+            --evidence /tmp/browser-page-evidence
       - name: Collect actual Chrome evidence
         if: always()
         shell: bash
@@ -134,11 +167,16 @@ jobs:
           if docker inspect "sudowork-browser-stream-$GITHUB_RUN_ID" >/dev/null 2>&1; then
             docker cp "sudowork-browser-stream-$GITHUB_RUN_ID:/tmp/browser-stream-evidence" "$RUNNER_TEMP/browser-stream-evidence"
           fi
+          if docker inspect "sudowork-browser-page-$GITHUB_RUN_ID" >/dev/null 2>&1; then
+            docker cp "sudowork-browser-page-$GITHUB_RUN_ID:/tmp/browser-page-evidence" "$RUNNER_TEMP/browser-page-evidence"
+          fi
       - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: shared-react-window-stream
-          path: ${{ runner.temp }}/browser-stream-evidence/**
+          path: |
+            ${{ runner.temp }}/browser-stream-evidence/**
+            ${{ runner.temp }}/browser-page-evidence/**
           if-no-files-found: warn
       - name: Remove the owned fixture and signing key
         if: always()
@@ -148,6 +186,11 @@ jobs:
             owner="$(docker inspect --format '{{ index .Config.Labels "sudo.acceptance.owner" }}' "sudowork-browser-stream-$GITHUB_RUN_ID")"
             test "$owner" = "sudowork-browser-stream-$GITHUB_RUN_ID"
             docker rm -f "sudowork-browser-stream-$GITHUB_RUN_ID"
+          fi
+          if docker inspect "sudowork-browser-page-$GITHUB_RUN_ID" >/dev/null 2>&1; then
+            owner="$(docker inspect --format '{{ index .Config.Labels "sudo.acceptance.owner" }}' "sudowork-browser-page-$GITHUB_RUN_ID")"
+            test "$owner" = "sudowork-browser-page-$GITHUB_RUN_ID"
+            docker rm -f "sudowork-browser-page-$GITHUB_RUN_ID"
           fi
           rm -f "$RUNNER_TEMP/browser-stream-fixture.pem"
 

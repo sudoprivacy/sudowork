@@ -12,7 +12,7 @@
     },
     "apps/desktop": {
       "name": "sudowork",
-      "version": "0.2.40",
+      "version": "0.2.41",
       "dependencies": {
         "@anthropic-ai/sdk": "^0.71.2",
         "@aws-sdk/client-bedrock": "^3.987.0",
@@ -114,6 +114,7 @@
         "zod": "^3.25.76",
       },
       "devDependencies": {
+        "@sudowork/sudograph-runtime": "workspace:*",
         "@arco-design/web-react": "^2.66.1",
         "@codemirror/autocomplete": "^6.20.1",
         "@codemirror/commands": "^6.10.3",
@@ -366,6 +367,7 @@
         "@aws-sdk/client-s3": "^3.1134.0",
         "@sudowork/ontology-common": "workspace:*",
         "@sudowork/ontology-engine": "workspace:*",
+        "@sudowork/sudograph-runtime": "workspace:*",
         "basic-ftp": "^6.2.1",
         "csv-parse": "^7.0.2",
         "jszip": "^3.10.1",
@@ -479,6 +481,18 @@
         "typescript-eslint": "^8.68.0",
         "vite": "^6.4.1",
       },
+    },
+    "packages/sudograph-runtime": {
+      "name": "@sudowork/sudograph-runtime",
+      "version": "0.1.0",
+      "dependencies": {
+        "mysql2": "3.24.4",
+        "pg": "8.23.0"
+      },
+      "devDependencies": {
+        "@types/node": "^24.3.1",
+        "@types/pg": "^8.15.5"
+      }
     },
   },
   "patchedDependencies": {
@@ -1770,6 +1784,7 @@
     "@sudowork/ontology-ui": ["@sudowork/ontology-ui@workspace:packages/ontology-ui"],
 
     "@sudowork/renderer": ["@sudowork/renderer@workspace:packages/renderer"],
+    "@sudowork/sudograph-runtime": ["@sudowork/sudograph-runtime@workspace:packages/sudograph-runtime"],
 
     "@swc/core": ["@swc/core@1.15.11", "https://registry.npmjs.org/@swc/core/-/core-1.15.11.tgz", { "dependencies": { "@swc/counter": "^0.1.3", "@swc/types": "^0.1.25" }, "optionalDependencies": { "@swc/core-darwin-arm64": "1.15.11", "@swc/core-darwin-x64": "1.15.11", "@swc/core-linux-arm-gnueabihf": "1.15.11", "@swc/core-linux-arm64-gnu": "1.15.11", "@swc/core-linux-arm64-musl": "1.15.11", "@swc/core-linux-x64-gnu": "1.15.11", "@swc/core-linux-x64-musl": "1.15.11", "@swc/core-win32-arm64-msvc": "1.15.11", "@swc/core-win32-ia32-msvc": "1.15.11", "@swc/core-win32-x64-msvc": "1.15.11" }, "peerDependencies": { "@swc/helpers": ">=0.5.17" }, "optionalPeers": ["@swc/helpers"] }, "sha512-iLmLTodbYxU39HhMPaMUooPwO/zqJWvsqkrXv1ZI38rMb048p6N7qtAtTp37sw9NzSrvH6oli8EdDygo09IZ/w=="],
 

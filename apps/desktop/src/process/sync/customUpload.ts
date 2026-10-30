@@ -18,13 +18,14 @@
 
 import fs from 'fs/promises';
 import path from 'path';
-import os from 'os';
-import { existsSync, mkdirSync } from 'fs';
+import { existsSync } from 'fs';
+import { randomUUID } from 'crypto';
+import { app } from 'electron';
 import JSZip from 'jszip';
 import type { ISkillHubMeta } from '@sudowork/host-bridge/ipcBridge';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import { isEnterpriseMode, getEnterpriseConfig } from '@/common/enterpriseDebugConfig';
-import { getSkillInstallDir, getAssistantInstallDir, initEnterpriseDirs, getEnterpriseCustomSkillsDir, getEnterpriseCustomAssistantsDir, getSkillMetaFileName, getAssistantMetaFileName, SourceType } from '@/process/constants/enterpriseStorage';
+import { getSkillInstallDir, getAssistantInstallDir, initEnterpriseDirs, getSkillMetaFileName, getAssistantMetaFileName } from '@/process/constants/enterpriseStorage';
 import type { IAssistantMeta } from '@/process/constants/assistantStorage';
 
 // ============ 类型定义 ============
@@ -84,13 +85,14 @@ function getMossConfig(): { serverUrl: string; token: string } {
 /**
  * Create zip file from directory
  */
-async function createZipFromDirectory(sourceDir: string): Promise<Buffer> {
+async function createZipFromDirectory(sourceDir: string, excludeMetadata = false): Promise<Buffer> {
   const zip = new JSZip();
 
   async function addDirectoryToZip(dirPath: string, zipPath: string = ''): Promise<void> {
     const entries = await fs.readdir(dirPath, { withFileTypes: true });
 
     for (const entry of entries) {
+      if (excludeMetadata && ['_moss_meta.json', '_sudowork_meta.json'].includes(entry.name)) continue;
       const fullPath = path.join(dirPath, entry.name);
       const zipEntryPath = zipPath ? `${zipPath}/${entry.name}` : entry.name;
 
@@ -107,6 +109,64 @@ async function createZipFromDirectory(sourceDir: string): Promise<Buffer> {
   return zip.generateAsync({ type: 'nodebuffer' });
 }
 
+/** Transfer authoring metadata, never account identity or publication state. */
+async function createPortableArchive(sourceDir: string, kind: 'agent' | 'skill'): Promise<Buffer> {
+  const zip = await JSZip.loadAsync(await createZipFromDirectory(sourceDir, true));
+  const metaFile = kind === 'agent' ? getAssistantMetaFileName() : getSkillMetaFileName();
+  const raw = JSON.parse(await fs.readFile(path.join(sourceDir, metaFile), 'utf8').catch(() => '{}')) as Record<string, unknown>;
+  // This portable key identifies a development asset, never its owner or permissions.
+  if (typeof raw.transfer_asset_key !== 'string' || !/^[a-f0-9-]{36}$/i.test(raw.transfer_asset_key)) {
+    raw.transfer_asset_key = randomUUID();
+    await fs.writeFile(path.join(sourceDir, metaFile), JSON.stringify(raw, null, 2));
+  }
+  const fields = ['transfer_asset_key', 'name', 'display_name', 'description', 'emoji', 'categories', 'category', 'installed_version', 'ruleFile', 'agent_type', 'memory_mode', 'default_init_prompt', 'promptsI18n', 'skills', 'enabledSkills'];
+  const metadata = Object.fromEntries(fields.filter((key) => raw[key] !== undefined).map((key) => [key, raw[key]]));
+  const localized = (key: string): string | undefined => {
+    const values = raw[key] as Record<string, unknown> | undefined;
+    if (!values || typeof values !== 'object') return undefined;
+    return [values['zh-CN'], values['en-US'], ...Object.values(values)].find((value): value is string => typeof value === 'string' && !!value.trim());
+  };
+  if (kind === 'agent') {
+    metadata.display_name = localized('nameI18n') || raw.display_name || raw.name;
+    metadata.name = metadata.display_name;
+    metadata.description = localized('descriptionI18n') || raw.description || '';
+    metadata.agent_type = raw.agent_type || 'chat';
+    metadata.skills = raw.enabledSkills || raw.skills || [];
+  }
+  metadata.installed_version = raw.installed_version || '1.0.0';
+  zip.file('_moss_meta.json', JSON.stringify(metadata, null, 2));
+  return zip.generateAsync({ type: 'nodebuffer' });
+}
+
+/** Reuse an existing private server mapping, but never trust it across owners. */
+async function resolveUploadTarget(sourceDir: string, kind: 'agent' | 'skill', serverUrl: string, token: string): Promise<string | undefined> {
+  const metaFile = kind === 'agent' ? getAssistantMetaFileName() : getSkillMetaFileName();
+  const meta = JSON.parse(await fs.readFile(path.join(sourceDir, metaFile), 'utf8').catch(() => '{}')) as { moss_id?: string };
+  if (!meta.moss_id) return undefined;
+  const response = await fetch(`${serverUrl}/api/v1/${kind === 'agent' ? 'agent-templates' : 'skills'}/installed`, { headers: { Authorization: `Bearer ${token}` }, redirect: 'error', signal: AbortSignal.timeout(30_000) });
+  if (!response.ok) throw new Error(`Moss identity check failed: HTTP ${response.status}`);
+  const rows = (await response.json()) as Array<{ id: string; meta?: { source_type?: string } }>;
+  return rows.some((row) => row.id === meta.moss_id && row.meta?.source_type === 'custom') ? meta.moss_id : undefined;
+}
+
+function archiveFileName(name: string, fallback: string): string {
+  const safe = name
+    .trim()
+    .replace(/[^\p{L}\p{N}._-]+/gu, '-')
+    .replace(/^-+|-+$/g, '');
+  return `${safe || fallback}.zip`;
+}
+
+async function uniqueDownloadPath(fileName: string): Promise<string> {
+  const downloadsDir = app.getPath('downloads');
+  await fs.mkdir(downloadsDir, { recursive: true });
+  const parsed = path.parse(fileName);
+  let candidate = path.join(downloadsDir, fileName);
+  let suffix = 1;
+  while (existsSync(candidate)) candidate = path.join(downloadsDir, `${parsed.name}-${suffix++}${parsed.ext}`);
+  return candidate;
+}
+
 /**
  * Upload file to Moss Server via JSON body with base64 encoded file
  * Moss Server expects JSON body with file as base64 string
@@ -121,7 +181,8 @@ async function uploadFile(url: string, token: string, params: Record<string, str
     name: params.name || '',
     displayName: params.displayName || params.name || '',
     description: params.description || '',
-    version: params.version || '1.0.0',
+    ...(params.version ? { version: params.version } : {}),
+    ...(params.targetId ? { targetId: params.targetId } : {}),
   };
 
   // Add id (UUID) if provided
@@ -182,7 +243,7 @@ ${params.description || 'Custom skill created by user.'}
 
   // Create metadata
   const meta: ISkillHubMeta = {
-    id: '',
+    id: randomUUID(),
     name: params.skillName,
     display_name: params.displayName,
     description: params.description || '',
@@ -243,7 +304,7 @@ export async function uploadCustomSkill(params: CustomSkillUploadParams): Promis
 
     // Create zip
     mainLog('CustomUpload', `Creating zip for skill: ${params.skillName}`);
-    const zipBuffer = await createZipFromDirectory(skillDir);
+    const zipBuffer = await createPortableArchive(skillDir, 'skill');
 
     // Upload to Moss Server
     const uploadUrl = `${serverUrl}/api/v1/skills/custom`;
@@ -253,6 +314,7 @@ export async function uploadCustomSkill(params: CustomSkillUploadParams): Promis
       uploadUrl,
       token,
       {
+        targetId: await resolveUploadTarget(skillDir, 'skill', serverUrl, token),
         name: params.skillName,
         displayName: params.displayName,
         description: params.description,
@@ -278,7 +340,9 @@ export async function uploadCustomSkill(params: CustomSkillUploadParams): Promis
     const metaPath = path.join(skillDir, metaFileName);
     if (existsSync(metaPath)) {
       const meta = JSON.parse(await fs.readFile(metaPath, 'utf-8')) as ISkillHubMeta;
-      meta.id = result.id || '';
+      // Keep the local identity stable. Moss returns an organization-scoped
+      // asset id; store it as a mapping instead of replacing the local id.
+      (meta as ISkillHubMeta & { moss_id?: string }).moss_id = result.id || undefined;
       meta.uploaded = true;
       meta.uploaded_at = new Date().toISOString();
       await fs.writeFile(metaPath, JSON.stringify(meta, null, 2), 'utf-8');
@@ -288,7 +352,7 @@ export async function uploadCustomSkill(params: CustomSkillUploadParams): Promis
       success: true,
       id: result.id,
       name: params.skillName,
-      status: result.status || 'active',
+      status: result.status || 'private',
     };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
@@ -387,7 +451,7 @@ export async function uploadCustomAssistant(params: CustomAssistantUploadParams)
 
     // Create zip
     mainLog('CustomUpload', `Creating zip for assistant: ${params.assistantName}`);
-    const zipBuffer = await createZipFromDirectory(assistantDir);
+    const zipBuffer = await createPortableArchive(assistantDir, 'agent');
 
     // Upload to Moss Server
     const uploadUrl = `${serverUrl}/api/v1/agent-templates/custom`;
@@ -397,6 +461,7 @@ export async function uploadCustomAssistant(params: CustomAssistantUploadParams)
       uploadUrl,
       token,
       {
+        targetId: await resolveUploadTarget(assistantDir, 'agent', serverUrl, token),
         name: params.assistantName, // User-visible name
         id: params.assistantId, // UUID for server reference
         displayName: params.displayName,
@@ -428,7 +493,7 @@ export async function uploadCustomAssistant(params: CustomAssistantUploadParams)
     if (existsSync(metaPath)) {
       const meta = JSON.parse(await fs.readFile(metaPath, 'utf-8')) as IAssistantMeta;
       const oldId = meta.id;
-      meta.id = result.id || '';
+      (meta as IAssistantMeta & { moss_id?: string }).moss_id = result.id || undefined;
       meta.uploaded = true;
       meta.uploaded_at = new Date().toISOString();
       // Preserve ruleFile field if it exists
@@ -443,7 +508,7 @@ export async function uploadCustomAssistant(params: CustomAssistantUploadParams)
       success: true,
       id: result.id,
       name: params.assistantName,
-      status: result.status || 'active',
+      status: result.status || 'private',
     };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
@@ -453,5 +518,33 @@ export async function uploadCustomAssistant(params: CustomAssistantUploadParams)
       name: params.assistantName,
       error: errorMsg,
     };
+  }
+}
+
+/** Export a local custom skill without private runtime metadata. */
+export async function exportCustomSkillArchive(params: CustomSkillUploadParams): Promise<{ success: boolean; filePath?: string; error?: string }> {
+  try {
+    const sourceDir = params.sourcePath || getSkillInstallDir(params.skillName, 'custom');
+    if (!existsSync(sourceDir)) throw new Error(`Skill directory not found: ${sourceDir}`);
+    const zipBuffer = await createPortableArchive(sourceDir, 'skill');
+    const filePath = await uniqueDownloadPath(archiveFileName(params.displayName || params.skillName, 'skill'));
+    await fs.writeFile(filePath, zipBuffer);
+    return { success: true, filePath };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+/** Export a local custom expert without private runtime metadata. */
+export async function exportCustomAssistantArchive(params: CustomAssistantUploadParams): Promise<{ success: boolean; filePath?: string; error?: string }> {
+  try {
+    const sourceDir = params.sourcePath || getAssistantInstallDir(params.assistantId, 'custom');
+    if (!existsSync(sourceDir)) throw new Error(`Assistant directory not found: ${sourceDir}`);
+    const zipBuffer = await createPortableArchive(sourceDir, 'agent');
+    const filePath = await uniqueDownloadPath(archiveFileName(params.displayName || params.assistantName, 'expert'));
+    await fs.writeFile(filePath, zipBuffer);
+    return { success: true, filePath };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 }

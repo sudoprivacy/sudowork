@@ -6,12 +6,12 @@
 
 import React from 'react';
 import { Progress, Tooltip } from '@arco-design/web-react';
-import { Bot, Copy, Download, Zap } from 'lucide-react';
+import { ArrowUpRight, Bot, Copy, Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { IAssistantHubSkill } from '@sudowork/host-bridge/ipcBridge';
 import { isElectronDesktop } from '@renderer/utils/platform';
 
-const HubAssistantCard: React.FC<HubAssistantCardProps> = ({ assistant, isInstalled, installing, installProgress, onInstall, onUpdate, onDuplicate, onClick, hasUpdate, updating, latestVersion }) => {
+const HubAssistantCard: React.FC<HubAssistantCardProps> = ({ assistant, isInstalled, installing, installProgress, onInstall, onDuplicate, onClick, updating, latestVersion }) => {
   const { t } = useTranslation();
 
   const displayName = assistant.display_name || assistant.name;
@@ -63,16 +63,6 @@ const HubAssistantCard: React.FC<HubAssistantCardProps> = ({ assistant, isInstal
         {/* Duplicate button - only for installed assistants */}
         {isInstalled && (
           <>
-            {!hasUpdate && !updating && (
-              <span className='store-action-badge' style={{ backgroundColor: 'rgba(var(--ui-accent-orange-rgb), 0.10)', color: 'var(--ui-accent-orange)' }}>
-                {t('settings.assistant.installed', '已安装')}
-              </span>
-            )}
-            {hasUpdate && !updating && (
-              <span className='store-action-badge' style={{ backgroundColor: 'rgba(var(--ui-accent-orange-rgb), 0.10)', color: 'var(--ui-accent-orange)' }}>
-                {t('settings.assistant.updateAvailable', '可更新')}
-              </span>
-            )}
             {/* Duplicate button - desktop only: the web host cannot copy assistants (desktop keeps it) */}
             {isElectronDesktop() && (
               <Tooltip content={t('settings.assistant.duplicate', '复制')}>
@@ -88,16 +78,10 @@ const HubAssistantCard: React.FC<HubAssistantCardProps> = ({ assistant, isInstal
           <div className='w-13'>
             <Progress percent={installProgress} size='mini' />
           </div>
-        ) : isInstalled && hasUpdate ? (
-          <Tooltip content={t('settings.assistant.update', '更新')}>
-            <button type='button' className='store-action-icon' onClick={onUpdate}>
-              <Download size={13} />
-            </button>
-          </Tooltip>
-        ) : !isInstalled && hasDownloadUrl ? (
-          <Tooltip content={t('settings.assistant.install', '安装')}>
+        ) : hasDownloadUrl ? (
+          <Tooltip content={t('settings.mossCatalog.use')}>
             <button type='button' className='store-action-icon' onClick={onInstall}>
-              <Download size={13} />
+              <ArrowUpRight size={13} />
             </button>
           </Tooltip>
         ) : null}

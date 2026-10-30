@@ -54,7 +54,8 @@
     "filterLocal": "本機執行",
     "createFailed": "建立失敗，請重試。",
     "open": "開啟 Agent",
-    "openFailed": "無法開啟 Agent 的對話，請重試。"
+    "openFailed": "無法開啟 Agent 的對話，請重試。",
+    "menuTitle": "我的專案"
   },
   "external.title": "外部智慧體（試點）",
   "external.pilot": "僅限已授權智慧體及合成測試資料。請勿輸入客戶資料、真實業務資料或密鑰。",
