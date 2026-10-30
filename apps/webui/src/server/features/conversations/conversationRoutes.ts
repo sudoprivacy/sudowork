@@ -3,8 +3,14 @@ import { z, ZodError } from 'zod'
 import { getMossContext } from '../auth/authService.js'
 import { findPrincipalById, type Principal } from '../auth/principalRepository.js'
 import { requireSession, type AuthedRequest } from '../auth/sessionMiddleware.js'
-import { MossHttpError, upgradeMossRuntime, type MossCallContext } from '@sudowork/moss-client'
 import {
+  MossHttpError,
+  MossProjectScopeError,
+  upgradeMossRuntime,
+  type MossCallContext,
+} from '@sudowork/moss-client'
+import {
+  ConversationListQuerySchema,
   CreateConversationRequestSchema,
   ReorderPinnedRequestSchema,
   SetUserModelRequestSchema,
@@ -63,6 +69,10 @@ export function createConversationRouter(deps: ConversationDeps): Router {
   }
 
   function convErrorHandler(err: unknown, res: Response, next: NextFunction): void {
+    if (err instanceof MossProjectScopeError) {
+      res.status(502).json({ error: 'PROJECT_SESSION_SCOPE_UNCONFIRMED' })
+      return
+    }
     if (err instanceof ZodError) {
       res.status(400).json({ error: 'INVALID_REQUEST' })
       return
@@ -109,11 +119,13 @@ export function createConversationRouter(deps: ConversationDeps): Router {
   }
 
   router.get('/', requireSession, (req, res, next) => {
+    res.setHeader('Cache-Control', 'no-store')
     void (async () => {
       const principal = await resolvePrincipal(req as AuthedRequest)
       if (!principal) return void res.status(401).json({ error: 'SESSION_REQUIRED' })
+      const query = ConversationListQuerySchema.parse(req.query)
       const ctx = await resolveCtx(req as AuthedRequest)
-      res.status(200).json({ conversations: await listConversations(deps, principal, ctx) })
+      res.status(200).json({ conversations: await listConversations(deps, principal, ctx, query) })
     })().catch((err: unknown) => convErrorHandler(err, res, next))
   })
 

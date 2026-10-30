@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import {
+  ConversationListQuerySchema,
   MossContextResponseSchema,
   MossCreateSessionResponseSchema,
   MossResumeResponseSchema,
@@ -9,6 +10,7 @@ import {
   MossWorkspaceNodeSchema,
   type MossSessionSummary,
   type MossSessionActivity,
+  type ConversationListQuery,
 } from '@sudowork/contracts/conversations'
 import { type MossCallContext, type MossFetch } from './MossHttpClient.js'
 
@@ -26,7 +28,7 @@ const RUNTIME_START_TIMEOUT_MS = 180_000
  */
 
 export interface MossSessionPort {
-  list(ctx: MossCallContext): Promise<MossSessionSummary[]>
+  list(ctx: MossCallContext, query?: ConversationListQuery): Promise<MossSessionSummary[]>
   get(ctx: MossCallContext, sessionId: string): Promise<MossSessionSummary | null>
   create(
     ctx: MossCallContext,
@@ -77,6 +79,14 @@ export interface MossSessionPort {
   sessionSkillsAvailable(ctx: MossCallContext, sessionId: string): Promise<unknown>
 }
 
+/** An older or incompatible server must not turn a project read into ordinary history. */
+export class MossProjectScopeError extends Error {
+  constructor() {
+    super('Moss did not confirm the requested project session scope')
+    this.name = 'MossProjectScopeError'
+  }
+}
+
 function encodeSegment(value: string): string {
   return encodeURIComponent(value)
 }
@@ -88,12 +98,25 @@ function safeParse<T extends z.ZodTypeAny>(schema: T, json: unknown): z.infer<T>
 
 export function createMossSessionPort(mossFetch: MossFetch): MossSessionPort {
   return {
-    async list(ctx) {
+    async list(ctx, query) {
+      const filter = ConversationListQuerySchema.parse(query ?? {})
+      const search = filter.ontologyProjectId
+        ? `?${new URLSearchParams({ ontology_project_id: filter.ontologyProjectId }).toString()}`
+        : ''
       const json = await mossFetch(ctx.baseUrl, {
         method: 'GET',
-        path: '/api/v1/sessions',
+        path: `/api/v1/sessions${search}`,
         accessToken: ctx.accessToken,
       })
+      if (
+        filter.ontologyProjectId &&
+        (typeof json !== 'object' ||
+          json === null ||
+          !('ontology_project_id' in json) ||
+          json.ontology_project_id !== filter.ontologyProjectId)
+      ) {
+        throw new MossProjectScopeError()
+      }
       const parsed = MossSessionListResponseSchema.parse(json)
       return parsed.sessions
     },
