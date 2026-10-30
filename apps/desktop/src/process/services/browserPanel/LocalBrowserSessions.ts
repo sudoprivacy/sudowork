@@ -66,7 +66,7 @@ export class LocalBrowserSessions {
   }
 
   private decorate(conversationId: string, reply: BrowserSessionReply): BrowserSessionReply {
-    reply = { ...reply, session: { ...reply.session, capabilities: { ...reply.session.capabilities, conversationControl: true, nativeWindow: reply.session.state !== 'stopped' && (reply.session.isHeadless === false || !!reply.session.personalExtension) } } };
+    reply = { ...reply, session: { ...reply.session, capabilities: { ...reply.session.capabilities, conversationControl: true, nativeWindow: reply.session.state !== 'stopped' && reply.session.isHeadless !== true && (reply.session.isHeadless === false || !!reply.session.personalExtension) } } };
     const host = this.options.control.status();
     if (host.state === 'ai') return reply;
     if (host.owner !== conversationId) return { ...reply, session: { ...reply.session, state: 'error', isController: false, isHumanControlHeld: true, error: 'browser_control_held_by_another_conversation' } };
@@ -164,7 +164,7 @@ export class LocalBrowserSessions {
       // are acknowledged. A lost notification is reported instead of replayed.
       if (!isConversationContinuation) await this.options.onReturn(conversationId, action.note, returned.epoch);
     } else {
-      if (['input', 'navigate', 'back', 'forward', 'reload', 'new-tab', 'select-tab', 'close-tab', 'upload-files', 'stop', 'restart', 'disconnect-existing-extension'].includes(action.kind)) {
+      if (['input', 'navigate', 'back', 'forward', 'reload', 'new-tab', 'select-tab', 'show-window', 'close-tab', 'upload-files', 'stop', 'restart', 'disconnect-existing-extension'].includes(action.kind)) {
         const host = this.options.control.status();
         if (host.owner !== conversationId || host.state !== 'human') throw new Error('Browser takeover has not been acknowledged by the local agents');
       }
@@ -187,6 +187,10 @@ export class LocalBrowserSessions {
     const host = this.options.control.status();
     if (host.owner !== conversationId || host.state !== 'human') throw new Error('Browser control is not owned by this conversation');
     const opened = BrowserSessionReplySchema.parse(await worker.invoke({ kind: 'open-authorized-page', url: input.url, cookie: input.cookie, controlEpoch: reply.session.controlEpoch, targetEpoch: reply.session.targetEpoch }));
+    if (opened.session.isHeadless === false) {
+      if (!opened.session.activeTargetId) throw new Error('The review browser target is unavailable');
+      await this.invoke(conversationId, { kind: 'show-window', targetId: opened.session.activeTargetId, controlEpoch: opened.session.controlEpoch, targetEpoch: opened.session.targetEpoch });
+    }
     return { surface: opened.session.isHeadless === false ? 'native' : 'viewer', conversationId };
   }
 

@@ -29,6 +29,7 @@ export class LocalBrowserWorker {
   private origin = '';
   private startup: Promise<void> | undefined;
   private isClosed = false;
+  private nativeWindowHelper: { python: string; script: string } | undefined;
 
   constructor(private readonly options: ILocalBrowserWorkerOptions) {
     let controller = `user-${randomBytes(16).toString('hex')}`;
@@ -110,8 +111,16 @@ export class LocalBrowserWorker {
         isReady = response.ok;
         // A process that won the port race cannot satisfy our random token.
         if (!isReady) throw new Error('Local browser port belongs to another process');
+        const binding = (await response.json()) as { nativeWindowHelper?: { python?: unknown; script?: unknown } | null };
+        const helper = binding.nativeWindowHelper;
+        if (process.platform === 'win32' && helper) {
+          const expected = path.join(path.dirname(path.dirname(this.options.python)), 'Lib', 'site-packages', 'ai_dev_browser', 'remote', 'native_window.py');
+          if (typeof helper.python !== 'string' || !path.isAbsolute(helper.python) || path.basename(helper.python).toLowerCase() !== 'python.exe' || typeof helper.script !== 'string' || path.resolve(helper.script).toLowerCase() !== path.resolve(expected).toLowerCase())
+            throw new Error('Local browser native helper is outside its pinned runtime');
+          this.nativeWindowHelper = { python: helper.python, script: helper.script };
+        }
       } catch (error) {
-        if (error instanceof Error && error.message === 'Local browser port belongs to another process') throw error;
+        if (error instanceof Error && (error.message === 'Local browser port belongs to another process' || error.message === 'Local browser native helper is outside its pinned runtime')) throw error;
       }
       if (isReady) {
         await this.invoke({ kind: 'state' });
@@ -140,7 +149,57 @@ export class LocalBrowserWorker {
 
   /** Host calls carry the controller; AI never receives this credential. */
   async invoke(action: unknown): Promise<unknown> {
+    if (action && typeof action === 'object' && 'kind' in action && action.kind === 'show-window') {
+      if (process.platform === 'win32') return this.showNativeWindow(action);
+      return this.request('/invoke', { binding: this.options.binding, controller: this.controller, action: { ...action, kind: 'select-tab' } }, this.hostToken);
+    }
     return this.request('/invoke', { binding: this.options.binding, controller: this.controller, action }, this.hostToken);
+  }
+
+  private async showNativeWindow(action: object): Promise<unknown> {
+    const helper = this.nativeWindowHelper;
+    if (!helper) throw new Error('native_window_runtime_upgrade_required');
+    if (this.isClosed || !this.origin || !this.child || this.child.exitCode !== null || this.child.signalCode !== null) throw new Error('Local browser worker is disconnected');
+    // The actual interpreter must be a direct child of foreground Electron.
+    // The Windows venv redirector introduces another process and loses that
+    // normal foreground eligibility. The pinned SDK supplies both paths.
+    return new Promise((resolve, reject) => {
+      const child = spawn(helper.python, ['-I', helper.script], { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
+      let output = '';
+      let isFinished = false;
+      const finish = (error?: Error, value?: unknown) => {
+        if (isFinished) return;
+        isFinished = true;
+        clearTimeout(timer);
+        if (error) reject(error);
+        else resolve(value);
+      };
+      const timer = setTimeout(() => {
+        child.kill();
+        finish(new Error('native_window_activation_timed_out'));
+      }, 8_000);
+      child.once('error', finish);
+      child.stdin.once('error', finish);
+      child.stdout.on('data', (data: Buffer) => {
+        output += data.toString('utf8');
+        if (output.length > 1024 * 1024) {
+          child.kill();
+          finish(new Error('native_window_reply_invalid'));
+        }
+      });
+      child.stderr.resume();
+      child.once('close', (code) => {
+        try {
+          const reply = JSON.parse(output) as { error?: unknown; nativeWindow?: { foreground?: unknown } };
+          if (code !== 0 || reply.nativeWindow?.foreground !== true) finish(new Error(typeof reply.error === 'string' ? reply.error : 'native_window_activation_unavailable'));
+          else finish(undefined, reply);
+        } catch {
+          finish(new Error('native_window_reply_invalid'));
+        }
+      });
+      // Credentials are absent from command arguments, environment and files.
+      child.stdin.end(JSON.stringify({ origin: this.origin, token: this.hostToken, binding: this.options.binding, controller: this.controller, action: { ...action, kind: 'prepare-native-window' }, parentPid: process.pid }));
+    });
   }
 
   async mcp(request: unknown): Promise<unknown> {
