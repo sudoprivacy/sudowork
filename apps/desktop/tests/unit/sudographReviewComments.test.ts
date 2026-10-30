@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import type { ISudographReviewStore, IReviewInboxItem, IReviewSubscription } from '@sudowork/sudograph-runtime';
 import { SudographReviewComments } from '@process/services/ontology/SudographReviewComments';
-import type { IReviewInboxItem, IReviewSubscription, OntologyStudioDatabase } from '@process/services/ontology/OntologyStudioDatabase';
 
 const SHARE = 'reviewspace000001';
 let service: SudographReviewComments;
@@ -12,7 +12,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function fixture() {
+function fixture(isAsyncStore = false) {
   const values = new Map<string, unknown>();
   const subscriptions = new Map<string, IReviewSubscription>();
   const inbox = new Map<string, IReviewInboxItem>();
@@ -77,8 +77,19 @@ function fixture() {
   const setKey = vi.fn(async (key: string) => {
     controls.key = key;
   });
+  const store = isAsyncStore
+    ? Object.fromEntries(
+        Object.entries(database).map(([name, method]) => [
+          name,
+          async (...args: unknown[]) => {
+            await Promise.resolve();
+            return Reflect.apply(method, database, args);
+          },
+        ])
+      )
+    : database;
   service = new SudographReviewComments({
-    database: database as unknown as OntologyStudioDatabase,
+    database: store as unknown as ISudographReviewStore,
     baseUrl: 'https://provider.test',
     currentAccount: () => controls.account,
     getKey: async () => controls.key,
@@ -144,6 +155,28 @@ it('retries a failed provider reply without starting the model turn again', asyn
   await vi.advanceTimersByTimeAsync(2000);
   expect(state.deliver).toHaveBeenCalledTimes(1);
   expect([...state.inbox.values()][0].status).toBe('delivered');
+});
+
+it('awaits remote durable storage before ACK and retains duplicate-input and reply recovery behavior', async () => {
+  const state = fixture(true);
+  state.controls.failAccept = true;
+  await service.prepare('project', 'conversation');
+  await vi.advanceTimersByTimeAsync(0);
+  expect(state.order).not.toContain('ack');
+  expect(state.deliver).not.toHaveBeenCalled();
+  state.controls.failAccept = false;
+  state.controls.failReply = true;
+  await vi.advanceTimersByTimeAsync(2000);
+  expect(state.order.indexOf('durable')).toBeLessThan(state.order.indexOf('ack'));
+  expect(state.deliver).toHaveBeenCalledTimes(1);
+  state.controls.failReply = false;
+  await vi.advanceTimersByTimeAsync(2000);
+  expect(state.deliver).toHaveBeenCalledTimes(1);
+  expect([...state.inbox.values()][0].status).toBe('delivered');
+  state.controls.events = [{ ...state.controls.events[0], id: 'same-human-input-new-event', event_type: 'comment.updated' }];
+  await vi.advanceTimersByTimeAsync(2000);
+  expect(state.deliver).toHaveBeenCalledTimes(1);
+  expect(await service.status('project', 'conversation')).toEqual({});
 });
 
 it('enforces the share, actor and observed revision at the browser write boundary', async () => {

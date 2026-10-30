@@ -6,7 +6,9 @@ import BetterSqlite3 from 'better-sqlite3';
 import { createDefaultOntologyWorkbenchSnapshot, createSemanticDocument, reconcileSemanticModel, recalculateOntologyStats, projectSemanticDocument } from '@sudowork/ontology-common';
 import type { IOntologyWorkbenchSnapshot } from '@sudowork/ontology-common';
 import type { IOntologyRepository } from '@sudowork/ontology-engine';
+import type { ISudographReviewStore, IReviewInboxItem, IReviewSubscription } from '@sudowork/sudograph-runtime';
 import { getDataPath } from '@process/utils';
+export type { IReviewInboxItem, IReviewSubscription } from '@sudowork/sudograph-runtime';
 
 interface IStoredWorkspace {
   payload: string;
@@ -29,23 +31,8 @@ interface IStudioOperation {
 
 export type OntologyProject = { id: string; title: string; authority: 'rdf'; modelRef: null } | { id: string; title: string; authority: 'sudograph'; modelRef: string };
 
-export interface IReviewSubscription {
-  id: string;
-  workspaceId: string;
-  conversationId: string;
-  account: string;
-  shareId: string;
-}
-export interface IReviewInboxItem {
-  id: string;
-  subscription: IReviewSubscription;
-  event: { id: string; share_id: string; comment_id: string; parent_id: string | null; event_type: string; actor_role: string };
-  status: string;
-  messageId: string;
-}
-
 /** Independent storage for the redesigned workbench; legacy ontology data is never migrated. */
-export class OntologyStudioDatabase implements IOntologyRepository {
+export class OntologyStudioDatabase implements IOntologyRepository, ISudographReviewStore {
   private readonly db: BetterSqlite3.Database;
   private readonly directory: string;
 
