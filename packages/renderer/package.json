@@ -83,7 +83,7 @@
     "@types/react": "^19.1.6",
     "@types/react-dom": "^19.1.6",
     "@types/react-syntax-highlighter": "^15.5.13",
-    "electron": "40.8.5",
+    "electron": "42.11.18",
     "eslint": "^10.9.1",
     "prettier": "^3.9.6",
     "typescript": "^5.8.3",

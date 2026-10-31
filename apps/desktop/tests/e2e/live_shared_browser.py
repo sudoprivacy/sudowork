@@ -14,6 +14,7 @@ import ctypes
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
+import subprocess
 import threading
 import time
 import sys
@@ -23,11 +24,18 @@ import aiohttp
 
 
 class UI:
-    def __init__(self, session, target):
+    def __init__(self, session, target, native_app_pid=None, native_app_id=None):
         self.session = session
         self.target = target
+        self.native_app_pid = native_app_pid
+        self.native_app_id = native_app_id
         self.sequence = 0
         self.trace = []
+
+    async def activate(self):
+        if self.native_app_id:
+            self.trace.append(select_owned_windows_app(self.native_app_pid, self.native_app_id))
+        await self.command('Page.bringToFront')
 
     async def command(self, method, params=None):
         # A short-lived connection avoids consuming another viewer's events.
@@ -97,8 +105,7 @@ class UI:
         return [message['text'] for message in await self.assistant_message_records()]
 
     async def click(self, x, y):
-        if not await self.read('document.hasFocus()'):
-            await self.command('Page.bringToFront')
+        await self.activate()
         await self.command('Input.dispatchMouseEvent', {'type': 'mouseMoved', 'x': x, 'y': y})
         for kind in ['mousePressed', 'mouseReleased']:
             await self.command('Input.dispatchMouseEvent', {'type': kind, 'x': x, 'y': y, 'button': 'left', 'clickCount': 1})
@@ -134,13 +141,16 @@ class UI:
         assert actual == text, f'The visible input did not accept the user text: {selector}'
 
     async def wheel(self, delta, x=500, y=400):
+        # A launched Chrome window can cover the app. Scroll the selected app
+        # surface, as with clicks, rather than queue input to an occluded one.
+        await self.activate()
         await self.command('Input.dispatchMouseEvent', {'type': 'mouseWheel', 'x': x, 'y': y, 'deltaX': 0, 'deltaY': delta})
         await asyncio.sleep(.15)
 
     async def screenshot(self, path):
         # A background Electron surface can retain a blank compositor frame
         # even after its shadow DOM has rendered. Capture the foreground UI.
-        await self.command('Page.bringToFront')
+        await self.activate()
         await self.command('Runtime.evaluate', {'expression': 'new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))', 'awaitPromise': True})
         shot = await self.command('Page.captureScreenshot', {'format': 'png'})
         path.write_bytes(base64.b64decode(shot['data']))
@@ -179,6 +189,56 @@ async def wait_for(probe, timeout, description):
             return value
         assert time.monotonic() < deadline, description
         await asyncio.sleep(.25)
+
+
+def select_owned_windows_app(pid, app_id):
+    """Select only the exact fixture app through its ordinary Windows taskbar."""
+    assert sys.platform == 'win32' and pid > 0 and app_id
+    from ctypes import wintypes
+    user = ctypes.WinDLL('user32', use_last_error=True)
+    user.GetForegroundWindow.restype = wintypes.HWND
+    user.GetWindowThreadProcessId.argtypes = (wintypes.HWND, ctypes.POINTER(wintypes.DWORD))
+    user.WindowFromPoint.argtypes = (wintypes.POINT,)
+    user.WindowFromPoint.restype = wintypes.HWND
+    user.GetAncestor.argtypes = (wintypes.HWND, wintypes.UINT)
+    user.GetAncestor.restype = wintypes.HWND
+    user.GetCursorPos.argtypes = (ctypes.POINTER(wintypes.POINT),)
+    user.SetCursorPos.argtypes = (ctypes.c_int, ctypes.c_int)
+    user.mouse_event.argtypes = (wintypes.DWORD, wintypes.DWORD, wintypes.DWORD, wintypes.DWORD, ctypes.c_size_t)
+
+    def foreground_pid():
+        owner = wintypes.DWORD()
+        user.GetWindowThreadProcessId(user.GetForegroundWindow(), ctypes.byref(owner))
+        return owner.value
+
+    proof = {'kind': 'windows-taskbar-selection', 'ownedPid': pid, 'appId': app_id, 'forcedActivation': False, 'taskbarMouseUsed': False}
+    if foreground_pid() != pid:
+        lookup = subprocess.run(['powershell.exe', '-NoProfile', '-File', str(Path(__file__).with_name('read_owned_taskbar.ps1'))], capture_output=True, timeout=15)
+        assert lookup.returncode == 0, 'The interactive taskbar lookup failed'
+        targets = json.loads(lookup.stdout.decode('utf-8-sig'))['targets']
+        candidates = [t for t in targets if t['automationId'] == 'Appid: ' + app_id and t['enabled'] and not t['isOffscreen'] and t['width'] > 0 and t['height'] > 0]
+        assert len(candidates) == 1, 'Require the one exact isolated app taskbar entry'
+        target = candidates[0]
+        point = wintypes.POINT(round(target['x'] + target['width'] / 2), round(target['y'] + target['height'] / 2))
+        assert user.GetAncestor(user.WindowFromPoint(point), 2) == target['taskbarHwnd'], 'The taskbar entry is covered; no mouse input sent'
+        previous = wintypes.POINT()
+        assert user.GetCursorPos(ctypes.byref(previous)) and user.SetCursorPos(point.x, point.y)
+        try:
+            assert user.GetAncestor(user.WindowFromPoint(point), 2) == target['taskbarHwnd']
+            user.mouse_event(0x0002, 0, 0, 0, 0)
+            user.mouse_event(0x0004, 0, 0, 0, 0)
+            proof['taskbarMouseUsed'] = True
+        finally:
+            current = wintypes.POINT()
+            if user.GetCursorPos(ctypes.byref(current)) and (current.x, current.y) == (point.x, point.y):
+                user.SetCursorPos(previous.x, previous.y)
+        deadline = time.monotonic() + 5
+        while foreground_pid() != pid:
+            assert time.monotonic() < deadline, 'The taskbar click did not select the owned app'
+            time.sleep(.1)
+    proof['foregroundOwnedPid'] = foreground_pid()
+    assert proof['foregroundOwnedPid'] == pid
+    return proof
 
 
 def click_owned_windows_app(pid, x, y, viewport):
@@ -262,6 +322,7 @@ async def main():
     parser.add_argument('--controls-window', action='store_true', help='Open the bound viewer from the compact status window while BrowserPanel is hidden')
     parser.add_argument('--embedded-panel', action='store_true', help='Exercise the same browser through the embedded panel; native-window presentation remains a separate acceptance case')
     parser.add_argument('--native-app-pid', type=int, help='Fixture-owned Electron PID for a visible Windows mouse click on Show browser window')
+    parser.add_argument('--native-app-id', help='Exact isolated Windows AppUserModelID for ordinary taskbar selection before app input')
     parser.add_argument('--windows-evidence', type=Path, help='Optional isolated Electron bootstrap window metadata')
     parser.add_argument('--existing-profile', action='store_true', help='Explicitly connect an isolated already-running extension Chrome instead of launching a managed browser')
     parser.add_argument('--offline-entry', action='store_true', help='Choose the ordinary local Desktop entry on a fresh login screen')
@@ -271,6 +332,7 @@ async def main():
     parser.add_argument('--verify-selection-clipboard', action='store_true', help='Use real viewer drag selection, local clipboard, multiline paste and Chromium IME composition; restore an unchanged owned clipboard value afterwards')
     parser.add_argument('--first-use-runtime', type=Path, help='Owned app runtime interpreter to observe during a genuine first-use install; does not preinstall or modify it')
     args = parser.parse_args()
+    assert not args.native_app_id or (sys.platform == 'win32' and args.native_app_pid), 'Native taskbar selection requires the owned Windows process'
     args.output.mkdir(parents=True, exist_ok=False)
     nonce = uuid4().hex[:10]
     human = f'HUMAN_{nonce} 中文'
@@ -293,7 +355,8 @@ async def main():
             html += """<script>const field=document.querySelector('#handoff');field.addEventListener('input',event=>fetch('/prefill',{method:'POST',body:JSON.stringify({value:field.value,trusted:event.isTrusted})}));</script>"""
             if args.verify_selection_clipboard:
                 html += '<span id="review-phrase" style="position:absolute;left:40px;top:290px;font:20px monospace;white-space:pre">' + selected_phrase + '</span>'
-                html += '''<textarea id="clipboard-field" style="position:absolute;left:40px;top:350px;width:500px;height:70px;font:20px monospace"></textarea>
+                html += '''<label for="clipboard-field" style="top:320px;font:18px sans-serif">Clipboard and IME input</label>
+<textarea id="clipboard-field" style="position:absolute;left:40px;top:350px;width:500px;height:70px;font:20px monospace"></textarea>
 <button id="clipboard-submit" style="top:460px">Submit multiline once</button><script>
 const phrase=document.querySelector('#review-phrase'), area=document.querySelector('#clipboard-field');
 requestAnimationFrame(()=>{const box=phrase.getBoundingClientRect();fetch('/selection-layout',{method:'POST',body:JSON.stringify({x:box.x,y:box.y,width:box.width,height:box.height})})});
@@ -333,7 +396,7 @@ document.querySelector('#clipboard-submit').onclick=event=>fetch('/clipboard-sub
                 return None
 
         target = await wait_for(main_target, 60, 'The isolated Desktop instance did not expose its renderer')
-        app = UI(session, target)
+        app = UI(session, target, args.native_app_pid, args.native_app_id)
         viewer = None
         try:
             is_offline_entered = False
@@ -380,7 +443,9 @@ document.querySelector('#clipboard-submit').onclick=event=>fetch('/clipboard-sub
                 evidence['normalModelSettingsSaved'] = True
             await app.click_text('新建任务', 'New task')
             await asyncio.sleep(.25)
-            prompt = f'Use only sudowork-browser for this browser task. I need to see its Chrome window, so use headful mode. Open http://127.0.0.1:{fixture.server_port}, enter AI_BEFORE_{nonce} in Handoff value, and reply {ready}. Do not submit. Wait for my next message. When I tell you I finished editing, freshly observe and report the exact field value and page status without typing or submitting.'
+            prompt = f'Use only sudowork-browser for this browser task. I need to see its Chrome window, so use headful mode. Open http://127.0.0.1:{fixture.server_port}. Click the webpage input labeled Handoff value to focus it, then enter exactly AI_BEFORE_{nonce}. Freshly observe the page and verify that exact input value before replying. Then send exactly {ready} as your final reply in this chat. The READY marker is a chat response, not webpage input. Do not submit. Wait for my next message. When I tell you I finished editing, freshly observe and report the exact field value and page status without typing or submitting.'
+            if args.verify_selection_clipboard:
+                prompt += ' Leave the separate Clipboard and IME input empty for my later manual input.'
             prompt += ' Execute tools directly without progress narration. Keep final replies brief and in English.'
             bootstrap = f'Reply exactly SESSION_BOOTSTRAP_{nonce}. Do not use tools. I will connect my existing Chrome through the Browser panel next.'
             await app.fill('textarea', bootstrap if args.existing_profile else prompt)
@@ -434,12 +499,16 @@ document.querySelector('#clipboard-submit').onclick=event=>fetch('/clipboard-sub
                 await app.fill('textarea', task)
                 await app.key('Enter', 'Enter', 13)
             async def ready_reply():
-                await app.wheel(1000)
                 has_prefilled = any(value == {'value': f'AI_BEFORE_{nonce}', 'trusted': True} for value in prefills)
+                if not has_prefilled:
+                    return False
+                await app.wheel(1000)
                 # The actual assistant reply and trusted website event must
                 # both exist; the user's prompt cannot satisfy this check.
                 return has_prefilled and any(ready in reply for reply in await app.assistant_messages()) and await app.turn_finished()
             await wait_for(ready_reply, 240, 'The real model did not prepare the browser')
+            if args.verify_selection_clipboard:
+                assert not clipboard_inputs, 'The model changed the input reserved for the human clipboard step'
             print('Actual model prepared the shared browser', flush=True)
             if args.pending_native_question:
                 question = f'NATIVE_HANDOFF_{nonce}'

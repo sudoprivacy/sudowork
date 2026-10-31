@@ -222,6 +222,15 @@ local commands without accepting an earlier status message. Use
 same 20-second response deadline. Failure receipts retain the original error
 even if the renderer cannot provide a screenshot.
 
+For a Windows desktop journey, pass `--native-app-pid <owned PID>` and
+`--native-app-id <isolated AppUserModelID>` together. The driver selects that
+exact app through a real mouse click on its taskbar entry before sending app
+input. It verifies the entry is uncovered and the foreground process matches;
+it preserves newer cursor movement. This handles Chrome covering the app
+without disabling Chromium's normal background behavior. `Page.bringToFront`
+alone does not establish native Windows activation. Use a unique app identity
+for the isolated fixture; never select an unrelated user window.
+
 ### First-use browser runtime installation
 
 `live_browser_runtime_install.py` launches actual Electron with a fresh isolated

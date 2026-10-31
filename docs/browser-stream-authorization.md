@@ -45,11 +45,34 @@ comment with Chinese text was submitted through the viewer, read through the
 ShareOne skill, and revealed at its original field after zoom, expansion and
 reload. The test comment was deleted; the original 48 threads were preserved.
 Switching language retained the object, while its versioned text selector became
-unresolved; switching back restored the passage. Cross-language passage recovery
-requires further adapter work.
+unresolved; switching back restored the passage. Those measurements used the earlier passage implementation; the subsequent
+source-field publication is described below.
 
 Public graph startup still failed its existing 30-second gate. The candidate's
 real browser recorded 6,886,564 transferred bytes and 214,727 ms for the ShareOne
 document download. Startup and graph feedback must remain separate acceptance
-results. This transport patch is still subject to full regression, official
-publication and verification of the deployed artifact.
+results. The controlled comparison preceded the official promotion described below.
+
+## Official production deployment
+
+SudoWork #1344 merged as
+`219ba88022f23f2a9f72c357f15a95e50f6f88a1` after the merge queue's full checks.
+The official WebUI image is
+`sha256:92044075cd6bed57645648b0508e246c5f10e4863bd09df8a1735fec239f6d9a`;
+its compiled relay SHA-256 is
+`ed96e0ef20e4bba0cf84c1a55e9b701a22716c660ad6478334d2afbc4365056b`.
+Both architectures published successfully. The isolated public canary and the
+default production route passed the complete window/profile/clipboard/Chinese
+input and real-model continuation journey. The cutover preserved the database,
+environment, mounts and gateway. Its private database backup was validated
+before replacement; the canary and its database were removed afterward.
+
+The subsequent Sudograph source-field passage fix is separately published as
+`6fad925f93b09f9c9b28fe673a32fd7d9ea6d732`. Exact source names now recover across
+language changes and reload on the original public graph. The real fixture
+comment was deleted without rewriting any of its 48 original threads.
+
+The earlier download and latency samples above remain historical measurements.
+One later graph startup completed in 5,777 ms; repeated 30-second startup failures
+still require diagnosis. The production functional pass does not establish a
+latency percentile or close the Windows-client gesture benchmark.

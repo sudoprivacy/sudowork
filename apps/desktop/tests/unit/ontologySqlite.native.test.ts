@@ -3,14 +3,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import BetterSqlite3 from 'better-sqlite3';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { OntologyEngine } from '@sudowork/ontology-engine';
 import type { IOntologyEnvironmentAsset, IOntologyObjectDraft } from '@sudowork/ontology-common';
 import { OntologyService } from '@process/services/ontology/OntologyService';
 import type { OntologyStudioDatabase } from '@process/services/ontology/OntologyStudioDatabase';
+import { runElectronNativeTest } from '../runElectronNode';
 
 const isNativeRuntime = !!process.versions.electron;
 const runtime = vi.hoisted(() => ({ metadata: new Map<string, any>(), install: vi.fn() }));
@@ -53,13 +52,7 @@ it.skipIf(isNativeRuntime)(
       context.skip('Electron runtime is required for the native SQLite integration test');
       return;
     }
-    const cli = path.join(path.dirname(require.resolve('vitest/package.json')), 'vitest.mjs');
-    const { stdout } = await promisify(execFile)(electron, [cli, 'run', 'tests/unit/ontologySqlite.native.test.ts', '--maxWorkers=1'], {
-      cwd: path.resolve(__dirname, '../..'),
-      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
-      timeout: 90_000,
-      maxBuffer: 4 * 1024 * 1024,
-    });
+    const { stdout } = await runElectronNativeTest('tests/unit/ontologySqlite.native.test.ts', 90_000);
     expect(stdout).toContain('SQLITE_NATIVE_VERIFIED');
   },
   100_000
