@@ -24,10 +24,11 @@ qualifies source-field passage recovery. Translated captions retain their own
 strict language/version contract.
 
 The same-graph baseline/candidate comparison established faster visible feedback
-for zoom, selection and held dragging. The official relay is now deployed;
-Windows-client production latency samples and repeated startup reliability
-remain open. The most recent graph content gate passed in 5,777 ms, while earlier
-30-second failures remain recorded.
+for zoom, selection and held dragging. The official relay is now deployed. Default-production Windows samples showed
+437 ms for zoom feedback and 561-629 ms for held pans. A different drag starting
+point produced no movement and remains unresolved. The latest 30-second startup
+gate failed again: the actual document request took 81,988.5 ms. The earlier
+5,777 ms startup pass remains a separate sample, not a reliability result.
 
 ## Current acceptance summary
 
@@ -1154,3 +1155,16 @@ original runtime and pass with the candidate. All 11 selection/clipboard cases
 also passed at the SDK's existing 384 PID test budget. The smaller 256 PID
 experiment exhausted its limit when a two-browser test started; its failed
 receipt is retained. Production worker limits are unchanged.
+
+### Latest local package and load diagnosis, 31 October
+
+The local Windows x64 unpacked Electron 42.11.18 application passed the real
+Luna/scode browser journey, including physical native-window input, clipboard
+and Chinese composition, native question cancellation and ordinary Stop/chat
+continuation. Its cold SDK installer matched 205 public files. Official
+published artifacts and stable release remain separate gates.
+
+A separate fresh production graph load still failed the existing 30-second
+content gate: time to first byte was 842.4 ms and body transfer was 52,284.2 ms
+for 6,868,326 encoded bytes. The browser, conversation and temporary key were
+cleaned up. See [the timing diagnosis](browser-stream-authorization.md#document-transfer-diagnosis).

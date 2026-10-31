@@ -35,7 +35,9 @@ def main() -> None:
     environment.pop("ELECTRON_RUN_AS_NODE", None)
     desktop = Path(__file__).resolve().parents[2]
     electron = subprocess.check_output(
-        ["node", "-p", 'require("electron")'], cwd=desktop, text=True
+        ["node", str(desktop.parent.parent / "scripts/resolve-electron-path.cjs")],
+        cwd=desktop,
+        text=True,
     ).strip()
     # The product budgets 120 s for venv, 300 s for pip and 15 s per check.
     # Keep the process at normal priority; no compiler or model runs here.

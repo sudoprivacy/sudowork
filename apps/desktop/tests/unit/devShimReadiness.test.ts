@@ -9,10 +9,10 @@ it('waits for the document body when CDP attaches before the renderer loads', as
   expect(match).not.toBeNull();
   const expression = runInNewContext('`' + match![1] + '`') as string;
   const document: { body: { innerText: string } | null } = { body: null };
-  const result = runInNewContext(expression, { document, Date, setTimeout }) as Promise<{ ready: boolean }>;
+  const result = runInNewContext(expression, { document, Date, setTimeout }) as Promise<{ ready: boolean; elapsedMs: number }>;
   setTimeout(() => {
     document.body = { innerText: 'New task' };
   }, 20);
 
-  await expect(result).resolves.toEqual({ ready: true });
+  await expect(result).resolves.toEqual({ ready: true, elapsedMs: expect.any(Number) });
 });

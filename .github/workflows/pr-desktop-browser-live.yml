@@ -248,7 +248,7 @@ jobs:
         working-directory: apps/desktop
         run: |
           set -euo pipefail
-          electron="$(node -p 'require("electron")')"
+          electron="$(node ../../scripts/resolve-electron-path.cjs)"
           sandbox="$(dirname "$electron")/chrome-sandbox"
           sudo chown root:root "$sandbox"
           sudo chmod 4755 "$sandbox"

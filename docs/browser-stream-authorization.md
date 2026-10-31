@@ -76,3 +76,50 @@ The earlier download and latency samples above remain historical measurements.
 One later graph startup completed in 5,777 ms; repeated 30-second startup failures
 still require diagnosis. The production functional pass does not establish a
 latency percentile or close the Windows-client gesture benchmark.
+
+## Default production Windows viewer, 31 October
+
+A Windows Chrome reviewer subsequently operated the default production route,
+the same persistent profile and the original Northwind share at source
+`6fad925f93b09f9c9b28fe673a32fd7d9ea6d732`. The actual full-window stream showed
+zoom feedback after 437 ms for a single-notch-sized gesture. Three held pans
+showed first changed graph pixels after 563, 629 and 561 ms. Native window
+frames confirmed completed camera movement. The mouse was positioned before
+measurement; loading animation was absent. These small samples include the
+200 ms held press, dispatch, page handling and return transport.
+
+The original 30-second content gate failed again. A real read-only model
+diagnosis recorded 81,988.5 ms and 6,868,626 transferred bytes for the ShareOne
+document, while its shell JavaScript and CSS completed in about 20 and 12 ms.
+The later successful interactions do not convert that startup failure to a pass.
+The subsequent timing diagnosis is below.
+
+Another drag from a different starting point produced no changed graph pixels
+within its original five-second observation bound. That receipt is retained as
+an unresolved interaction, separate from the successful pan samples. The run
+posted no comments and changed no model facts. All five cleanup checks passed:
+browser stopped, fixture conversation removed, local reviewer closed, temporary
+key revoked and operator logged out. Startup reliability, the unresolved drag
+and physical-device input keep the full experience matrix open.
+
+### Document transfer diagnosis
+
+A separate fresh production session retained the same 30-second content failure.
+The real model read the already-loaded tab's Resource Timing entries without
+navigating, refetching or changing Chrome's connection settings. The exact
+versioned graph document recorded:
+
+| Phase or size                  | Actual observation |
+| ------------------------------ | -----------------: |
+| Request to first response byte |           842.4 ms |
+| Response body transfer         |        52,284.2 ms |
+| Encoded body                   |    6,868,326 bytes |
+| Decoded body                   |   12,006,223 bytes |
+
+The shell assets were cached and completed in about 17 and 8 ms. In this sample,
+body transfer dominates the load rather than time to first byte. It does not
+establish the bottleneck for every route or imply the browser relay is fixed.
+The generated public artifact contains about 8.49 MB of source-schema JSON,
+including 30 snapshots and 3,481 encoded segments. This is a payload diagnosis,
+not permission to remove schema data or alter generated HTML by hand. Comments,
+model facts and the publication were unchanged; all five cleanup checks passed.
