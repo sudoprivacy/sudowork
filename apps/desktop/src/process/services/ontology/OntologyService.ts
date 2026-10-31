@@ -541,6 +541,28 @@ export class OntologyService {
     return source;
   }
 
+  /** One ownership boundary for graph review and execution-time model context. */
+  private async authorizeStudioModelConversation({ workspaceId, conversationId }: { workspaceId: string; conversationId: string }) {
+    const project = this.database.getProject(workspaceId);
+    const session = this.database.getAiSessionByConversationId(conversationId);
+    if (project?.authority !== 'sudograph' || session?.workspace_id !== workspaceId) throw new Error('Review conversation does not own this registered model.');
+    const { getDatabase } = await import('@process/database');
+    const { assertConversationAccount } = await import('@process/services/mossExecutionContext');
+    const conversation = getDatabase().getConversation(conversationId).data;
+    if (conversation?.extra.purpose !== 'ontology' || conversation.extra.ontologyId !== workspaceId) throw new Error('Review conversation does not own this registered model.');
+    assertConversationAccount(conversation);
+    this.registeredSource(workspaceId);
+    return project.modelRef;
+  }
+
+  /** Trusted runtime entry; never return a read completed under a former owner. */
+  async readStudioConversationContext(binding: { workspaceId: string; conversationId: string }) {
+    const modelRef = await this.authorizeStudioModelConversation(binding);
+    const context = await this.invokeSudograph<import('./SudographModelClient').ISudographContext>(binding.workspaceId, { operation: 'read', product: 'context' });
+    if ((await this.authorizeStudioModelConversation(binding)) !== modelRef) throw new Error('The canonical model binding changed during context resolution.');
+    return context;
+  }
+
   /** Trusted browser host only. This handoff includes a secret and is not an IPC result. */
   async createStudioReviewSession(raw: { workspaceId: string; conversationId: string }) {
     const binding = z
@@ -548,14 +570,7 @@ export class OntologyService {
       .strict()
       .parse(raw);
     const authorize = async ({ workspaceId, conversationId }: { workspaceId: string; conversationId: string }) => {
-      const project = this.database.getProject(workspaceId);
-      const session = this.database.getAiSessionByConversationId(conversationId);
-      if (project?.authority !== 'sudograph' || session?.workspace_id !== workspaceId) throw new Error('Review conversation does not own this registered model.');
-      const { getDatabase } = await import('@process/database');
-      const { assertConversationAccount } = await import('@process/services/mossExecutionContext');
-      const conversation = getDatabase().getConversation(conversationId).data;
-      if (conversation?.extra.purpose !== 'ontology' || conversation.extra.ontologyId !== workspaceId) throw new Error('Review conversation does not own this registered model.');
-      assertConversationAccount(conversation);
+      await this.authorizeStudioModelConversation({ workspaceId, conversationId });
     };
     const read = async (workspaceId: string, request: Record<string, unknown>) => {
       const project = this.database.getProject(workspaceId);

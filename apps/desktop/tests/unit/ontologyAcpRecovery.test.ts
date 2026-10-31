@@ -17,15 +17,17 @@ describe('ontology ACP initialization recovery', () => {
   it.each(['ontology', 'registered'])('injects %s tools and system context before restoring the original chat', async (kind) => {
     vi.spyOn(ProcessConfig, 'get').mockResolvedValue(undefined);
     const tools = [{ name: 'ontology-northwind', command: '/node', env: [{ name: 'ONTOLOGY_VERSION_ID', value: 'v1' }] }];
-    runtime.prepare.mockResolvedValue({ presetContext: 'Northwind published v1 context', extraMcpConfigs: tools });
+    const resolveContext = kind === 'ontology' ? vi.fn().mockResolvedValue('Northwind revision 2') : undefined;
+    runtime.prepare.mockResolvedValue({ presetContext: 'Northwind published v1 context', extraMcpConfigs: tools, resolveContext });
     const agent = Object.create(AcpAgent.prototype) as AcpAgent;
     agent.options = { backend: 'scode', cliPath: '/scode', conversation_id: 'existing-chat', mossAccountScope: 'account', ...(kind === 'ontology' ? { purpose: 'ontology', ontologyId: 'northwind', presetAssistantId: 'moss-agent:user:owner' } : { presetAssistantId: 'ontology-agent' }) };
     const loadSession = vi.fn().mockResolvedValue({});
-    const harness = agent as unknown as { extra: Record<string, unknown>; connection: { systemPromptAppend?: string; loadSession: typeof loadSession }; connect: () => Promise<void>; createOrResumeSession: () => Promise<void> };
+    const harness = agent as unknown as { extra: Record<string, unknown>; connection: { systemPromptAppend?: string; onHostContext?: () => Promise<string>; loadSession: typeof loadSession }; connect: () => Promise<void>; createOrResumeSession: () => Promise<void> };
     harness.extra = { backend: 'scode', workspace: '/existing-workspace', acpSessionId: 'existing-history' };
     harness.connection = { loadSession };
     harness.connect = vi.fn(async () => {
       expect(harness.connection.systemPromptAppend).toBe('Northwind published v1 context');
+      expect(harness.connection.onHostContext).toBe(resolveContext ?? null);
       await harness.createOrResumeSession();
     });
     vi.spyOn(agent, 'getModelInfo').mockReturnValue(null);
