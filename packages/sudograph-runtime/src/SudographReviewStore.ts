@@ -28,5 +28,7 @@ export interface ISudographReviewStore {
   finishReviewEvent(id: string, status: 'running' | 'delivered' | 'error' | 'ignored', error?: string | null): Stored<void>;
   /** Atomically claim one human input digest per subscription. */
   claimReviewInput(id: string, digest: string): Stored<boolean>;
+  /** Reserve dispatch once across controllers and restarts. Never expire or release an uncertain reservation. */
+  claimReviewDelivery(id: string): Stored<boolean>;
   reviewDeliverySummary(account: string, workspaceId: string, conversationId: string): Stored<Record<string, number>>;
 }

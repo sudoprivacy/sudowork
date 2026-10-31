@@ -88,8 +88,9 @@ try {
   await launch.revoke();
   assert.equal((await fetch(launch.url, { headers })).status, 403);
 } finally { await host.close(); }
+assert.throws(() => new SudographReviewComments({ database: {} }), /atomic durable claimReviewDelivery/);
 const comments = new SudographReviewComments({
-  database: { reviewDeliverySummary: async () => ({ delivered: 3 }) },
+  database: { reviewDeliverySummary: async () => ({ delivered: 3 }), claimReviewDelivery: async () => { throw new Error('Unexpected dispatch without provider credentials'); } },
   baseUrl: 'https://review.example', currentAccount: () => 'fixture', getKey: async () => null, setKey: async () => {},
   authorize: async () => {}, head: async () => ({ revision: 'revision', context_digest: 'digest' }),
   deliver: async () => ({ success: true }), messageExists: async () => false,

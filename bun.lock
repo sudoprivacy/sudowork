@@ -484,7 +484,7 @@
     },
     "packages/sudograph-runtime": {
       "name": "@sudowork/sudograph-runtime",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "dependencies": {
         "@types/node": "24.10.13",
         "mysql2": "3.24.4",

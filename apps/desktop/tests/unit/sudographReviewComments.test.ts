@@ -4,10 +4,12 @@ import { SudographReviewComments } from '@process/services/ontology/SudographRev
 
 const SHARE = 'reviewspace000001';
 let service: SudographReviewComments;
+const services = new Set<SudographReviewComments>();
 
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => {
-  service?.close();
+  for (const current of services) current.close();
+  services.clear();
   vi.useRealTimers();
   vi.restoreAllMocks();
 });
@@ -18,6 +20,7 @@ function fixture(isAsyncStore = false) {
   const inbox = new Map<string, IReviewInboxItem>();
   const order: string[] = [];
   const inputClaims = new Map<string, string>();
+  const deliveryClaims = new Set<string>();
   const threadReplies: Array<{ id: string; content: string; author_role: string }> = [];
   const controls = { failAccept: false, failReply: false, account: 'account-one', key: 'private-existing-key', events: [{ id: 'event-one', share_id: SHARE, comment_id: 'thread-one', parent_id: null, actor_role: 'owner', event_type: 'comment.created' }] as IReviewInboxItem['event'][] };
   const database = {
@@ -38,6 +41,11 @@ function fixture(isAsyncStore = false) {
         return false;
       }
       inputClaims.set(digest, id);
+      return true;
+    },
+    claimReviewDelivery: (id: string) => {
+      if (deliveryClaims.has(id)) return false;
+      deliveryClaims.add(id);
       return true;
     },
     finishReviewEvent: (id: string, status: string) => {
@@ -88,19 +96,100 @@ function fixture(isAsyncStore = false) {
         ])
       )
     : database;
-  service = new SudographReviewComments({
-    database: store as unknown as ISudographReviewStore,
-    baseUrl: 'https://provider.test',
-    currentAccount: () => controls.account,
-    getKey: async () => controls.key,
-    setKey,
-    authorize: async () => {},
-    head: async () => ({ revision: 'model-revision', context_digest: 'context-digest' }),
-    deliver,
-    messageExists: () => false,
-  });
-  return { controls, values, inbox, requests, order, deliver, fetcher, setKey, threadReplies };
+  const head = vi.fn(async () => ({ revision: 'model-revision', context_digest: 'context-digest' }));
+  const authorize = vi.fn(async () => {});
+  const recover = vi.fn<NonNullable<ConstructorParameters<typeof SudographReviewComments>[0]['recover']>>(async () => ({ state: 'unknown' }));
+  const createService = () => {
+    const current = new SudographReviewComments({
+      database: store as unknown as ISudographReviewStore,
+      baseUrl: 'https://provider.test',
+      currentAccount: () => controls.account,
+      getKey: async () => controls.key,
+      setKey,
+      authorize,
+      head,
+      recover,
+      deliver,
+      messageExists: () => false,
+    });
+    services.add(current);
+    return current;
+  };
+  service = createService();
+  return { controls, values, inbox, requests, order, deliver, fetcher, setKey, threadReplies, createService, head, recover, authorize, deliveryClaims };
 }
+
+it('refuses a host store that cannot durably reserve dispatch', () => {
+  expect(() => new SudographReviewComments({ database: {} } as unknown as ConstructorParameters<typeof SudographReviewComments>[0])).toThrow('atomic durable claimReviewDelivery is required');
+});
+
+it('admits one turn when independent controllers poll the same event concurrently', async () => {
+  const state = fixture(true);
+  state.deliver.mockImplementation(async (_input, hooks) => {
+    await hooks.onStarted();
+    return { success: true };
+  });
+  state.recover.mockResolvedValue({ state: 'pending' });
+  const other = state.createService();
+  await Promise.all([service.prepare('project', 'conversation'), other.prepare('project', 'conversation')]);
+  await vi.advanceTimersByTimeAsync(0);
+  expect(state.deliver).toHaveBeenCalledTimes(1);
+  expect([...state.inbox.values()][0].status).toBe('running');
+});
+
+it('rechecks current authorization after the asynchronous dispatch reservation', async () => {
+  const state = fixture(true);
+  state.authorize.mockImplementation(async () => {
+    if (state.deliveryClaims.size) throw new Error('Authorization was revoked while reserving dispatch.');
+  });
+  await service.prepare('project', 'conversation');
+  await vi.advanceTimersByTimeAsync(0);
+  expect(state.deliveryClaims.size).toBe(1);
+  expect(state.deliver).not.toHaveBeenCalled();
+  expect([...state.inbox.values()][0].status).toBe('error');
+});
+
+it('reserves dispatch across controllers and recovers the existing turn without submitting twice', async () => {
+  const state = fixture(true);
+  state.deliver.mockImplementation(async (_input, hooks) => {
+    await hooks.onStarted();
+    return { success: true };
+  });
+  state.recover.mockResolvedValue({ state: 'pending' });
+  await service.prepare('project', 'conversation');
+  await vi.advanceTimersByTimeAsync(0);
+  expect(state.deliver).toHaveBeenCalledTimes(1);
+  const original = service;
+  const replacement = state.createService();
+  await replacement.prepare('project', 'conversation');
+  await vi.advanceTimersByTimeAsync(0);
+  expect(state.deliver).toHaveBeenCalledTimes(1);
+  expect(state.recover).toHaveBeenCalledWith(expect.objectContaining({ workspaceId: 'project', conversationId: 'conversation' }));
+  expect([...state.inbox.values()][0].status).toBe('running');
+  original.close();
+  state.recover.mockResolvedValue({ state: 'complete', text: 'Recovered from the existing conversation.' });
+  await vi.advanceTimersByTimeAsync(2000);
+  expect(state.deliver).toHaveBeenCalledTimes(1);
+  expect([...state.inbox.values()][0].status).toBe('delivered');
+  expect(state.head).toHaveBeenCalledWith('project', 'conversation');
+  expect(state.requests.find((request) => request.body?.author_role === 'agent')?.body?.content).toContain('Recovered from the existing conversation.');
+});
+
+it('does not replay an uncertain dispatch even when the host cannot find its message yet', async () => {
+  const state = fixture(true);
+  state.deliver.mockRejectedValueOnce(new Error('The connection closed before its outcome was known.'));
+  await service.prepare('project', 'conversation');
+  await vi.advanceTimersByTimeAsync(0);
+  expect(state.deliver).toHaveBeenCalledTimes(1);
+  await vi.advanceTimersByTimeAsync(2000);
+  expect(state.deliver).toHaveBeenCalledTimes(1);
+  expect(state.recover).toHaveBeenCalledTimes(1);
+  expect([...state.inbox.values()][0].status).toBe('error');
+  state.recover.mockResolvedValue({ state: 'complete', text: 'The existing input completed.' });
+  await vi.advanceTimersByTimeAsync(2000);
+  expect(state.deliver).toHaveBeenCalledTimes(1);
+  expect([...state.inbox.values()][0].status).toBe('delivered');
+});
 
 it('defaults to private comments and never uploads graph content or records', async () => {
   const state = fixture();

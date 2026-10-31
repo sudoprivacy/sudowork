@@ -48,6 +48,15 @@ starting a turn. Host stores must enforce the documented atomicity and uniquenes
 contracts. No model, comment content registry, database driver or credential
 storage is created by this package. Delivery status is asynchronous as well.
 
+Before dispatch, `claimReviewDelivery` must atomically reserve the inbox item in
+durable storage. A reservation is permanent, not an expiring execution lease.
+Another controller or a restarted host must inspect the existing conversation;
+it cannot submit the same input again because a process-local message lookup is
+empty. Optional `recover` returns a pending, completed or unknown outcome from
+that conversation. Completed outcomes can retry the provider reply; unknown
+outcomes remain visible as requiring recovery and never authorize another turn.
+Head reads include the actual conversation ID for current host authorization.
+
 Deploy a verified, pinned `sudograph-compiler` wheel in a dedicated Python
 environment. Construct `SudographModelClient` with that interpreter, an empty
 operator-owned working directory and private canonical model storage. The host

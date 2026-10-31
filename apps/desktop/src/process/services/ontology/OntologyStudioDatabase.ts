@@ -71,6 +71,9 @@ export class OntologyStudioDatabase implements IOntologyRepository, ISudographRe
           message_id TEXT NOT NULL, error TEXT, created_at INTEGER NOT NULL,
           UNIQUE(subscription_id, event_id)
         );
+        CREATE TABLE IF NOT EXISTS studio_review_dispatch_claims (
+          item_id TEXT PRIMARY KEY REFERENCES studio_review_inbox(id) ON DELETE CASCADE
+        );
       `);
       const inboxColumns = this.db.prepare('PRAGMA table_info(studio_review_inbox)').all() as Array<{ name: string }>;
       if (!inboxColumns.some((column) => column.name === 'input_digest')) this.db.exec('ALTER TABLE studio_review_inbox ADD COLUMN input_digest TEXT');
@@ -282,6 +285,12 @@ export class OntologyStudioDatabase implements IOntologyRepository, ISudographRe
       this.db.prepare('UPDATE studio_review_inbox SET input_digest=? WHERE id=?').run(digest, id);
       return true;
     })();
+  }
+
+  /** A durable reservation is not a lease; an unknown outcome cannot be replayed. */
+  claimReviewDelivery(id: string): boolean {
+    if (!this.db.prepare('SELECT 1 FROM studio_review_inbox WHERE id=?').get(id)) throw new Error('Review inbox item is unavailable.');
+    return this.db.prepare('INSERT OR IGNORE INTO studio_review_dispatch_claims (item_id) VALUES (?)').run(id).changes === 1;
   }
 
   listAiSessions(workspaceId?: string): IOntologyAiSessionRow[] {

@@ -44,8 +44,17 @@ it.skipIf(!native)('persists and deduplicates each event/destination across a re
     const item = { id: 'destination-event', subscription, event: { id: 'event', share_id: 'share', comment_id: 'comment', parent_id: null, event_type: 'comment.created', actor_role: 'owner' }, messageId: 'message' };
     database.acceptReviewEvents([item, item]);
     expect(database.reviewInbox('owner')).toHaveLength(1);
+    expect(database.claimReviewDelivery(item.id)).toBe(true);
+    const independent = new OntologyStudioDatabase(folder);
+    try {
+      expect(independent.claimReviewDelivery(item.id)).toBe(false);
+      expect(() => independent.claimReviewDelivery('unknown-item')).toThrow('unavailable');
+    } finally {
+      independent.close();
+    }
     database.close();
     database = new OntologyStudioDatabase(folder);
+    expect(database.claimReviewDelivery(item.id)).toBe(false);
     expect(database.reviewInbox('owner')[0]).toMatchObject({ id: item.id, status: 'pending', messageId: 'message' });
     database.acceptReviewEvents([item]);
     expect(database.reviewInbox('owner')).toHaveLength(1);
