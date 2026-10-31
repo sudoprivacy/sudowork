@@ -154,6 +154,7 @@ jobs:
           node scripts/cdp-dev-shim-smoke.js \
             --cdp-port "$NEXUS_CDP_PORT" \
             --expect-outcome ${{ matrix.expect_outcome }} \
+            --verify-reload \
             --wait-seconds 240
           RC=$?
           set -e

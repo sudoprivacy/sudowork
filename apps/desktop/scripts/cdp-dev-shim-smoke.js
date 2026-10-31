@@ -26,6 +26,7 @@
  */
 
 const http = require('http');
+const { randomUUID } = require('crypto');
 const WebSocket = require('ws');
 
 function parseArgs(argv) {
@@ -33,12 +34,14 @@ function parseArgs(argv) {
     cdpPort: parseInt(process.env.NEXUS_CDP_PORT || '9230', 10),
     expectOutcome: 'platform-unsupported',
     waitSeconds: 180,
+    isReloadVerification: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--cdp-port') out.cdpPort = parseInt(argv[++i], 10);
     else if (a === '--expect-outcome') out.expectOutcome = argv[++i];
     else if (a === '--wait-seconds') out.waitSeconds = parseInt(argv[++i], 10);
+    else if (a === '--verify-reload') out.isReloadVerification = true;
   }
   return out;
 }
@@ -85,7 +88,7 @@ async function findPageTarget(cdpPort, waitSeconds) {
 // One-shot Runtime.evaluate. Opens a fresh WS so call N+1 doesn't
 // inherit half-handled callbacks from call N — CDP is happy with this
 // and the cost is negligible compared to the renderer evaluation.
-function evaluateInRendererOnce(wsUrl, expression) {
+function evaluateInRendererOnce(wsUrl, expression, reloadProbe) {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(wsUrl);
     const timeout = setTimeout(() => {
@@ -97,6 +100,7 @@ function evaluateInRendererOnce(wsUrl, expression) {
       reject(new Error('Runtime.evaluate timed out after 60s'));
     }, 60000);
     ws.on('open', () => {
+      if (reloadProbe) ws.send(JSON.stringify({ id: 2, method: 'Runtime.enable' }));
       ws.send(
         JSON.stringify({
           id: 1,
@@ -114,6 +118,10 @@ function evaluateInRendererOnce(wsUrl, expression) {
         ws.close();
         reject(new Error(`CDP returned non-JSON frame: ${err.message}`));
         return;
+      }
+      if (reloadProbe && !reloadProbe.isRequested && msg.method === 'Runtime.consoleAPICalled' && msg.params?.args?.some((arg) => arg.value === reloadProbe.marker)) {
+        reloadProbe.isRequested = true;
+        ws.send(JSON.stringify({ id: 3, method: 'Page.reload' }));
       }
       if (msg.id !== 1) return;
       clearTimeout(timeout);
@@ -141,16 +149,24 @@ function evaluateInRendererOnce(wsUrl, expression) {
 // context partway through an evaluate. Up to N attempts with brief
 // pauses; refetch the page target each time in case the URL changed
 // (HMR keeps the same target id, but a hard reload may not).
-async function evaluateInRendererResilient(cdpPort, expression, attempts = 5) {
+async function evaluateInRendererResilient(cdpPort, expression, attempts = 5, reloadProbe) {
   let lastErr = null;
   for (let i = 0; i < attempts; i++) {
     try {
       const page = await findPageTarget(cdpPort, 30);
-      return await evaluateInRendererOnce(page.webSocketDebuggerUrl, expression);
+      return await evaluateInRendererOnce(page.webSocketDebuggerUrl, expression, reloadProbe);
     } catch (err) {
       lastErr = err;
-      const transient = /Execution context was destroyed|Target closed|No target with given id|Cannot find context with specified id/i.test(err.message);
+      const isNavigation = err.cdpError?.code === -32000 && err.cdpError.message === 'Inspected target navigated or closed';
+      // Only the explicit reload fixture may lose its globally retained waiter
+      // while that document dies. Ordinary bridge promise failures still fail.
+      const isReloadCollection = reloadProbe?.isRequested && err.cdpError?.code === -32000 && err.cdpError.message === 'Promise was collected';
+      const transient = isNavigation || isReloadCollection || /Execution context was destroyed|Target closed|No target with given id|Cannot find context with specified id/i.test(err.message);
       if (!transient || i === attempts - 1) throw err;
+      if (reloadProbe?.isRequested) {
+        reloadProbe.isObserved = true;
+        reloadProbe.error = err.message;
+      }
       console.log(`[cdp-dev-shim-smoke] transient CDP error (attempt ${i + 1}/${attempts}): ${err.message}; retrying`);
       await sleep(2000);
     }
@@ -187,28 +203,65 @@ function wrap(jsExpr) {
 }
 
 async function main() {
-  const { cdpPort, expectOutcome, waitSeconds } = parseArgs(process.argv.slice(2));
+  const { cdpPort, expectOutcome, waitSeconds, isReloadVerification } = parseArgs(process.argv.slice(2));
   console.log(`[cdp-dev-shim-smoke] waiting for CDP page target on :${cdpPort} (up to ${waitSeconds}s)`);
   const initialPage = await findPageTarget(cdpPort, waitSeconds);
   console.log(`[cdp-dev-shim-smoke] initial CDP target: ${initialPage.url}`);
 
-  // A fresh profile must leave the initial mode/storage guard without reload.
+  // Include module loading: a fresh profile must leave this startup guard
+  // without a test-triggered reload or a longer initialization deadline.
   const readiness = await evaluateInRendererResilient(
     cdpPort,
     `(async () => {
-    const deadline = Date.now() + 45000;
+    const started = Date.now();
+    const deadline = started + 45000;
     while (Date.now() < deadline) {
       const text = document.body?.innerText?.trim() || '';
       if (text && !/^(正在加载|正在获取初始化状态)\\.{3}$/.test(text)) {
-        return { ready: true };
+        return { ready: true, elapsedMs: Date.now() - started };
       }
       await new Promise(resolve => setTimeout(resolve, 200));
     }
-    throw new Error('Fresh renderer remained in the initial mode/storage guard');
+    throw new Error('Fresh renderer remained in the startup guard: ' + JSON.stringify({
+      readyState: document.readyState,
+      text: (document.body?.innerText || '').trim().slice(0, 160),
+      hasPreload: Boolean(window.electronAPI),
+      hasEmitter: Boolean(window.__bridgeEmitter),
+      hasDevShim: Boolean(window.__sudoworkDebug?.fuseT),
+      resources: performance.getEntriesByType('resource').slice(-8).map(e => ({path: new URL(e.name).pathname, duration: Math.round(e.duration)}))
+    }));
   })()`
   );
   if (readiness?.result?.value?.ready !== true) throw new Error('Renderer readiness probe failed');
+  console.log(`[cdp-dev-shim-smoke] fresh renderer ready after ${readiness.result.value.elapsedMs}ms (45s bound)`);
   console.log('[cdp-dev-shim-smoke] fresh renderer resolved storage and app mode');
+
+  if (isReloadVerification) {
+    const nonce = randomUUID();
+    const key = JSON.stringify(`sudowork-smoke-reload-${nonce}`);
+    const reloadProbe = { marker: `sudowork-smoke-reload:${nonce}`, isRequested: false, isObserved: false };
+    // Mark the disposable renderer's session storage, then reload only after
+    // its actual pending evaluation announces readiness. A new context must
+    // observe and remove the marker before normal bridge probes continue.
+    const result = await evaluateInRendererResilient(
+      cdpPort,
+      `(() => {
+        const key = ${key};
+        if (sessionStorage.getItem(key)) {
+          sessionStorage.removeItem(key);
+          return { reloaded: typeof window.__sudoworkSmokePendingReload === 'undefined' };
+        }
+        sessionStorage.setItem(key, 'pending');
+        window.__sudoworkSmokePendingReload = new Promise(() => {});
+        console.log(${JSON.stringify(reloadProbe.marker)});
+        return window.__sudoworkSmokePendingReload;
+      })()`,
+      5,
+      reloadProbe
+    );
+    if (!reloadProbe.isRequested || !reloadProbe.isObserved || result?.result?.value?.reloaded !== true) throw new Error('The real renderer reload did not exercise navigation recovery');
+    console.log(`[cdp-dev-shim-smoke] verified actual renderer reload recovery: ${reloadProbe.error}`);
+  }
 
   // Each probe expression self-waits for `window.__sudoworkDebug.fuseT`
   // (see wrap()). No need for a separate up-front check — that's the

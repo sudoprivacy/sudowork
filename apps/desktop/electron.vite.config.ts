@@ -323,6 +323,9 @@ export default defineConfig(({ mode }) => {
       },
       optimizeDeps: {
         exclude: ['electron'],
+        // Release startup dependencies while Vite crawls the linked workspace.
+        // Otherwise an unrelated late import holds even the IPC adapter blank.
+        holdUntilCrawlEnd: false,
         include: [
           'react',
           'react-dom',
@@ -330,6 +333,13 @@ export default defineConfig(({ mode }) => {
           'react-i18next',
           'i18next',
           '@arco-design/web-react',
+          '@arco-design/web-react/es/_util/react-19-adapter',
+          '@arco-design/web-react/es/locale/en-US',
+          '@arco-design/web-react/es/locale/ja-JP',
+          '@arco-design/web-react/es/locale/ko-KR',
+          '@arco-design/web-react/es/locale/zh-CN',
+          '@arco-design/web-react/es/locale/zh-TW',
+          '@office-ai/platform',
           '@icon-park/react',
           'react-markdown',
           'react-syntax-highlighter',
