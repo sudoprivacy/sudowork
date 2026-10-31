@@ -846,7 +846,7 @@ export default function BrowserSessionPanel({ conversationId, isActive = true, i
       {controls}
       {isSessionKnown ? <p className='text-xs text-t-secondary'>{t(`conversation.browserSession.${isConversationControlSupported ? 'conversationControl' : 'conversationUpdateRequired'}`)}</p> : null}
       {occupancyView}
-      <Collapse bordered={false}>
+      <Collapse bordered={false} className='shrink-0'>
         <Collapse.Item header={t('conversation.browserSession.browserSource')} name='browser-source'>
           <p className='text-xs text-t-secondary'>{t(`conversation.browserSession.${session?.personalExtension ? 'personalSourceDescription' : session?.capabilities.existingExtension ? 'localSourceDescription' : 'cloudSourceDescription'}`)}</p>
           {session?.capabilities.existingExtension && session.state === 'stopped' ? (

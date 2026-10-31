@@ -1,11 +1,9 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { createRequire } from 'node:module';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { expect, it, vi } from 'vitest';
 import { OntologyStudioDatabase } from '@process/services/ontology/OntologyStudioDatabase';
+import { runElectronNativeTest } from '../runElectronNode';
 
 vi.mock('electron', () => ({ safeStorage: { isEncryptionAvailable: () => false } }));
 vi.mock('@process/utils', () => ({
@@ -19,15 +17,7 @@ const native = !!process.versions.electron;
 it.skipIf(native)(
   'runs the durable review inbox against the shipped Electron SQLite driver',
   async () => {
-    const require = createRequire(import.meta.url);
-    const electron = require('electron') as string;
-    const cli = path.join(path.dirname(require.resolve('vitest/package.json')), 'vitest.mjs');
-    const { stdout } = await promisify(execFile)(electron, [cli, 'run', 'tests/unit/ontologyReviewInbox.native.test.ts', '--maxWorkers=1'], {
-      cwd: path.resolve(__dirname, '../..'),
-      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
-      windowsHide: true,
-      timeout: 90000,
-    });
+    const { stdout } = await runElectronNativeTest('tests/unit/ontologyReviewInbox.native.test.ts', 90000);
     expect(stdout).toContain('passed');
   },
   95000

@@ -1,25 +1,48 @@
 # Shared browser sessions for Desktop and WebUI
 
-Status, 30 October: a fresh read-only process check confirms production Moss `0.1.90`; this browser workline did not perform that controller upgrade. The last qualified browser baseline is public SDK `0.58.10` within the three-owner rollout, native execution image `0.1.85`, and WebUI image `9c559fe61fb5d016e387cedf452ed7618082d33f`. Refresh the browser/runtime configuration and active-runner inventory before promotion. This browser workline has not deployed the current page drag and child-frame candidate.
+Status, 31 October: production WebUI runs the official artifact from
+`219ba88022f23f2a9f72c357f15a95e50f6f88a1` (SudoWork #1344), with Moss
+`0.1.92` and the qualified Chrome/SDK `0.58.14` worker. The default public
+route passed window-stream refresh with its input lease, exact clipboard and
+Chinese composition, persistent login after browser restart, two real model
+turns and ordinary chat continuation. Production database, environment and
+mounts were preserved. The isolated canary container, database and route were
+removed after acceptance.
 
-SudoWork #1323 and Moss #467 have merged. The audited SudoWork `0.2.40` release predates #1323, so that stable package does not establish delivery of the new page drag. SDK #49 is merged and public `0.58.14` passed exact artifact and installed Windows/Linux qualification. Its completed-drag/copy fix passed the real-model Desktop embedded-panel journey. Ladder #133 and Moss #470 consume that public package and have merged. Final application artifacts, native-window presentation and production promotion remain gates. Source, published package and production acceptance are tracked separately below.
+Public SDK `0.58.16` supplies the Desktop consumer and Ladder #133. A built
+Electron `42.11.18` Desktop passed the real GPT 6 Luna/scode `0.2.37` journey
+with its normal cold installer and 205 files matching the public wheel. Exact
+Windows taskbar selection preserved ordinary background behavior. The same built application also passed connection to existing Chrome, exact model
+readback and disconnect, preserving cookies and Chrome after application exit.
+The official Desktop artifact and stable release remain gates.
 
-The production WebUI journey passed authenticated full-window streaming and refresh, exact remote selection, Unicode clipboard and Chromium composition, one trusted submission, retained login after browser restart, and real-model observation and ordinary chat continuation in the same conversation. It passed both before and after the controller upgrade. The source Desktop also passed its original real-model browser journey with a normal cold installation of public SDK `0.58.10`. Its new official package still needs acceptance. See [the streaming implementation and acceptance gates](browser-window-stream-acceptance.md).
+Sudograph #21 and #22 published source-field passages on the original Northwind
+share, pinned to `6fad925f93b09f9c9b28fe673a32fd7d9ea6d732`. A real Chinese
+comment on the exact source field survived language changes and reload; the
+fixture comment was deleted and all 48 original threads were preserved. This
+qualifies source-field passage recovery. Translated captions retain their own
+strict language/version contract.
+
+The same-graph baseline/candidate comparison established faster visible feedback
+for zoom, selection and held dragging. The official relay is now deployed;
+Windows-client production latency samples and repeated startup reliability
+remain open. The most recent graph content gate passed in 5,777 ms, while earlier
+30-second failures remain recorded.
 
 ## Current acceptance summary
 
 See the [browser/Sudograph joint acceptance checklist](browser-joint-acceptance.md) for the six owner checks, concrete evidence and remaining production/device gates.
 
-| Area                                         | Evidence and remaining gate                                                                                                                                                                                                                                                                                                                                |
-| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Desktop standalone and shared viewer         | Source Desktop with public SDK `0.58.14` passed AI launch, native question, ordinary interrupt, persisted cancellation, exact selection/copy, multiline paste/composition, one submission and exact model readback through the embedded panel. Native-window foreground and official packaging remain open.                                                |
-| Desktop existing personal Chrome             | Real SDK/host recovery cases and earlier packaged model journeys passed with isolated profiles. The final package must retain the existing Chrome and its cookies after disconnect.                                                                                                                                                                        |
-| WebUI cloud extension and full-window viewer | Production Moss `0.1.84` and SDK `0.58.10` passed the complete public profile/model journey. Refresh retained the input lease; explicit browser restart retained login.                                                                                                                                                                                    |
-| Headless and CDP combinations                | Real SDK and host cases exist. Each final application combination still needs its own acceptance; a source or transport test does not establish production coverage.                                                                                                                                                                                       |
-| Phone layout and browser input               | The complete public flow passed in a 390 by 844 Chromium touch viewport, including local pan, exact touch-pointer selection/copy, one trusted Unicode login, retained login after restart and real-model continuation. Basic chat on the user's iPhone passed earlier. Physical iPhone browser TouchEvent, keyboard/IME and Safari acceptance remain open. |
-| Bound Sudograph review                       | Native adapter SudoWork #1304 is merged with its own authenticated comment/edit/reply evidence. Cloud project/view/revision binding, private comments and stable anchors still require joint acceptance.                                                                                                                                                   |
-| Actual graph responsiveness                  | Earlier graph and noVNC measurements remain a baseline. The final public route still needs graph pan, zoom, selection and comment feedback measurements that distinguish page work, transmission and network delay. Pixel changes on the neutral login fixture are not graph FPS.                                                                          |
-| External empty conversation links            | SudoWork #1316 is merged and delivered in the official production WebUI. Two real model turns retained the exact externally created conversation ID and recovered its context after reload, both in the isolated canary and on the default public route.                                                                                                   |
+| Area                                         | Current evidence                                                                                                                                                                                                                                   | Remaining gate                                                                                                         |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Desktop standalone and shared panel          | Electron 42.11.18 source app, public SDK 0.58.16 and real Luna passed cold installation, physical native-window input, native question cancellation, exact selection/copy, multiline paste/composition, one trusted submission and model readback. | Official application package and stable release.                                                                       |
+| Desktop existing personal Chrome             | The built Electron 42.11.18 application passed the real-model connection, native-window, clipboard/composition and disconnect journey; cookies and Chrome survived application shutdown.                                                           | Official application package and stable release.                                                                       |
+| WebUI cloud extension and full-window viewer | Official source 219ba880 with Moss 0.1.92/SDK 0.58.14 passed the public canary and default profile/model journey, including lease-preserving refresh and browser restart with retained login.                                                      | Windows-client production graph measurements and joint project/revision bindings.                                      |
+| Headless and CDP combinations                | Real SDK and host cases plus shared launch-mode component regressions exist.                                                                                                                                                                       | Final public application journeys for each selected mode and display surface.                                          |
+| Phone layout and browser input               | The user's iPhone Chrome passed basic login/model/chat. A 390 by 844 touch viewport passed selection, clipboard and same-session continuation.                                                                                                     | Physical iPhone viewer touch, keyboard/IME, clipboard and continuation.                                                |
+| Bound Sudograph review                       | Source-field comments on the actual public Northwind share survived language changes and reload. Test comments were deleted and the 48 original threads preserved.                                                                                 | Cloud project/view/revision binding, durable delivery and execution-time context with prefix-cache acceptance.         |
+| Actual graph responsiveness                  | Controlled same-source comparison: zoom 2567 to 193 ms, selection 2953 to 877 ms, pan 2188 to 566-816 ms. The official relay is now deployed.                                                                                                      | Production Windows-client samples and repeated startup reliability; these are not network-only timings or percentiles. |
+| External conversation links                  | Two real model completions and reload retained the exact externally created conversation, in the canary and default deployment.                                                                                                                    | Include the final joint project/context and comment routing journey.                                                   |
 
 The complete matrix is still open. The optional cloud-to-local extension relay remains unimplemented. Conversation Stop and normal conversation continuation are the user controls; there are no business-level handoff buttons. This document is the source for [the shared design page](https://s.shareone.vip/md/sudowork-browser-sessions).
 
