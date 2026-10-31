@@ -27,9 +27,11 @@ export interface ISudographReviewCommentsOptions {
   fetcher?: typeof fetch;
   setKey: (key: string | null) => Promise<void>;
   authorize: (binding: { workspaceId: string; conversationId: string }) => Promise<void>;
-  head: (workspaceId: string) => Promise<{ revision: string; context_digest: string }>;
+  head: (workspaceId: string, conversationId: string) => Promise<{ revision: string; context_digest: string }>;
   deliver: (input: { conversationId: string; messageId: string; content: string; agentContent: string }, hooks: { onStarted: () => Promise<void>; onCompleted: (text: string, error?: string) => Promise<void> }) => Promise<{ success: boolean; msg?: string }>;
   messageExists: (conversationId: string, messageId: string) => boolean | Promise<boolean>;
+  /** Inspect the existing conversation without submitting another input. Unknown outcomes require review. */
+  recover?: (input: { workspaceId: string; conversationId: string; messageId: string }) => Promise<{ state: 'pending' | 'unknown' } | { state: 'complete'; text: string; error?: string }>;
 }
 
 const digest = (text: string) => createHash('sha256').update(text).digest('hex');
@@ -45,6 +47,7 @@ export class SudographReviewComments {
   private isClosed = false;
 
   constructor(private readonly options: ISudographReviewCommentsOptions) {
+    if (typeof options.database.claimReviewDelivery !== 'function') throw new Error('Upgrade the review store: atomic durable claimReviewDelivery is required before comment dispatch.');
     const url = new URL(options.baseUrl);
     if (url.username || url.password || url.search || url.hash || url.pathname !== '/' || (url.protocol !== 'https:' && !(url.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(url.hostname)))) throw new Error('Invalid deployed ShareOne origin.');
   }
@@ -250,11 +253,6 @@ export class SudographReviewComments {
           this.active.delete(item.id);
           continue;
         }
-        if (await this.options.messageExists(item.subscription.conversationId, item.messageId)) {
-          await this.options.database.finishReviewEvent(item.id, 'error', 'TURN_RECOVERY_REQUIRED');
-          this.active.delete(item.id);
-          continue;
-        }
         const thread = await this.thread(item.subscription, item.event.parent_id || item.event.comment_id);
         const rawAnchor = thread.anchor_binding?.highlighter_data || thread.highlighter_data;
         const anchor = typeof rawAnchor === 'string' ? JSON.parse(rawAnchor) : rawAnchor;
@@ -274,7 +272,7 @@ export class SudographReviewComments {
           this.active.delete(item.id);
           continue;
         }
-        const head = await this.options.head(item.subscription.workspaceId);
+        const head = await this.options.head(item.subscription.workspaceId, item.subscription.conversationId);
         const content = JSON.stringify({
           source: 'shareone-review',
           event_id: item.event.id,
@@ -287,6 +285,12 @@ export class SudographReviewComments {
           replies: thread.replies || [],
         });
         const latest = thread.replies?.find((reply) => reply.id === item.event.comment_id)?.content || thread.content;
+        if (!(await this.options.database.claimReviewDelivery(item.id)) || (await this.options.messageExists(item.subscription.conversationId, item.messageId))) {
+          await this.recover(item);
+          this.active.delete(item.id);
+          continue;
+        }
+        await this.options.authorize(item.subscription);
         const accepted = await this.options.deliver(
           { conversationId: item.subscription.conversationId, messageId: item.messageId, content: [thread.anchor_binding?.quote || thread.quote, latest].filter(Boolean).join('\n\n'), agentContent: content },
           {
@@ -314,6 +318,19 @@ export class SudographReviewComments {
     }
   }
 
+  private async recover(item: IReviewInboxItem): Promise<void> {
+    await this.options.authorize(item.subscription);
+    const result = (await this.options.recover?.({ workspaceId: item.subscription.workspaceId, conversationId: item.subscription.conversationId, messageId: item.messageId })) || { state: 'unknown' };
+    await this.options.authorize(item.subscription);
+    if (result.state === 'pending') return;
+    if (result.state === 'complete' && typeof result.text === 'string' && (result.error === undefined || typeof result.error === 'string')) {
+      await this.options.database.setHostValue('review-result:' + item.id, { text: result.text, error: result.error });
+      await this.respond(item, result.text, result.error);
+      return;
+    }
+    await this.options.database.finishReviewEvent(item.id, 'error', 'TURN_RECOVERY_REQUIRED');
+  }
+
   private async thread(subscription: IReviewSubscription, id: string): Promise<ICommentThread> {
     await this.options.authorize(subscription);
     const response = await this.request(`/api/v1/shares/${subscription.shareId}/comments?status=all`);
@@ -325,7 +342,7 @@ export class SudographReviewComments {
 
   private async respond(item: IReviewInboxItem, text: string, error?: string): Promise<void> {
     await this.options.authorize(item.subscription);
-    const head = await this.options.head(item.subscription.workspaceId);
+    const head = await this.options.head(item.subscription.workspaceId, item.subscription.conversationId);
     const message = error ? 'The agent could not complete this review input. Please retry from the bound conversation.' : (text.trim() || 'The bound agent finished processing this comment.') + `\n\nModel revision: ${head.revision}. Please review the graph and continue in this thread.`;
     this.requireSuccess(
       await this.request(
