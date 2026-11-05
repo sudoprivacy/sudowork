@@ -1095,6 +1095,14 @@ export const ontology = {
   connectSource: bridge.buildProvider<IBridgeResponse<import('@sudowork/ontology-common').IOntologyStudioProject>, import('@sudowork/ontology-common').IOntologyConnectSourceInput>('ontology.projects.connect-source'),
   resumeSource: bridge.buildProvider<IBridgeResponse<import('@sudowork/ontology-common').IOntologyStudioProject | null>, { operationId: string }>('ontology.projects.resume-source'),
   openReview: bridge.buildProvider<IBridgeResponse<{ surface: 'native' | 'viewer'; conversationId: string }>, { workspaceId: string; conversationId: string }>('ontology.projects.open-review'),
+  getSessionProject: bridge.buildProvider<IBridgeResponse<import('@sudowork/contracts/conversations').CanonicalModelProject | null>, { conversationId: string }>('ontology.session-project'),
+  openSessionReview: bridge.buildProvider<
+    IBridgeResponse<import('@sudowork/contracts/conversations').ModelReviewSurface>,
+    {
+      conversationId: string;
+      epochs: import('@sudowork/contracts/conversations').ModelReviewBrowserEpochs;
+    }
+  >('ontology.session-review'),
   modelChanged: bridge.buildEmitter<{
     workspaceId: string;
     revision: string;

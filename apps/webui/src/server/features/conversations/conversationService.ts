@@ -283,6 +283,18 @@ export async function getConversationProject(
   return mapMossErrors(() => createMossOntologyPort(deps.mossFetch).sessionProject(ctx, sessionId))
 }
 
+/** Open only the current owner's bound model in the existing browser session. */
+export async function openConversationReview(
+  deps: Pick<ConversationDeps, 'moss' | 'mossFetch'>,
+  principal: Principal,
+  sessionId: string,
+  ctx: MossCallContext,
+  epochs: import('@sudowork/contracts/conversations').ModelReviewBrowserEpochs,
+) {
+  await requireAccessibleSession(deps, principal, sessionId, ctx)
+  return createMossOntologyPort(deps.mossFetch).openReview(ctx, sessionId, epochs)
+}
+
 /** 计划 3.3：打开会话先重新查询该 Session 并校验归属。 */
 export async function requireAccessibleSession(
   deps: Pick<ConversationDeps, 'moss'>,

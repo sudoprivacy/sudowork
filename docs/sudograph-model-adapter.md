@@ -317,10 +317,35 @@ The client also requires Moss to acknowledge the requested project in its reply.
 Missing or mismatched scope, including an older server ignoring the query, fails
 with `PROJECT_SESSION_SCOPE_UNCONFIRMED` instead of displaying unrelated history.
 
-These are client/server entry contracts, not a deployed cloud Studio, source
-intake, authenticated review/comment journey or proof of supported engine
-adoption. The WebUI project selector and review provider must use these current
-references rather than inventing a client-owned model authority.
+### Bound review in ordinary cloud conversations
+
+The shared conversation header discovers the current registered project through
+`ontology.session-project`. A bound remote conversation shows **Open review**;
+ordinary conversations without a model keep their normal chat and browser UI.
+Desktop resolves its existing current-account Moss session, while WebUI uses its
+normal authenticated conversation route. Neither client stores another model
+binding or copies source data into a prompt.
+
+Opening review reads the current browser state through the ordinary BrowserPanel
+port. An explicit click may start an unoccupied browser through that same port;
+it never interrupts an agent or takes control of an occupied browser. If human
+control is unavailable, use the existing browser controls and retry. The host
+receives only the conversation identity and observed control/target generations.
+It resolves the model and personal credentials itself and returns only a viewer
+surface and matching conversation identity. Response whitelisting prevents a
+worker URL or private cookie from reaching the renderer.
+
+Both the normal right panel and standalone viewer display the same managed
+browser. Opening review preserves the normal panel, transcript, session switching
+and existing browser lifecycle. A conversation switch during a pending state read
+cannot start or open the previous conversation's browser. Client navigation does
+not retry uncertain host navigation or comment execution.
+
+These are shared client/server entry contracts, not acceptance of deployed cloud
+Studio, source intake or a production comment-to-live-agent journey. The WebUI
+project selector, installed pinned review shell and deployed review host must use
+the current registered references. Live tenant credentials and same-browser
+review/comment acceptance remain rollout requirements.
 
 ### Local UX review before a public SDK release
 

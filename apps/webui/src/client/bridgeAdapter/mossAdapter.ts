@@ -1,6 +1,10 @@
 import { stageFiles } from '@sudowork/renderer/utils/webFilePicker'
 import { InputDeliveryClient } from '@sudowork/moss-client/input-delivery'
 import { inputActionSchema, type InputAction } from '@sudowork/contracts/input-delivery'
+import {
+  ModelReviewBrowserEpochsSchema,
+  ModelReviewSurfaceSchema,
+} from '@sudowork/contracts/conversations'
 import { createMossHostedTaskPort, type HostedTaskInput } from '@sudowork/moss-client/hosted-tasks'
 import type { MossAgentFetch } from '@sudowork/moss-client/agents'
 import type * as ExternalContract from '@sudowork/contracts/external-provider'
@@ -1660,6 +1664,22 @@ const handlers: Record<string, (req: AnyReq) => Promise<unknown>> = {
     } catch (error) {
       return fail(errMessage(error))
     }
+  },
+  'ontology.session-project': async (req) => {
+    const result = await apiFetch<{ project: unknown }>(
+      `/api/conversations/${encodeURIComponent(String(req.conversationId || ''))}/ontology-project`,
+    )
+    return ok(result.project)
+  },
+  'ontology.session-review': async (req) => {
+    const result = await apiFetch(
+      `/api/conversations/${encodeURIComponent(String(req.conversationId || ''))}/ontology-review`,
+      {
+        method: 'POST',
+        body: JSON.stringify(ModelReviewBrowserEpochsSchema.parse(req.epochs)),
+      },
+    )
+    return ok(ModelReviewSurfaceSchema.parse(result))
   },
   'secret.get': async (req) => {
     const path = mossSecretPath(String(req.namespace), String(req.key))

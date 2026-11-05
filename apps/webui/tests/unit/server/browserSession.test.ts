@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { MossSessionPort } from '@sudowork/moss-client'
 import type { Principal } from '../../../src/server/features/auth/principalRepository'
+import { openConversationReview } from '../../../src/server/features/conversations/conversationService'
 import {
   invokeBrowserSession,
   receiveBrowserFile,
@@ -49,6 +50,27 @@ function fixture() {
 }
 
 describe('authorized browser session proxy', () => {
+  it('rechecks the owner before opening review and never exposes private navigation credentials', async () => {
+    const f = fixture()
+    const request = vi
+      .fn()
+      .mockResolvedValue({ surface: 'viewer', conversationId: 'conversation', cookie: 'private' })
+    const deps = { ...f.deps, mossFetch: request }
+    expect(
+      await openConversationReview(deps, principal, 'conversation', ctx, {
+        controlEpoch: 4,
+        targetEpoch: 7,
+      }),
+    ).toEqual({ surface: 'viewer', conversationId: 'conversation' })
+    f.changeOwner()
+    await expect(
+      openConversationReview(deps, principal, 'conversation', ctx, {
+        controlEpoch: 4,
+        targetEpoch: 7,
+      }),
+    ).rejects.toThrow()
+    expect(request).toHaveBeenCalledTimes(1)
+  })
   it('rechecks current ownership after the user has already opened a viewer', async () => {
     const f = fixture()
     const reply = await invokeBrowserSession(f.deps, principal, 'conversation', ctx, {

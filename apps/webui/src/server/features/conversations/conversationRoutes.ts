@@ -15,6 +15,7 @@ import {
   ReorderPinnedRequestSchema,
   SetUserModelRequestSchema,
   UpdateConversationMetaRequestSchema,
+  ModelReviewBrowserEpochsSchema,
 } from '@sudowork/contracts/conversations'
 import {
   InvalidSelectionError,
@@ -26,6 +27,7 @@ import {
   getConversation,
   getConversationModel,
   getConversationProject,
+  openConversationReview,
   getConversationOptions,
   getUserModel,
   getContext,
@@ -320,6 +322,19 @@ export function createConversationRouter(deps: ConversationDeps): Router {
       res.status(200).json({
         project: await getConversationProject(deps, principal, String(req.params.id), ctx),
       })
+    })().catch((err: unknown) => convErrorHandler(err, res, next))
+  })
+
+  router.post('/:id/ontology-review', requireSession, (req, res, next) => {
+    res.setHeader('Cache-Control', 'no-store')
+    void (async () => {
+      const principal = await resolvePrincipal(req as AuthedRequest)
+      if (!principal) return void res.status(401).json({ error: 'SESSION_REQUIRED' })
+      const epochs = ModelReviewBrowserEpochsSchema.parse(req.body)
+      const ctx = await resolveCtx(req as AuthedRequest)
+      res
+        .status(200)
+        .json(await openConversationReview(deps, principal, String(req.params.id), ctx, epochs))
     })().catch((err: unknown) => convErrorHandler(err, res, next))
   })
 

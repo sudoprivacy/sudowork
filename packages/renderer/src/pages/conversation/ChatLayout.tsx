@@ -17,6 +17,7 @@ import ConversationTabs from '@renderer/pages/conversation/ConversationTabs';
 import { PreviewPanel, usePreviewContext } from '@renderer/pages/conversation/preview';
 import AgentSessionHeader from '@renderer/pages/conversation/components/AgentSessionHeader';
 import ConversationExecutionBadge from '@renderer/pages/conversation/components/ConversationExecutionBadge';
+import BoundModelReviewAction from '@renderer/components/browser/BoundModelReviewAction';
 import styles from './ChatLayout.module.css';
 import { WORKSPACE_HAS_FILES_EVENT, WORKSPACE_TOGGLE_EVENT, dispatchWorkspaceStateEvent, dispatchWorkspaceToggleEvent, type WorkspaceHasFilesDetail } from '@renderer/utils/workspaceEvents';
 
@@ -465,6 +466,7 @@ const ChatLayout: React.FC<{
           </div>
         </div>
         <div className={classNames('flex items-center gap-2 shrink-0', styles.headerActions)}>
+          {props.executionTarget === 'remote' && conversationId && <BoundModelReviewAction key={conversationId} conversationId={conversationId} />}
           {props.headerLeft && <div className={classNames('flex items-center justify-end gap-1.5 min-w-0', styles.headerControl)}>{props.headerLeft}</div>}
           {props.headerExtra}
           {(isWindowsRuntime || isNarrowViewport) && workspaceEnabled && (
