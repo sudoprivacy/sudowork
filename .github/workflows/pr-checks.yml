@@ -279,20 +279,10 @@ jobs:
         with:
           bun-version-file: package.json
 
-      - name: Cache verified libvips downloads
-        uses: actions/cache@v4
-        with:
-          path: ${{ runner.temp }}/npm-cache/_libvips
-          key: libvips-8.14.5-${{ runner.os }}-${{ runner.arch }}-integrity-v2
-
-      - name: Verify libvips before dependency installation
-        env:
-          npm_config_cache: ${{ runner.temp }}/npm-cache
-        run: node ../../.github/scripts/cache-sharp-libvips.mjs
+      - name: Prepare verified native image dependencies
+        uses: ./.github/actions/cache-sharp-libvips
 
       - name: Install dependencies
-        env:
-          npm_config_cache: ${{ runner.temp }}/npm-cache
         run: bun install --frozen-lockfile
 
       - name: Ensure Electron is installed for native SQLite tests
