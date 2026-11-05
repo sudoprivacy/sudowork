@@ -1,12 +1,14 @@
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import BoundModelReviewAction from '@renderer/components/browser/BoundModelReviewAction';
 
-const host = vi.hoisted(() => ({ project: vi.fn(), review: vi.fn(), browser: vi.fn(), error: vi.fn(), viewer: vi.fn() }));
+const host = vi.hoisted(() => ({ project: vi.fn(), review: vi.fn(), browser: vi.fn(), error: vi.fn(), viewer: vi.fn(), stream: vi.fn() }));
+let onStream: ((message: { conversation_id: string; type: string; data?: { status: string } }) => void) | undefined;
 vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
   ontology: { getSessionProject: { invoke: host.project }, openSessionReview: { invoke: host.review } },
   browserSession: { invoke: { invoke: host.browser } },
+  conversation: { responseStream: { on: host.stream } },
 }));
 vi.mock('@renderer/components/browser/openBrowserSessionWindow', () => ({ openBrowserSessionWindow: host.viewer }));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
@@ -36,6 +38,13 @@ const session = {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  onStream = undefined;
+  host.stream.mockImplementation((listener: typeof onStream) => {
+    onStream = listener;
+    return () => {
+      onStream = undefined;
+    };
+  });
   host.project.mockResolvedValue({ success: true, data: project });
   host.review.mockResolvedValue({ success: true, data: { surface: 'viewer', conversationId: 'conversation' } });
   host.browser.mockResolvedValue({ success: true, data: { session } });
@@ -98,4 +107,43 @@ it('a response for another conversation cannot open a viewer', async () => {
   fireEvent.click(await screen.findByRole('button'));
   await waitFor(() => expect(host.error).toHaveBeenCalledWith('ontology.studio.reviewUnavailable'));
   expect(host.viewer).not.toHaveBeenCalled();
+});
+
+it('discovers a model created during this conversation through the normal completed-turn event', async () => {
+  host.project.mockResolvedValueOnce({ success: true, data: null });
+  render(<BoundModelReviewAction conversationId='conversation' />);
+  await waitFor(() => expect(host.project).toHaveBeenCalledTimes(1));
+  expect(screen.queryByRole('button')).toBeNull();
+  act(() => onStream?.({ conversation_id: 'other', type: 'finish' }));
+  expect(host.project).toHaveBeenCalledTimes(1);
+  act(() => onStream?.({ conversation_id: 'conversation', type: 'finish' }));
+  expect(await screen.findByRole('button', { name: 'ontology.studio.openReview' })).toBeTruthy();
+  expect(host.project).toHaveBeenCalledTimes(2);
+  expect(host.browser).not.toHaveBeenCalled();
+  expect(host.review).not.toHaveBeenCalled();
+});
+
+it('an old discovery response cannot hide the model returned after session recovery', async () => {
+  let finish!: (value: unknown) => void;
+  host.project.mockReturnValueOnce(
+    new Promise((resolve) => {
+      finish = resolve;
+    })
+  );
+  render(<BoundModelReviewAction conversationId='conversation' />);
+  act(() => onStream?.({ conversation_id: 'conversation', type: 'agent_status', data: { status: 'session_active' } }));
+  expect(await screen.findByRole('button')).toBeTruthy();
+  await act(async () => finish({ success: true, data: null }));
+  expect(screen.getByRole('button')).toBeTruthy();
+});
+
+it('a current binding failure disables review and a later authoritative refresh can recover', async () => {
+  render(<BoundModelReviewAction conversationId='conversation' />);
+  await screen.findByRole('button');
+  host.project.mockResolvedValueOnce({ success: false });
+  act(() => onStream?.({ conversation_id: 'conversation', type: 'finish' }));
+  await waitFor(() => expect(screen.getByRole<HTMLButtonElement>('button').disabled).toBe(true));
+  act(() => onStream?.({ conversation_id: 'conversation', type: 'finish' }));
+  await waitFor(() => expect(screen.getByRole<HTMLButtonElement>('button').disabled).toBe(false));
+  expect(host.browser).not.toHaveBeenCalled();
 });

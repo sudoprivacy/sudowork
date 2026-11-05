@@ -16,17 +16,36 @@ export default function BoundModelReviewAction({ conversationId }: IBoundModelRe
   const isOpeningRef = useRef(false);
   useEffect(() => {
     let isCancelled = false;
+    let readGeneration = 0;
     isMounted.current = true;
-    void (async () => {
-      const result = await ipcBridge.ontology.getSessionProject.invoke({ conversationId });
-      if (!result.success) throw new Error('MODEL_PROJECT_UNAVAILABLE');
-      if (!isCancelled) setProject(result.data || null);
-    })().catch(() => {
-      if (!isCancelled) setIsUnavailable(true);
+    const refresh = async () => {
+      const generation = ++readGeneration;
+      try {
+        const result = await ipcBridge.ontology.getSessionProject.invoke({ conversationId });
+        if (!result.success) throw new Error('MODEL_PROJECT_UNAVAILABLE');
+        if (!isCancelled && generation === readGeneration) {
+          setProject(result.data || null);
+          setIsUnavailable(false);
+        }
+      } catch {
+        if (!isCancelled && generation === readGeneration) {
+          setProject(null);
+          setIsUnavailable(true);
+        }
+      }
+    };
+    // A source can become bound during the current ordinary agent turn. Reuse
+    // its existing lifecycle stream rather than polling or asking the model
+    // to tell the UI when to expose review.
+    const unsubscribe = ipcBridge.conversation.responseStream.on((message) => {
+      if (message.conversation_id !== conversationId) return;
+      if (message.type === 'finish' || (message.type === 'agent_status' && (message.data as { status?: string } | undefined)?.status === 'session_active')) void refresh();
     });
+    void refresh();
     return () => {
       isCancelled = true;
       isMounted.current = false;
+      unsubscribe();
     };
   }, [conversationId]);
 
@@ -58,7 +77,7 @@ export default function BoundModelReviewAction({ conversationId }: IBoundModelRe
   };
   if (!project && !isUnavailable) return null;
   return (
-    <Button size='small' loading={isOpening} disabled={isUnavailable} title={isUnavailable ? t('ontology.studio.reviewUnavailable') : project?.modelRef} onClick={() => void onOpen()}>
+    <Button size='small' loading={isOpening} disabled={isUnavailable} title={isUnavailable ? t('ontology.studio.reviewUnavailable') : undefined} onClick={() => void onOpen()}>
       {t('ontology.studio.openReview')}
     </Button>
   );
