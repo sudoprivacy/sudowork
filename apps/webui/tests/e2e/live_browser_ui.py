@@ -65,16 +65,21 @@ async def interrupt_shared_browser(page, panel, labels):
     box = await surface.bounding_box()
     visible = await viewport.bounding_box()
     assert box and box["width"] > 0 and box["height"] > 0
-    assert visible and page.viewport_size
+    # CDP-attached native Electron windows have no emulated Playwright viewport.
+    # Use their actual CSS viewport while keeping the same clipped hit test.
+    screen = page.viewport_size or await page.evaluate(
+        "({width: innerWidth, height: innerHeight})"
+    )
+    assert visible and screen["width"] > 0 and screen["height"] > 0
     left = max(0, box["x"], visible["x"])
     top = max(0, box["y"], visible["y"])
     right = min(
-        page.viewport_size["width"],
+        screen["width"],
         box["x"] + box["width"],
         visible["x"] + visible["width"],
     )
     bottom = min(
-        page.viewport_size["height"],
+        screen["height"],
         box["y"] + box["height"],
         visible["y"] + visible["height"],
     )
