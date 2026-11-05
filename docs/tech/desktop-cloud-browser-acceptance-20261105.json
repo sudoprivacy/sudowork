@@ -1,0 +1,65 @@
+{
+  "recordedAt": "2026-11-05T15:18:35.168556+00:00",
+  "scope": "Published Windows Desktop connected to the real managed cloud browser",
+  "artifact": {
+    "tag": "nightly-2026-11-04-8739bc3",
+    "url": "https://github.com/sudoprivacy/sudowork/releases/tag/nightly-2026-11-04-8739bc3",
+    "zipSha256": "431e60db26b3ca00df9b06471acfff16bbfcf6d8e5b2add4877360861578cb1e",
+    "asarSha256": "a448ac7d46f9ba248ab0f407e08e1cc28ffead7da56bdeb88d106f3b42014745",
+    "modified": false
+  },
+  "model": "gpt-6-luna",
+  "mockedModelOrBrowser": false,
+  "manualAssistance": false,
+  "cases": [
+    {
+      "transport": "extension",
+      "headless": false,
+      "passed": true,
+      "privateEvidenceSha256": "9e138f5f9ee7a4c20ea7eb1387f53dae1615c7b6deac4d3cdca805152ef2486e"
+    },
+    {
+      "transport": "extension",
+      "headless": true,
+      "passed": true,
+      "privateEvidenceSha256": "8d598bfdf64a374374ca564d402b1d1becf694b255c09e855a3cd927f19a334d"
+    },
+    {
+      "transport": "cdp",
+      "headless": true,
+      "passed": true,
+      "privateEvidenceSha256": "e3a9195ef0d99db9f4853c64d0bdd73150f2597c9133b24b6a9560056d5ea9ef"
+    },
+    {
+      "transport": "cdp",
+      "headless": false,
+      "passed": true,
+      "privateEvidenceSha256": "6fffa3a8b5bbc24c03d71080db4fd2e70724b930b945a9372f514ae070c8eb0b"
+    }
+  ],
+  "liveTestInputs": {
+    "apps/desktop/tests/e2e/live_cloud_browser.py": "7e3d93b27a027b6ed7d07737200cccfb6a88350b492491a6988ea11866583638",
+    "apps/desktop/tests/e2e/private_cloud_fixture.py": "38ad64deda93ba1acdf841176413ffb33f4a53aee03148d86aab02120c8e62bf",
+    "apps/webui/tests/e2e/live_browser_ui.py": "d4fdacd8475ad77798ab26db9c49029779c6278d6fab3f0cbfdc00c07c7b59a2",
+    "apps/desktop/tests/e2e/README.md": "35a12bd6f2a02830a9d90c3ada05e7857ac24b7e2da12c43ac618eb12da05f07"
+  },
+  "verified": [
+    "Normal fresh API-key login after ordinary runtime initialization",
+    "Server execution and real completed model bootstrap bound to a Moss session",
+    "Requested transport and headless/headful selected through ordinary UI",
+    "Shared BrowserPanel and independent Electron viewer",
+    "One trusted Unicode submission and exact model readback without revealing the value in the prompt",
+    "Viewer refresh preserves task binding, page state and human input lease",
+    "Browser Stop retains the human lease until normal chat continuation",
+    "No local browser worker allocated for cloud execution",
+    "Owned cloud session terminated and temporary key revoked through normal APIs",
+    "Owned app and local services closed through normal shutdown"
+  ],
+  "coverageLimits": [
+    "Does not qualify cold installation within the browser journey route deadline",
+    "Does not qualify physical iPhone input or OS IME",
+    "Does not qualify published Desktop local standalone or personal-profile presentation",
+    "Does not complete Northwind startup/drag performance, joint project/revision/comment delivery, stable release or all production combinations"
+  ],
+  "reproduction": "apps/desktop/tests/e2e/README.md"
+}

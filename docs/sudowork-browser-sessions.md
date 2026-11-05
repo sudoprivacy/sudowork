@@ -1,5 +1,17 @@
 # Shared browser sessions for Desktop and WebUI
 
+Desktop cloud update, 5 November: the unmodified public Windows nightly
+`nightly-2026-11-04-8739bc3` passed four real Luna journeys: extension and CDP,
+each headless and headful. Each journey used fresh login, Server execution,
+shared BrowserPanel, an independent viewer, a trusted Unicode submission,
+lease-preserving refresh and exact AI readback. Browser Stop retained human
+control until ordinary chat continuation. Temporary keys and sessions were
+cleaned through normal APIs. See the [reproducible live test](../apps/desktop/tests/e2e/README.md#desktop-connected-to-the-managed-cloud-browser)
+and [artifact-bound evidence](tech/desktop-cloud-browser-acceptance-20261105.json).
+This advances Desktop cloud acceptance; the local official-package, joint graph,
+physical-phone and stable-release gates below remain open. The production
+versions in the next paragraph are the last verified 31 October baseline.
+
 Status, 31 October: production WebUI runs the official artifact from
 `219ba88022f23f2a9f72c357f15a95e50f6f88a1` (SudoWork #1344), with Moss
 `0.1.92` and the qualified Chrome/SDK `0.58.14` worker. The default public

@@ -253,13 +253,18 @@ installation must be available, as required by the product's normal setup flow.
 ### Desktop connected to the managed cloud browser
 
 `live_cloud_browser.py` drives an isolated, built Electron app from its fresh
-Chinese login screen. It uses the ordinary API Key login and Server execution
+Chinese login screen after normal runtime initialization completes. Cold local
+Nexus installation is a separate startup precondition; this browser journey
+keeps its 30-second route budgets. It uses the ordinary API Key login and Server execution
 controls, requires a real completed cloud model turn, and verifies the local
 conversation record binds to an actual Moss session. BrowserPanel launches
-headful managed Chrome; a separate Electron viewer delivers trusted Unicode
-input and one submission. Return asks AI to read the current page without
+managed Chrome with the requested transport and display mode; a separate Electron viewer delivers trusted Unicode
+input and one submission. A page gesture uses the ordinary conversation
+interrupt, and a normal chat message asks AI to read the current page without
 providing the expected human value. Scoped browser permissions use the normal
-visible Allow Once cards.
+visible Allow Once cards. Refreshing the viewer must preserve the browser,
+conversation binding and human input lease without navigating the cloud page.
+Stopping Chrome must retain that lease until ordinary chat continuation.
 
 Use a dedicated owner with working cloud model billing. Keep this configuration
 outside the repository and use a restricted key:
@@ -269,17 +274,53 @@ outside the repository and use a restricted key:
   "mossBaseUrl": "https://agent.sudoprivacy.com",
   "apiKey": "<dedicated-owner-key>",
   "ownerId": "<fixture-owner-id>",
-  "orgId": "<fixture-organization-id>"
+  "orgId": "<fixture-organization-id>",
+  "modelLabel": "gpt-6-luna",
+  "browserTransport": "extension",
+  "headless": false,
+  "priorEndedSessionId": "<optional-exact-owned-ended-fixture-id>"
 }
 ```
 
+Run each of `extension` and `cdp` with both `headless: true` and
+`headless: false`, using a fresh isolated app home and evidence directory.
+These options select the ordinary UI controls; they do not seed browser state.
+Headless uses the page viewer; headful additionally exposes the window viewer.
+
 ```powershell
-python apps/desktop/tests/e2e/live_cloud_browser.py --port 9232 --config C:/private/cloud-test.json --home C:/private/isolated-home --user-data C:/private/isolated-user-data --output C:/private/new-cloud-evidence --fixture-port 50181 --fixture-origin http://private-vm-fixture-host:port
+python apps/desktop/tests/e2e/live_cloud_browser.py --port 9232 --config C:/private/cloud-test.json --home C:/private/isolated-home --user-data C:/private/isolated-user-data --output C:/private/new-cloud-evidence --fixture-port <available-local-port> --fixture-origin http://private-vm-fixture-host:port
 ```
 
-The fixture must be reachable from VM Chrome through an authorized private
-tunnel. The test uses no local browser worker or local model account, confirms
-Stop and Return, and terminates only its exact cloud session through that owner's
+The fixture must be reachable from VM Chrome. Port `0` lets the operating system
+assign the local fixture port; an authorized private tunnel must forward to that
+actual port and listen on an interface reachable from the browser container.
+Check this before model calls. Do not change SSH forwarding policy for the test.
+An operator can instead run the same `Site` fixture directly in the VM private
+network using the checked `private_cloud_fixture.py` adapter:
+
+```powershell
+python apps/desktop/tests/e2e/live_cloud_browser.py --port 9232 --config C:/private/cloud-test.json --home C:/private/isolated-home --user-data C:/private/isolated-user-data --output C:/private/new-cloud-evidence --fixture-ssh-host <vm-host> --fixture-ssh-user <vm-user>
+```
+
+Install Paramiko for this optional adapter. It uses existing SSH keys or an SSH
+agent and requires a trusted `known_hosts` entry; it never enables trust on first
+use or changes SSH forwarding policy. The VM needs Python 3 and an available
+private interface (`--fixture-private-host` defaults to `172.17.0.1`). The fixture
+binds an OS-assigned private port, verifies its response before model work, and
+closes through its owned SSH channel, with a separate 15-minute lifetime limit.
+Callers with an authenticated in-memory SSH identity can instead use
+`private_fixture(ssh)` and `run(args, external_fixture=fixture)`. The adapter supplies
+`origin`, `port`, and lists of actual HTTP `visits` and submitted `receipts`;
+the caller starts and closes that temporary server. The test waits for the
+actual fixture request and a new browser frame before mapping input coordinates.
+It uses the native viewport when Electron has no emulated Playwright viewport.
+
+If a persistent profile belongs to an earlier fixture, `priorEndedSessionId`
+must name that exact session. The test verifies its owner, organization and
+terminated desired state before using the normal visible start/takeover control.
+An unrelated occupied profile fails acceptance. The test uses no local browser worker
+or local model account, confirms Stop and normal chat continuation, and
+terminates only its exact cloud session through that owner's
 normal API after checking organization and ownership. Three subsequent reads
 must preserve termination. It leaves the app open for inspection; close that
 owned app normally and remove its temporary credential/profile copies afterward.
