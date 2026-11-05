@@ -161,6 +161,20 @@ export const MossSessionProjectResponseSchema = z.object({
   project: MossOntologyProjectSchema.nullable(),
 })
 
+/** Review navigation carries browser generations, never a URL or credential. */
+export const ModelReviewBrowserEpochsSchema = z
+  .object({
+    controlEpoch: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+    targetEpoch: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+  })
+  .strict()
+export type ModelReviewBrowserEpochs = z.infer<typeof ModelReviewBrowserEpochsSchema>
+export const ModelReviewSurfaceSchema = z.object({
+  surface: z.literal('viewer'),
+  conversationId: z.string().min(1).max(255),
+})
+export type ModelReviewSurface = z.infer<typeof ModelReviewSurfaceSchema>
+
 /** 用户级模型偏好（Moss 用户偏好 GET/PUT /api/v1/users/me/model 的 webui 代理 DTO） */
 export const SetUserModelRequestSchema = z.object({
   modelId: z.string().trim().min(1).max(255),

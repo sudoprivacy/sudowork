@@ -139,6 +139,15 @@ function getElectronRebuildArgs(modules, targetArch, electronVersion) {
   return ['--only', modules.join(','), '--force', '--arch', targetArch, '--version', electronVersion];
 }
 
+/** Resolve the pinned dependency directly; package runners can fetch the obsolete unscoped package. */
+function getElectronRebuildInvocation(modules, targetArch, electronVersion) {
+  const packageFile = path.resolve(path.dirname(require.resolve('@electron/rebuild')), '../package.json');
+  const manifest = JSON.parse(fs.readFileSync(packageFile, 'utf8'));
+  if (manifest.name !== '@electron/rebuild' || typeof manifest.bin?.['electron-rebuild'] !== 'string') throw new Error('The installed @electron/rebuild CLI is unavailable');
+  const cli = path.resolve(path.dirname(packageFile), manifest.bin['electron-rebuild']);
+  return { command: process.execPath, args: [cli, ...getElectronRebuildArgs(modules, targetArch, electronVersion)] };
+}
+
 /**
  * Rebuild native modules using electron-rebuild
  *
@@ -155,10 +164,9 @@ function rebuildWithElectronRebuild(options) {
   const targetArch = normalizeArch(arch);
   const env = buildEnvironment(platform, targetArch, electronVersion);
 
-  const bunxCmd = getBunxCommand();
-  const rebuildCmd = `${bunxCmd} electron-rebuild ${getElectronRebuildArgs(modules, targetArch, electronVersion).join(' ')}`;
+  const invocation = getElectronRebuildInvocation(modules, targetArch, electronVersion);
 
-  execSync(rebuildCmd, {
+  execFileSync(invocation.command, invocation.args, {
     stdio: 'inherit',
     cwd,
     env,
@@ -296,26 +304,14 @@ function rebuildSingleModule(options) {
 
   try {
     env.npm_config_build_from_source = 'true';
-    const rebuildArgs = ['--yes', 'electron-rebuild', ...getElectronRebuildArgs([moduleName], targetArch, electronVersion)];
-
-    const fullCmd = cmdPrefix ? `${cmdPrefix} ${bunxCmd} ${rebuildArgs.join(' ')}` : `${bunxCmd} ${rebuildArgs.join(' ')}`;
-    console.log(`     Running: ${fullCmd}`);
-
-    if (useShell) {
-      execSync(fullCmd, {
-        cwd: projectRoot,
-        env,
-        stdio: 'inherit',
-        shell: true,
-      });
-    } else {
-      execFileSync(bunxCmd, rebuildArgs, {
-        cwd: projectRoot,
-        env,
-        stdio: 'inherit',
-        shell: true,
-      });
-    }
+    const invocation = getElectronRebuildInvocation([moduleName], targetArch, electronVersion);
+    const [wrapper, ...wrapperArgs] = cmdPrefix ? cmdPrefix.split(' ') : [];
+    console.log('     Running the installed @electron/rebuild CLI');
+    execFileSync(wrapper || invocation.command, wrapper ? [...wrapperArgs, invocation.command, ...invocation.args] : invocation.args, {
+      cwd: projectRoot,
+      env,
+      stdio: 'inherit',
+    });
     return true;
   } catch (error) {
     console.error(`❌ Failed to rebuild ${moduleName}:`, error.message);
@@ -386,6 +382,7 @@ module.exports = {
   getModulesToRebuild,
   buildEnvironment,
   getElectronRebuildArgs,
+  getElectronRebuildInvocation,
   rebuildWithElectronRebuild,
   rebuildSingleModule,
   verifyModuleBinary,

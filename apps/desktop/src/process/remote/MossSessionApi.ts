@@ -7,7 +7,8 @@
 import WebSocket from 'ws';
 import type { IResponseMessage, MossSessionAvailableSkill, MossWorkspaceFilePreview, MossWorkspaceNode } from '@sudowork/host-bridge/ipcBridge';
 import { BrowserOwnerInfoSchema, BrowserSessionActionSchema, BrowserSessionReplySchema, type BrowserOwnerInfo, type BrowserSessionAction, type BrowserSessionReply } from '@sudowork/contracts/browser-session';
-import { changeMossBrowserConversation, uploadBrowserFile, downloadBrowserFile, upgradeMossRuntime, MossHttpError, isMossRuntimeUpdateRequired } from '@sudowork/moss-client';
+import { changeMossBrowserConversation, uploadBrowserFile, downloadBrowserFile, upgradeMossRuntime, MossHttpError, isMossRuntimeUpdateRequired, createMossOntologyPort, mossRequest } from '@sudowork/moss-client';
+import type { ModelReviewBrowserEpochs } from '@sudowork/contracts/conversations';
 import { mainLog, mainError } from '@process/utils/mainLogger';
 import { getValidToken } from '@process/bridge/eeclawBridge';
 import { ProcessConfig } from '@process/initStorage';
@@ -77,6 +78,14 @@ export class MossSessionApi {
     });
     if (!response.ok) throw new Error(await upstreamErrorCode(response, `Browser session request failed (${response.status})`));
     return BrowserSessionReplySchema.parse(await response.json());
+  }
+
+  async getSessionProject(sessionId: string) {
+    return createMossOntologyPort(mossRequest).sessionProject({ baseUrl: this.serverUrl, accessToken: await this.ensureAuthenticated() }, sessionId);
+  }
+
+  async openModelReview(sessionId: string, epochs: ModelReviewBrowserEpochs) {
+    return createMossOntologyPort(mossRequest).openReview({ baseUrl: this.serverUrl, accessToken: await this.ensureAuthenticated() }, sessionId, epochs);
   }
 
   async browserOwnerInfo(sessionId: string): Promise<BrowserOwnerInfo> {

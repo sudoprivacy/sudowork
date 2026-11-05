@@ -122,6 +122,47 @@ test('the shared client recovers a session binding and preserves an ordinary nul
   expect(await port.sessionProject(ctx, 'ordinary')).toBeNull()
 })
 
+test('review navigation uses the authenticated client, exact browser generations and a narrow response', async () => {
+  const ctx = { baseUrl: 'https://owner-moss.invalid', accessToken: 'owner-token' }
+  const port = createMossOntologyPort(upstream)
+  upstream.mockResolvedValue({
+    surface: 'viewer',
+    conversationId: 'conversation',
+    cookie: 'must-not-escape',
+    url: 'https://private.invalid/',
+  })
+  expect(await port.openReview(ctx, 'conversation', { controlEpoch: 4, targetEpoch: 7 })).toEqual({
+    surface: 'viewer',
+    conversationId: 'conversation',
+  })
+  expect(upstream).toHaveBeenCalledExactlyOnceWith(
+    ctx.baseUrl,
+    {
+      method: 'POST',
+      path: '/api/v1/sessions/conversation/ontology-review',
+      accessToken: ctx.accessToken,
+      body: { controlEpoch: 4, targetEpoch: 7 },
+    },
+    30_000,
+  )
+  upstream.mockResolvedValue({ surface: 'viewer', conversationId: 'other' })
+  await expect(
+    port.openReview(ctx, 'conversation', { controlEpoch: 4, targetEpoch: 7 }),
+  ).rejects.toThrow('Moss did not confirm')
+})
+
+test('review navigation rejects caller-selected URLs and credentials before any HTTP request', async () => {
+  const ctx = { baseUrl: 'https://owner-moss.invalid', accessToken: 'owner-token' }
+  await expect(
+    createMossOntologyPort(upstream).openReview(ctx, 'conversation', {
+      controlEpoch: 4,
+      targetEpoch: 7,
+      url: 'https://caller.invalid/',
+    } as never),
+  ).rejects.toThrow()
+  expect(upstream).not.toHaveBeenCalled()
+})
+
 test('ordinary session creation and canonical creation use the same client without a business prompt', async () => {
   const ctx = { baseUrl: 'https://owner-moss.invalid', accessToken: 'owner-token' }
   const port = createMossSessionPort(upstream)

@@ -1015,6 +1015,7 @@
     "sourceReceiptMissing": "Source scan evidence not recorded",
     "sourceRefresh": "Refresh",
     "openReview": "Open review",
+    "reviewBrowserRequired": "Use this conversation's browser panel to start the browser or take control, then open review again.",
     "openReviewViewer": "Review viewer",
     "reviewRuntimeUnavailable": "This managed browser version cannot open a secure review. Update the browser runtime.",
     "reviewTransportUnsupported": "Secure review launch requires a managed Chrome (CDP) session.",

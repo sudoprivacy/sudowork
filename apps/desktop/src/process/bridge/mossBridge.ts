@@ -89,6 +89,35 @@ export function initMossBridge(): void {
     const extra = conversation.success ? (conversation.data?.extra as { mossSessionId?: string } | undefined) : undefined;
     return extra?.mossSessionId || conversationId;
   }
+  ipcBridge.ontology.getSessionProject.provider(async ({ conversationId }) => {
+    try {
+      const conversation = getDatabase().getConversation(conversationId);
+      if (!conversation.success || !conversation.data) throw new Error('SESSION_NOT_FOUND');
+      assertConversationAccount(conversation.data);
+      if (conversation.data.type !== 'remote-agent') return { success: true, data: null };
+      const api = await ensureMossApiInitialized();
+      if (!api) throw new Error('Runtime connection is unavailable');
+      const data = await api.getSessionProject(await remoteSessionId(conversationId));
+      assertConversationAccount(conversation.data);
+      return { success: true, data };
+    } catch {
+      return { success: false, msg: 'ontology.studio.reviewUnavailable' };
+    }
+  });
+  ipcBridge.ontology.openSessionReview.provider(async ({ conversationId, epochs }) => {
+    try {
+      const conversation = getDatabase().getConversation(conversationId);
+      if (!conversation.success || conversation.data?.type !== 'remote-agent') throw new Error('SESSION_NOT_FOUND');
+      assertConversationAccount(conversation.data);
+      const api = await ensureMossApiInitialized();
+      if (!api) throw new Error('Runtime connection is unavailable');
+      const data = await api.openModelReview(await remoteSessionId(conversationId), epochs);
+      assertConversationAccount(conversation.data);
+      return { success: true, data: { ...data, conversationId } };
+    } catch {
+      return { success: false, msg: 'ontology.studio.reviewUnavailable' };
+    }
+  });
   ipcBridge.browserSession.uploadFile.provider(async (input) => {
     try {
       if (isLocalBrowserConversation(input.conversationId)) return { success: true, data: await getLocalBrowserSessions().upload(input.conversationId, input) };

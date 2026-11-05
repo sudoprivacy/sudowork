@@ -6,8 +6,8 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const localRequire = createRequire(import.meta.url);
-const { getElectronRebuildArgs } = localRequire('../../scripts/rebuildNativeModules.js') as {
-  getElectronRebuildArgs: (modules: string[], arch: string, version: string) => string[];
+const { getElectronRebuildInvocation } = localRequire('../../scripts/rebuildNativeModules.js') as {
+  getElectronRebuildInvocation: (modules: string[], arch: string, version: string) => { command: string; args: string[] };
 };
 
 describe('native rebuild CLI compatibility', () => {
@@ -18,9 +18,11 @@ describe('native rebuild CLI compatibility', () => {
       const packageFile = path.resolve(path.dirname(localRequire.resolve('@electron/rebuild')), '../package.json');
       const manifest = JSON.parse(readFileSync(packageFile, 'utf8')) as { bin: Record<string, string> };
       const cli = path.resolve(path.dirname(packageFile), manifest.bin['electron-rebuild']);
-      const args = getElectronRebuildArgs(['better-sqlite3'], process.arch, '40.8.5');
+      const invocation = getElectronRebuildInvocation(['better-sqlite3'], process.arch, '40.8.5');
+      expect(invocation.command).toBe(process.execPath);
+      expect(invocation.args[0]).toBe(cli);
       // An empty module tree exercises argument/version resolution without compiling or fetching headers.
-      const result = spawnSync(process.execPath, [cli, ...args, '--module-dir', fixture], {
+      const result = spawnSync(invocation.command, [...invocation.args, '--module-dir', fixture], {
         cwd: fixture,
         timeout: 20_000,
         encoding: 'utf8',

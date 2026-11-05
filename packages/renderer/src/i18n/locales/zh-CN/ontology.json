@@ -1015,6 +1015,7 @@
     "sourceReceiptMissing": "源扫描证明未记录",
     "sourceRefresh": "刷新",
     "openReview": "打开审阅",
+    "reviewBrowserRequired": "请在当前会话的浏览器栏启动浏览器或取得控制权，再打开审阅。",
     "openReviewViewer": "审阅浏览器",
     "reviewRuntimeUnavailable": "当前受管浏览器版本尚不支持安全打开审阅页，请更新浏览器运行环境。",
     "reviewTransportUnsupported": "安全打开审阅页需要使用受管 Chrome（CDP）。",

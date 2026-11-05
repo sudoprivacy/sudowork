@@ -142,6 +142,7 @@ export default defineConfig({
         'src/process/services/browserPanel/localToolControl.ts',
         '../../packages/contracts/src/browserSession.ts',
         '../../packages/renderer/src/components/browser/BrowserSessionPanel.tsx',
+        '../../packages/renderer/src/components/browser/BoundModelReviewAction.tsx',
         '../../packages/renderer/src/components/browser/openBrowserSessionWindow.ts',
         '../../packages/renderer/src/components/browser/WindowStreamSurface.tsx',
         '../../packages/renderer/src/messages/ShareoneCliStatusContext.tsx',
