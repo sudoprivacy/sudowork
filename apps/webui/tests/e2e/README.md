@@ -1,5 +1,49 @@
 # Live shared-browser acceptance
 
+## Cloud conversation across WebUI and Desktop
+
+`run_published_cross_client.py` downloads a stable Windows Desktop release,
+verifies its GitHub asset digest, and launches it with a dedicated home and
+profile. An isolation bootstrap loads the unchanged product ASAR. The test uses
+the normal API-key login and real cloud model through both clients.
+
+In WebUI, separate turns create, read and delete one randomly named fixture.
+Successful tool results are matched to their calls, and the workspace API
+independently verifies the actual file bytes and subsequent removal. Desktop
+then opens the same conversation and recalls the unpredictable filename and
+content from context; its prompt contains neither value. A WebUI reload must
+restore the same assistant message ID. Cleanup closes the viewers before
+terminating the fixture-created sessions, including unexpected replacements.
+Tool lifecycle updates share one ACP call identity; completion retains the
+original input, and changed inputs or conflicting final results fail acceptance.
+
+The `Published cloud session acceptance` workflow runs this journey for stable
+releases, daily, and when its acceptance code changes. It uses the dedicated
+`SUDOROUTER_CI_API_KEY`. Evidence includes screenshots, tool identities, session
+IDs, release hashes and cleanup results. The private login file and Desktop
+profile remain outside the uploaded artifacts.
+
+Use a private JSON config containing `origin`, either `apiKey` or
+`username`/`password`, and optional `modelId`:
+
+```sh
+python apps/webui/tests/e2e/run_published_cross_client.py \
+  --release v0.2.41 --config /private/cloud-session.json \
+  --output /private/evidence/cloud-session-001
+```
+
+Pass `--archive /path/to/Sudowork-0.2.41-win-x64.zip` to reuse a downloaded
+release. The launcher verifies the archive against the public release digest
+and size before extracting it.
+
+`live_cross_client_session.py` also accepts `--desktop-proof` for an already
+launched dedicated release fixture. Its receipt must bind the running profile,
+product version and archive hash, using the same shape as the release launcher.
+Both viewers connect directly over HTTPS. A private configuration may supply
+`directAddress`, a verified public IPv4 DNS answer for the configured origin,
+when the local resolver returns a proxy address. The URL and TLS hostname remain
+the configured origin.
+
 ## Browser startup and profile ownership
 
 `live_browser_view_performance.py` reads profile ownership before opening its
