@@ -13,17 +13,24 @@ afterEach(async () => {
 });
 
 describe('verified native dependency cache', () => {
-  it.each(['linux', 'win32'])('rejects a corrupt %s archive instead of feeding it to dependency installation', async (platform) => {
+  it.each([
+    ['linux', 'x64', 'x64'],
+    ['linux', 'arm64', 'arm64v8'],
+    ['win32', 'x64', 'x64'],
+    ['win32', 'arm64', 'arm64v8'],
+    ['darwin', 'x64', 'x64'],
+    ['darwin', 'arm64', 'arm64v8'],
+  ])('rejects a corrupt %s %s archive instead of feeding it to dependency installation', async (platform, arch, archiveArch) => {
     const directory = join(cacheRoot, '_libvips');
     await mkdir(directory);
-    const destination = join(directory, `libvips-8.14.5-${platform}-x64.tar.br`);
+    const destination = join(directory, `libvips-8.14.5-${platform}-${archiveArch}.tar.br`);
     await writeFile(destination, 'Invalid archive');
-    await expect(cacheSharpLibvips({ cacheRoot, platform, arch: 'x64' })).rejects.toThrow('Integrity mismatch');
+    await expect(cacheSharpLibvips({ cacheRoot, platform, arch })).rejects.toThrow('Integrity mismatch');
     expect(await readFile(destination, 'utf8')).toBe('Invalid archive');
   });
 
   it('refuses unsupported targets before creating a cache or starting a download', async () => {
-    await expect(cacheSharpLibvips({ cacheRoot, platform: 'linux', arch: 'arm64' })).rejects.toThrow('Unsupported libvips cache target');
+    await expect(cacheSharpLibvips({ cacheRoot, platform: 'linux', arch: 'riscv64' })).rejects.toThrow('Unsupported libvips cache target');
     await expect(readFile(join(cacheRoot, '_libvips'))).rejects.toMatchObject({ code: 'ENOENT' });
   });
 });

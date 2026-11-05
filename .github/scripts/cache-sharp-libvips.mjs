@@ -8,6 +8,14 @@ import { pathToFileURL } from "node:url";
 
 // Copied from the integrity contract shipped in sharp@0.32.6/package.json.
 const archives = {
+  "darwin-arm64v8":
+    "1QZzICfCJd4wAO0P6qmYI5e5VFMt9iCE4QgefI8VMMbdSzjIXA9L/ARN6pkMQPZ3h20Y9RtJ2W1skgCsvCIccw==",
+  "darwin-x64":
+    "sMIKMYXsdU9FlIfztj6Kt/SfHlhlDpP0Ups7ftVFqwjaszmYmpI9y/d/q3mLb4jrzuSiSUEislSWCwBnW7MPTw==",
+  "linux-arm64v8":
+    "CD8owELzkDumaom+O3jJ8fKamILAQdj+//KK/VNcHK3sngUcFpdjx36C8okwbux9sml/T7GTB/gzpvReDrAejQ==",
+  "win32-arm64v8":
+    "kR91hy9w1+GEXK56hLh51+hBCBo7T+ijM4Slkmvb/2PsYZySq5H7s61n99iDYl6kTJP2y9sW5Xcvm3uuXDaDgg==",
   "win32-x64":
     "BwKckinJZ0Fu/EcunqiLPwOLEBWp4xf8GV7nvmVuKKz5f6B+GxoA2k9aa2wueqv4r4RJVgV/aWXZWFKOIjre/Q==",
   "linux-x64":
@@ -21,7 +29,7 @@ export async function cacheSharpLibvips({
 } = {}) {
   if (!cacheRoot)
     throw new Error("npm_config_cache must identify the job cache");
-  const target = `${platform}-${arch}`;
+  const target = `${platform}-${arch === "arm64" ? "arm64v8" : arch}`;
   const integrity = archives[target];
   if (!integrity)
     throw new Error(`Unsupported libvips cache target: ${target}`);
