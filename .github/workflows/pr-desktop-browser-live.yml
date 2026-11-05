@@ -35,6 +35,10 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: "22"
+      - name: Prepare the shared pinned ShareOne source
+        uses: ./.github/actions/checkout-shareone-review
+        with:
+          ssh-key: ${{ secrets.SHAREONE_REVIEW_DEPLOY_KEY }}
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
@@ -60,6 +64,7 @@ jobs:
           # Bun execution can read src. Build the shared dependency chain so a
           # fresh runner cannot depend on another command's retained outputs.
           bun run build:packages
+          node scripts/prepare-sudograph-review-assets.mjs
           bun build ./apps/desktop/tests/integration/sudographReviewLaunch.live.ts --target=node --format=esm --outfile=./sudograph-review-live.mjs
           bun build ./apps/desktop/tests/integration/sudographModelRuntime.live.ts --target=node --format=esm --outfile=./sudograph-model-runtime-live.mjs
       - name: Verify actual protected HTML and controlled browser handoff

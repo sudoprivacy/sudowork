@@ -29,6 +29,9 @@ function run(binary, args, cwd, env = process.env) {
 const packageRoot = path.join(root, 'packages/sudograph-runtime');
 assert(existsSync(path.join(packageRoot, 'dist/index.js')), 'Build the host runtime before packing.');
 const metadata = JSON.parse(readFileSync(path.join(packageRoot, 'package.json'), 'utf8'));
+const reviewPin = JSON.parse(readFileSync(path.join(root, 'apps/desktop/resources/shareone-review.lock.json'), 'utf8'));
+assert.deepEqual(JSON.parse(readFileSync(path.join(packageRoot, 'review-assets/installed-source.json'), 'utf8')), reviewPin, 'Build the pinned shared review shell before packing the runtime.');
+const reviewManifest = JSON.parse(readFileSync(path.join(packageRoot, 'review-assets/review-assets.json'), 'utf8'));
 assert.equal(metadata.name, '@sudowork/sudograph-runtime');
 assert(!Object.values(metadata.dependencies).some((value) => value.startsWith('workspace:')));
 const archive = path.join(caseRoot, 'sudograph-host-runtime.tgz');
@@ -39,6 +42,7 @@ assert(readFileSync(archive).equals(readFileSync(repeatedArchive)), 'Repeated pa
 writeFileSync(path.join(consumer, 'package.json'), JSON.stringify({ name: 'host-runtime-acceptance', type: 'module', private: true }));
 run(bun, ['add', '--ignore-scripts', '--exact', archive], consumer);
 const installedRoot = path.join(consumer, 'node_modules/@sudowork/sudograph-runtime');
+assert.deepEqual(JSON.parse(readFileSync(path.join(installedRoot, 'review-assets/installed-source.json'), 'utf8')), reviewPin);
 assert.equal(JSON.parse(readFileSync(path.join(installedRoot, 'package.json'), 'utf8')).version, metadata.version);
 // Check public declarations without monorepo paths or workspace type packages.
 writeFileSync(
@@ -73,8 +77,24 @@ writeFileSync(
   path.join(consumer, 'review.mjs'),
   `import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
+import { cp, readFile, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
+import path from 'node:path';
 import { SudographReviewHost, SudographReviewComments, ShareoneReviewAssets } from '@sudowork/sudograph-runtime';
 assert.equal(typeof new ShareoneReviewAssets().load, 'function');
+const installed = path.resolve(path.dirname(createRequire(import.meta.url).resolve('@sudowork/sudograph-runtime')), '../review-assets');
+const review = new ShareoneReviewAssets();
+await review.load(installed);
+const manifest = JSON.parse(await readFile(path.join(installed, 'review-assets.json'), 'utf8'));
+assert(review.get(manifest.entry));
+assert(review.shell('/review/fixture', { allow_comments: true }).includes(manifest.entry));
+const corrupted = path.resolve('corrupted-review-shell');
+await cp(installed, corrupted, { recursive: true, errorOnExist: true, force: false });
+const entry = path.join(corrupted, manifest.entry);
+const original = await readFile(entry);
+await writeFile(entry, Buffer.concat([original, Buffer.from('corrupted fixture')]));
+await assert.rejects(new ShareoneReviewAssets().load(corrupted), /differs from its receipt/);
+await new ShareoneReviewAssets().load(installed);
 const host = new SudographReviewHost({ authorize: async () => {}, read: async () => '<html>installed-review-transport</html>' });
 try {
   const launch = await host.createSession({ workspaceId: 'fixture', conversationId: 'conversation' });
@@ -196,6 +216,13 @@ const receipt = {
   installed_review_transport: true,
   installed_comment_provider: true,
   installed_embedded_review_transport: true,
+  installed_review_shell: {
+    source: reviewPin,
+    files: Object.keys(reviewManifest.files).length,
+    manifest_sha256: createHash('sha256')
+      .update(readFileSync(path.join(installedRoot, 'review-assets/review-assets.json')))
+      .digest('hex'),
+  },
   source_write_back: false,
   scope: 'Installable host transport and actual canonical compiler fixture; not tenant permissions, production source registration, WebUI or engine publication.',
 };

@@ -27,6 +27,10 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: "22.22.1"
+      - name: Prepare the shared pinned ShareOne source
+        uses: ./.github/actions/checkout-shareone-review
+        with:
+          ssh-key: ${{ secrets.SHAREONE_REVIEW_DEPLOY_KEY }}
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
@@ -41,6 +45,7 @@ jobs:
           node -e 'const p=require("./packages/sudograph-runtime/package.json"); if(process.env.RELEASE_TAG!=="sudograph-runtime-v"+p.version)throw Error("Tag differs from package version")'
       - run: bun install --frozen-lockfile --ignore-scripts
       - run: bun run build:packages
+      - run: node scripts/prepare-sudograph-review-assets.mjs
       - run: python -m pip --isolated install --index-url https://pypi.org/simple .host-runtime-acceptance/compiler
       - name: Pack and accept the exact installable artifact
         env:

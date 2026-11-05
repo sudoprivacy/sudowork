@@ -2,8 +2,8 @@
 
 The same compiler client, registered PostgreSQL/MySQL provider and review
 transport used by
-SudoWork Desktop, available to ordinary Node hosts. This package has no Electron,
-renderer, RDF model, UI connector catalogue or private workspace dependency.
+SudoWork Desktop, available to ordinary Node hosts. Its runtime constructors are
+independent of Electron, RDF storage and private workspace dependencies.
 The existing Desktop and ontology-runtime modules re-export these constructors.
 
 `SudographReviewHost` and `ShareoneReviewAssets` provide the existing authenticated
@@ -13,6 +13,23 @@ no tenant authority, credential store or comment registry. Desktop re-exports th
 same classes. Cloud hosts must supply their existing current-user policy and
 authenticated browser handoff rather than treating a local cookie as a tenant
 grant. Launch credentials remain non-enumerable and out of URLs and JSON.
+
+The published runtime includes `review-assets/`, built from the same pinned
+ShareOne source as Desktop. It contains the original frontend, its file integrity
+manifest and source receipt; it contains no comments, model, customer records or
+credentials. Use `ShareoneReviewAssets.load` with this installed directory. A
+host that bundles JavaScript into another file or executable must copy that
+directory into its own deployment resources and pass the deployed path to the
+same loader. Hosts do not build or maintain a second comment interface.
+
+Before packing, run `node scripts/prepare-sudograph-review-assets.mjs` in the
+source checkout. It reuses Desktop's pinned frontend builder and verifies every
+asset through the shared loader. The release and Windows/Linux installed-package
+acceptance workflows provide the existing dedicated read-only ShareOne deploy
+key. Package acceptance refuses a missing or mismatched source receipt, loads
+the frontend from the archive installed outside the checkout, and verifies that
+corruption is rejected. Publishing still requires the accepted source and matching
+package version; a generated local directory alone is not an accepted release.
 
 Cloud hosts can mount the same `handleRequest` on their existing HTTP server
 using an explicit `embedded.origin` and `ISudographReviewGrantStore`. Public
@@ -68,7 +85,8 @@ inputs can supply these fields directly. Passwords remain host-only and never
 become model YAML, generated graphs or prompts. Provider reads remain bounded,
 read-only operations through the existing compiler protocol.
 
-Build with `bun run build` and pack with `bun pm pack`. Both compiled Node
-exports and Bun source exports are included. Release adoption must verify the
+Build the workspace packages, prepare the pinned review assets and use the
+installed-package acceptance command before publishing. Compiled Node exports,
+Bun source exports and the original review frontend are included. Adoption must verify the
 archive hash and freeze dependencies. Installation does not register a model,
 grant tenant or record access, connect a cloud agent or establish WebUI review.
