@@ -998,6 +998,7 @@ export const ACP_METHODS = {
   SESSION_UPDATE: 'session/update',
   REQUEST_PERMISSION: 'session/request_permission',
   ASK_USER_QUESTION: '_scode/ask_user_question',
+  HOST_CONTEXT: '_sudocode/session/host_context',
   READ_TEXT_FILE: 'fs/read_text_file',
   WRITE_TEXT_FILE: 'fs/write_text_file',
   SET_CONFIG_OPTION: 'session/set_config_option',
@@ -1095,4 +1096,11 @@ export interface AcpFileWriteMessage {
  * ACP incoming message union type.
  * TypeScript can automatically narrow the type based on the method field.
  */
-export type AcpIncomingMessage = AcpSessionUpdateNotification | AcpPermissionRequestMessage | AcpQuestionRequestMessage | AcpFileReadMessage | AcpFileWriteMessage;
+export interface AcpHostContextRequestMessage {
+  jsonrpc: typeof JSONRPC_VERSION;
+  id: number | string;
+  method: typeof ACP_METHODS.HOST_CONTEXT;
+  params: { sessionId: string };
+}
+
+export type AcpIncomingMessage = AcpSessionUpdateNotification | AcpPermissionRequestMessage | AcpQuestionRequestMessage | AcpFileReadMessage | AcpFileWriteMessage | AcpHostContextRequestMessage;

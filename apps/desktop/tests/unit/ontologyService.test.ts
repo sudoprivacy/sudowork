@@ -70,6 +70,37 @@ describe('OntologyService canonical source registration', () => {
 });
 
 describe('OntologyService native source intake', () => {
+  it('rechecks the same conversation ownership after a compiled context read', async () => {
+    reviewAccount.isCurrent = true;
+    reviewAccount.read.mockReturnValue({ data: { extra: { purpose: 'ontology', ontologyId: 'source' } } });
+    const database = {
+      getHostSecret: vi.fn().mockReturnValue(null),
+      getProject: vi.fn().mockReturnValue({ authority: 'sudograph', modelRef: 'bound-model' }),
+      getAiSessionByConversationId: vi.fn((id: string) => (id === 'chat-1' ? { workspace_id: 'source' } : undefined)),
+    };
+    const service = new OntologyService(database as unknown as OntologyDatabase, {} as OntologyEngine);
+    const module = await import('@process/services/ontology/SudographModelClient');
+    const context = { format: 'sudograph-agent-context/v1', revision: 'r1', context_digest: 'd1', text: 'Authorized business context' };
+    const client = { invoke: vi.fn().mockResolvedValue(context) };
+    vi.spyOn(module, 'getSudographModelClient').mockReturnValue(client as unknown as ReturnType<typeof module.getSudographModelClient>);
+    const binding = { workspaceId: 'source', conversationId: 'chat-1' };
+    await expect(service.readStudioConversationContext({ ...binding, conversationId: 'other' })).rejects.toThrow('does not own');
+    expect(client.invoke).not.toHaveBeenCalled();
+    await expect(service.readStudioConversationContext(binding)).resolves.toEqual(context);
+    expect(client.invoke).toHaveBeenCalledWith('bound-model', expect.stringMatching(/^desktop:/), { operation: 'read', product: 'context' });
+
+    for (const change of ['account', 'model'] as const) {
+      reviewAccount.isCurrent = true;
+      database.getProject.mockReturnValue({ authority: 'sudograph', modelRef: 'bound-model' });
+      client.invoke.mockImplementationOnce(async () => {
+        if (change === 'account') reviewAccount.isCurrent = false;
+        else database.getProject.mockReturnValue({ authority: 'sudograph', modelRef: 'changed-model' });
+        return context;
+      });
+      await expect(service.readStudioConversationContext(binding)).rejects.toThrow(change === 'account' ? 'different Moss account' : 'binding changed');
+    }
+  });
+
   it('reports an incomplete canonical deployment instead of creating a legacy project', async () => {
     vi.stubEnv('SUDOGRAPH_PYTHON', 'configured');
     vi.stubEnv('SUDOGRAPH_COMPILER_ROOT', '');

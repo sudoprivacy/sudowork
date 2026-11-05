@@ -124,6 +124,34 @@ Conversation creation and restoration load the current compiled context instead
 of the RDF builder workflow prompt for canonical projects. The renderer no longer
 duplicates that host-owned prompt selection.
 
+### Context freshness during a conversation
+
+Canonical authoring sessions bind the compiled-context reader to the persisted
+project on the trusted host. They negotiate the Sudo Code `hostContext` version 1
+capability on session creation and restoration. An older engine is refused before
+the model opens; a prompt reminder is not a compatibility fallback.
+
+The engine requests `_sudocode/session/host_context` immediately before executing
+each model turn, including an input that waited in its native queue. The request
+contains only its session ID. The host rechecks the project authority, uses the
+normal authorized compiler read and returns the exact versioned context plus the
+existing scoped command entry. It never accepts an engine-selected project,
+source path or actor. A disconnected session, revoked access, invalid compiler
+packet or provider failure stops that turn before model work.
+
+The engine replaces the caller-owned context without restarting the session or
+rewriting its conversation. Identical context does not rebuild the runtime.
+Context is fixed for the duration of a running turn; ordinary in-turn steering
+uses that snapshot, and the next turn resolves again. Business context is not
+also copied into the first user message, where an old definition would otherwise
+survive later refreshes. Published legacy RDF agents retain their version-pinned
+runtime behavior.
+
+This host adapter requires a released engine implementing the negotiated
+capability before deployment. Unit adapter checks alone do not establish the
+queued-turn contract; the engine acceptance inspects actual provider request
+bodies through its stdio and WebSocket ACP transports.
+
 ## Native source intake and project navigation
 
 Configured desktop deployments offer **Connect database** in the existing
@@ -157,8 +185,8 @@ save or delete control.
 The existing Studio conversation receives the persisted project identity.
 Project/model events refresh matching metadata and ignore unrelated projects or
 late responses. This creates no second chat implementation or workflow prompt.
-The source overview is not the independent graph review page and does not
-establish safe active-session context refresh.
+The source overview is not the independent graph review page and does not itself
+refresh an agent's context; the execution-boundary contract above owns that work.
 
 ## Private authenticated review route
 

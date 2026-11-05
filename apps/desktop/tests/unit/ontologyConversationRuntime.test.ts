@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { prepareOntologyConversationRuntime } from '@process/services/ontology/ontologyConversationRuntime';
 
 const mocks = vi.hoisted(() => ({ authority: vi.fn(), invoke: vi.fn(), getRuntime: vi.fn(), project: vi.fn() }));
-vi.mock('@process/services/ontology/OntologyService', () => ({ ontologyService: { getModelAuthority: mocks.authority, invokeSudograph: mocks.invoke, getRegisteredAgentRuntime: mocks.getRuntime } }));
+vi.mock('@process/services/ontology/OntologyService', () => ({ ontologyService: { getModelAuthority: mocks.authority, readStudioConversationContext: mocks.invoke, getRegisteredAgentRuntime: mocks.getRuntime } }));
 vi.mock('@process/services/ontology/ontologyProjectRuntime', () => ({ prepareOntologyProject: mocks.project }));
 
 beforeEach(() => {
@@ -45,13 +45,30 @@ describe('ontology script conversation runtime', () => {
 
   it('preserves canonical model context with the shared project command transport', async () => {
     mocks.authority.mockReturnValue('sudograph');
-    mocks.invoke.mockResolvedValue({ text: 'Exact compiled revision A' });
-    const result = await prepareOntologyConversationRuntime({ purpose: 'ontology', ontologyId: 'canonical' });
+    mocks.invoke.mockResolvedValue({ format: 'sudograph-agent-context/v1', revision: 'revision-A', context_digest: 'digest-A', text: 'Exact compiled revision A' });
+    const result = await prepareOntologyConversationRuntime({ purpose: 'ontology', ontologyId: 'canonical', conversation_id: 'chat-1' });
     expect(result?.presetContext).toContain('Exact compiled revision A');
     expect(result?.presetContext).toContain('ontology.cjs project list');
-    expect(mocks.invoke).toHaveBeenCalledWith('canonical', { operation: 'read', product: 'context' });
+    expect(mocks.invoke).toHaveBeenCalledWith({ workspaceId: 'canonical', conversationId: 'chat-1' });
     expect(result?.extraMcpConfigs).toEqual([]);
+    mocks.invoke.mockResolvedValue({ format: 'sudograph-agent-context/v1', revision: 'revision-B', context_digest: 'digest-B', text: 'Revised business definition B' });
+    expect(await result?.resolveContext?.()).toBe('Revised business definition B\n\nRun node ontology.cjs project list --context project.json');
+    expect(mocks.project).toHaveBeenCalledOnce();
+    mocks.invoke.mockRejectedValue(new Error('Model read permission revoked'));
+    await expect(result?.resolveContext?.()).rejects.toThrow('Model read permission revoked');
+    mocks.authority.mockReturnValue('rdf');
+    await expect(result?.resolveContext?.()).rejects.toThrow('binding changed');
+    expect(mocks.invoke).toHaveBeenCalledTimes(3);
   });
+
+  it.each([{ text: 'Unversioned context' }, { format: 'other', revision: 'A', context_digest: 'digest', text: 'Wrong format' }, { format: 'sudograph-agent-context/v1', revision: 'A', context_digest: 'digest', text: '' }])(
+    'refuses malformed compiled context before opening the model',
+    async (context) => {
+      mocks.authority.mockReturnValue('sudograph');
+      mocks.invoke.mockResolvedValue(context);
+      await expect(prepareOntologyConversationRuntime({ purpose: 'ontology', ontologyId: 'canonical', conversation_id: 'chat-1' })).rejects.toThrow('invalid agent context');
+    }
+  );
 
   it('loads published scripts for new and resumed chats without adding ontology MCP servers', async () => {
     for (let attempt = 0; attempt < 2; attempt++) {
@@ -75,5 +92,11 @@ describe('ontology script conversation runtime', () => {
     await expect(prepareOntologyConversationRuntime({ presetAssistantId: 'ontology-missing' })).rejects.toThrow('notFound');
     mocks.project.mockRejectedValue(new Error('Project unavailable'));
     await expect(prepareOntologyConversationRuntime({ purpose: 'ontology', ontologyId: 'missing' })).rejects.toThrow('Project unavailable');
+  });
+
+  it('requires the canonical context provider to retain its owning conversation', async () => {
+    mocks.authority.mockReturnValue('sudograph');
+    await expect(prepareOntologyConversationRuntime({ purpose: 'ontology', ontologyId: 'canonical' })).rejects.toThrow('owning conversation');
+    expect(mocks.invoke).not.toHaveBeenCalled();
   });
 });
