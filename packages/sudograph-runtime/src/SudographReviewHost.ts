@@ -4,6 +4,8 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { SudographCompilerError } from './SudographModelClient.js';
 import type { ShareoneReviewAssets } from './ShareoneReviewAssets.js';
 
+const REVIEW_LEASE_MS = 30 * 60_000;
+
 export interface ISudographReviewBinding {
   workspaceId: string;
   conversationId: string;
@@ -27,6 +29,8 @@ export interface ISudographReviewGrantStore {
   get(id: string): ISudographReviewGrant | undefined | Promise<ISudographReviewGrant | undefined>;
   /** Compare immutable grant identity before changing comment/render metadata. */
   update(id: string, expected: ISudographReviewGrant, changes: Pick<ISudographReviewGrant, 'shareId' | 'revision'>): boolean | Promise<boolean>;
+  /** Extend an active lease monotonically without changing its binding or credential. */
+  renew(id: string, expected: ISudographReviewGrant, expiresAt: number): boolean | Promise<boolean>;
   delete(id: string): void | Promise<void>;
 }
 
@@ -83,14 +87,21 @@ export class SudographReviewHost {
       get: (id) => this.sessions.get(id),
       update: (id, expected, changes) => {
         const current = this.sessions.get(id);
-        if (!current || !sameGrant(current, expected)) return false;
+        if (!current || current.expiresAt <= this.now() || !sameGrant(current, expected)) return false;
         Object.assign(current, changes);
+        return true;
+      },
+      renew: (id, expected, expiresAt) => {
+        const current = this.sessions.get(id);
+        if (!current || current.expiresAt <= this.now() || !sameGrant(current, expected) || !Number.isSafeInteger(expiresAt) || expiresAt <= this.now() || expiresAt > this.now() + REVIEW_LEASE_MS) return false;
+        current.expiresAt = Math.max(current.expiresAt, expiresAt);
         return true;
       },
       delete: (id) => {
         this.sessions.delete(id);
       },
     };
+    if (typeof this.grants.renew !== 'function') throw new Error('Review grant store requires active-session lease renewal support.');
   }
 
   private now(): number {
@@ -125,7 +136,7 @@ export class SudographReviewHost {
     const credential = randomBytes(32).toString('hex');
     const prefix = `/review/${id}`;
     const cookieName = `sudograph_review_${id}`;
-    const expiresAt = this.now() + 30 * 60_000;
+    const expiresAt = this.now() + REVIEW_LEASE_MS;
     await this.grants.create(id, {
       ...binding,
       prefix,
@@ -198,6 +209,29 @@ export class SudographReviewHost {
     return !this.isClosed && !!current && current.expiresAt > this.now() && sameGrant(current, session);
   }
 
+  /** Successful authorised activity keeps the same page and its unsent drafts alive. */
+  private async keepLease(id: string, session: ISudographReviewGrant, credential: string, response: ServerResponse): Promise<boolean> {
+    let current = await this.grants.get(id);
+    if (this.isClosed || !current || current.expiresAt <= this.now() || !sameGrant(current, session)) return false;
+    // Bound SQL writes independently of polling frequency. A rejected renewal
+    // never falls back to a process-local grant or revives an expired one.
+    if (current.expiresAt - this.now() <= REVIEW_LEASE_MS / 2) {
+      if (!(await this.grants.renew(id, current, this.now() + REVIEW_LEASE_MS))) return false;
+      current = await this.grants.get(id);
+      if (this.isClosed || !current || current.expiresAt <= this.now() || !sameGrant(current, session)) return false;
+      try {
+        await this.authorize(current);
+      } catch {
+        return false;
+      }
+    }
+    const remaining = Math.max(1, Math.ceil((current.expiresAt - this.now()) / 1000));
+    // Reassert the committed deadline on every successful response so a lost
+    // renewal response does not leave an active browser with an old expiry.
+    response.setHeader('Set-Cookie', `${current.cookieName}=${credential}; Path=${current.prefix}/; HttpOnly; SameSite=Strict; Max-Age=${remaining}; Expires=${new Date(current.expiresAt).toUTCString()}${this.origin.startsWith('https:') ? '; Secure' : ''}`);
+    return true;
+  }
+
   private async respond(request: IncomingMessage, response: ServerResponse): Promise<void> {
     const match = /^\/review\/([a-f0-9]{32})\/(.*)$/.exec(request.url || '');
     const session = match && (await this.grants.get(match[1]));
@@ -228,7 +262,7 @@ export class SudographReviewHost {
       return;
     }
     if (this.options.comments && match![2] !== 'v1') {
-      await this.respondComments(request, response, session, match![2], match![1]);
+      await this.respondComments(request, response, session, match![2], match![1], credentials[0]);
       return;
     }
     let input: Record<string, unknown>;
@@ -276,7 +310,7 @@ export class SudographReviewHost {
         return;
       }
       // A close/revoke while the compiler was working must not release its result.
-      if (!(await this.current(match![1], session))) {
+      if (!(await this.keepLease(match![1], session, credentials[0], response))) {
         this.reply(response, 403, { error: 'ACCESS_DENIED' });
         return;
       }
@@ -292,7 +326,7 @@ export class SudographReviewHost {
     }
   }
 
-  private async respondComments(request: IncomingMessage, response: ServerResponse, session: ISudographReviewGrant, route: string, id: string): Promise<void> {
+  private async respondComments(request: IncomingMessage, response: ServerResponse, session: ISudographReviewGrant, route: string, id: string, credential: string): Promise<void> {
     const provider = this.options.comments!;
     const send = async (status: number, result: unknown, html = false) => {
       try {
@@ -301,7 +335,8 @@ export class SudographReviewHost {
         this.reply(response, 403, { error: 'ACCESS_DENIED' });
         return;
       }
-      if (!(await this.current(id, session))) {
+      const isCurrent = status >= 200 && status < 300 ? await this.keepLease(id, session, credential, response) : await this.current(id, session);
+      if (!isCurrent) {
         this.reply(response, 403, { error: 'ACCESS_DENIED' });
         return;
       }
@@ -311,7 +346,7 @@ export class SudographReviewHost {
       const asset = provider.assets.get(route.slice('assets/'.length));
       if (!asset) return send(404, { error: 'ASSET_UNAVAILABLE' });
       await this.authorize(session);
-      if (!(await this.current(id, session))) return this.reply(response, 403, { error: 'ACCESS_DENIED' });
+      if (!(await this.keepLease(id, session, credential, response))) return this.reply(response, 403, { error: 'ACCESS_DENIED' });
       response.writeHead(200, {
         'Content-Type': asset.contentType,
         'Content-Length': asset.body.length,
@@ -423,9 +458,7 @@ export class SudographReviewHost {
   }
 }
 
-/** Mutable comment/render metadata is not grant identity. */
+/** Comment/render metadata and the renewed idle deadline are not grant identity. */
 function sameGrant(left: ISudographReviewGrant, right: ISudographReviewGrant): boolean {
-  return (
-    left.workspaceId === right.workspaceId && left.conversationId === right.conversationId && left.authorizationRef === right.authorizationRef && left.prefix === right.prefix && left.cookieName === right.cookieName && left.credentialHash === right.credentialHash && left.expiresAt === right.expiresAt
-  );
+  return left.workspaceId === right.workspaceId && left.conversationId === right.conversationId && left.authorizationRef === right.authorizationRef && left.prefix === right.prefix && left.cookieName === right.cookieName && left.credentialHash === right.credentialHash;
 }

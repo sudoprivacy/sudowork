@@ -121,6 +121,7 @@ try {
   assert.equal(await comments.prepare('fixture', 'conversation'), null);
 } finally { comments.close(); }
 const shared = new Map();
+let reviewNow = Date.now();
 const grants = {
   create: async (id, value) => { assert(!shared.has(id)); shared.set(id, structuredClone(value)); },
   get: async id => { const value = shared.get(id); return value ? structuredClone(value) : undefined; },
@@ -128,6 +129,11 @@ const grants = {
     const current = shared.get(id);
     if (!current || current.credentialHash !== expected.credentialHash || current.authorizationRef !== expected.authorizationRef) return false;
     Object.assign(current, changes); return true;
+  },
+  renew: async (id, expected, expiresAt) => {
+    const current = shared.get(id);
+    if (!current || current.expiresAt <= reviewNow || current.credentialHash !== expected.credentialHash || current.authorizationRef !== expected.authorizationRef) return false;
+    current.expiresAt = Math.max(current.expiresAt, expiresAt); return true;
   },
   delete: async id => { shared.delete(id); },
 };
@@ -138,7 +144,7 @@ const server = createServer((request, response) => {
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const origin = 'http://127.0.0.1:' + server.address().port;
 let authorizationRef = 'epoch-1';
-const make = () => new SudographReviewHost({ embedded: { origin, grants },
+const make = () => new SudographReviewHost({ embedded: { origin, grants }, now: () => reviewNow,
   authorize: async binding => { assert.equal(binding.authorizationRef, authorizationRef); return authorizationRef; },
   read: async (_workspace, _request, binding) => '<html>' + binding.conversationId + '</html>',
 });
@@ -152,8 +158,13 @@ try {
   const headers = { Cookie: launch.cookie.name + '=' + launch.cookie.value };
   assert.equal((await fetch(launch.url)).status, 403);
   assert.equal(await (await fetch(launch.url, { headers })).text(), '<html>conversation</html>');
+  reviewNow += 20 * 60_000;
+  const renewed = await fetch(launch.url, { headers });
+  assert.equal(renewed.status, 200);
+  assert(renewed.headers.get('set-cookie').includes('Max-Age=1800'));
   second = make(); current = second;
   await first.close();
+  reviewNow += 20 * 60_000;
   assert.equal(await (await fetch(launch.url, { headers })).text(), '<html>conversation</html>');
   authorizationRef = 'epoch-2';
   assert.equal((await fetch(launch.url, { headers })).status, 403);
