@@ -7,7 +7,10 @@ verifies its GitHub asset digest, and launches it with a dedicated home and
 profile. An isolation bootstrap loads the unchanged product ASAR. The test uses
 the normal API-key login and real cloud model through both clients.
 
-In WebUI, separate turns create, read and delete one randomly named fixture.
+In WebUI, a real `bash` `pwd -P` result binds approvals to the current session's
+workspace. Relative paths and the exact absolute fixture path share that scope;
+other paths, extra shell commands and sandbox overrides fail the approval check.
+Separate turns then create, read and delete one randomly named fixture.
 Successful tool results are matched to their calls, and the workspace API
 independently verifies the actual file bytes and subsequent removal. Desktop
 then opens the same conversation and recalls the unpredictable filename and
