@@ -103,7 +103,7 @@ async def run_case(assets, evidence, transport):
                 await viewer.call("Page.navigate", {"url": viewer_url})
                 return await wait_for(
                     lambda: viewer.js(
-                        """(()=>{const i=document.querySelector('img');if(!i?.complete||!i.naturalWidth)return null;const r=i.getBoundingClientRect();return r.width&&r.height?{x:r.x,y:r.y,width:r.width,height:r.height,w:i.naturalWidth,h:i.naturalHeight}:null})()"""
+                        """(()=>{const i=document.querySelector('img');const b=Array.from(document.querySelectorAll('button')).find(b=>b.textContent.trim()==='Interact with page');if(!i?.complete||!i.naturalWidth||!b||b.disabled||b.getAttribute('aria-pressed')!=='true'||getComputedStyle(i).visibility!=='visible')return null;const r=i.getBoundingClientRect();return r.width&&r.height?{x:r.x,y:r.y,width:r.width,height:r.height,w:i.naturalWidth,h:i.naturalHeight}:null})()"""
                     )
                 )
 
@@ -207,12 +207,17 @@ async def run_case(assets, evidence, transport):
                 rect = await start_viewer()
 
                 async def pointer(kind, x, y):
+                    # Decode alone precedes React's interaction readiness. Also
+                    # resolve current geometry: a newer worker frame can resize it.
+                    current = await viewer.js(
+                        """(()=>{const i=document.querySelector('img');const r=i.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height,w:i.naturalWidth,h:i.naturalHeight}})()"""
+                    )
                     await viewer.call(
                         "Input.dispatchMouseEvent",
                         {
                             "type": kind,
-                            "x": rect["x"] + x * rect["width"] / rect["w"],
-                            "y": rect["y"] + y * rect["height"] / rect["h"],
+                            "x": current["x"] + x * current["width"] / current["w"],
+                            "y": current["y"] + y * current["height"] / current["h"],
                             "button": "left",
                             "buttons": 0 if kind == "mouseReleased" else 1,
                             **({"clickCount": 1} if kind != "mouseMoved" else {}),

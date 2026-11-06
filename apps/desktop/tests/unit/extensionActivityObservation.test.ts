@@ -58,11 +58,12 @@ describe('extension activity uses owned engine facts', () => {
     const uncertain = observe('idle', 'uncertain');
     uncertain.snapshot!.background.execution_unconfirmed = 1;
     const entries = [question, worker, uncertain, observe('idle', 'expired', { expiresAt: Date.now() - 1 }), observe('idle', 'unsupported', { availability: 'unsupported' })];
-    for (const entry of entries) {
-      mocks.conversations.push({ id: entry.instanceId, type: 'acp', status: 'finished' });
+    // Persisted activity times make the intended order independent of wall-clock resolution.
+    for (const [index, entry] of entries.entries()) {
+      mocks.conversations.push({ id: entry.instanceId, type: 'acp', status: 'finished', modifyTime: entries.length - index + 1 });
       mocks.tasks.set(entry.instanceId!, { getRuntimeObservation: async () => entry });
     }
-    mocks.conversations.push({ id: 'unattached', type: 'acp', status: 'finished' });
+    mocks.conversations.push({ id: 'unattached', type: 'acp', status: 'finished', modifyTime: 1 });
     const result = await mocks.provider.mock.calls[0][0]();
     expect(result.agents.map((agent: any) => agent.state)).toEqual(['awaiting_input', 'executing', 'unknown', 'unknown', 'unknown', 'unknown']);
     expect(result.agents[0].runtimeObservation.snapshot.background.tool_operations).toBe(1);
