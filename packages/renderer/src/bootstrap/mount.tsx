@@ -23,7 +23,7 @@ import Main from '@renderer/main';
 import { AuthProvider } from '@renderer/context/AuthContext';
 import { DashboardStatsProvider } from '@renderer/context/DashboardStatsContext';
 import { TenantConfigProvider } from '@renderer/context/TenantConfigContext';
-import { ThemeProvider, useThemeContext } from '@renderer/context/ThemeContext';
+import { ThemeProvider } from '@renderer/context/ThemeContext';
 import { ConversationTabsProvider } from '@renderer/pages/conversation/context/ConversationTabsContext';
 import { ConversationHistoryProvider } from '@renderer/pages/conversation/context/ConversationHistoryContext';
 import { PreviewProvider } from '@renderer/pages/conversation/preview/context/PreviewContext';
@@ -80,11 +80,11 @@ const Config: React.FC<PropsWithChildren> = ({ children }) => {
   const {
     i18n: { language },
   } = useTranslation();
-  const { theme } = useThemeContext();
   const arcoLocale = arcoLocales[language] ?? enUS;
-  const primaryColor = theme === 'dark' ? '#ea580c' : '#f97316';
   // Buttons default to pill/round shape app-wide; pass `shape` per-button to override.
-  return React.createElement(ConfigProvider, { theme: { primaryColor }, locale: arcoLocale, componentConfig: { Button: { shape: 'round' } } }, children);
+  // Palette aliases are supplied by CSS; Arco's theme prop would write competing
+  // inline body variables on every provider render.
+  return React.createElement(ConfigProvider, { locale: arcoLocale, componentConfig: { Button: { shape: 'round' } } }, children);
 };
 
 const App = HOC.Wrapper(Config)(Main);

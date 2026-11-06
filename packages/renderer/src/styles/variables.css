@@ -69,9 +69,11 @@
   --accent-2-rgb: 253, 200, 150;
   --accent-3-rgb: 248, 156, 78;
   --accent-4-rgb: 250, 150, 64;
-  --accent-5-rgb: 250, 135, 46;
-  --accent-6-rgb: 249, 115, 22;
-  --accent-7-rgb: 217, 95, 14;
+  /* Preserve the effective default/hover/active values of the former Arco
+     ConfigProvider primaryColor override, without runtime HSL conversion. */
+  --accent-5-rgb: 250.2803347280335, 144.8744769874477, 71.7196652719665;
+  --accent-6-rgb: var(--primary-rgb);
+  --accent-7-rgb: 214.47698744769878, 91.12970711297072, 5.523012552301233;
   --accent-8-rgb: 184, 76, 10;
   --accent-9-rgb: 150, 58, 8;
   --accent-10-rgb: 120, 44, 8;
@@ -188,9 +190,9 @@
   --accent-2-rgb: 102, 48, 10;
   --accent-3-rgb: 140, 68, 16;
   --accent-4-rgb: 188, 96, 30;
-  --accent-5-rgb: 232, 124, 46;
-  --accent-6-rgb: 251, 140, 58;
-  --accent-7-rgb: 252, 165, 99;
+  --accent-5-rgb: 244.60975609756096, 118.19512195121948, 52.390243902438996;
+  --accent-6-rgb: var(--primary-rgb);
+  --accent-7-rgb: 185.4878048780488, 69.75609756097558, 9.512195121951175;
   --accent-8-rgb: 253, 191, 143;
   --accent-9-rgb: 254, 214, 184;
   --accent-10-rgb: 255, 236, 220;
