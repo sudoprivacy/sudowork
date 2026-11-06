@@ -61,6 +61,7 @@ beforeEach(() => {
     if (action.kind === 'start') state = { ...state, state: 'human', isController: true, isHumanControlHeld: true, isHeadless: action.isHeadless, controlEpoch: state.controlEpoch + 1 };
     if (action.kind === 'take') state = { ...state, state: 'human', isController: true, isHumanControlHeld: true, controlEpoch: state.controlEpoch + 1 };
     if (action.kind === 'open-authorized-page') state = { ...state, activeTargetId: 'review', targetEpoch: state.targetEpoch + 1 };
+    if (action.kind === 'return') state = { ...state, state: 'ai', isController: false, isHumanControlHeld: false };
     return { session: structuredClone(state) };
   });
 });
@@ -77,17 +78,63 @@ describe('private browser host review launch', () => {
     state.isHeadless = true;
     expect((await host.invoke('conversation', { kind: 'state' })).session.capabilities.nativeWindow).toBe(false);
   });
-  it('closes a retired account browser before admitting the new account and keeps same-account ownership enforced', async () => {
+  it('closes a retired account browser before admitting the new account', async () => {
     let isCurrent = true;
     const { host, control } = fixture(async () => isCurrent);
     await host.openAuthorizedPage('old-account', input);
-    await expect(host.prepareUserMessage('new-account')).rejects.toThrow('another conversation');
-    expect(mocks.close).not.toHaveBeenCalled();
     isCurrent = false;
     expect(await host.prepareUserMessage('new-account')).toBe(2);
     expect(mocks.close).toHaveBeenCalledTimes(1);
     expect(control.status()).toEqual({ epoch: 2, state: 'ai' });
     expect(mocks.invoke.mock.calls.some(([action]) => action.kind === 'return')).toBe(false);
+  });
+
+  it('returns the previous current-account browser before admitting an ordinary task in another conversation', async () => {
+    const { host, control } = fixture(async () => true);
+    await host.openAuthorizedPage('review-owner', input);
+    const allocated = mocks.start.mock.calls.length;
+    expect(await host.prepareUserMessage('new-conversation')).toBe(1);
+    expect(control.status()).toEqual({ epoch: 1, state: 'ai' });
+    expect(mocks.invoke).toHaveBeenCalledWith({ kind: 'return', controlEpoch: 1, targetEpoch: 1 });
+    expect(mocks.start).toHaveBeenCalledTimes(allocated);
+    expect(mocks.close).not.toHaveBeenCalled();
+  });
+
+  it('keeps the new task fenced until the previous engines acknowledge resuming', async () => {
+    const { host, control } = fixture(async () => true);
+    let resume!: () => void;
+    const resumed = new Promise<void>((resolve) => {
+      resume = resolve;
+    });
+    const resumeTools = vi.fn(() => resumed);
+    control.register('actor', { ready: async () => {}, connection: { hasActiveSession: true, isToolPauseSupported: true, pauseTools: async () => ({ sessionId: 'actor', pauseEpoch: 1 }), resumeTools } });
+    await host.openAuthorizedPage('review-owner', input);
+    const pending = host.prepareUserMessage('new-conversation');
+    await vi.waitFor(() => expect(resumeTools).toHaveBeenCalledTimes(1));
+    expect(control.status()).toMatchObject({ state: 'observing', owner: 'review-owner' });
+    expect(() => control.assertCanPrompt()).toThrow('held by the user');
+    resume();
+    expect(await pending).toBe(1);
+  });
+
+  it('does not release another conversation for an unverified caller or after a failed browser return', async () => {
+    const { host, control } = fixture(async (id) => id === 'review-owner');
+    await host.openAuthorizedPage('review-owner', input);
+    await expect(host.prepareUserMessage('unverified')).rejects.toThrow('another conversation');
+    expect(control.status()).toMatchObject({ state: 'human', owner: 'review-owner' });
+    expect(mocks.invoke.mock.calls.some(([action]) => action.kind === 'return')).toBe(false);
+    const valid = fixture(async () => true);
+    // The shared fake worker is already human, but this host still acquires its
+    // own explicit take before a review can be opened.
+    await valid.host.openAuthorizedPage('review-owner', input);
+    const invoke = mocks.invoke.getMockImplementation()!;
+    mocks.invoke.mockImplementation(async (action) => {
+      if (action.kind === 'return') throw new Error('Return was not acknowledged');
+      return invoke(action);
+    });
+    await expect(valid.host.prepareUserMessage('new-conversation')).rejects.toThrow('Return was not acknowledged');
+    expect(valid.control.status()).toMatchObject({ state: 'error', owner: 'review-owner' });
+    expect(mocks.close).not.toHaveBeenCalled();
   });
 
   it('allows explicit personal Chrome presentation without claiming a known headless browser has a window', async () => {
