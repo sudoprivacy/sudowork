@@ -130,6 +130,28 @@ describe('real browser wrapper migration', () => {
               diagnostic[endpoint + 'Error'] = String(error);
             }
           }
+          if (typeof payload.automation_target_id === 'string') {
+            const inspectDocument = `import json,sys,websocket
+connection=websocket.create_connection('ws://127.0.0.1:'+sys.argv[1]+'/devtools/page/'+sys.argv[2],timeout=2)
+observations={}
+try:
+ for number,(method,params) in enumerate([
+  ('Page.getFrameTree',{}),
+  ('Runtime.evaluate',{'expression':"JSON.stringify({ready:document.readyState,url:location.href,visibility:document.visibilityState,navigation:performance.getEntriesByType('navigation').map(n=>n.toJSON())})",'returnByValue':True})],1):
+  connection.send(json.dumps({'id':number,'method':method,'params':params}))
+  while True:
+   message=json.loads(connection.recv())
+   if message.get('id')==number:
+    observations[method]=message;break
+finally: connection.close()
+print(json.dumps(observations))`;
+            try {
+              const observed = await runFile(python, ['-c', inspectDocument, String(payload.port), payload.automation_target_id], { timeout: 6000, encoding: 'utf8' });
+              diagnostic.document = JSON.parse(observed.stdout);
+            } catch (error) {
+              diagnostic.documentError = String(error);
+            }
+          }
           await writeFile(path.join(artifacts, 'startup-diagnostic.json'), JSON.stringify(diagnostic, null, 2));
         }
       }
@@ -193,6 +215,13 @@ except (psutil.NoSuchProcess,psutil.ZombieProcess): print('false')`;
       expect(started.pid).toBeGreaterThan(0);
       port = String(started.port);
       expect(Number(port)).toBeGreaterThan(0);
+      if (process.env.BROWSER_TEST_CHROME_VERSION) {
+        // Chrome reduces navigator.userAgent to major.0.0.0; the owned CDP
+        // endpoint reports the actual build used by either wrapper backend.
+        const identity = await fetch(`http://127.0.0.1:${port}/json/version`, { signal: AbortSignal.timeout(1500) });
+        expect(identity.ok).toBe(true);
+        expect((await identity.json()).Browser).toContain(`Chrome/${process.env.BROWSER_TEST_CHROME_VERSION}`);
+      }
       await tool('page_goto', '--url', url);
       const discovered = await tool('page_discover');
       const elements = Array.isArray(discovered) ? discovered : discovered.elements;
