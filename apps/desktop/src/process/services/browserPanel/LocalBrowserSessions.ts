@@ -97,6 +97,15 @@ export class LocalBrowserSessions {
       );
       host = this.options.control.status();
     }
+    // A new authenticated user task can finish the previous conversation's
+    // human handoff. Return its own browser through the same observation and
+    // engine barriers; the new conversation never inherits that browser.
+    if (!isReviewInput && host.owner && host.owner !== conversationId && ['human', 'error'].includes(host.state) && this.options.isConversationCurrent && (await this.options.isConversationCurrent(conversationId))) {
+      const previous = await this.worker(host.owner);
+      const { session } = await this.state(previous);
+      await this.invoke(host.owner, { kind: 'return', controlEpoch: session.controlEpoch, targetEpoch: session.targetEpoch }, true);
+      return this.options.control.assertCanPrompt(host.epoch);
+    }
     if (host.owner !== conversationId || !['human', 'error'].includes(host.state)) throw new Error('Browser control transfer is in progress or belongs to another conversation');
     const worker = await this.worker(conversationId);
     const { session } = await this.state(worker);
