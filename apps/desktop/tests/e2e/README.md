@@ -329,6 +329,25 @@ credentials and is run locally before commit.
 
 ## Rules
 
+Published Windows qualification is recorded in
+[`desktop-local-browser-acceptance-20261106.json`](../../../../docs/tech/desktop-local-browser-acceptance-20261106.json).
+The real-model local journey handles both ordinary cold-start Skip screens,
+then enters the local Desktop and saves model settings through the visible UI.
+It waits for the offline entry's actual renderer reload before accepting the
+new task controls, then uses the normal sidebar/settings/back navigation. The
+original 30-second readiness bound remains. Taskbar lookup selects the exact
+fixture AppUserModelID and rechecks the foreground after lookup and immediately
+before mouse input. A lookup must not minimize an application that became
+active. Neither path forces activation or seeds a CLI/model credential into the
+isolated app home.
+
+The [SDK 0.58.17 candidate journey](../../../../docs/tech/desktop-sdk05817-personal-acceptance-20261107.json)
+passed the personal-Chrome path with real Luna, normal cold installation and
+physical native-window input. That package predates the pending MCP timeout
+repair. Standalone cold setup remains failed until a rebuilt application can
+complete its normal installer and first model browser call under the negotiated
+per-server budget. Preserve the original failure and deadline.
+
 1. `primitives/` and `ops/` are AUTO-GENERATED. Never hand-edit.
 2. To change a primitive: edit `human-browser-primitives/spec.md` -> `generate.py`.
 3. To change convenience params: edit `ops-spec.yaml` -> `generate.py`.

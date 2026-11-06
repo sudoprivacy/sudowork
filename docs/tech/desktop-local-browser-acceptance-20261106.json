@@ -1,0 +1,66 @@
+{
+  "recordedAt": "2026-11-06T05:13:42.831923+00:00",
+  "scope": "Published Windows Desktop local browser journeys",
+  "artifact": {
+    "tag": "nightly-2026-11-04-8739bc3",
+    "url": "https://github.com/sudoprivacy/sudowork/releases/tag/nightly-2026-11-04-8739bc3",
+    "zipSha256": "431e60db26b3ca00df9b06471acfff16bbfcf6d8e5b2add4877360861578cb1e",
+    "asarSha256": "a448ac7d46f9ba248ab0f407e08e1cc28ffead7da56bdeb88d106f3b42014745",
+    "modified": false
+  },
+  "model": "gpt-6-luna",
+  "bundledScodeVersion": "0.2.39",
+  "mockedModelOrBrowser": false,
+  "manualAssistance": false,
+  "cases": [
+    {
+      "mode": "existing-personal-chrome-extension",
+      "passed": true,
+      "durationSeconds": 194.68,
+      "privateRunnerReceiptSha256": "b7be7c27bd52ab909521de7cf9507e6177b1bd4b47c970404e18665291c610b1",
+      "privateJourneyReceiptSha256": "bbfa5a780fe65f5e5524131b262bf7c360e471664a3c8d70e61ebb8b26db279e",
+      "privateRuntimeReceiptSha256": "2ea7e2217bdb04fb9865d2022cd23c83c6af6151f6184564aab5d7436c130891",
+      "publicSdkVersion": "0.58.16",
+      "installedPublicWheelFilesMatch": 205,
+      "normalColdInstallerPassed": true,
+      "ordinaryStartupChoices": 2,
+      "physicalWindowsMouse": true,
+      "nativeChromeAndEmbeddedPanel": true,
+      "exactModelReadback": true,
+      "trustedUnicodeSubmissionExactlyOnce": true,
+      "nativeQuestionStopAndContinuation": true,
+      "normalAppAndOwnedServicesShutdown": true,
+      "existingChromeAndCookiesPreserved": true
+    },
+    {
+      "mode": "standalone-chrome-cdp",
+      "passed": true,
+      "durationSeconds": 241.12,
+      "privateRunnerReceiptSha256": "0926ccc160daf2ad191e81425688fe36382c388355770d1ede1093a68873deca",
+      "privateJourneyReceiptSha256": "1524ad8122b146785f67d66feab6390e4c7dc2830d4b440c074c4db1249f4818",
+      "privateRuntimeReceiptSha256": "0926ccc160daf2ad191e81425688fe36382c388355770d1ede1093a68873deca",
+      "publicSdkVersion": "0.58.16",
+      "installedPublicWheelFilesMatch": 205,
+      "normalColdInstallerPassed": true,
+      "ordinaryStartupChoices": 2,
+      "physicalWindowsMouse": true,
+      "nativeChromeAndEmbeddedPanel": true,
+      "exactModelReadback": true,
+      "trustedUnicodeSubmissionExactlyOnce": true,
+      "nativeQuestionStopAndContinuation": true,
+      "normalAppAndOwnedServicesShutdown": true,
+      "existingChromeAndCookiesPreserved": null
+    }
+  ],
+  "reproductionInputs": {
+    "apps/desktop/tests/e2e/live_shared_browser.py": "05c89b085294dc837b0548783bac1804aefbf90f603dcd4c31ca22c0409fc32f"
+  },
+  "reproductionInputScope": "Current helper, including the final foreground recheck exercised by case 122. Case 119 preceded that recheck; its exact helper hash was not recorded.",
+  "coverageLimits": [
+    "These application journeys used SDK 0.58.16; public SDK 0.58.17 has separate installed-package browser qualification and still requires consumer rollout.",
+    "The standalone journey completed at 04:46:09Z; legacy scode 0.2.39 logged an unexplained exit code 1 at 04:46:11Z before normal app shutdown at 04:46:12Z. Its cause remains open.",
+    "Earlier startup and foreground-selection failures remain in private receipts; these two passing journeys do not establish a reliability percentile.",
+    "Does not qualify macOS native presentation, physical OS IME, iPhone viewer input, Northwind WAN startup/drag, joint comment delivery or stable production promotion."
+  ],
+  "reproduction": "apps/desktop/tests/e2e/README.md"
+}
