@@ -44,6 +44,7 @@ import { turnInputCoordinator } from '../task/turnInputCoordinator';
 import { reapConversation } from '../services/conversationReaper';
 import { getLocalBrowserSessions } from '../services/browserPanel/localBrowserSessionHost';
 import { localAgentToolControl } from '../services/browserPanel/localToolControl';
+import { stopConversation } from '../services/stopConversation';
 import { closeBrowserTabsByConversation } from './browserPanelBridge';
 import { closeTerminalsByConversation } from './terminalBridge';
 import { migrateConversationToDatabase } from './migrationUtils';
@@ -1015,20 +1016,19 @@ export function initConversationBridge(): void {
   });
 
   ipcBridge.conversation.stop.provider(async ({ conversation_id }) => {
-    const task = WorkerManage.getTaskById(conversation_id);
-    if (!task) return { success: true, msg: 'conversation not found' };
-    if (task.type !== 'acp' && task.type !== 'remote-agent') {
-      return { success: false, msg: 'not support' };
-    }
-    if (task.type === 'acp') {
-      await getLocalBrowserSessions().interruptConversation(conversation_id);
-      await task.stop();
-    } else {
-      await task.stop();
-      const { extra, mossSessionId, pending } = getRemoteConversationSession(conversation_id);
-      if (!pending && mossSessionId) await getRemoteConversationMossApi(extra).changeBrowserConversation(mossSessionId, 'interrupt');
-    }
-    return { success: true };
+    return stopConversation(conversation_id, {
+      getConversation: (id) => {
+        const result = getDatabase().getConversation(id);
+        return result.success ? result.data : undefined;
+      },
+      assertAccount: assertConversationAccount,
+      getTask: WorkerManage.getTaskById,
+      interruptLocalBrowser: (id) => getLocalBrowserSessions().interruptConversation(id),
+      interruptRemoteBrowser: async (id) => {
+        const { extra, mossSessionId, pending } = getRemoteConversationSession(id);
+        if (!pending && mossSessionId) await getRemoteConversationMossApi(extra).changeBrowserConversation(mossSessionId, 'interrupt');
+      },
+    });
   });
 
   ipcBridge.conversation.getSlashCommands.provider(async ({ conversation_id }) => {

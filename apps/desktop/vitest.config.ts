@@ -145,6 +145,7 @@ export default defineConfig({
         'src/process/services/browserPanel/localBrowserSessionHost.ts',
         'src/process/services/browserPanel/LocalAgentToolControl.ts',
         'src/process/services/browserPanel/localToolControl.ts',
+        'src/process/services/stopConversation.ts',
         '../../packages/contracts/src/browserSession.ts',
         '../../packages/renderer/src/components/browser/BrowserSessionPanel.tsx',
         '../../packages/renderer/src/components/browser/BoundModelReviewAction.tsx',
