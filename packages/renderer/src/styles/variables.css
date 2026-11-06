@@ -5,6 +5,7 @@
  */
 
 /* Design Tokens - 全 app CSS 变量的唯一来源（single source of truth）
+ * Arco aliases are mapped in arco-tokens.css; utilities use uno.preset.ts.
  * 静态打包，亮色写在 :root，暗色写在 [data-theme='dark']。
  * 由原 base.css(:root 尺寸/阴影) + color-schemes/default.css(中性结构) +
  * default-theme.css(品牌强调) 合并而来，品牌色取最终品牌值（不再保留中性兜底）。
@@ -45,7 +46,7 @@
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1); /* 中阴影 - 卡片、下拉菜单 */
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12); /* 大阴影 - 模态框、浮层 */
   --shadow-xl: 0 12px 36px rgba(0, 0, 0, 0.16); /* 超大阴影 - 重要浮层 */
-  --shadow-focus: 0 0 0 2px rgba(var(--primary-6, 22, 93, 255), 0.15); /* 焦点阴影 */
+  --shadow-focus: 0 0 0 2px rgba(var(--primary-rgb), 0.15); /* 焦点阴影 */
 
   /* ---------- UI Accent ---------- */
   --ui-accent-orange: #f97316;
@@ -62,6 +63,18 @@
   --color-primary-light-3: #fed7aa;
   --color-primary-dark-1: #ea580c;
   --primary-rgb: 249, 115, 22;
+
+  /* RGB ramp consumed by the Arco adapter. */
+  --accent-1-rgb: 255, 243, 230;
+  --accent-2-rgb: 253, 200, 150;
+  --accent-3-rgb: 248, 156, 78;
+  --accent-4-rgb: 250, 150, 64;
+  --accent-5-rgb: 250, 135, 46;
+  --accent-6-rgb: 249, 115, 22;
+  --accent-7-rgb: 217, 95, 14;
+  --accent-8-rgb: 184, 76, 10;
+  --accent-9-rgb: 150, 58, 8;
+  --accent-10-rgb: 120, 44, 8;
 
   /* Brand: Retroma Warm Purple */
   --brand: #6e3a66;
@@ -97,6 +110,7 @@
   /* ---------- 通用中性结构 ---------- */
   /* Semantic background tokens */
   --bg-base: #fffffe; /* 页面/应用底色；接近纯白，带极轻暖调 */
+  --bg-elevated: #fffffe; /* Opaque approval cards, dialogs and popovers. */
   --bg-faint: #f7f6f1; /* 极浅填充/悬停底；接近 --color-fill-1 */
   --bg-subtle: #f5f4ef; /* 轻区域/面板背景；接近 --bg-1 / --color-bg-1 */
   --bg-muted: #eeede5; /* 次级块/弱背景；接近 --bg-2 / --color-bg-2 */
@@ -105,15 +119,11 @@
   --bg-strong: #cbc8b8; /* 更强填充/按下或禁用面；接近 --bg-4 / --color-bg-4 / --color-fill-4 */
 
   /* FIXME: 兼容期保留的旧背景 token，后续业务代码都要迁移到上方语义化 bg token。 */
-  --bg-1: #f5f4ef;
-  --bg-2: #eeede5;
-  --bg-3: #e2e0d4;
-  --bg-4: #cbc8b8;
+  --bg-1: var(--bg-subtle);
+  --bg-2: var(--bg-muted);
+  --bg-3: var(--bg-emphasis);
+  --bg-4: var(--bg-strong);
   --bg-6: #8c8878;
-  --color-bg-1: #f5f4ef;
-  --color-bg-2: #eeede5;
-  --color-bg-3: #e2e0d4;
-  --color-bg-4: #cbc8b8;
   --color-fill-0: #faf9f6;
 
   /* Interactive State */
@@ -123,14 +133,10 @@
   /* Text */
   --foreground: #1d011d;
   --text-secondary: #6e6060;
-  --text-tertiary: #8c8878;
+  --text-tertiary: #706c5f;
   --text-disabled: #b8b0a8;
   --text-0: #1d011d;
   --text-white: #faf9f6;
-  --color-text-1: #1d011d;
-  --color-text-2: #6e6060;
-  --color-text-3: #9e9490;
-  --color-text-4: #c8c0bc;
 
   /* Border - 淡化一档（更贴近背景，柔和分隔） */
   --border-default: #e0dbd0;
@@ -177,6 +183,18 @@
   --color-primary-dark-1: #c2410c;
   --primary-rgb: 234, 88, 12;
 
+  /* RGB ramp consumed by the Arco adapter. */
+  --accent-1-rgb: 64, 30, 8;
+  --accent-2-rgb: 102, 48, 10;
+  --accent-3-rgb: 140, 68, 16;
+  --accent-4-rgb: 188, 96, 30;
+  --accent-5-rgb: 232, 124, 46;
+  --accent-6-rgb: 251, 140, 58;
+  --accent-7-rgb: 252, 165, 99;
+  --accent-8-rgb: 253, 191, 143;
+  --accent-9-rgb: 254, 214, 184;
+  --accent-10-rgb: 255, 236, 220;
+
   /* Brand: Retroma Purple (dark) */
   --brand: #be80bf;
   --brand-light: #3d2840;
@@ -210,6 +228,7 @@
   /* ---------- 通用中性结构 ---------- */
   /* Semantic background tokens */
   --bg-base: rgba(255, 252, 240, 0.07); /* 页面/应用底色；接近 --color-fill-0 */
+  --bg-elevated: #29291f;
   --bg-faint: rgba(255, 255, 255, 0.04); /* 极浅填充/悬停底；接近 --color-fill-1 */
   --bg-subtle: #202018; /* 轻区域/面板背景；由 --bg-1 / --color-bg-1 提亮 */
   --bg-muted: #29291f; /* 次级块/弱背景；由 --bg-2 / --color-bg-2 提亮 */
@@ -219,15 +238,11 @@
   --bg-inverse-muted: #686858; /* 深中性色面/低强调反色底；由 --bg-6 提亮 */
 
   /* FIXME: 兼容期保留的旧背景 token，后续业务代码都要迁移到上方语义化 bg token。 */
-  --bg-1: #18180f;
-  --bg-2: #222217;
-  --bg-3: #2e2e20;
-  --bg-4: #3c3c2c;
+  --bg-1: var(--bg-subtle);
+  --bg-2: var(--bg-muted);
+  --bg-3: var(--bg-emphasis);
+  --bg-4: var(--bg-strong);
   --bg-6: #606050;
-  --color-bg-1: #18180f;
-  --color-bg-2: #222217;
-  --color-bg-3: #2e2e20;
-  --color-bg-4: #3c3c2c;
   --color-fill-0: rgba(255, 252, 240, 0.07);
 
   /* Interactive State */
@@ -237,14 +252,10 @@
   /* Text */
   --foreground: #e8e6d8;
   --text-secondary: #a8a498;
-  --text-tertiary: #606050;
+  --text-tertiary: #989488;
   --text-disabled: #686458;
   --text-0: #f0ede0;
   --text-white: #f0ede0;
-  --color-text-1: #e8e6d8;
-  --color-text-2: #a8a498;
-  --color-text-3: #787468;
-  --color-text-4: #504c44;
 
   /* Border */
   --border-default: #4a4a38;

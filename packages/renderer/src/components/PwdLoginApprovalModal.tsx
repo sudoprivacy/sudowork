@@ -64,7 +64,7 @@ export const PwdLoginApprovalModal: React.FC<PwdLoginApprovalModalProps> = ({ vi
       visible={visible}
       title={
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <IconLock style={{ color: 'var(--color-primary-6)' }} />
+          <IconLock style={{ color: 'var(--primary)' }} />
           <span>{t('pwdLogin.approval.title', { defaultValue: 'Auto-login request' })}</span>
         </div>
       }

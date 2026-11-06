@@ -8,6 +8,7 @@
 
 /* 设计 token / Design tokens (single source of truth) */
 @import './variables.css';
+@import './arco-tokens.css';
 
 /* 基础与外观规则 / Base + chrome rules */
 @import './base.css';

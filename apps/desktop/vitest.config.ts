@@ -116,6 +116,8 @@ export default defineConfig({
         '../../packages/common/src/acpRuntimeStatus.ts',
         'src/agent/acp/AcpConnection.ts',
         'src/process/bridge/extensionsBridge.ts',
+        '../../packages/renderer/src/pages/conversation/components/ConversationChatConfirm.tsx',
+        '../../packages/renderer/uno.preset.ts',
         '../../packages/renderer/src/components/ModelSearchPanel.tsx',
         '../../packages/contracts/src/inputDelivery.ts',
         '../../packages/moss-client/src/InputDeliveryClient.ts',
