@@ -1,5 +1,34 @@
 # Shared browser sessions for Desktop and WebUI
 
+SDK 0.58.17 update, 7 November: a locally packaged Windows application passed
+the complete existing-personal-Chrome journey with real Luna/scode 0.2.40 and
+the normal cold installer (130.9 seconds; all 205 installed files matched the
+public wheel). Native mouse presentation, exact selection/copy, multiline
+paste/composition, native-question cancellation, ordinary Stop/chat continuation,
+exact model readback and profile preservation passed in 251.3 seconds. See the
+[candidate evidence](tech/desktop-sdk05817-personal-acceptance-20261107.json).
+This package predates the pending per-server MCP timeout change. Standalone
+cold setup exposed a real mismatch between dependency installation and the
+engine's 60-second call budget; its repair, rebuilt application, official
+release and production promotion still require acceptance.
+
+Local Desktop update, 6 November: the same unmodified public Windows nightly
+passed real Luna journeys for standalone Chrome/CDP and an existing personal
+Chrome/extension. Both used ordinary startup choices, local entry, model
+settings and the cold public SDK 0.58.16 installer. Physical mouse input,
+selection/copy, multiline paste/composition, native questions, ordinary Stop/chat
+continuation and exact model readback passed. Personal Chrome and cookies
+survived disconnect and application exit. See the
+[artifact-bound local evidence](tech/desktop-local-browser-acceptance-20261106.json).
+The record retains earlier startup/focus failures and a late unexplained exit
+from bundled scode 0.2.39 after the standalone journey completed.
+
+Public SDK 0.58.17 separately passed six installed-package Chrome journeys and
+fixes quick drags released before the remote press acknowledgement. Its consumer
+dependency update does not establish application or production rollout. Actual
+Northwind performance, final project/revision/comment delivery, physical-phone
+viewer input and stable production promotion remain open.
+
 Desktop cloud update, 5 November: the unmodified public Windows nightly
 `nightly-2026-11-04-8739bc3` passed four real Luna journeys: extension and CDP,
 each headless and headful. Each journey used fresh login, Server execution,
@@ -8,8 +37,8 @@ lease-preserving refresh and exact AI readback. Browser Stop retained human
 control until ordinary chat continuation. Temporary keys and sessions were
 cleaned through normal APIs. See the [reproducible live test](../apps/desktop/tests/e2e/README.md#desktop-connected-to-the-managed-cloud-browser)
 and [artifact-bound evidence](tech/desktop-cloud-browser-acceptance-20261105.json).
-This advances Desktop cloud acceptance; the local official-package, joint graph,
-physical-phone and stable-release gates below remain open. The production
+This advances Desktop cloud acceptance; the joint graph, physical-phone and
+stable-release gates below remain open. The production
 versions in the next paragraph are the last verified 31 October baseline.
 
 Status, 31 October: production WebUI runs the official artifact from

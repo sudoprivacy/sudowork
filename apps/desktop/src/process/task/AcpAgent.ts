@@ -20,7 +20,7 @@ import { AcpAdapter } from '@/agent/acp/AcpAdapter';
 import { AcpApprovalStore, createAcpApprovalKey } from '@/agent/acp/ApprovalStore';
 import { AcpConnection } from '@/agent/acp/AcpConnection';
 import { localAgentToolControl } from '@process/services/browserPanel/localToolControl';
-import { getLocalBrowserMcpConfig } from '@process/services/browserPanel/localBrowserSessionHost';
+import { getLocalBrowserMcpConfig, LOCAL_BROWSER_TOOL_CALL_TIMEOUT_MS } from '@process/services/browserPanel/localBrowserSessionHost';
 import { resolveTunnelEnv } from '@/agent/acp/tunnelEnv';
 import { CLAUDE_YOLO_SESSION_MODE, CODEBUDDY_YOLO_SESSION_MODE, IFLOW_YOLO_SESSION_MODE, QWEN_YOLO_SESSION_MODE } from '@/agent/acp/constants';
 import { acpDetector } from '@/agent/acp/AcpDetector';
@@ -773,7 +773,7 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     // call ontology_* tools. Merged into a single mcp_servers list because ACP session/new
     // takes one array; the individual configs are already stable stdio-transport records.
     const mcpConfigs: unknown[] = [];
-    mcpConfigs.push(await getLocalBrowserMcpConfig(this.conversation_id, this.connection.isHttpMcpSupported));
+    mcpConfigs.push(await getLocalBrowserMcpConfig(this.conversation_id, this.connection.isHttpMcpSupported, this.connection.isMcpToolCallTimeoutSupported));
     this.isSharedBrowserMcpEnabled = true;
     if (this.options.teamMcpConfig) mcpConfigs.push(this.options.teamMcpConfig);
     if (this.options.extraMcpConfigs?.length) mcpConfigs.push(...this.options.extraMcpConfigs);
@@ -4416,7 +4416,7 @@ This identity statement takes priority over the default identity in USER.md.
             const client = await connectLocalBrowserMcp(this.conversation_id);
             try {
               const call = async (name: string, args: Record<string, unknown>) => {
-                const reply = await client.callTool({ name, arguments: args });
+                const reply = await client.callTool({ name, arguments: args }, undefined, { timeout: LOCAL_BROWSER_TOOL_CALL_TIMEOUT_MS });
                 const content = reply.content as Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
                 const text = content.find((item) => item.type === 'text')?.text || '{}';
                 if (reply.isError) throw new Error(text);
