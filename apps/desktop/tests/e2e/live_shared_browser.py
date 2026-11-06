@@ -213,28 +213,39 @@ def select_owned_windows_app(pid, app_id):
 
     proof = {'kind': 'windows-taskbar-selection', 'ownedPid': pid, 'appId': app_id, 'forcedActivation': False, 'taskbarMouseUsed': False}
     if foreground_pid() != pid:
-        lookup = subprocess.run(['powershell.exe', '-NoProfile', '-File', str(Path(__file__).with_name('read_owned_taskbar.ps1'))], capture_output=True, timeout=15)
+        lookup = subprocess.run(['powershell.exe', '-NoProfile', '-File', str(Path(__file__).with_name('read_owned_taskbar.ps1')), '-AppId', app_id], capture_output=True, timeout=15)
         assert lookup.returncode == 0, 'The interactive taskbar lookup failed'
+        # A cold app can acquire foreground while UI Automation enumerates the
+        # taskbar. Clicking its now-active entry would minimize it again.
+        if foreground_pid() == pid:
+            proof.update(foregroundOwnedPid=pid, foregroundArrivedDuringLookup=True)
+            return proof
         targets = json.loads(lookup.stdout.decode('utf-8-sig'))['targets']
         candidates = [t for t in targets if t['automationId'] == 'Appid: ' + app_id and t['enabled'] and not t['isOffscreen'] and t['width'] > 0 and t['height'] > 0]
         assert len(candidates) == 1, 'Require the one exact isolated app taskbar entry'
         target = candidates[0]
+        proof['target'] = target
         point = wintypes.POINT(round(target['x'] + target['width'] / 2), round(target['y'] + target['height'] / 2))
         assert user.GetAncestor(user.WindowFromPoint(point), 2) == target['taskbarHwnd'], 'The taskbar entry is covered; no mouse input sent'
         previous = wintypes.POINT()
         assert user.GetCursorPos(ctypes.byref(previous)) and user.SetCursorPos(point.x, point.y)
         try:
             assert user.GetAncestor(user.WindowFromPoint(point), 2) == target['taskbarHwnd']
-            user.mouse_event(0x0002, 0, 0, 0, 0)
-            user.mouse_event(0x0004, 0, 0, 0, 0)
-            proof['taskbarMouseUsed'] = True
+            # Recheck at the input boundary too: selecting an app that acquired
+            # foreground since the lookup would toggle its taskbar entry off.
+            if foreground_pid() != pid:
+                user.mouse_event(0x0002, 0, 0, 0, 0)
+                user.mouse_event(0x0004, 0, 0, 0, 0)
+                proof['taskbarMouseUsed'] = True
+            else:
+                proof['foregroundArrivedBeforeMouse'] = True
         finally:
             current = wintypes.POINT()
             if user.GetCursorPos(ctypes.byref(current)) and (current.x, current.y) == (point.x, point.y):
                 user.SetCursorPos(previous.x, previous.y)
         deadline = time.monotonic() + 5
         while foreground_pid() != pid:
-            assert time.monotonic() < deadline, 'The taskbar click did not select the owned app'
+            assert time.monotonic() < deadline, 'The taskbar click did not select the owned app: ' + json.dumps({**proof, 'foregroundPid': foreground_pid()})
             time.sleep(.1)
     proof['foregroundOwnedPid'] = foreground_pid()
     assert proof['foregroundOwnedPid'] == pid
@@ -401,11 +412,28 @@ document.querySelector('#clipboard-submit').onclick=event=>fetch('/clipboard-sub
         try:
             is_offline_entered = False
             offline_box = None
+            offline_document_origin = None
             await app.command('Page.bringToFront')
             async def task_controls_ready():
-                nonlocal is_offline_entered, offline_box
-                if await app.read("[...document.querySelectorAll('body *')].some(e => ['New task', '\u65b0\u5efa\u4efb\u52a1'].includes(e.textContent.trim()) && e.getBoundingClientRect().height > 0)"):
+                nonlocal is_offline_entered, offline_box, offline_document_origin
+                # Entering offline mode intentionally reloads the renderer.
+                # Its old document can briefly render New task before that
+                # reload; require acknowledgement from the new document.
+                is_document_ready = offline_document_origin is None or await app.read('performance.timeOrigin') != offline_document_origin
+                if is_document_ready and await app.read("[...document.querySelectorAll('body *')].some(e => ['New task', '\u65b0\u5efa\u4efb\u52a1'].includes(e.textContent.trim()) && e.getBoundingClientRect().height > 0)"):
+                    if offline_document_origin is not None:
+                        evidence['normalOfflineReloadAcknowledged'] = True
                     return True
+                if args.offline_entry:
+                    # Cold packages offer a normal background-install entry.
+                    # Exercise that UI; backend readiness and model assertions
+                    # still apply to the subsequent actual conversation.
+                    box = await app.read("""[...document.querySelectorAll('button')].filter(e=>['跳过','Skip'].includes(e.textContent.trim())).map(e=>{const r=e.getBoundingClientRect();const hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return !e.disabled&&r.height>0&&hit&&(hit===e||e.contains(hit))?r.toJSON():null}).find(Boolean)""")
+                    if box:
+                        await app.click(box['x']+box['width']/2, box['y']+box['height']/2)
+                        evidence['normalBackgroundInstallationChosen'] = True
+                        evidence['normalBackgroundInstallationChoices'] = evidence.get('normalBackgroundInstallationChoices', 0) + 1
+                        return False
                 if args.offline_entry and not is_offline_entered:
                     # Use a normal trusted click only when the startup dialog
                     # no longer covers the actual local-entry link.
@@ -416,6 +444,7 @@ document.querySelector('#clipboard-submit').onclick=event=>fetch('/clipboard-sub
                     is_stable = box and offline_box and all(abs(box[key] - offline_box[key]) < 1 for key in ('x', 'y', 'width', 'height'))
                     offline_box = box
                     if is_stable:
+                        offline_document_origin = await app.read('performance.timeOrigin')
                         await app.click(box['x']+box['width']/2, box['y']+box['height']/2)
                         is_offline_entered = True
                         evidence['normalLocalDesktopEntryChosen'] = True
@@ -426,7 +455,12 @@ document.querySelector('#clipboard-submit').onclick=event=>fetch('/clipboard-sub
                 # Configure the isolated acceptance account through the real
                 # settings editor, without injecting IPC or bypassing send guards.
                 config = json.loads(args.model_config.read_text(encoding='utf-8'))
-                await app.command('Page.navigate', {'url': target['url'].split('#')[0] + '#/settings/about'})
+                # Navigate through the real sidebar. A full document reload
+                # discards the ordinary Skip choice during a cold install.
+                await app.click_text('登录', 'Login', 'Log in')
+                await app.click_text('设置', 'Settings')
+                await app.wheel(1000, 120, 400)
+                await app.click_text('关于', 'About')
                 async def settings_ready():
                     return await app.read("!!document.querySelector('button .arco-icon-settings')")
                 await wait_for(settings_ready, 15, 'The Desktop settings editor did not become available')
@@ -438,7 +472,11 @@ document.querySelector('#clipboard-submit').onclick=event=>fetch('/clipboard-sub
                 async def settings_saved():
                     return not await app.read("[...document.querySelectorAll('.arco-modal textarea')].some(e => e.getBoundingClientRect().height > 0)")
                 await wait_for(settings_saved, 15, 'The normal model settings save did not finish')
-                await app.command('Page.navigate', {'url': target['url'].split('#')[0] + '#/guid'})
+                await app.key('Escape', 'Escape', 27)
+                async def operations_closed():
+                    return not await app.read("[...document.querySelectorAll('.arco-modal')].some(e=>e.getBoundingClientRect().height>0)")
+                await wait_for(operations_closed, 15, 'The normal operations dialog did not close')
+                await app.click_text('返回聊天', 'Back to Chat')
                 await wait_for(task_controls_ready, 15, 'The task controls did not return after model configuration')
                 evidence['normalModelSettingsSaved'] = True
             await app.click_text('新建任务', 'New task')

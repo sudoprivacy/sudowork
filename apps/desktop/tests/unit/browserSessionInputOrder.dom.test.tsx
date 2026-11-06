@@ -413,6 +413,7 @@ it('reads the exact selection after a released drag is acknowledged, while start
   const base = activeSession();
   const session = { ...base, capabilities: { ...base.capabilities, selectionRead: true, dragInput: true, liveDragSurfaces: ['page' as const] } };
   let acknowledgeBegin!: () => void;
+  let acknowledgeMove!: () => void;
   let acknowledgeEnd!: () => void;
   const inputs: BrowserSessionAction[] = [];
   const clipboard = {
@@ -431,10 +432,13 @@ it('reads the exact selection after a released drag is acknowledged, while start
     if (action.kind === 'input') {
       inputs.push(action);
       if (action.input.kind === 'drag-stream') {
+        const phase = action.input.phase;
         return new Promise((resolve) => {
           const acknowledge = () => resolve({ success: true, data: { session } });
-          if (action.input.kind === 'drag-stream' && action.input.phase === 'begin') acknowledgeBegin = acknowledge;
-          else acknowledgeEnd = acknowledge;
+          if (phase === 'begin') acknowledgeBegin = acknowledge;
+          else if (phase === 'move') acknowledgeMove = acknowledge;
+          else if (phase === 'end') acknowledgeEnd = acknowledge;
+          else throw new Error('The completed drag must finish before selection is read');
         });
       }
       return { success: true, data: { session, selection: { text: 'Exact selected phrase', isAvailable: true } } };
@@ -461,12 +465,17 @@ it('reads the exact selection after a released drag is acknowledged, while start
   expect(clipboard.write).toHaveBeenCalledOnce();
   expect(inputs).toHaveLength(1);
   await act(async () => acknowledgeBegin());
-  await waitFor(() => expect(acknowledgeEnd).toBeTypeOf('function'));
+  await waitFor(() => expect(acknowledgeMove).toBeTypeOf('function'));
   expect(inputs).toHaveLength(2);
-  expect(inputs[1]).toMatchObject({ input: { kind: 'drag-stream', phase: 'end', x: 60 } });
-  await act(async () => acknowledgeEnd());
+  expect(inputs[1]).toMatchObject({ input: { kind: 'drag-stream', phase: 'move', x: 60, sequence: 1 } });
+  expect(acknowledgeEnd).toBeUndefined();
+  await act(async () => acknowledgeMove());
+  await waitFor(() => expect(acknowledgeEnd).toBeTypeOf('function'));
   await waitFor(() => expect(inputs).toHaveLength(3));
-  expect(inputs[2]).toMatchObject({ input: { kind: 'copy-selection' } });
+  expect(inputs[2]).toMatchObject({ input: { kind: 'drag-stream', phase: 'end', x: 60, sequence: 2 } });
+  await act(async () => acknowledgeEnd());
+  await waitFor(() => expect(inputs).toHaveLength(4));
+  expect(inputs[3]).toMatchObject({ input: { kind: 'copy-selection' } });
   await expect(clipboard.write.mock.results[0].value).resolves.toBe('Exact selected phrase');
   expect(host.error).not.toHaveBeenCalled();
 });

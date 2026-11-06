@@ -1066,6 +1066,11 @@ export class AcpConnection {
     return initialized?.agentCapabilities?.mcpCapabilities?.http === true;
   }
 
+  get isMcpToolCallTimeoutSupported(): boolean {
+    const initialized = this.initializeResponse as unknown as { _meta?: { sudocode?: { mcpToolCallTimeout?: { version?: unknown } } } } | null;
+    return initialized?._meta?.sudocode?.mcpToolCallTimeout?.version === 1;
+  }
+
   /** Acknowledge takeover only after the engine's main and child workers drain. */
   async pauseTools(): Promise<{ sessionId: string; pauseEpoch: number }> {
     const sessionId = this.sessionId;

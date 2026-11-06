@@ -5,8 +5,10 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 /** Stdio-only ACP hosts use the same authenticated Desktop HTTP coordinator. */
 const endpoint = process.env.SUDOWORK_BROWSER_MCP_URL || '';
 const token = process.env.SUDOWORK_BROWSER_MCP_TOKEN || '';
+const toolCallTimeoutMs = Number(process.env.SUDOWORK_BROWSER_MCP_TOOL_TIMEOUT_MS || 90_000);
 const url = new URL(endpoint);
 if (url.protocol !== 'http:' || url.hostname !== '127.0.0.1' || url.pathname !== '/mcp' || !/^[a-f0-9]{64}$/.test(token)) throw new Error('Invalid shared browser transport configuration');
+if (!Number.isSafeInteger(toolCallTimeoutMs) || toolCallTimeoutMs <= 0) throw new Error('Invalid shared browser tool-call budget');
 delete process.env.SUDOWORK_BROWSER_MCP_TOKEN;
 const closing = new AbortController();
 let sequence = 0;
@@ -16,7 +18,7 @@ async function forward(method: string, params: unknown, signal?: AbortSignal) {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ jsonrpc: '2.0', id: ++sequence, method, params }),
-    signal: AbortSignal.any([closing.signal, AbortSignal.timeout(90_000), ...(signal ? [signal] : [])]),
+    signal: AbortSignal.any([closing.signal, AbortSignal.timeout(method === 'tools/call' ? toolCallTimeoutMs : 90_000), ...(signal ? [signal] : [])]),
   });
   if (!response.ok) throw new Error('Shared browser connection failed');
   const value = (await response.json()) as { result?: Record<string, unknown>; error?: unknown };
