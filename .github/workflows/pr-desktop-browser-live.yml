@@ -228,8 +228,10 @@ jobs:
         id: chrome
         with:
           chrome-version: stable
-      - name: Install dependencies
-        run: bun install --no-frozen-lockfile
+      - uses: ./.github/actions/install-bun-dependencies
+        with:
+          working-directory: .
+          frozen-lockfile: "false"
       - name: Read the pinned public browser version
         shell: bash
         run: |
