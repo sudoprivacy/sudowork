@@ -2219,7 +2219,7 @@ export interface IExtensionSettingsTab {
   _extensionName: string;
 }
 
-export type AgentActivityState = 'idle' | 'writing' | 'researching' | 'executing' | 'syncing' | 'error';
+export type AgentActivityState = 'idle' | 'writing' | 'researching' | 'executing' | 'syncing' | 'error' | 'unknown' | 'awaiting_input';
 
 export interface IExtensionAgentActivityEvent {
   conversationId: string;
@@ -2234,6 +2234,7 @@ export interface IExtensionAgentActivityItem {
   agentName: string;
   state: AgentActivityState;
   runtimeStatus: 'pending' | 'running' | 'finished' | 'unknown';
+  runtimeObservation: import('@sudowork/common/acpRuntimeStatus').IAcpRuntimeObservation;
   conversations: number;
   activeConversations: number;
   lastActiveAt: number;
@@ -2243,6 +2244,9 @@ export interface IExtensionAgentActivityItem {
 }
 
 export interface IExtensionAgentActivitySnapshot {
+  /** This is not a complete node or cross-node runtime directory. */
+  scope: 'desktop-owned-connections';
+  isComplete: false;
   generatedAt: number;
   totalConversations: number;
   runningConversations: number;

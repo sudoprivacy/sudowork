@@ -64,6 +64,28 @@ Hosts index generated files at their actual paths and do not move them away from
 subsequent tools. Background and peer input use the engine's delivery policy;
 the UI only displays their distinct source.
 
+## Extension activity observations
+
+The desktop extension activity snapshot queries `_sudocode/session/status` only
+when the current owned ACP connection advertises `runtimeStatus.version = 1`.
+It does not start an agent or model turn. Foreground state, typed question or
+permission waits, and independent background counts come from that engine.
+Historical messages remain preview data and cannot establish activity.
+
+Rows retain the conversation and transport incarnation instead of collapsing
+engines with the same Agent name or SID. A reply from a replaced connection or
+task is discarded. Each observation carries its scope, timestamp and expiry;
+unsupported, unattached, failed, invalid or expired observations remain unknown.
+An idle foreground with confirmed background work is active; unconfirmed work
+does not establish idle. A status read never authorizes tool takeover.
+
+This snapshot covers desktop-owned connections and explicitly reports
+`isComplete: false`. It is not a Nexus or cross-node presence directory, and an
+absent row does not establish offline status. Remote Moss and foreign hosts
+without the negotiated extension remain unknown. Independent CLI registration,
+node authorization/routing and incarnation-safe external updates remain tracked
+in [sudocode #1050](https://github.com/sudoprivacy/sudocode/issues/1050).
+
 ## IPC Communication
 
 - Preload script: `src/preload.ts` — exposes a secure `contextBridge` API to the renderer

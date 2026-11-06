@@ -367,6 +367,11 @@ class AcpAgent extends BaseAgent<AcpAgentData, AcpPermissionOption> {
     mainLog('[AcpAgent]', `[INIT] Initialized workspace snapshot with ${this.workspaceFileSnapshot.size} files`);
   }
 
+  /** Query only this task's current connection; never bootstrap it for discovery. */
+  getRuntimeObservation() {
+    return this.connection.getRuntimeObservation();
+  }
+
   // ========== Connection Lifecycle ==========
 
   private setupConnectionHandlers(): void {

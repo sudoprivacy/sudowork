@@ -165,6 +165,8 @@ button.ghost {
 .agent.state-executing { background: var(--warn); }
 .agent.state-syncing { background: var(--accent); }
 .agent.state-error { background: var(--bad); }
+.agent.state-unknown { background: #7a87a9; opacity: 0.6; }
+.agent.state-awaiting_input { background: var(--warn); }
 
 .sidebar {
   background: var(--panel);

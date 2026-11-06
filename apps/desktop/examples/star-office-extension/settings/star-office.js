@@ -13,6 +13,8 @@
     executing: { x: [45, 63], y: [64, 90] },
     syncing: { x: [72, 90], y: [24, 56] },
     error: { x: [72, 90], y: [64, 90] },
+    unknown: { x: [38, 43], y: [45, 55] },
+    awaiting_input: { x: [65, 70], y: [45, 55] },
   };
 
   let autoPlay = true;
@@ -25,6 +27,8 @@
   const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
   const STATUS_TEXT = {
+    unknown: '?',
+    awaiting_input: '…',
     idle: '待命',
     writing: '写作',
     researching: '调研',
@@ -36,7 +40,7 @@
   const runtimeToState = (runtimeStatus) => {
     if (runtimeStatus === 'running') return 'executing';
     if (runtimeStatus === 'pending') return 'syncing';
-    return 'idle';
+    return runtimeStatus === 'finished' ? 'idle' : 'unknown';
   };
 
   const formatTime = (ts) => {
@@ -49,13 +53,15 @@
     const rawAgents = Array.isArray(input.agents) ? input.agents : [];
 
     const agents = rawAgents.map((a, idx) => {
-      const state = ZONES[a.state] ? a.state : runtimeToState(a.runtimeStatus);
+      const observation = a.runtimeObservation;
+      const isFresh = observation?.availability === 'available' && observation.expiresAt > now();
+      const state = isFresh ? (ZONES[a.state] ? a.state : runtimeToState(a.runtimeStatus)) : 'unknown';
       return {
         id: String(a.id || `agent-${idx}`),
         agentName: String(a.agentName || a.backend || `Agent-${idx + 1}`),
         backend: String(a.backend || 'unknown'),
         state,
-        runtimeStatus: String(a.runtimeStatus || 'unknown'),
+        runtimeStatus: isFresh ? String(a.runtimeStatus || 'unknown') : 'unknown',
         lastActiveAt: Number(a.lastActiveAt || now()),
         currentTask: a.currentTask ? String(a.currentTask) : `${STATUS_TEXT[state]}中`,
         recentEvents: Array.isArray(a.recentEvents)
@@ -129,7 +135,7 @@
   const renderAgents = (snapshot) => {
     agentLayerEl.innerHTML = '';
     snapshot.agents.forEach((agent, idx) => {
-      const z = ZONES[agent.state] || ZONES.idle;
+      const z = ZONES[agent.state] || ZONES.unknown;
       const x = rnd(z.x[0], z.x[1]);
       const y = rnd(z.y[0], z.y[1]);
       const div = document.createElement('div');
@@ -155,9 +161,7 @@
     events.sort((a, b) => b.at - a.at);
     const top = events.slice(0, 16);
 
-    feedEl.innerHTML = top
-      .map((ev) => `<li><div class="time">${formatTime(ev.at)}</div><div class="text">${ev.text}</div></li>`)
-      .join('');
+    feedEl.innerHTML = top.map((ev) => `<li><div class="time">${formatTime(ev.at)}</div><div class="text">${ev.text}</div></li>`).join('');
   };
 
   const renderSnapshot = (snapshot) => {
@@ -177,7 +181,7 @@
       const timer = setTimeout(() => {
         window.removeEventListener('message', onMessage);
         reject(new Error('parent timeout'));
-      }, 1200);
+      }, 3000);
 
       const onMessage = (event) => {
         const data = event && event.data;
@@ -204,7 +208,11 @@
           return;
         }
       } catch {
-        // fallback to mock
+        if (window.parent && window.parent !== window) {
+          mode = 'live';
+          renderSnapshot({ generatedAt: now(), totalConversations: lastSnapshot?.totalConversations || 0, runningConversations: 0, agents: (lastSnapshot?.agents || []).map((agent) => ({ ...agent, state: 'unknown', runtimeStatus: 'unknown' })) });
+          return;
+        }
       }
     }
 

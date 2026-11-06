@@ -9,6 +9,9 @@ import { promisify } from 'util';
 import { promises as fs } from 'fs';
 import os from 'os';
 import path from 'path';
+import { randomUUID } from 'node:crypto';
+import { z } from 'zod';
+import type { IAcpRuntimeObservation, IAcpRuntimeStatus } from '@sudowork/common/acpRuntimeStatus';
 import { INPUT_DELIVERY_METHOD, INPUT_DELIVERY_UPDATE, inputNotificationSchema, inputReceiptSchema } from '@sudowork/contracts/input-delivery';
 import type { InputAction, InputReceipt, InputState, InputUpdate } from '@sudowork/contracts/input-delivery';
 import { ACP_METHODS, getAcpResumeStrategy, JSONRPC_VERSION } from '@/types/acpTypes';
@@ -26,6 +29,12 @@ import type { SpawnResult } from './acpConnectors';
 import { readTextFile, writeTextFile } from './utils';
 
 const execFile = promisify(execFileCb);
+
+const runtimeCount = z.number().int().nonnegative().safe();
+const runtimeStatusSchema = z.object({
+  foreground: z.discriminatedUnion('state', [z.object({ state: z.literal('idle'), waiting_for: z.never().optional() }), z.object({ state: z.literal('running'), waiting_for: z.never().optional() }), z.object({ state: z.literal('awaiting_input'), waiting_for: z.enum(['permission', 'question']) })]),
+  background: z.object({ terminals: runtimeCount, agents: runtimeCount, execution_unconfirmed: runtimeCount, tool_operations: runtimeCount }),
+});
 
 // Re-export for unit tests that import from this module
 export { createGenericSpawnConfig } from './acpConnectors';
@@ -63,6 +72,8 @@ export class AcpConnection {
   constructor(private readonly options: { isSensitive?: boolean; isOntologySession?: boolean } = {}) {}
 
   private transport: AcpTransport | null = null;
+  private runtimeInstanceId = randomUUID();
+  private runtimeObservationInFlight: Promise<IAcpRuntimeObservation> | null = null;
   private pendingRequests = new Map<number, PendingRequest<unknown>>();
   private nextRequestId = 0;
   private sessionId: string | null = null;
@@ -115,6 +126,7 @@ export class AcpConnection {
    * state (sessionId, backend, etc.) — that is disconnect()'s responsibility.
    */
   private async closeTransport(): Promise<void> {
+    this.runtimeInstanceId = randomUUID();
     // Revoke Auth Proxy token before closing transport
     if (this.proxyToken) {
       revokeToken(this.proxyToken);
@@ -437,7 +449,7 @@ export class AcpConnection {
     this.pendingRequests.clear();
   }
 
-  private sendRequest<T = unknown>(method: string, params?: Record<string, unknown>): Promise<T> {
+  private sendRequest<T = unknown>(method: string, params?: Record<string, unknown>, timeoutMs?: number): Promise<T> {
     const id = this.nextRequestId++;
     const message: AcpRequest = {
       jsonrpc: JSONRPC_VERSION,
@@ -449,7 +461,7 @@ export class AcpConnection {
     return new Promise((resolve, reject) => {
       // Use longer timeout for session/prompt requests as they involve LLM processing
       // Complex tasks like document processing may need significantly more time
-      const timeoutDuration = method === 'session/prompt' ? this.promptTimeoutMs : 60000;
+      const timeoutDuration = timeoutMs ?? (method === 'session/prompt' ? this.promptTimeoutMs : 60000);
       const startTime = Date.now();
 
       const createTimeoutHandler = () => {
@@ -1029,6 +1041,40 @@ export class AcpConnection {
   get isToolPauseSupported(): boolean {
     const initialized = this.initializeResponse as unknown as { _meta?: { sudocode?: { toolPause?: { version?: unknown } } } } | null;
     return initialized?._meta?.sudocode?.toolPause?.version === 1;
+  }
+
+  /** Observe without starting a connection, reading a transcript or initiating a turn. */
+  async getRuntimeObservation(): Promise<IAcpRuntimeObservation> {
+    const transport = this.transport;
+    const sessionId = this.sessionId;
+    const instanceId = this.runtimeInstanceId;
+    const observedAt = Date.now();
+    const observation: IAcpRuntimeObservation = { scope: 'owned-acp-connection', instanceId, sessionId: sessionId ?? undefined, observedAt, expiresAt: observedAt + 3000, availability: 'unattached' };
+    if (!transport?.connected || !sessionId) return observation;
+    const initialized = this.initializeResponse as unknown as { _meta?: { sudocode?: { runtimeStatus?: { version?: unknown } } } } | null;
+    if (initialized?._meta?.sudocode?.runtimeStatus?.version !== 1) return { ...observation, availability: 'unsupported' };
+    if (this.runtimeObservationInFlight) return this.runtimeObservationInFlight;
+
+    const pending = (async (): Promise<IAcpRuntimeObservation> => {
+      const isCurrent = () => this.transport === transport && this.runtimeInstanceId === instanceId && this.sessionId === sessionId && transport.connected;
+      try {
+        // Status is a small observation, independent of the prompt/permission wait budget.
+        const response = await this.sendRequest('_sudocode/session/status', { sessionId }, 1000);
+        if (!isCurrent()) return { ...observation, availability: 'changed' };
+        const parsed = runtimeStatusSchema.safeParse(response);
+        if (!parsed.success) return { ...observation, availability: 'invalid' };
+        // Runtime validation supplies required fields even in non-strict TS consumers of Zod.
+        return { ...observation, availability: 'available', snapshot: parsed.data as IAcpRuntimeStatus };
+      } catch {
+        return { ...observation, availability: isCurrent() ? 'unreachable' : 'changed' };
+      }
+    })();
+    this.runtimeObservationInFlight = pending;
+    try {
+      return await pending;
+    } finally {
+      if (this.runtimeObservationInFlight === pending) this.runtimeObservationInFlight = null;
+    }
   }
 
   get isInputDeliverySupported(): boolean {
