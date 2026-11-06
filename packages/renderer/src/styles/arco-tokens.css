@@ -1,0 +1,30 @@
+/* Arco declares tokens on body, including its dark selector. Resolve aliases
+ * at that same scope so components and body portals share the app palette. */
+body,
+body[arco-theme='dark'] {
+  --arcoblue-1: var(--accent-1-rgb);
+  --arcoblue-2: var(--accent-2-rgb);
+  --arcoblue-3: var(--accent-3-rgb);
+  --arcoblue-4: var(--accent-4-rgb);
+  --arcoblue-5: var(--accent-5-rgb);
+  --arcoblue-6: var(--accent-6-rgb);
+  --arcoblue-7: var(--accent-7-rgb);
+  --arcoblue-8: var(--accent-8-rgb);
+  --arcoblue-9: var(--accent-9-rgb);
+  --arcoblue-10: var(--accent-10-rgb);
+  --color-text-1: var(--foreground);
+  --color-text-2: var(--text-secondary);
+  --color-text-3: var(--text-tertiary);
+  --color-text-4: var(--text-disabled);
+  --color-bg-1: var(--bg-subtle);
+  --color-bg-2: var(--bg-muted);
+  --color-bg-3: var(--bg-emphasis);
+  --color-bg-4: var(--bg-strong);
+  --color-bg-popup: var(--bg-elevated);
+  --color-fill-1: var(--bg-faint);
+  --color-fill-2: var(--bg-control);
+  --color-fill-3: var(--bg-emphasis);
+  --color-fill-4: var(--bg-strong);
+  --color-border-2: var(--border-light);
+  --border-bold: var(--color-border-3);
+}

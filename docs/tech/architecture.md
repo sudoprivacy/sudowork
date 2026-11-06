@@ -32,6 +32,53 @@ The capability and lifecycle contract is maintained in
 Storage and IPC providers register before the application renderer loads;
 runtime provisioning runs alongside the visible initialization screen.
 
+## Renderer theme ownership
+
+Desktop and WebUI mount the same `packages/renderer` components and stylesheet
+entry. Theme selection applies `data-theme` on the document and `arco-theme` on
+the body. Keep these responsibilities separate:
+
+- `src/styles/variables.css` owns the application palette, semantic surfaces,
+  foregrounds, borders and layout tokens for light and dark mode.
+- `src/styles/arco-tokens.css` maps Arco's body-scoped neutral tokens to that
+  palette. Both the normal body selector and Arco's dark selector are covered,
+  including dialogs/popovers portaled outside the React root.
+- `uno.preset.ts` owns semantic utility names, shortcuts and preflights for both
+  hosts. Their UnoCSS configs retain only host-specific content scanning and
+  framework presets/transformers. The shared preset has no runtime dependency.
+- Component CSS modules own geometry and states, consuming semantic tokens.
+  An approval surface uses opaque `--bg-elevated` with `--foreground`; do not
+  combine a fixed white surface with an inherited foreground. `--bg-base` may
+  be translucent and is not a dialog surface. Legacy numbered background names
+  alias the semantic surface tokens instead of defining a second palette.
+
+The conversation approval panel uses the same action submission callback for
+mouse and shortcuts. It keeps the composer mounted when an approval appears.
+Native Arco buttons provide keyboard focus; Enter on a focused action activates
+that action rather than the panel's default shortcut. Host approval payloads and
+permission decisions remain at their existing bridge boundary.
+
+The theme foundation does not automatically migrate every legacy inline color,
+third-party syntax theme or embedded document style. New shared UI should consume
+these semantic tokens rather than adding another palette or host-specific copy.
+
+Visual regression acceptance uses the actual shared components, Arco CSS and
+host-generated utilities, with only the confirmation IPC boundary replaced by a
+fixture. From `apps/desktop`, start:
+
+```bash
+bunx vite --config tests/e2e/approval_theme/vite.config.ts --host 127.0.0.1 --port 26938
+# Use APPROVAL_THEME_HOST=webui for the WebUI utility build.
+```
+
+Start a fresh ai-dev-browser session on that URL, then run
+`tests/e2e/run_approval_theme.py --session-id <id> --output <evidence-directory>`
+with its Python environment. The journey checks actual computed text contrast,
+theme aliases, approval submission, composer draft retention and body-portaled
+login dialogs, and saves light/dark screenshots. It does not execute a real tool
+or test the engine's approval policy. Component/protocol regressions and shared
+utility generation also run in the normal Vitest suite.
+
 ## Agent input delivery
 
 For native scode sessions, `engine-core` owns pending inputs, safe-boundary steering,
