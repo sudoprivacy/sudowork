@@ -8,13 +8,14 @@ from pathlib import Path
 import re
 import sys
 import time
-from urllib.parse import quote, urlparse
+from urllib.parse import parse_qs, quote, urlparse
 from uuid import uuid4
 
 from ai_dev_browser.core.browser import browser_start, browser_stop
 from fixture_workspace import is_fixture_request, tool_arguments, workspace_from_result
 from live_browser_ui import continue_from_conversation, direct_browser_arguments, read_conversation_event
 from playwright.async_api import async_playwright, expect
+from workspace_requests import trace_workspace_requests, workspace_request_summary
 
 
 def tool_message_ids(messages):
@@ -176,10 +177,10 @@ async def main(args):
     assert Path(runtime_proof["home"]) == Path(desktop["profile"])
     assert Path(runtime_proof["archive"]) == archive
     assert runtime_proof["version"] == desktop["version"]
-    labels = json.loads(
-        (Path(__file__).resolve().parents[4] / "packages/renderer/src/i18n/locales"
-         / args.locale / "login.json").read_text(encoding="utf8")
-    )
+    locale_root = (Path(__file__).resolve().parents[4]
+                   / "packages/renderer/src/i18n/locales" / args.locale)
+    labels = json.loads((locale_root / "login.json").read_text(encoding="utf8"))
+    preview_labels = json.loads((locale_root / "preview.json").read_text(encoding="utf8"))
     args.output.mkdir(parents=True, exist_ok=False)
     evidence = {"passed": False, "origin": origin, "desktopVersion": desktop["version"],
                 "desktopArchiveSha256": digest, "createdSessionIds": [],
@@ -193,6 +194,7 @@ async def main(args):
     created = set()
     responses = []
     frames = []
+    workspace_traces = []
     fixture = "qa-cross-client-" + uuid4().hex + ".txt"
     nonce = "CONTEXT_" + uuid4().hex
     marker = "DESKTOP_" + uuid4().hex
@@ -238,10 +240,12 @@ async def main(args):
         browser = await driver.chromium.connect_over_cdp("http://127.0.0.1:" + str(owned["port"]))
         context = await browser.new_context(viewport={"width": 1440, "height": 1000}, locale=args.locale)
         web = await context.new_page()
+        workspace_traces.append(await trace_workspace_requests(context, web, "browser", evidence, origin))
         web.on("response", lambda response: responses.append(asyncio.create_task(observe(response))))
         web.on("websocket", socket_open)
         await login(web, origin + "/#/login", labels, config)
         control = await context.new_page()
+        workspace_traces.append(await trace_workspace_requests(context, control, "control", evidence, origin))
         control.on("requestfinished", lambda request: observe_workspace_request(request, "finished"))
         control.on("requestfailed", lambda request: observe_workspace_request(request, "failed"))
         health = await control.goto(origin + "/health/live", wait_until="domcontentloaded")
@@ -291,6 +295,39 @@ async def main(args):
                 preview = await checked(await api(control, base + "/file", params={"path": fixture}),
                                         200, "Read actual workspace bytes after " + phase)
                 assert preview["kind"] == "text" and preview["content"].strip() == nonce
+            if phase == "read":
+                panel = web.locator(".preview-panel")
+                if await panel.is_visible():
+                    await panel.get_by_title(preview_labels["collapsePanel"], exact=True).click()
+                entry = web.locator(".workspace-tree").get_by_text(fixture, exact=True)
+                await expect(entry).to_be_visible(timeout=30_000)
+                async with web.expect_response(
+                    lambda response: response.request.method == "GET"
+                    and urlparse(response.url).netloc == urlparse(origin).netloc
+                    and urlparse(response.url).path == base + "/file"
+                    and parse_qs(urlparse(response.url).query).get("path") == [fixture],
+                    timeout=30_000,
+                ) as preview_response:
+                    await entry.click()
+                response = await preview_response.value
+                try:
+                    preview_body = await response.json()
+                except ValueError:
+                    preview_body = None
+                body = await checked({"status": response.status, "body": preview_body},
+                                     200, "Read actual file through workspace preview UI")
+                assert body["kind"] == "text" and body["content"].strip() == nonce
+                await expect(panel).to_be_visible(timeout=30_000)
+                await expect(panel).to_contain_text(fixture)
+                await expect(panel.locator("code")).to_have_text(nonce, timeout=30_000)
+                evidence["workspacePreview"] = {"path": fixture, "clickedThroughUi": True,
+                                                "httpStatus": response.status, "contentVerified": True}
+                await web.screenshot(path=str(args.output / "browser-file-preview.png"))
+                await panel.get_by_title(preview_labels["collapsePanel"], exact=True).click()
+                await expect(panel).not_to_be_visible()
+            if phase == "delete":
+                await expect(web.locator(".workspace-tree")).to_be_visible(timeout=30_000)
+                await expect(web.locator(".workspace-tree").get_by_text(fixture, exact=True)).to_have_count(0, timeout=30_000)
             evidence["toolCalls"].extend({"phase": phase, "id": key, "name": call.get("name")}
                                          for key, call in relevant.items())
         tree = await checked(await api(control, base + "/tree"), 200, "Read fixture workspace")
@@ -395,7 +432,20 @@ async def main(args):
                 evidence["browserCleanup"] = browser_stop(session_id=owned["session_id"])
             except BaseException as error:
                 record_cleanup_failure("Stop owned browser", error)
-        evidence["passed"] = bool(evidence.get("interactionPassed") and not cleanup_error
+        directory_reads = workspace_request_summary(evidence.get("workspaceRequests", []))
+        evidence["directoryReadConcurrency"] = directory_reads
+        workspace_queue_error = None
+        if evidence.get("interactionPassed") and not cleanup_error:
+            try:
+                assert directory_reads["requestsByPage"].get("browser", 0) > 0, "The real workspace UI did not read its directory"
+                assert directory_reads["requestsByPage"].get("control", 0) > 0, "The independent directory read was not observed"
+                assert directory_reads["maxPendingByPage"]["browser"] <= 1, "The workspace UI queued duplicate root reads"
+                assert directory_reads["maxPendingByPage"]["control"] <= 1, "The independent viewer queued duplicate root reads"
+                assert directory_reads["maxPending"] <= 2, "Workspace views queued duplicate root reads"
+            except AssertionError as error:
+                workspace_queue_error = error
+                evidence["failure"] = type(error).__name__ + ": " + str(error)
+        evidence["passed"] = bool(evidence.get("interactionPassed") and not cleanup_error and not workspace_queue_error
                                   and set(evidence.get("terminatedSessionIds", [])) == created
                                   and evidence.get("browserCleanup", {}).get("stopped"))
         text = json.dumps(evidence, indent=2, ensure_ascii=False)
@@ -406,6 +456,8 @@ async def main(args):
         print(text, flush=True)
         if cleanup_error:
             raise cleanup_error
+        if workspace_queue_error:
+            raise workspace_queue_error
 
 
 if __name__ == "__main__":

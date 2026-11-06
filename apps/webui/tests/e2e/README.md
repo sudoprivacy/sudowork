@@ -12,13 +12,25 @@ workspace. Relative paths and the exact absolute fixture path share that scope;
 other paths, extra shell commands and sandbox overrides fail the approval check.
 Separate turns then create, read and delete one randomly named fixture.
 Successful tool results are matched to their calls, and the workspace API
-independently verifies the actual file bytes and subsequent removal. Desktop
-then opens the same conversation and recalls the unpredictable filename and
+independently verifies the actual file bytes and subsequent removal. After the
+read turn, the test clicks the file in the real workspace tree, verifies its
+authenticated preview response and visible contents, and closes the preview
+before continuing the delete turn. The refreshed tree must remove the file.
+
+Desktop then opens the same conversation and recalls the unpredictable filename and
 content from context; its prompt contains neither value. A WebUI reload must
 restore the same assistant message ID. Cleanup closes the viewers before
 terminating the fixture-created sessions, including unexpected replacements.
 Tool lifecycle updates share one ACP call identity; completion retains the
 original input, and changed inputs or conflicting final results fail acceptance.
+
+Chrome traces the fixture's root directory requests in the UI and independent
+control page. Evidence records request intervals, send queue timings and the
+maximum number of pending root reads for each page and for both together. The
+[live journey](live_cross_client_session.py) checks that concurrency after both
+pages close, using Chrome's event timestamps across the two pages.
+[Collector and interval tests](test_workspace_requests.py) protect fixture
+scoping and concurrency accounting in the same workflow.
 
 The `Published cloud session acceptance` workflow runs this journey for stable
 releases, daily, and when its acceptance code changes. It uses the dedicated
