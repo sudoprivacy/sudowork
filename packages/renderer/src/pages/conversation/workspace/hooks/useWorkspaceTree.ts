@@ -4,10 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import type { IDirOrFile } from '@sudowork/host-bridge/ipcBridge';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { emitter } from '@renderer/utils/emitter';
+import { useRemoteWorkspace } from '@renderer/hooks/useRemoteWorkspace';
 import { dispatchWorkspaceHasFilesEvent } from '@renderer/utils/workspaceEvents';
 import { ensureDraftsDirectoryNode, filterValidExpandedKeys, getAllDirKeys, getFirstLevelKeys, getLimitedDepthKeys } from '../utils/treeHelpers';
 import type { SelectedNodeRef } from '../types';
@@ -59,8 +60,24 @@ export function filterHiddenWorkspaceDirs(nodes: IDirOrFile[], options: { eventP
  * Merge tree state management and selection logic
  */
 export function useWorkspaceTree({ workspace, conversation_id, eventPrefix, backend, dataSource = 'local' }: UseWorkspaceTreeOptions) {
+  const remote = useRemoteWorkspace(dataSource === 'moss-session' ? conversation_id : undefined);
+  const scope = JSON.stringify([conversation_id, workspace, dataSource]);
+  const scopeRef = useRef(scope);
+  scopeRef.current = scope;
   // Tree state / 树状态
-  const [files, setFiles] = useState<IDirOrFile[]>([]);
+  const [image, setImage] = useState<{ scope: string; files: IDirOrFile[] }>({ scope, files: [] });
+  const files = image.scope === scope ? image.files : [];
+  const setFiles = useCallback<Dispatch<SetStateAction<IDirOrFile[]>>>(
+    (update) => {
+      setImage((previous) => {
+        if (scopeRef.current !== scope) return previous;
+        const current = previous.scope === scope ? previous.files : [];
+        return { scope, files: typeof update === 'function' ? update(current) : update };
+      });
+    },
+    [scope]
+  );
+  const viewRequestRef = useRef({ scope, path: workspace, search: '' });
   const [loading, setLoading] = useState(false);
   const [treeKey, setTreeKey] = useState(Math.random());
   const [expandedKeys, _setExpandedKeys] = useState<string[]>([]);
@@ -126,6 +143,8 @@ export function useWorkspaceTree({ workspace, conversation_id, eventPrefix, back
   // Reset first load flag when conversation switches
   useEffect(() => {
     isFirstLoadRef.current = true;
+    viewRequestRef.current = { scope, path: workspace, search: '' };
+    setFiles([]);
 
     // 切换会话时，尝试从 localStorage 恢复展开状态
     const persistedKeys = getPersistedExpandedKeys();
@@ -136,7 +155,7 @@ export function useWorkspaceTree({ workspace, conversation_id, eventPrefix, back
       expandedKeysRef.current = []; // 切换会话时重置展开状态
       _setExpandedKeys([]);
     }
-  }, [conversation_id, workspace, getPersistedExpandedKeys]);
+  }, [scope, workspace, getPersistedExpandedKeys, setFiles]);
 
   const selectedKeysRef = useRef<string[]>([]);
   const selectedNodeRef = useRef<SelectedNodeRef | null>(null);
@@ -171,109 +190,115 @@ export function useWorkspaceTree({ workspace, conversation_id, eventPrefix, back
   // Track the latest request to ignore stale/aborted responses
   const loadSeqRef = useRef(0);
 
+  const applyWorkspace = useCallback(
+    (res: IDirOrFile[], path: string, search: string | undefined, seq: number) => {
+      const shouldEnsureRemoteDrafts = dataSource === 'moss-session' && !search && path === workspace;
+      const normalizedRes = shouldEnsureRemoteDrafts ? ensureDraftsDirectoryNode(res) : res;
+      const filteredRes = filterHiddenWorkspaceDirs(normalizedRes, { eventPrefix, backend });
+
+      // Apply responses only to their current conversation and view request.
+      if (scopeRef.current !== scope || seq !== loadSeqRef.current) {
+        return filteredRes;
+      }
+
+      setFiles(filteredRes);
+      // 只在搜索时才重置 Tree key，否则保持选中状态
+      // Only reset Tree key when searching, otherwise keep selection state
+      if (search) {
+        setTreeKey(Math.random());
+      }
+
+      // 搜索时展开所有包含匹配结果的文件夹
+      // 首次加载只展开第一层
+      // 大目录（>100 个子项）只展开前两层，避免性能问题
+      // 后续刷新保留用户展开状态，仅移除已删除目录的 key
+      // When searching: expand all folders containing matches
+      // First load: only expand first level
+      // Large directory (>100 children): only expand first 2 levels to avoid performance issues
+      // Subsequent refreshes: preserve user's expanded keys, only remove deleted dirs
+      if (search) {
+        setExpandedKeys(getAllDirKeys(filteredRes));
+      } else if (isFirstLoadRef.current) {
+        // 大目录优化：如果子项超过 100 个，只展开前两层
+        // Large directory optimization: if children > 100, only expand first 2 levels
+        // 如果从 localStorage 恢复了持久化的状态，则优先使用
+        // If persisted state is restored from localStorage, use it first
+        const persistedKeys = getPersistedExpandedKeys();
+        if (persistedKeys && persistedKeys.length > 0) {
+          const validKeys = filterValidExpandedKeys(persistedKeys, filteredRes);
+          setExpandedKeys(validKeys);
+        } else if (expandedKeysRef.current && expandedKeysRef.current.length > 0) {
+          const validKeys = filterValidExpandedKeys(expandedKeysRef.current, filteredRes);
+          setExpandedKeys(validKeys);
+        } else {
+          const childCount = filteredRes?.[0]?.children?.length ?? 0;
+          if (childCount > 100) {
+            setExpandedKeys(getLimitedDepthKeys(filteredRes, 2));
+          } else {
+            setExpandedKeys(getFirstLevelKeys(filteredRes));
+          }
+        }
+      } else {
+        // 保留用户展开状态，过滤掉已不存在的目录
+        // Preserve user's expanded keys, filter out deleted directories
+        if (expandedKeysRef.current && expandedKeysRef.current.length > 0) {
+          const validKeys = filterValidExpandedKeys(expandedKeysRef.current, filteredRes);
+          setExpandedKeys(validKeys);
+        }
+      }
+
+      // 根据是否有文件决定工作空间面板的展开/折叠状态
+      // Determine workspace panel expand/collapse state based on files
+      const hasFiles = filteredRes.length > 0 && (filteredRes[0]?.children?.length ?? 0) > 0;
+      const shouldShowWorkspace = dataSource === 'moss-session' || hasFiles;
+
+      if (isFirstLoadRef.current) {
+        // 首次加载（切换会话或打开会话）：有文件展开，没文件折叠
+        // First load (switch or open conversation): expand if has files, collapse if not
+        dispatchWorkspaceHasFilesEvent(shouldShowWorkspace, conversation_id);
+        isFirstLoadRef.current = false;
+      } else {
+        // 后续刷新（Agent 生成文件等）：有文件就展开，不主动折叠
+        // Subsequent refresh (agent generates files, etc.): expand if has files, never collapse
+        if (shouldShowWorkspace) {
+          dispatchWorkspaceHasFilesEvent(true, conversation_id);
+        }
+      }
+
+      return filteredRes;
+    },
+    [backend, conversation_id, dataSource, eventPrefix, getPersistedExpandedKeys, scope, setExpandedKeys, setFiles, workspace]
+  );
+
   const loadWorkspace = useCallback(
     (path: string, search?: string) => {
+      viewRequestRef.current = { scope, path, search: search || '' };
       const seq = ++loadSeqRef.current;
       setLoadingHandler(true);
-      const workspacePromise =
-        dataSource === 'moss-session'
-          ? ipcBridge.conversation.getRemoteWorkspace.invoke({ conversation_id, path: path === workspace ? undefined : path, search: search || '' }).then((res) => {
-              if (!res?.success) {
-                throw new Error(res?.msg || 'Failed to load remote workspace');
-              }
-              return res.data?.files ?? [];
-            })
-          : ipcBridge.conversation.getWorkspace.invoke({ path, workspace, conversation_id, search: search || '' });
-
+      const workspacePromise = dataSource === 'moss-session' ? (!search && path === workspace ? remote.refresh() : remote.read(path === workspace ? undefined : path, search || '')) : ipcBridge.conversation.getWorkspace.invoke({ path, workspace, conversation_id, search: search || '' });
       return workspacePromise
-        .then((res) => {
-          const shouldEnsureRemoteDrafts = dataSource === 'moss-session' && !search && path === workspace;
-          const normalizedRes = shouldEnsureRemoteDrafts ? ensureDraftsDirectoryNode(res) : res;
-          const filteredRes = filterHiddenWorkspaceDirs(normalizedRes, { eventPrefix, backend });
-
-          // Ignore stale responses from aborted requests:
-          // The backend aborts previous getWorkspace calls, returning [].
-          // Only apply the result from the latest request.
-          if (seq !== loadSeqRef.current) {
-            return filteredRes;
-          }
-
-          setFiles(filteredRes);
-          // 只在搜索时才重置 Tree key，否则保持选中状态
-          // Only reset Tree key when searching, otherwise keep selection state
-          if (search) {
-            setTreeKey(Math.random());
-          }
-
-          // 搜索时展开所有包含匹配结果的文件夹
-          // 首次加载只展开第一层
-          // 大目录（>100 个子项）只展开前两层，避免性能问题
-          // 后续刷新保留用户展开状态，仅移除已删除目录的 key
-          // When searching: expand all folders containing matches
-          // First load: only expand first level
-          // Large directory (>100 children): only expand first 2 levels to avoid performance issues
-          // Subsequent refreshes: preserve user's expanded keys, only remove deleted dirs
-          if (search) {
-            setExpandedKeys(getAllDirKeys(filteredRes));
-          } else if (isFirstLoadRef.current) {
-            // 大目录优化：如果子项超过 100 个，只展开前两层
-            // Large directory optimization: if children > 100, only expand first 2 levels
-            // 如果从 localStorage 恢复了持久化的状态，则优先使用
-            // If persisted state is restored from localStorage, use it first
-            const persistedKeys = getPersistedExpandedKeys();
-            if (persistedKeys && persistedKeys.length > 0) {
-              const validKeys = filterValidExpandedKeys(persistedKeys, filteredRes);
-              setExpandedKeys(validKeys);
-            } else if (expandedKeysRef.current && expandedKeysRef.current.length > 0) {
-              const validKeys = filterValidExpandedKeys(expandedKeysRef.current, filteredRes);
-              setExpandedKeys(validKeys);
-            } else {
-              const childCount = filteredRes?.[0]?.children?.length ?? 0;
-              if (childCount > 100) {
-                setExpandedKeys(getLimitedDepthKeys(filteredRes, 2));
-              } else {
-                setExpandedKeys(getFirstLevelKeys(filteredRes));
-              }
-            }
-          } else {
-            // 保留用户展开状态，过滤掉已不存在的目录
-            // Preserve user's expanded keys, filter out deleted directories
-            if (expandedKeysRef.current && expandedKeysRef.current.length > 0) {
-              const validKeys = filterValidExpandedKeys(expandedKeysRef.current, filteredRes);
-              setExpandedKeys(validKeys);
-            }
-          }
-
-          // 根据是否有文件决定工作空间面板的展开/折叠状态
-          // Determine workspace panel expand/collapse state based on files
-          const hasFiles = filteredRes.length > 0 && (filteredRes[0]?.children?.length ?? 0) > 0;
-          const shouldShowWorkspace = dataSource === 'moss-session' || hasFiles;
-
-          if (isFirstLoadRef.current) {
-            // 首次加载（切换会话或打开会话）：有文件展开，没文件折叠
-            // First load (switch or open conversation): expand if has files, collapse if not
-            dispatchWorkspaceHasFilesEvent(shouldShowWorkspace, conversation_id);
-            isFirstLoadRef.current = false;
-          } else {
-            // 后续刷新（Agent 生成文件等）：有文件就展开，不主动折叠
-            // Subsequent refresh (agent generates files, etc.): expand if has files, never collapse
-            if (shouldShowWorkspace) {
-              dispatchWorkspaceHasFilesEvent(true, conversation_id);
-            }
-          }
-
-          return filteredRes;
-        })
+        .then((res) => applyWorkspace(res, path, search, seq))
         .finally(() => {
-          // Only clear loading for the latest request — stale/aborted requests
-          // must not prematurely cancel the spinner while a newer request is in flight.
-          if (seq === loadSeqRef.current) {
-            setLoadingHandler(false);
-          }
+          if (scopeRef.current === scope && seq === loadSeqRef.current) setLoadingHandler(false);
         });
     },
-    [backend, conversation_id, dataSource, eventPrefix, getPersistedExpandedKeys, setExpandedKeys, workspace, setLoadingHandler]
+    [applyWorkspace, conversation_id, dataSource, remote.read, remote.refresh, scope, workspace, setLoadingHandler]
   );
+
+  useEffect(() => {
+    if (dataSource !== 'moss-session') return;
+    const request = viewRequestRef.current;
+    if (request.scope !== scope || request.path !== workspace || request.search) return;
+    if (remote.files) {
+      applyWorkspace(remote.files, workspace, undefined, ++loadSeqRef.current);
+      setLoadingHandler(false);
+    } else if (remote.error) {
+      setLoadingHandler(false);
+      console.warn('Failed to load remote workspace', remote.error);
+    } else {
+      setLoadingHandler(true);
+    }
+  }, [applyWorkspace, dataSource, remote.files, remote.error, scope, workspace, setLoadingHandler]);
 
   /**
    * 刷新工作空间
@@ -286,9 +311,9 @@ export function useWorkspaceTree({ workspace, conversation_id, eventPrefix, back
   // Whenever the active conversation/workspace changes, load the current tree
   // directly from the latest props instead of relying on external reset hooks.
   useEffect(() => {
-    if (!workspace) return;
+    if (!workspace || dataSource === 'moss-session') return;
     void loadWorkspace(workspace);
-  }, [conversation_id, workspace, loadWorkspace]);
+  }, [conversation_id, dataSource, workspace, loadWorkspace]);
 
   /**
    * 确保节点被选中，并可选地发送事件

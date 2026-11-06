@@ -4,12 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { IDirOrFile } from '@sudowork/host-bridge/ipcBridge';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { DRAFTS_DIR_NAME } from '@sudowork/common/constants';
 import { useConversationContextSafe } from '@renderer/context/ConversationContext';
 import { useAddEventListener } from '@renderer/utils/emitter';
+import { useRemoteWorkspace } from './useRemoteWorkspace';
 
 // Hidden directories that should never appear in @ file selector
 // 隐藏目录列表：这些目录不应出现在 @ 文件选择器中
@@ -78,27 +79,15 @@ export function useWorkspaceFiles(): WorkspaceFileItem[] {
   const conversationId = conversationContext?.conversationId;
   const [files, setFiles] = useState<WorkspaceFileItem[]>([]);
   const loadingRef = useRef(false);
+  const remote = useRemoteWorkspace(conversationType === 'remote-agent' ? conversationId : undefined);
+  const remoteFiles = useMemo(() => {
+    const result = flattenFileTree(remote.files?.[0]?.children ?? []);
+    return result.sort((a, b) => a.name.localeCompare(b.name));
+  }, [remote.files]);
 
   const loadFiles = useCallback(async () => {
     if (loadingRef.current) return;
-    // remote-agent（moss）会话：文件在 moss 服务端工作区，取会话工作区树（根调用即全树）
-    if (conversationType === 'remote-agent') {
-      if (!conversationId) return;
-      loadingRef.current = true;
-      try {
-        const res = await ipcBridge.conversation.getRemoteWorkspace.invoke({ conversation_id: conversationId });
-        const rootChildren = res?.success ? (res.data?.files[0]?.children ?? []) : [];
-        const flatList = flattenFileTree(rootChildren);
-        flatList.sort((a, b) => a.name.localeCompare(b.name));
-        setFiles(flatList);
-      } catch (error) {
-        console.error('[useWorkspaceFiles] Failed to load workspace files:', error);
-      } finally {
-        loadingRef.current = false;
-      }
-      return;
-    }
-    if (!workspace) return;
+    if (!workspace || conversationType === 'remote-agent') return;
     loadingRef.current = true;
     try {
       // Fetch workspace files and draft files in parallel
@@ -153,7 +142,7 @@ export function useWorkspaceFiles(): WorkspaceFileItem[] {
   // Listen for file system changes (dirChanged) to auto-refresh on delete/rename
   // 监听文件系统变更事件，文件删除/重命名后自动刷新列表
   useEffect(() => {
-    if (!workspace) return;
+    if (!workspace || conversationType === 'remote-agent') return;
 
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
     const lastRefreshRef = { current: 0 };
@@ -173,7 +162,7 @@ export function useWorkspaceFiles(): WorkspaceFileItem[] {
       unsubscribe();
       if (debounceTimer) clearTimeout(debounceTimer);
     };
-  }, [workspace, loadFiles]);
+  }, [workspace, conversationType, loadFiles]);
 
   // Listen for workspace refresh events (when agent creates/modifies files)
   useAddEventListener(
@@ -186,38 +175,5 @@ export function useWorkspaceFiles(): WorkspaceFileItem[] {
     [conversationType, loadFiles]
   );
 
-  // remote-agent 会话：发送后刷新（上传的文件已随消息写入 moss 服务端工作区）
-  useAddEventListener(
-    'remote-agent.workspace.refresh',
-    () => {
-      if (conversationType === 'remote-agent') {
-        void loadFiles();
-      }
-    },
-    [conversationType, loadFiles]
-  );
-
-  // remote-agent 会话：按消息流刷新（agent 生成文件后 content/finish 时重载，
-  // 对齐右侧 moss 工作区面板的刷新语义，300ms debounce）
-  useEffect(() => {
-    if (conversationType !== 'remote-agent') return;
-
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-    const unsubscribe = ipcBridge.conversation.responseStream.on((message) => {
-      if (message.conversation_id !== conversationId) return;
-      if (message.type !== 'content' && message.type !== 'finish') return;
-      if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => {
-        debounceTimer = null;
-        void loadFiles();
-      }, 300);
-    });
-
-    return () => {
-      unsubscribe();
-      if (debounceTimer) clearTimeout(debounceTimer);
-    };
-  }, [conversationType, conversationId, loadFiles]);
-
-  return files;
+  return conversationType === 'remote-agent' ? remoteFiles : files;
 }
