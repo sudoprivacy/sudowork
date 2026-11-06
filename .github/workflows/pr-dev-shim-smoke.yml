@@ -98,6 +98,9 @@ jobs:
           # try both so the job survives a runner image refresh.
           sudo apt-get install -y libasound2t64 || sudo apt-get install -y libasound2
 
+      - name: Prepare verified native image dependencies
+        uses: ./.github/actions/cache-sharp-libvips
+
       - name: Install dependencies
         run: bun install --no-frozen-lockfile
 

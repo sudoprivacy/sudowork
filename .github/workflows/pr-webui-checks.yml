@@ -89,6 +89,9 @@ jobs:
         with:
           bun-version-file: package.json
 
+      - name: Prepare verified native image dependencies
+        uses: ./.github/actions/cache-sharp-libvips
+
       - name: Install dependencies
         run: bun install --no-frozen-lockfile
 

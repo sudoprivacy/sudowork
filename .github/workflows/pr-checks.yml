@@ -31,6 +31,13 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: "22"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      - name: Require verified preparation for native dependency hooks
+        run: |
+          bun run .github/scripts/check-native-install-cache.mjs
+          node --test .github/scripts/check-native-install-cache.test.mjs
       - name: Verify the exact published sudostack artifact and semantic source lock
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -391,6 +398,9 @@ jobs:
           EXPECTED_BUILD_ARCH: ${{ env.MATRIX_ARCH }}
         run: |
           node -e "if (process.arch !== process.env.EXPECTED_BUILD_ARCH) throw new Error('Expected ' + process.env.EXPECTED_BUILD_ARCH + ' runner; received ' + process.arch)"
+
+      - name: Prepare verified native image dependencies
+        uses: ./.github/actions/cache-sharp-libvips
 
       - name: Install dependencies
         run: bun install --no-frozen-lockfile
