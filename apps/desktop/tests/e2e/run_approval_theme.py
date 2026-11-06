@@ -51,7 +51,7 @@ MEASURE = "(() => {" + CONTRAST_HELPERS + r"""
   const actions = [...panel.querySelectorAll('button')];
   const rows = [read('title', panel.querySelector('.arco-ellipsis-content')), read('description', panel.querySelectorAll('.arco-ellipsis-content')[1]), ...actions.map((button, i) => read('action'+i, button)), read('shortcut', panel.querySelector('kbd'))];
   const body = getComputedStyle(document.body);
-  return { theme: document.documentElement.dataset.theme, rows, opaque: getComputedStyle(panel).backgroundColor, aliases: { foreground: body.getPropertyValue('--foreground').trim(), arcoText: body.getPropertyValue('--color-text-1').trim(), elevated: body.getPropertyValue('--bg-elevated').trim(), popup: body.getPropertyValue('--color-bg-popup').trim() }, overflow: document.documentElement.scrollWidth > innerWidth };
+  return { theme: document.documentElement.dataset.theme, rows, opaque: getComputedStyle(panel).backgroundColor, aliases: { foreground: body.getPropertyValue('--foreground').trim(), arcoText: body.getPropertyValue('--color-text-1').trim(), elevated: body.getPropertyValue('--bg-elevated').trim(), popup: body.getPropertyValue('--color-bg-popup').trim(), primaryRgb: body.getPropertyValue('--primary-rgb').trim(), arcoRgb: body.getPropertyValue('--arcoblue-6').trim() }, overflow: document.documentElement.scrollWidth > innerWidth };
 })()"""
 
 call('page_goto', url=evaluate('location.href'))
@@ -64,6 +64,7 @@ for theme in ['dark', 'light']:
     assert not measured['overflow'], measured
     assert measured['aliases']['foreground'] == measured['aliases']['arcoText'], measured
     assert measured['aliases']['elevated'] == measured['aliases']['popup'], measured
+    assert measured['aliases']['primaryRgb'] == measured['aliases']['arcoRgb'], measured
     assert all(row['contrast'] >= 4.5 for row in measured['rows']), measured
     call('page_screenshot', path=args.output / f'{theme}-approval.png')
     call('click_by_text', text='Reject')

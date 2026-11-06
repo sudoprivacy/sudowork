@@ -43,6 +43,9 @@ the body. Keep these responsibilities separate:
 - `src/styles/arco-tokens.css` maps Arco's body-scoped neutral tokens to that
   palette. Both the normal body selector and Arco's dark selector are covered,
   including dialogs/popovers portaled outside the React root.
+  `ConfigProvider` supplies locale and component defaults only; its `theme` prop
+  must not write another palette into inline body variables. The CSS accent ramp
+  retains the former provider's effective normal/hover/active brand colors.
 - `uno.preset.ts` owns semantic utility names, shortcuts and preflights for both
   hosts. Their UnoCSS configs retain only host-specific content scanning and
   framework presets/transformers. The shared preset has no runtime dependency.
