@@ -56,6 +56,16 @@ return value. It is not the editable model revision: ordinary model changes
 keep the grant usable, while ownership replacement or disable/re-enable cycles
 can invalidate it. Current membership and source policy are still rechecked.
 
+Successful authorised reads and comment requests keep an active review usable
+without navigating, changing its URL or discarding unsent comments. The host
+renews the short-lived lease during the second half of its lifetime and returns
+the committed cookie deadline. Idle expired grants, revoked ownership and invalid
+requests cannot renew a lease. `ISudographReviewGrantStore.renew` must atomically
+compare the binding and credential, require an unexpired stored grant, bound the
+new deadline and keep it monotonic. A renewed deadline is mutable lease state;
+metadata updates still compare the immutable binding and credential. Stores that
+lack this method fail at startup instead of silently losing long review sessions.
+
 `SudographReviewComments` is the same private ShareOne comment and reply service
 used by Desktop. Hosts supply `ISudographReviewStore`, current authorization,
 their existing credential resolver and ordinary conversation delivery. Store

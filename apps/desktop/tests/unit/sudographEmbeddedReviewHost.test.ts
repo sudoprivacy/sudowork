@@ -15,6 +15,7 @@ afterEach(async () => {
 });
 
 async function fixture(withComments = false) {
+  let now = Date.now();
   const grants = new Map<string, ISudographReviewGrant>();
   const store: ISudographReviewGrantStore = {
     create: vi.fn(async (id: string, grant: ISudographReviewGrant) => {
@@ -28,6 +29,12 @@ async function fixture(withComments = false) {
       const current = grants.get(id);
       if (!current || current.credentialHash !== expected.credentialHash || current.conversationId !== expected.conversationId) return false;
       Object.assign(current, changes);
+      return true;
+    }),
+    renew: vi.fn(async (id: string, expected: ISudographReviewGrant, expiresAt: number) => {
+      const current = grants.get(id);
+      if (!current || current.expiresAt <= now || current.credentialHash !== expected.credentialHash || current.conversationId !== expected.conversationId) return false;
+      current.expiresAt = Math.max(current.expiresAt, expiresAt);
       return true;
     }),
     delete: vi.fn(async (id: string) => {
@@ -57,7 +64,7 @@ async function fixture(withComments = false) {
   const prepare = vi.fn(async () => ({ shareId: 'private-share' }));
   const proxy = vi.fn(async (binding: ISudographReviewBinding & { revision?: string }) => ({ status: 200, body: { revision: binding.revision } }));
   const make = () => {
-    const host = new SudographReviewHost({ authorize, read, embedded: { origin, grants: store }, ...(withComments ? { comments: { assets: {} as ShareoneReviewAssets, prepare, proxy, status: async () => ({ delivered: 1 }) } } : {}) });
+    const host = new SudographReviewHost({ authorize, read, now: () => now, embedded: { origin, grants: store }, ...(withComments ? { comments: { assets: {} as ShareoneReviewAssets, prepare, proxy, status: async () => ({ delivered: 1 }) } } : {}) });
     hosts.push(host);
     return host;
   };
@@ -82,10 +89,60 @@ async function fixture(withComments = false) {
     advance: () => {
       authorizationRef = 'epoch-2';
     },
+    advanceTime: (minutes: number) => (now += minutes * 60_000),
   };
 }
 
 describe('embedded shared Sudograph review transport', () => {
+  it('requires renewal support from an embedded store at startup', async () => {
+    const f = await fixture();
+    const legacy = { ...f.store, renew: undefined as never };
+    expect(() => new SudographReviewHost({ authorize: f.authorize, read: f.read, embedded: { origin: 'https://review.example', grants: legacy } })).toThrow('requires active-session lease renewal support');
+  });
+
+  it('withholds responses when renewal is refused or changes the grant identity', async () => {
+    const f = await fixture(true);
+    const launch = await f.host.createSession({ workspaceId: 'project', conversationId: 'conversation', authorizationRef: 'epoch-1' });
+    const headers = { Cookie: `${launch.cookie.name}=${launch.cookie.value}` };
+    f.advanceTime(20);
+    vi.mocked(f.store.renew).mockResolvedValueOnce(false);
+    const refused = await fetch(`${launch.url}delivery`, { headers });
+    expect(refused.status).toBe(403);
+    expect(refused.headers.get('set-cookie')).toBeNull();
+    vi.mocked(f.store.renew).mockImplementationOnce(async (id) => {
+      f.grants.get(id)!.credentialHash = 'a'.repeat(64);
+      return true;
+    });
+    const replaced = await fetch(`${launch.url}delivery`, { headers });
+    expect(replaced.status).toBe(403);
+    expect(replaced.headers.get('set-cookie')).toBeNull();
+  });
+
+  it('shares renewed deadlines across hosts while preserving comment and document metadata', async () => {
+    const f = await fixture(true);
+    const launch = await f.host.createSession({ workspaceId: 'project', conversationId: 'conversation', authorizationRef: 'epoch-1' });
+    const headers = { Cookie: `${launch.cookie.name}=${launch.cookie.value}` };
+    await fetch(`${launch.url}connection`, { headers });
+    await fetch(`${launch.url}content`, { headers });
+    f.advanceTime(20);
+    expect((await fetch(`${launch.url}delivery`, { headers })).status).toBe(200);
+    const first = f.host;
+    f.use(f.make());
+    await first.close();
+    f.advanceTime(20);
+    const result = await fetch(`${launch.url}api/v1/threads`, { headers });
+    expect(result.status).toBe(200);
+    expect(await result.json()).toEqual({ revision: 'revision-a' });
+    expect(f.prepare).toHaveBeenCalledTimes(1);
+    expect(f.store.renew).toHaveBeenCalledTimes(2);
+    f.advance();
+    f.advanceTime(20);
+    const revoked = await fetch(`${launch.url}delivery`, { headers });
+    expect(revoked.status).toBe(403);
+    expect(revoked.headers.get('set-cookie')).toBeNull();
+    expect(f.store.renew).toHaveBeenCalledTimes(2);
+  });
+
   it('uses the existing HTTP listener and survives host replacement with the same durable grant', async () => {
     const f = await fixture();
     const first = f.host;

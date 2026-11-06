@@ -22,7 +22,7 @@ function fixture() {
   });
   const host = new SudographReviewHost({ authorize, read, now: () => now });
   hosts.push(host);
-  return { host, authorize, read, revoke: () => (isAllowed = false), expire: () => (now += 31 * 60_000) };
+  return { host, authorize, read, revoke: () => (isAllowed = false), expire: () => (now += 31 * 60_000), advance: (minutes: number) => (now += minutes * 60_000) };
 }
 
 function cookie(launch: ISudographReviewLaunch): string {
@@ -34,6 +34,51 @@ function post(launch: ISudographReviewLaunch, body: unknown, headers: Record<str
 }
 
 describe('Sudograph authenticated host review boundary', () => {
+  it('keeps active authorised reads on the same page after the original deadline, then expires when idle', async () => {
+    const f = fixture();
+    const launch = await f.host.createSession({ workspaceId: 'source', conversationId: 'chat-1' });
+    const originalUrl = launch.url;
+    for (let cycle = 0; cycle < 3; cycle++) {
+      f.advance(20);
+      const result = await post(launch, { view: 'source', operation: 'head' });
+      expect(result.status).toBe(200);
+      expect(await result.json()).toEqual({ result: { revision: 'r1', context_digest: 'd1' } });
+      expect(result.headers.get('set-cookie')).toContain('Max-Age=1800');
+      expect(result.headers.get('set-cookie')).toContain(`Path=${new URL(originalUrl).pathname}`);
+      expect(result.headers.get('set-cookie')).toContain('HttpOnly; SameSite=Strict');
+      expect(launch.url).toBe(originalUrl);
+    }
+    f.expire();
+    const expired = await post(launch, { view: 'source', operation: 'head' });
+    expect(expired.status).toBe(403);
+    expect(expired.headers.get('set-cookie')).toBeNull();
+    expect(f.read).toHaveBeenCalledTimes(3);
+  });
+
+  it('does not renew a lease through invalid requests or after permission is revoked', async () => {
+    const f = fixture();
+    const launch = await f.host.createSession({ workspaceId: 'source', conversationId: 'chat-1' });
+    f.advance(20);
+    const foreign = await post(launch, { view: 'source', operation: 'head' }, { Origin: 'https://untrusted.example' });
+    expect(foreign.status).toBe(403);
+    expect(foreign.headers.get('set-cookie')).toBeNull();
+    const invalid = await post(launch, { view: 'source', operation: 'apply' });
+    expect(invalid.status).toBe(400);
+    expect(invalid.headers.get('set-cookie')).toBeNull();
+    f.advance(11);
+    expect((await post(launch, { view: 'source', operation: 'head' })).status).toBe(403);
+    expect(f.read).not.toHaveBeenCalled();
+
+    const other = fixture();
+    const revoked = await other.host.createSession({ workspaceId: 'source', conversationId: 'chat-1' });
+    other.advance(20);
+    other.revoke();
+    const denied = await post(revoked, { view: 'source', operation: 'head' });
+    expect(denied.status).toBe(403);
+    expect(denied.headers.get('set-cookie')).toBeNull();
+    expect(other.read).not.toHaveBeenCalled();
+  });
+
   it('keeps the graph readable during credential outages and recovers using existing host credentials', async () => {
     const prepare = vi.fn().mockRejectedValueOnce(new Error('Private credential transport diagnostic')).mockResolvedValue({ shareId: 'existing-private-share' });
     const host = new SudographReviewHost({
