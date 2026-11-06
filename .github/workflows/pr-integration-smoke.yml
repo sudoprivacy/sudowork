@@ -25,6 +25,9 @@ jobs:
     name: Browser Backend Live (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 25
+    env:
+      # Retain the version seen in the failing Windows startup evidence.
+      BROWSER_TEST_CHROME_VERSION: "156.0.8078.80"
     strategy:
       fail-fast: false
       matrix:
@@ -42,6 +45,19 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
+      - uses: browser-actions/setup-chrome@v2
+        id: chrome
+        with:
+          chrome-version: ${{ env.BROWSER_TEST_CHROME_VERSION }}
+      - name: Stage the real browser using its owner's Windows sandbox recipe
+        if: runner.os == 'Windows'
+        id: windows-chrome
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $fixture = Join-Path $env:PUBLIC "ai-dev-browser-ci-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT-$env:GITHUB_JOB"
+          $browser = & ./vendor/ai-dev-browser/scripts/prepare-windows-chrome.ps1 -ChromePath '${{ steps.chrome.outputs.chrome-path }}' -DestinationDirectory $fixture -ReceiptPath "$env:RUNNER_TEMP/browser-backend-chrome-staging.json"
+          "chrome-path=$browser" >> $env:GITHUB_OUTPUT
       - name: Read pinned Rust browser reference
         id: reference
         shell: bash
@@ -69,6 +85,8 @@ jobs:
       - name: Run real wrappers, Chrome and application result receiver
         working-directory: apps/desktop
         shell: bash
+        env:
+          AI_DEV_BROWSER_CHROME: ${{ steps.windows-chrome.outputs.chrome-path || steps.chrome.outputs.chrome-path }}
         run: |
           export BROWSER_TEST_PYTHON="$(python -c 'import sys; print(sys.executable)')"
           export SUDOWORK_SUDOHAND_PATH="$(python -c 'import pathlib,sys; print((pathlib.Path("../../.tmp/sudohand/target/debug") / ("suh.exe" if sys.platform == "win32" else "suh")).resolve())')"
@@ -77,7 +95,9 @@ jobs:
         if: always()
         with:
           name: browser-backend-${{ matrix.os }}
-          path: .tmp/browser-migration
+          path: |
+            .tmp/browser-migration
+            ${{ runner.temp }}/browser-backend-chrome-staging.json
 
   browser-port-isolation:
     name: Browser Port Isolation

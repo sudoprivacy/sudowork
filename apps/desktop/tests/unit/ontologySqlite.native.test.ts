@@ -66,12 +66,18 @@ describe.runIf(isNativeRuntime)('SQLite business ingestion with the real driver'
   let workspaceId: string;
   let assets: IOntologyEnvironmentAsset[];
   let connectorId: string;
+  const sourceConnections = new Set<InstanceType<typeof BetterSqlite3>>();
+  function openSource() {
+    const connection = new BetterSqlite3(source);
+    sourceConnections.add(connection);
+    return connection;
+  }
   beforeEach(async () => {
     runtime.metadata.clear();
     runtime.install.mockReset().mockResolvedValue(undefined);
     directory = await fs.mkdtemp(path.join(os.tmpdir(), 'ontology-sqlite-business-'));
     source = path.join(directory, 'commerce 数据#source.sqlite');
-    const db = new BetterSqlite3(source);
+    const db = openSource();
     db.exec(`PRAGMA foreign_keys = ON;
       CREATE TABLE customers (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
       CREATE TABLE products (id INTEGER PRIMARY KEY, name TEXT NOT NULL, price_cents INTEGER NOT NULL);
@@ -102,6 +108,10 @@ describe.runIf(isNativeRuntime)('SQLite business ingestion with the real driver'
     connectorId = connected.connector.id;
   });
   afterEach(async () => {
+    // A failed assertion or deadline must not leave a fixture reader holding
+    // the source file open when Windows removes the temporary database.
+    for (const connection of sourceConnections) if (connection.open) connection.close();
+    sourceConnections.clear();
     store?.close();
     await fs.rm(directory, { recursive: true, force: true });
   });
@@ -251,7 +261,7 @@ describe.runIf(isNativeRuntime)('SQLite business ingestion with the real driver'
     customer.fields[0].businessMeaning = { text: 'Customer identifier', isUncertain: false, language: 'en-US', generatedAt: 1 };
     store.saveSnapshot(initial);
     const connection = initial.connectors.find((item) => item.id === connectorId)!;
-    const db = new BetterSqlite3(source);
+    const db = openSource();
     db.exec('CREATE TABLE shipments (id INTEGER PRIMARY KEY, order_id INTEGER REFERENCES orders(id)); DROP TABLE empty_records;');
     const rescanned = await service.probeConnector({ workspaceId, connector: connection });
     expect(rescanned.snapshot.connectors).toHaveLength(1);
@@ -275,7 +285,7 @@ describe.runIf(isNativeRuntime)('SQLite business ingestion with the real driver'
   });
 
   it('reads current committed WAL data and does not expose internal virtual-table storage', async () => {
-    const db = new BetterSqlite3(source);
+    const db = openSource();
     db.pragma('journal_mode = WAL');
     db.exec("INSERT INTO empty_records VALUES(1, 'WAL record'); CREATE VIRTUAL TABLE search_notes USING fts5(content);");
     await expect(service.previewAsset({ workspaceId, id: asset('empty_records').id })).resolves.toMatchObject({ rows: [[1, 'WAL record']] });
@@ -287,7 +297,7 @@ describe.runIf(isNativeRuntime)('SQLite business ingestion with the real driver'
   });
 
   it('honors SQLite primary-key nullability and includes virtual generated columns', async () => {
-    const db = new BetterSqlite3(source);
+    const db = openSource();
     db.exec('CREATE TABLE compound_rowid (a TEXT, b TEXT, PRIMARY KEY(a,b)); CREATE TABLE integer_desc (id INTEGER PRIMARY KEY DESC); CREATE TABLE generated_virtual (quantity INTEGER, doubled INTEGER AS (quantity * 2) VIRTUAL);');
     db.close();
     const result = await service.probeConnector({ workspaceId, connector: store.getSnapshot(workspaceId)!.connectors[0] });
@@ -304,7 +314,7 @@ describe.runIf(isNativeRuntime)('SQLite business ingestion with the real driver'
     const action = snapshot.actions.find((item) => item.code === 'set_status')!;
     await service.probeConnector({ workspaceId, connector: { ...connection, writable: false } });
     await expect(service.executeAction({ workspaceId, id: action.id, arguments: { id: 1, status: 'paid' } })).rejects.toThrow();
-    const db = new BetterSqlite3(source);
+    const db = openSource();
     expect(db.prepare('SELECT status FROM orders WHERE id=1').get()).toEqual({ status: 'pending' });
     await service.probeConnector({ workspaceId, connector: { ...connection, writable: true } });
     const updated = await service.executeAction({ workspaceId, id: action.id, arguments: { id: 1, status: 'paid' } });
