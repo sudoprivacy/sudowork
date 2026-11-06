@@ -20,6 +20,7 @@
   let autoPlay = true;
   let mode = 'mock';
   let lastSnapshot = null;
+  let expiryTimer = null;
 
   const now = () => Date.now();
   const rnd = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
@@ -54,7 +55,7 @@
 
     const agents = rawAgents.map((a, idx) => {
       const observation = a.runtimeObservation;
-      const isFresh = observation?.availability === 'available' && observation.expiresAt > now();
+      const isFresh = observation?.availability === 'available' && Number.isFinite(observation.expiresAt) && observation.expiresAt > now();
       const state = isFresh ? (ZONES[a.state] ? a.state : runtimeToState(a.runtimeStatus)) : 'unknown';
       return {
         id: String(a.id || `agent-${idx}`),
@@ -62,6 +63,7 @@
         backend: String(a.backend || 'unknown'),
         state,
         runtimeStatus: isFresh ? String(a.runtimeStatus || 'unknown') : 'unknown',
+        expiresAt: isFresh ? observation.expiresAt : null,
         lastActiveAt: Number(a.lastActiveAt || now()),
         currentTask: a.currentTask ? String(a.currentTask) : `${STATUS_TEXT[state]}中`,
         recentEvents: Array.isArray(a.recentEvents)
@@ -165,10 +167,22 @@
   };
 
   const renderSnapshot = (snapshot) => {
+    clearTimeout(expiryTimer);
     lastSnapshot = snapshot;
     renderStats(snapshot);
     renderAgents(snapshot);
     renderFeed(snapshot);
+
+    const nextExpiry = snapshot.agents.reduce((earliest, agent) => (agent.state !== 'unknown' && Number.isFinite(agent.expiresAt) ? Math.min(earliest, agent.expiresAt) : earliest), Infinity);
+    if (mode === 'live' && Number.isFinite(nextExpiry)) {
+      expiryTimer = setTimeout(
+        () => {
+          const agents = snapshot.agents.map((agent) => (Number.isFinite(agent.expiresAt) && agent.expiresAt <= now() ? { ...agent, state: 'unknown', runtimeStatus: 'unknown', expiresAt: null } : agent));
+          renderSnapshot({ ...snapshot, agents, runningConversations: agents.filter((agent) => agent.runtimeStatus === 'running').length });
+        },
+        Math.max(0, nextExpiry - now())
+      );
+    }
   };
 
   const requestSnapshotFromParent = () => {
@@ -207,9 +221,11 @@
           renderSnapshot(normalized);
           return;
         }
+        throw new Error('invalid host snapshot');
       } catch {
         if (window.parent && window.parent !== window) {
           mode = 'live';
+          setSourceText('Host postMessage (live)');
           renderSnapshot({ generatedAt: now(), totalConversations: lastSnapshot?.totalConversations || 0, runningConversations: 0, agents: (lastSnapshot?.agents || []).map((agent) => ({ ...agent, state: 'unknown', runtimeStatus: 'unknown' })) });
           return;
         }
