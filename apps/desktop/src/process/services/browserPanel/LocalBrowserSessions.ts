@@ -190,7 +190,31 @@ export class LocalBrowserSessions {
     const opened = BrowserSessionReplySchema.parse(await worker.invoke({ kind: 'open-authorized-page', url: input.url, cookie: input.cookie, controlEpoch: reply.session.controlEpoch, targetEpoch: reply.session.targetEpoch }));
     if (opened.session.isHeadless === false) {
       if (!opened.session.activeTargetId) throw new Error('The review browser target is unavailable');
-      await this.invoke(conversationId, { kind: 'show-window', targetId: opened.session.activeTargetId, controlEpoch: opened.session.controlEpoch, targetEpoch: opened.session.targetEpoch });
+      try {
+        await this.invoke(conversationId, { kind: 'show-window', targetId: opened.session.activeTargetId, controlEpoch: opened.session.controlEpoch, targetEpoch: opened.session.targetEpoch });
+      } catch (error) {
+        // The page is already authorized. Respect newer foreground work without
+        // discarding it, and present the same browser through its existing viewer.
+        if (!(error instanceof Error) || !['native_window_foreground_changed', 'native_window_activation_unavailable'].includes(error.message)) throw error;
+        const current = (await this.state(worker)).session;
+        const control = this.options.control.status();
+        if (
+          control.owner !== conversationId ||
+          control.state !== 'human' ||
+          control.epoch !== host.epoch ||
+          current.state !== 'human' ||
+          !current.isController ||
+          !current.isHumanControlHeld ||
+          current.browserSessionId !== opened.session.browserSessionId ||
+          current.profileId !== opened.session.profileId ||
+          current.activeTargetId !== opened.session.activeTargetId ||
+          current.controlEpoch !== opened.session.controlEpoch ||
+          current.targetEpoch !== opened.session.targetEpoch ||
+          (!current.capabilities.pageView && !current.capabilities.windowView)
+        )
+          throw new Error('The review browser changed before its viewer could be presented.');
+        return { surface: 'viewer', conversationId };
+      }
     }
     return { surface: opened.session.isHeadless === false ? 'native' : 'viewer', conversationId };
   }

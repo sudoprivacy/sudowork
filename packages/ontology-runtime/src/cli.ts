@@ -34,31 +34,82 @@ export async function runOntologyCommand(args: string[], request: IScriptRequest
   const [command, capabilityId] = positional;
   const parameters = request.arguments || {};
   if (!parameters || typeof parameters !== 'object' || Array.isArray(parameters)) throw new OntologyPackageError('INVALID_ARGUMENTS', 'Arguments must be a JSON object.');
-  if (command === 'project') {
+  // A host context selects the live project, never an offline package in cwd.
+  // Accept catalogue command names directly as well as `project <command>`.
+  if (command === 'project' || options.has('--context')) {
+    const projectCommand = command === 'project' ? capabilityId : command;
+    if (positional.length !== (command === 'project' ? 2 : 1) || !projectCommand || !/^[a-z_]+$/.test(projectCommand) || options.has('--package') || options.has('--bindings'))
+      throw new OntologyPackageError('INVALID_ARGUMENTS', 'Use project <command> --context <host context>; package options cannot be combined with a project context.');
     const contextPath = options.get('--context');
     if (!contextPath) throw new OntologyPackageError('BINDING_REQUIRED', 'A host-provided project context is required.');
-    const context = JSON.parse(await fs.readFile(contextPath, 'utf8')) as { baseUrl: string; token: string; workspaceId: string };
+    const context = JSON.parse(await fs.readFile(contextPath, 'utf8')) as {
+      baseUrl: string;
+      token: string;
+      workspaceId: string;
+    };
     const base = new URL(context.baseUrl);
     if (base.protocol !== 'http:' || base.hostname !== '127.0.0.1' || base.username || base.password || base.pathname !== '/' || base.search || base.hash) throw new OntologyPackageError('PERMISSION_DENIED', 'Invalid project host.');
-    if (!capabilityId || !/^[a-z_]+$/.test(capabilityId)) throw new OntologyPackageError('INVALID_ARGUMENTS', 'A project command is required.');
-    const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + context.token };
-    const discovery = await fetch(new URL('/commands', base), { method: 'POST', headers, body: '{}', signal: AbortSignal.timeout(30_000) });
-    const catalog = (await discovery.json()) as { ok: boolean; data?: { commands?: Array<{ name: string }> }; message?: string };
+    const headers = {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer ' + context.token,
+    };
+    const discovery = await fetch(new URL('/commands', base), {
+      method: 'POST',
+      headers,
+      body: '{}',
+      signal: AbortSignal.timeout(30_000),
+    });
+    const catalog = (await discovery.json()) as {
+      ok: boolean;
+      data?: { commands?: Array<{ name: string }> };
+      message?: string;
+    };
     if (!discovery.ok || !catalog.ok || !Array.isArray(catalog.data?.commands)) throw new OntologyPackageError('PROJECT_COMMAND_FAILED', catalog.message || 'Project discovery failed.');
-    if (capabilityId === 'list') return catalog.data;
-    if (!catalog.data.commands.some((item) => item.name === capabilityId)) throw new OntologyPackageError('CAPABILITY_NOT_FOUND', 'Project command not available for this model.');
-    const response = await fetch(new URL('/tool/' + capabilityId, base), { method: 'POST', headers, body: JSON.stringify({ workspaceId: context.workspaceId, input: parameters }), signal: AbortSignal.timeout(120_000) });
-    const payload = (await response.json()) as { ok: boolean; data?: unknown; message?: string; code?: string; recovery?: unknown };
+    if (projectCommand === 'list') return catalog.data;
+    if (!catalog.data.commands.some((item) => item.name === projectCommand))
+      throw new OntologyPackageError('CAPABILITY_NOT_FOUND', 'Project command not available for this model.', {
+        command: 'project list',
+        available_commands: catalog.data.commands.map((item) => item.name),
+      });
+    const response = await fetch(new URL('/tool/' + projectCommand, base), {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        workspaceId: context.workspaceId,
+        input: parameters,
+      }),
+      signal: AbortSignal.timeout(120_000),
+    });
+    const payload = (await response.json()) as {
+      ok: boolean;
+      data?: unknown;
+      message?: string;
+      code?: string;
+      recovery?: unknown;
+    };
     if (!response.ok || !payload.ok) throw new OntologyPackageError(payload.code || 'PROJECT_COMMAND_FAILED', payload.message || 'Project command failed.', payload.recovery);
     return payload.data;
   }
+  if (!['inspect', 'list', 'describe', 'validate', 'verify', 'invoke'].includes(command) || positional.length !== (['describe', 'invoke'].includes(command) ? 2 : 1))
+    throw new OntologyPackageError('INVALID_ARGUMENTS', 'Use project <command> --context <host context> for a live model, or inspect, list, describe, validate, verify or invoke --package <exported package>.');
   const root = path.resolve(options.get('--package') || process.cwd());
   const bindings: IOntologyRuntimeBindings = options.has('--bindings') ? (ontologyBindingsSchema.parse(JSON.parse(await fs.readFile(path.resolve(options.get('--bindings')!), 'utf8'))) as IOntologyRuntimeBindings) : {};
   if (bindings.python) process.env.ONTOLOGY_PYTHON = bindings.python;
   const loaded = await loadOntologyArtifact(root, bindings);
   const { manifest, snapshot } = loaded;
   const capabilities = loaded.capabilities.filter((item) => item.isEnabled !== false);
-  if (command === 'inspect') return { manifest, missingBindings: loaded.missingBindings, model: { objects: snapshot.objects, relations: snapshot.relations, mappings: snapshot.mappings, qualityRules: snapshot.qualityRules, businessDocuments: snapshot.businessDocuments } };
+  if (command === 'inspect')
+    return {
+      manifest,
+      missingBindings: loaded.missingBindings,
+      model: {
+        objects: snapshot.objects,
+        relations: snapshot.relations,
+        mappings: snapshot.mappings,
+        qualityRules: snapshot.qualityRules,
+        businessDocuments: snapshot.businessDocuments,
+      },
+    };
   if (command === 'list') return { runtimeDigest: manifest.runtimeDigest, capabilities };
   if (command === 'describe') {
     const capability = capabilities.find((item) => item.id === capabilityId);
@@ -67,7 +118,11 @@ export async function runOntologyCommand(args: string[], request: IScriptRequest
   }
   if (command === 'validate' || command === 'verify') {
     if (loaded.missingBindings.length) throw new OntologyPackageError('BINDING_REQUIRED', loaded.missingBindings.join(', '));
-    const requirements = JSON.parse(await fs.readFile(path.join(root, 'environment/runtime.lock.json'), 'utf8')) as { python?: string | null; shells?: string[]; externalDependencies?: unknown[] };
+    const requirements = JSON.parse(await fs.readFile(path.join(root, 'environment/runtime.lock.json'), 'utf8')) as {
+      python?: string | null;
+      shells?: string[];
+      externalDependencies?: unknown[];
+    };
     let python: number[] | undefined;
     try {
       if (requirements.python) {
@@ -82,7 +137,20 @@ export async function runOntologyCommand(args: string[], request: IScriptRequest
       throw new OntologyPackageError('RUNTIME_INCOMPATIBLE', 'The required Python or shell interpreter is unavailable. Check environment/runtime.lock.json.');
     }
     const results = await inspectRuntimeBindings(snapshot);
-    return { runtimeDigest: manifest.runtimeDigest, isValid: true, resources: results, runtime: { node: process.versions.node, python, shells: requirements.shells || [], externalDependencies: { verification: 'declaration-only', requirements: requirements.externalDependencies || [] } } };
+    return {
+      runtimeDigest: manifest.runtimeDigest,
+      isValid: true,
+      resources: results,
+      runtime: {
+        node: process.versions.node,
+        python,
+        shells: requirements.shells || [],
+        externalDependencies: {
+          verification: 'declaration-only',
+          requirements: requirements.externalDependencies || [],
+        },
+      },
+    };
   }
   if (command !== 'invoke' || positional.length !== 2) throw new OntologyPackageError('INVALID_ARGUMENTS', 'Use inspect, list, describe, validate, verify or invoke.');
   const capability = capabilities.find((item) => item.id === capabilityId);
@@ -122,7 +190,7 @@ async function readRequest(args: string[]): Promise<IScriptRequest> {
     if ((await fs.stat(target)).size > 1024 * 1024) throw new OntologyPackageError('INVALID_ARGUMENTS', 'Request exceeds size limit.');
     return JSON.parse(await fs.readFile(target, 'utf8')) as IScriptRequest;
   }
-  if (process.stdin.isTTY || !['invoke', 'project'].includes(positional[0]) || (positional[0] === 'project' && positional[1] === 'list')) return {};
+  if (process.stdin.isTTY || (!['invoke', 'project'].includes(positional[0]) && !options.has('--context')) || (positional[0] === 'project' ? positional[1] : positional[0]) === 'list') return {};
   let content = '';
   for await (const chunk of process.stdin) {
     content += String(chunk);
@@ -139,14 +207,25 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
     requestId = request.requestId || requestId;
     const trace = { executedFunctionIds: [] as string[] };
     const data = await runOntologyCommand(args, request, trace);
-    response = { protocolVersion: 1, requestId, isSuccess: true, data: toOntologyJsonValue(data), meta: trace };
+    response = {
+      protocolVersion: 1,
+      requestId,
+      isSuccess: true,
+      data: toOntologyJsonValue(data),
+      meta: trace,
+    };
   } catch (error) {
     const code = error instanceof OntologyPackageError ? error.code : 'EXECUTION_FAILED';
     response = {
       protocolVersion: 1,
       requestId,
       isSuccess: false,
-      error: { code, message: error instanceof Error ? error.message : String(error), isRetryable: false, ...(error instanceof OntologyPackageError && error.recovery !== undefined ? { recovery: toOntologyJsonValue(error.recovery) } : {}) },
+      error: {
+        code,
+        message: error instanceof Error ? error.message : String(error),
+        isRetryable: false,
+        ...(error instanceof OntologyPackageError && error.recovery !== undefined ? { recovery: toOntologyJsonValue(error.recovery) } : {}),
+      },
     };
     process.exitCode = code === 'INVALID_ARGUMENTS' ? 2 : code.includes('BINDING') ? 3 : code.includes('AUTHORIZED') || code === 'PERMISSION_DENIED' ? 4 : 5;
   }

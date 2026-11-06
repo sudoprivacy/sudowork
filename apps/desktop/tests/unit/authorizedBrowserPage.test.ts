@@ -139,6 +139,44 @@ describe('private browser host review launch', () => {
     expect(mocks.invoke).toHaveBeenCalledWith(expect.objectContaining({ kind: 'take' }));
   });
 
+  it.each(['native_window_foreground_changed', 'native_window_activation_unavailable'])('preserves the authorized page in the shared viewer when foreground activation reports %s', async (code) => {
+    const { host } = fixture();
+    const invoke = mocks.invoke.getMockImplementation()!;
+    mocks.invoke.mockImplementation(async (action) => {
+      if (action.kind === 'show-window') throw new Error(code);
+      return invoke(action);
+    });
+    const result = await host.openAuthorizedPage('conversation', input);
+    expect(result).toEqual({ surface: 'viewer', conversationId: 'conversation' });
+    expect(JSON.stringify(result)).not.toContain(input.cookie.value);
+    expect(state).toMatchObject({ browserSessionId: 'owned', profileId: 'profile', activeTargetId: 'review', state: 'human', isController: true });
+    expect(mocks.invoke.mock.calls.filter(([action]) => action.kind === 'open-authorized-page')).toHaveLength(1);
+    expect(mocks.invoke.mock.calls.filter(([action]) => action.kind === 'show-window')).toHaveLength(1);
+  });
+
+  it.each(['native_window_process_changed', 'native_window_target_ambiguous', 'native_window_reply_invalid'])('keeps identity or protocol failure %s closed', async (code) => {
+    const { host } = fixture();
+    const invoke = mocks.invoke.getMockImplementation()!;
+    mocks.invoke.mockImplementation(async (action) => {
+      if (action.kind === 'show-window') throw new Error(code);
+      return invoke(action);
+    });
+    await expect(host.openAuthorizedPage('conversation', input)).rejects.toThrow(code);
+  });
+
+  it('does not present another target after a foreground refusal', async () => {
+    const { host } = fixture();
+    const invoke = mocks.invoke.getMockImplementation()!;
+    mocks.invoke.mockImplementation(async (action) => {
+      if (action.kind === 'show-window') {
+        state = { ...state, targetEpoch: state.targetEpoch + 1, activeTargetId: 'another-tab' };
+        throw new Error('native_window_foreground_changed');
+      }
+      return invoke(action);
+    });
+    await expect(host.openAuthorizedPage('conversation', input)).rejects.toThrow('review browser changed');
+  });
+
   it.each([true, false])('reuses a managed extension profile with isHeadless=%s for private review', async (isHeadless) => {
     const { host, control } = fixture();
     state.state = 'ai';
