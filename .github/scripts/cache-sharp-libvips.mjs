@@ -22,6 +22,15 @@ const archives = {
     "SlFWrITSW5XVUkaFPQOySAaSGXnhkGJCj8X2wGYYta9hk5piZldQyMp4zwy0z6UeRu1qKTKtZvmq28W3Gnh9xA==",
 };
 
+// Measured from the official sharp v0.32.6 release archives after checking
+// their native payloads. These legacy assets have no upstream digest field.
+const nativeArchives = {
+  "win32-x64":
+    "pBegD1ZuMKdHbsT8IxTNDMCo/RsBiPTOEUdfTU9m92/1IJfCMeRr4bxyIxaE/pfSpDd0MmG90TyLFD1NGbfIuA==",
+  "linux-x64":
+    "O1d4m5C4TfU4mpP0Ow5al5+CyP1qNnjf3TKYOgQTC3T8gj4KEdSXDq4SsehsX2b7qNee7cuMBukYL6zqe/PmrA==",
+};
+
 export async function cacheSharpLibvips({
   platform = process.platform,
   arch = process.arch,
@@ -34,7 +43,47 @@ export async function cacheSharpLibvips({
   if (!integrity)
     throw new Error(`Unsupported libvips cache target: ${target}`);
   const name = `libvips-8.14.5-${target}.tar.br`;
-  const directory = join(cacheRoot, "_libvips");
+  return cacheVerifiedArchive({
+    cacheRoot,
+    directoryName: "_libvips",
+    name,
+    integrity,
+    url: `https://github.com/lovell/sharp-libvips/releases/download/v8.14.5/${name}`,
+  });
+}
+
+export async function cacheSharpNativePrebuild({
+  platform = process.platform,
+  arch = process.arch,
+  cacheRoot = process.env.npm_config_cache,
+} = {}) {
+  if (!cacheRoot)
+    throw new Error("npm_config_cache must identify the job cache");
+  const target = `${platform}-${arch}`;
+  const integrity = nativeArchives[target];
+  if (!integrity)
+    throw new Error(`Unsupported sharp prebuild cache target: ${target}`);
+  const archive = `sharp-v0.32.6-napi-v7-${target}.tar.gz`;
+  const url = `https://github.com/lovell/sharp/releases/download/v0.32.6/${archive}`;
+  // This is prebuild-install 7.1.3's cache filename contract.
+  const prefix = createHash("sha512").update(url).digest("hex").slice(0, 6);
+  return cacheVerifiedArchive({
+    cacheRoot,
+    directoryName: "_prebuilds",
+    name: `${prefix}-${archive.replace(/[^a-zA-Z0-9.]+/g, "-")}`,
+    integrity,
+    url,
+  });
+}
+
+async function cacheVerifiedArchive({
+  cacheRoot,
+  directoryName,
+  name,
+  integrity,
+  url,
+}) {
+  const directory = join(cacheRoot, directoryName);
   const destination = join(directory, name);
   const temporary = `${destination}.${process.pid}.partial`;
   const verify = async (file) => {
@@ -68,7 +117,7 @@ export async function cacheSharpLibvips({
           "180",
           "--output",
           temporary,
-          `https://github.com/lovell/sharp-libvips/releases/download/v8.14.5/${name}`,
+          url,
         ],
         { stdio: "inherit" },
       );
@@ -85,5 +134,11 @@ export async function cacheSharpLibvips({
   return destination;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
   await cacheSharpLibvips();
+  if (process.argv.includes("--with-prebuild"))
+    await cacheSharpNativePrebuild();
+}

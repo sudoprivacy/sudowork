@@ -66,8 +66,10 @@ jobs:
         with:
           bun-version-file: package.json
 
-      - name: Install dependencies
-        run: bun install --no-frozen-lockfile
+      - name: Install dependencies with verified native downloads
+        uses: ./.github/actions/install-bun-dependencies
+        with:
+          frozen-lockfile: "false"
 
       - name: Run secrets unit tests
         # secretsGrpcOnly is a static source-code guard (refuses HTTP
@@ -105,8 +107,10 @@ jobs:
         with:
           bun-version-file: package.json
 
-      - name: Install dependencies
-        run: bun install --no-frozen-lockfile
+      - name: Install dependencies with verified native downloads
+        uses: ./.github/actions/install-bun-dependencies
+        with:
+          frozen-lockfile: "false"
 
       - name: Run hub unit tests
         # hubErrors: typed error parser unit (mocked, no deps).
@@ -140,8 +144,11 @@ jobs:
         with:
           bun-version-file: package.json
 
-      - name: Install dependencies
-        run: bun install --no-frozen-lockfile
+      - name: Install dependencies with verified native downloads
+        uses: ./.github/actions/install-bun-dependencies
+        with:
+          working-directory: .
+          frozen-lockfile: "false"
 
       - name: Check Prettier formatting
         run: bun run format:check
@@ -168,8 +175,11 @@ jobs:
         with:
           bun-version-file: package.json
 
-      - name: Install dependencies
-        run: bun install --no-frozen-lockfile
+      - name: Install dependencies with verified native downloads
+        uses: ./.github/actions/install-bun-dependencies
+        with:
+          working-directory: .
+          frozen-lockfile: "false"
 
       # Emit dist types for the workspace packages so apps/desktop's tsc can
       # resolve them via their `types` condition.
@@ -209,8 +219,10 @@ jobs:
         with:
           bun-version-file: package.json
 
-      - name: Install dependencies
-        run: bun install --no-frozen-lockfile
+      - name: Install dependencies with verified native downloads
+        uses: ./.github/actions/install-bun-dependencies
+        with:
+          frozen-lockfile: "false"
 
       - name: Run conversation reaper tests
         # Guards the conversation-lifecycle cleanup SSOT against regression:
@@ -279,11 +291,8 @@ jobs:
         with:
           bun-version-file: package.json
 
-      - name: Prepare verified native image dependencies
-        uses: ./.github/actions/cache-sharp-libvips
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
+      - name: Install dependencies with verified native downloads
+        uses: ./.github/actions/install-bun-dependencies
 
       - name: Ensure Electron is installed for native SQLite tests
         run: node node_modules/electron/install.js

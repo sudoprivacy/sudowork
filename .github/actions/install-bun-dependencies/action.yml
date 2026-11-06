@@ -1,0 +1,35 @@
+name: Install Bun dependencies with verified native downloads
+description: Install Linux/Windows x64 dependencies using the checked sharp libvips cache.
+inputs:
+  working-directory:
+    description: Package directory relative to the repository root.
+    default: apps/desktop
+  frozen-lockfile:
+    description: Preserve the caller's existing lockfile policy.
+    default: "true"
+runs:
+  using: composite
+  steps:
+    - uses: ./.github/actions/cache-sharp-libvips
+      with:
+        with-prebuild: "true"
+    - name: Install dependencies
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        npm_config_cache: ${{ runner.temp }}/npm-cache
+        FROZEN_LOCKFILE: ${{ inputs.frozen-lockfile }}
+      run: |
+        if [[ "$FROZEN_LOCKFILE" == "true" ]]; then
+          bun install --frozen-lockfile
+        elif [[ "$FROZEN_LOCKFILE" == "false" ]]; then
+          bun install --no-frozen-lockfile
+        else
+          echo "frozen-lockfile must be true or false" >&2
+          exit 1
+        fi
+    - name: Verify the original sharp native installation
+      shell: bash
+      env:
+        npm_config_cache: ${{ runner.temp }}/npm-cache
+      run: node "$GITHUB_ACTION_PATH/../../scripts/verify-sharp-native-cache.mjs"

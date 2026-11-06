@@ -59,10 +59,12 @@ jobs:
       - name: Build pinned browser
         working-directory: .tmp/sudohand
         run: cargo build --locked -p sudohand-cli
-      - name: Install test dependencies
+      - uses: ./.github/actions/install-bun-dependencies
+        with:
+          working-directory: .
+      - name: Install Python test dependencies
         shell: bash
         run: |
-          bun install --frozen-lockfile
           python -m pip install websockets websocket-client Pillow deprecated psutil
       - name: Run real wrappers, Chrome and application result receiver
         working-directory: apps/desktop
@@ -198,16 +200,8 @@ jobs:
         with:
           bun-version-file: package.json
 
-      - name: Prepare verified native image dependencies
-        uses: ./.github/actions/cache-sharp-libvips
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Verify sharp consumes the checked cache
-        env:
-          npm_config_cache: ${{ runner.temp }}/npm-cache
-        run: node ../../.github/scripts/verify-sharp-libvips-cache.mjs
+      - name: Install dependencies with verified native downloads
+        uses: ./.github/actions/install-bun-dependencies
 
       - name: Run authProxy /secrets HTTP e2e
         run: bunx vitest run tests/integration/authProxySecretsHttp.integration.test.ts

@@ -237,5 +237,11 @@ try {
 } finally {
   await stdio?.close();
   await worker.close();
-  await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+    // Personal Chrome remains open and can retain a speculative TCP connection
+    // that has never sent HTTP headers. Close this owned fixture connection
+    // after the journey instead of waiting for the server's header timeout.
+    server.closeAllConnections();
+  });
 }

@@ -1,17 +1,31 @@
 name: Prepare verified native image dependencies
 description: Verify the locked sharp libvips archive before any install script runs.
+inputs:
+  with-prebuild:
+    description: Include the verified sharp N-API archive on Linux/Windows x64.
+    default: "false"
 runs:
   using: composite
   steps:
     - uses: actions/cache@v4
       with:
-        path: ${{ runner.temp }}/npm-cache/_libvips
-        key: libvips-8.14.5-${{ runner.os }}-${{ runner.arch }}-integrity-v2
+        path: |
+          ${{ runner.temp }}/npm-cache/_libvips
+          ${{ runner.temp }}/npm-cache/_prebuilds
+        key: sharp-0.32.6-${{ runner.os }}-${{ runner.arch }}-integrity-v3-prebuild-${{ inputs.with-prebuild }}
     - name: Verify the original dependency archive
       shell: bash
       working-directory: ${{ github.workspace }}
       env:
         npm_config_cache: ${{ runner.temp }}/npm-cache
+        CACHE_SHARP_PREBUILD: ${{ inputs.with-prebuild }}
       run: |
-        node .github/scripts/cache-sharp-libvips.mjs
+        if [[ "$CACHE_SHARP_PREBUILD" == "true" ]]; then
+          node .github/scripts/cache-sharp-libvips.mjs --with-prebuild
+        elif [[ "$CACHE_SHARP_PREBUILD" == "false" ]]; then
+          node .github/scripts/cache-sharp-libvips.mjs
+        else
+          echo "with-prebuild must be true or false" >&2
+          exit 1
+        fi
         node -e 'require("node:fs").appendFileSync(process.env.GITHUB_ENV, "npm_config_cache=" + process.env.npm_config_cache + "\n")'
