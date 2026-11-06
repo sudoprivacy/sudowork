@@ -110,6 +110,9 @@ jobs:
           restore-keys: |
             mock-anthropic-service-v2-${{ runner.os }}-
 
+      - name: Prepare verified native image dependencies
+        uses: ./.github/actions/cache-sharp-libvips
+
       - name: Install node dependencies
         run: bun install --no-frozen-lockfile
 

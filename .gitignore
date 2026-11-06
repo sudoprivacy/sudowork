@@ -259,3 +259,5 @@ apps/desktop/resources/ontology-cli/ontology.cjs
 apps/desktop/.cache/shareone-review-src/
 apps/desktop/resources/shareone-review/
 packages/sudograph-runtime/review-assets/
+# Downloaded engine archives are build inputs; their version lives in runtime-versions.json.
+apps/desktop/resources/v*-scode-*
