@@ -5,6 +5,7 @@
  */
 
 import type { IConfirmation } from '@sudowork/common/chatLib';
+import type { IAcpRuntimeObservation } from '@sudowork/common/acpRuntimeStatus';
 import { ipcBridge } from '../../common';
 
 type AgentType = 'acp' | 'remote-agent';
@@ -78,6 +79,12 @@ class BaseAgent<Data, ConfirmationOption = any> {
   }
   getConfirmations() {
     return this.confirmations;
+  }
+
+  /** Hosts without the negotiated engine extension cannot report foreground activity. */
+  async getRuntimeObservation(): Promise<IAcpRuntimeObservation> {
+    const observedAt = Date.now();
+    return { scope: 'owned-acp-connection', observedAt, expiresAt: observedAt, availability: 'unsupported' };
   }
 
   /**

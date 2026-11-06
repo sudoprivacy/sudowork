@@ -113,6 +113,9 @@ export default defineConfig({
       // 新增功能时，将对应的源文件路径添加到此数组
       // 例如: 'src/process/services/newService.ts'
       include: [
+        '../../packages/common/src/acpRuntimeStatus.ts',
+        'src/agent/acp/AcpConnection.ts',
+        'src/process/bridge/extensionsBridge.ts',
         '../../packages/renderer/src/components/ModelSearchPanel.tsx',
         '../../packages/contracts/src/inputDelivery.ts',
         '../../packages/moss-client/src/InputDeliveryClient.ts',

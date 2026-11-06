@@ -7,36 +7,21 @@
 import type { AgentActivityState, IExtensionAgentActivityEvent, IExtensionAgentActivityItem, IExtensionAgentActivitySnapshot } from '@sudowork/host-bridge/ipcBridge';
 import type { TMessage } from '@sudowork/common/chatLib';
 import type { TChatConversation } from '@sudowork/common/storage';
+import type { IAcpRuntimeObservation } from '@sudowork/common/acpRuntimeStatus';
 import { ipcBridge } from '@/common';
 import { ExtensionRegistry } from '@/extensions';
 import { getDatabase } from '@process/database';
 import { mainError } from '@process/utils/mainLogger';
 import WorkerManage from '../WorkerManage';
 
-const STATUS_TO_SYNCING = new Set(['connecting', 'connected', 'authenticated']);
-const ACTIVITY_SNAPSHOT_TTL_MS = 3000;
-
-let activitySnapshotCache: IExtensionAgentActivitySnapshot | null = null;
-let activitySnapshotCachedAt = 0;
 let activitySnapshotInFlight: Promise<IExtensionAgentActivitySnapshot> | null = null;
 
-const normalizeRuntimeStatus = (status?: string): 'pending' | 'running' | 'finished' | 'unknown' => {
-  if (status === 'pending' || status === 'running' || status === 'finished') return status;
-  return 'unknown';
-};
-
-const mapStatusToState = (runtimeStatus: 'pending' | 'running' | 'finished' | 'unknown', lastStatus?: string, recentEvents: IExtensionAgentActivityEvent[] = []): AgentActivityState => {
-  if (lastStatus === 'error' || recentEvents.some((e) => /error|失败|异常/i.test(e.text))) return 'error';
-
-  const hasWriteEvent = recentEvents.some((e) => /write|patch|edit|写入|修改|生成文件/i.test(e.text));
-  const hasResearchEvent = recentEvents.some((e) => /search|web|fetch|crawl|调研|检索|搜索/i.test(e.text));
-  const hasToolEvent = recentEvents.some((e) => e.kind === 'tool');
-
-  if (runtimeStatus === 'pending' || (lastStatus && STATUS_TO_SYNCING.has(lastStatus))) return 'syncing';
-  if (runtimeStatus === 'running' && hasWriteEvent) return 'writing';
-  if (runtimeStatus === 'running' && hasResearchEvent) return 'researching';
-  if (runtimeStatus === 'running' && hasToolEvent) return 'executing';
-  return 'idle';
+const mapObservationToState = (observation: IAcpRuntimeObservation): AgentActivityState => {
+  const snapshot = observation.snapshot;
+  if (observation.availability !== 'available' || observation.expiresAt <= Date.now() || !snapshot) return 'unknown';
+  if (snapshot.foreground.state === 'awaiting_input') return 'awaiting_input';
+  if (snapshot.foreground.state === 'running' || snapshot.background.terminals > 0 || snapshot.background.agents > 0 || snapshot.background.tool_operations > 0) return 'executing';
+  return snapshot.background.execution_unconfirmed > 0 ? 'unknown' : 'idle';
 };
 
 const resolveAgentIdentity = (conversation: TChatConversation): { backend: string; agentName: string } => {
@@ -69,116 +54,75 @@ const toEventText = (message: TMessage): { kind: 'status' | 'tool' | 'message'; 
   return null;
 };
 
-const buildActivitySnapshot = (): IExtensionAgentActivitySnapshot => {
+const buildActivitySnapshot = async (): Promise<IExtensionAgentActivitySnapshot> => {
   const db = getDatabase();
   const conversations = db.getUserConversations(undefined, 0, 10000).data.filter((conv) => !conv.extra?.isHealthCheck && !(conv.extra as Record<string, unknown> | undefined)?.isTeamMember);
 
-  const rankedState: Record<AgentActivityState, number> = {
-    error: 5,
-    writing: 4,
-    researching: 3,
-    executing: 2,
-    syncing: 1,
-    idle: 0,
-  };
+  const agents = await Promise.all(
+    conversations.map(async (conversation): Promise<IExtensionAgentActivityItem> => {
+      const { backend, agentName } = resolveAgentIdentity(conversation);
+      const task = WorkerManage.getTaskById(conversation.id);
+      let runtimeObservation: IAcpRuntimeObservation = { scope: 'owned-acp-connection', observedAt: Date.now(), expiresAt: Date.now(), availability: 'unattached' };
+      if (task) {
+        try {
+          runtimeObservation = await task.getRuntimeObservation();
+          if (WorkerManage.getTaskById(conversation.id) !== task) runtimeObservation = { ...runtimeObservation, availability: 'changed', snapshot: undefined };
+        } catch {
+          runtimeObservation.availability = 'unreachable';
+        }
+      }
 
-  const byAgent = new Map<string, IExtensionAgentActivityItem>();
-  let runningConversations = 0;
+      const recentMessages = db.getConversationMessages(conversation.id, 0, 20, 'DESC').data;
+      const events = recentMessages
+        .map((m) => toEventText(m))
+        .filter((e): e is { kind: 'status' | 'tool' | 'message'; text: string; at: number } => Boolean(e))
+        .slice(0, 6)
+        .map((e): IExtensionAgentActivityEvent => ({
+          conversationId: conversation.id,
+          kind: e.kind,
+          text: e.text,
+          at: e.at,
+        }));
 
-  for (const conversation of conversations) {
-    const { backend, agentName } = resolveAgentIdentity(conversation);
-    const task = WorkerManage.getTaskById(conversation.id);
-    const runtimeStatus = normalizeRuntimeStatus(task?.status || conversation.status);
-    if (runtimeStatus === 'running' || runtimeStatus === 'pending') {
-      runningConversations += 1;
-    }
+      const lastStatus = recentMessages.find((m) => m.type === 'agent_status')?.content as { status?: string } | undefined;
+      const state = mapObservationToState(runtimeObservation);
+      const runtimeStatus = state === 'awaiting_input' ? 'pending' : state === 'executing' ? 'running' : state === 'idle' ? 'finished' : 'unknown';
+      const latestEventAt = events[0]?.at || conversation.modifyTime || Date.now();
 
-    const recentMessages = db.getConversationMessages(conversation.id, 0, 20, 'DESC').data;
-    const events = recentMessages
-      .map((m) => toEventText(m))
-      .filter((e): e is { kind: 'status' | 'tool' | 'message'; text: string; at: number } => Boolean(e))
-      .slice(0, 6)
-      .map((e): IExtensionAgentActivityEvent => ({
-        conversationId: conversation.id,
-        kind: e.kind,
-        text: e.text,
-        at: e.at,
-      }));
-
-    const lastStatus = recentMessages.find((m) => m.type === 'agent_status')?.content as { status?: string } | undefined;
-    const state = mapStatusToState(runtimeStatus, lastStatus?.status, events);
-
-    const key = `${backend}::${agentName}`;
-    const existing = byAgent.get(key);
-    const latestEventAt = events[0]?.at || conversation.modifyTime || Date.now();
-
-    if (!existing) {
-      byAgent.set(key, {
-        id: key,
+      return {
+        id: `${conversation.id}::${runtimeObservation.instanceId || 'unattached'}`,
         backend,
         agentName,
         state,
         runtimeStatus,
+        runtimeObservation,
         conversations: 1,
         activeConversations: runtimeStatus === 'running' || runtimeStatus === 'pending' ? 1 : 0,
         lastActiveAt: latestEventAt,
         lastStatus: lastStatus?.status,
-        currentTask: events[0]?.text || (runtimeStatus === 'running' ? '执行中' : '空闲'),
+        currentTask: events[0]?.text,
         recentEvents: events,
-      });
-      continue;
-    }
-
-    existing.conversations += 1;
-    if (runtimeStatus === 'running' || runtimeStatus === 'pending') {
-      existing.activeConversations += 1;
-    }
-    if (latestEventAt > existing.lastActiveAt) {
-      existing.lastActiveAt = latestEventAt;
-      existing.currentTask = events[0]?.text || existing.currentTask;
-      existing.lastStatus = lastStatus?.status || existing.lastStatus;
-    }
-
-    if (runtimeStatus === 'running') {
-      existing.runtimeStatus = 'running';
-    } else if (runtimeStatus === 'pending' && existing.runtimeStatus !== 'running') {
-      existing.runtimeStatus = 'pending';
-    } else if (runtimeStatus === 'finished' && existing.runtimeStatus === 'unknown') {
-      existing.runtimeStatus = 'finished';
-    }
-
-    if (rankedState[state] > rankedState[existing.state]) {
-      existing.state = state;
-    }
-
-    existing.recentEvents = [...existing.recentEvents, ...events].sort((a, b) => b.at - a.at).slice(0, 6);
-  }
+      };
+    })
+  );
 
   return {
+    scope: 'desktop-owned-connections',
+    isComplete: false,
     generatedAt: Date.now(),
     totalConversations: conversations.length,
-    runningConversations,
-    agents: Array.from(byAgent.values()).sort((a, b) => b.lastActiveAt - a.lastActiveAt),
+    runningConversations: agents.filter((agent) => agent.activeConversations > 0).length,
+    agents: agents.sort((a, b) => b.lastActiveAt - a.lastActiveAt),
   };
 };
 
 const getActivitySnapshot = async (): Promise<IExtensionAgentActivitySnapshot> => {
-  const now = Date.now();
-  if (activitySnapshotCache && now - activitySnapshotCachedAt <= ACTIVITY_SNAPSHOT_TTL_MS) {
-    return activitySnapshotCache;
-  }
-
   if (activitySnapshotInFlight) {
     return activitySnapshotInFlight;
   }
 
   activitySnapshotInFlight = Promise.resolve()
-    .then(() => {
-      const snapshot = buildActivitySnapshot();
-      activitySnapshotCache = snapshot;
-      activitySnapshotCachedAt = Date.now();
-      return snapshot;
-    })
+    .then(() => buildActivitySnapshot())
     .finally(() => {
       activitySnapshotInFlight = null;
     });
@@ -296,6 +240,8 @@ export function initExtensionsBridge(): void {
     } catch (error) {
       mainError('Extensions', 'Failed to build agent activity snapshot:', error);
       return {
+        scope: 'desktop-owned-connections',
+        isComplete: false,
         generatedAt: Date.now(),
         totalConversations: 0,
         runningConversations: 0,
