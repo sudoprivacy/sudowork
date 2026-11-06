@@ -67,7 +67,6 @@ export function useWorkspaceEvents(options: UseWorkspaceEventsOptions) {
    * Listen to conversation switch event - reset all states
    */
   useEffect(() => {
-    setFiles([]);
     setSelected([]);
     // 不要在这里重置展开状态，由 useWorkspaceTree 的 useEffect 负责处理（读取 localStorage 或清空）
     // Do not reset expanded keys here, handled by useWorkspaceTree's useEffect (reading localStorage or clearing)
@@ -80,7 +79,7 @@ export function useWorkspaceEvents(options: UseWorkspaceEventsOptions) {
     if (eventPrefix === 'acp') {
       emitter.emit('acp.selected.file', []);
     }
-  }, [closeDeleteModal, closeRenameModal, conversation_id, eventPrefix, setContextMenu, setFiles, setSelected, setTreeKey, selectedKeysRef, selectedNodeRef]);
+  }, [closeDeleteModal, closeRenameModal, conversation_id, eventPrefix, setContextMenu, setSelected, setTreeKey, selectedKeysRef, selectedNodeRef]);
 
   /**
    * 监听 Agent 响应流 - 自动刷新工作空间
@@ -102,73 +101,6 @@ export function useWorkspaceEvents(options: UseWorkspaceEventsOptions) {
       unsubscribeAcp();
     };
   }, [dataSource, refreshWorkspace]);
-
-  useEffect(() => {
-    if (dataSource !== 'moss-session') {
-      return undefined;
-    }
-
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-    let followUpTimer: ReturnType<typeof setTimeout> | null = null;
-    const scheduleRefresh = (delay = 300) => {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => {
-        debounceTimer = null;
-        refreshRef.current();
-      }, delay);
-    };
-    const scheduleFollowUpRefresh = (delay = 1200) => {
-      if (followUpTimer) clearTimeout(followUpTimer);
-      followUpTimer = setTimeout(() => {
-        followUpTimer = null;
-        refreshRef.current();
-      }, delay);
-    };
-
-    const unsubscribeStream = ipcBridge.conversation.responseStream.on((message) => {
-      if (message.conversation_id !== conversation_id) return;
-
-      if (message.type === 'agent_status') {
-        const status = (message.data as { status?: string } | undefined)?.status;
-        if (status === 'session_active') {
-          scheduleRefresh();
-        }
-        return;
-      }
-
-      if (message.type === 'acp_tool_call') {
-        const status = (message.data as { status?: string } | undefined)?.status;
-        if (!status || status === 'completed') {
-          scheduleRefresh();
-        }
-        return;
-      }
-
-      if (message.type === 'content' || message.type === 'finish') {
-        scheduleRefresh();
-        scheduleFollowUpRefresh();
-      }
-    });
-
-    const unsubscribeConversation = ipcBridge.database.conversationChanged.on((event) => {
-      if (event.conversationId === conversation_id && event.action === 'updated') {
-        scheduleRefresh();
-      }
-    });
-
-    return () => {
-      if (debounceTimer) {
-        clearTimeout(debounceTimer);
-        debounceTimer = null;
-      }
-      if (followUpTimer) {
-        clearTimeout(followUpTimer);
-        followUpTimer = null;
-      }
-      unsubscribeStream();
-      unsubscribeConversation();
-    };
-  }, [conversation_id, dataSource, refreshWorkspace]);
 
   /**
    * inotify 风格的工作空间目录监听 — 任何文件/子目录变化都会触发刷新
@@ -249,7 +181,13 @@ export function useWorkspaceEvents(options: UseWorkspaceEventsOptions) {
    * 监听手动刷新工作空间事件
    * Listen to manual refresh workspace event
    */
-  useAddEventListener(`${eventPrefix}.workspace.refresh`, () => refreshWorkspace(), [refreshWorkspace]);
+  useAddEventListener(
+    `${eventPrefix}.workspace.refresh`,
+    () => {
+      if (dataSource !== 'moss-session') refreshWorkspace();
+    },
+    [dataSource, refreshWorkspace]
+  );
 
   /**
    * 监听清空选中文件事件（发送消息后）

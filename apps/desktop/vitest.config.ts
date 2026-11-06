@@ -122,6 +122,7 @@ export default defineConfig({
         '../../packages/contracts/src/inputDelivery.ts',
         '../../packages/moss-client/src/InputDeliveryClient.ts',
         '../../packages/renderer/src/hooks/useInputDelivery.ts',
+        '../../packages/renderer/src/hooks/useRemoteWorkspace.ts',
         '../../packages/ontology-runtime/src/**/*.ts',
         '../../packages/sudograph-runtime/src/**/*.ts',
         '../../packages/ontology-common/src/runtimePackage.ts',
