@@ -9,6 +9,8 @@ on:
       - apps/webui/tests/e2e/live_cross_client_session.py
       - apps/webui/tests/e2e/live_browser_ui.py
       - apps/webui/tests/e2e/run_published_cross_client.py
+      - apps/webui/tests/e2e/fixture_workspace.py
+      - apps/webui/tests/e2e/test_fixture_workspace.py
   release:
     types: [published]
   schedule:
@@ -44,7 +46,9 @@ jobs:
           python-version: "3.13"
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version-file: package.json
+          bun-version: latest
+      - name: Verify the live fixture approval boundary
+        run: python -m unittest discover -s apps/webui/tests/e2e -p test_fixture_workspace.py
       - uses: browser-actions/setup-chrome@v2
         id: chrome
         with:

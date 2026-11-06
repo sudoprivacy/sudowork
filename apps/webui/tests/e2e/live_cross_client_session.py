@@ -6,13 +6,13 @@ import hashlib
 import json
 from pathlib import Path
 import re
-import shlex
 import sys
 import time
 from urllib.parse import quote, urlparse
 from uuid import uuid4
 
 from ai_dev_browser.core.browser import browser_start, browser_stop
+from fixture_workspace import is_fixture_request, tool_arguments, workspace_from_result
 from live_browser_ui import continue_from_conversation, direct_browser_arguments, read_conversation_event
 from playwright.async_api import async_playwright, expect
 
@@ -44,17 +44,18 @@ async def api(page, path, method="GET", data=None, params=None):
             const started = performance.now();
             if (url.origin !== location.origin) throw Error('Fixture request changed origin');
             for (const [name, value] of Object.entries(params || {})) url.searchParams.set(name, value);
-            let response;
+            let response, text;
             try {
                 response = await fetch(url, {
                     method, credentials: 'same-origin', redirect: 'error',
                     signal: AbortSignal.timeout(30000),
                     ...(data === null ? {} : {headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)}),
                 });
+                text = await response.text();
             } catch (error) {
-                throw Error(`${method} ${url.pathname}: ${error.name}: ${error.message}`);
+                const elapsedMs = Math.round(performance.now() - started);
+                throw Error(`${method} ${url.pathname}: ${error.name}: ${error.message}; elapsedMs=${elapsedMs}`);
             }
-            const text = await response.text();
             let body = null;
             try { body = JSON.parse(text); } catch {}
             return {status: response.status, body, elapsedMs: performance.now() - started};
@@ -83,24 +84,13 @@ async def approve_fixture_request(page, event, fixture, nonce, evidence, phase, 
     """Answer the real permission card once, for this exact fixture operation."""
     request = event["request"]
     tool = request.get("tool_name", "")
-    arguments = request.get("rawInput") or request.get("input") or {}
-    if isinstance(arguments, str):
-        arguments = json.loads(arguments)
-    safe = False
-    if tool in ("write_file", "read_file"):
-        safe = arguments.get("path") in (fixture, "./" + fixture)
-        if tool == "write_file":
-            safe = safe and arguments.get("content", "").strip() == nonce and phase == "create"
-        else:
-            safe = safe and phase == "read"
-    elif tool == "bash" and phase == "delete":
-        tokens = shlex.split(arguments.get("command", ""))
-        safe = bool(tokens) and tokens[0] in ("rm", "/bin/rm", "/usr/bin/rm")
-        safe = safe and tokens[1:] in ([fixture], ["--", fixture], ["-f", fixture],
-                                      ["-f", "--", fixture], ["./" + fixture], ["--", "./" + fixture])
-        safe = safe and not arguments.get("dangerouslyDisableSandbox") and not arguments.get("run_in_background")
+    arguments = tool_arguments(request.get("rawInput") or request.get("input") or {})
+    safe = is_fixture_request(tool, arguments, phase, fixture, nonce, evidence.get("workspaceRootFromTool"))
     pending = {"phase": phase, "requestId": event["request_id"], "toolName": tool,
-               "inputKeys": sorted(arguments), "fixtureScopeVerified": bool(safe)}
+               "inputKeys": sorted(arguments), "fixtureScopeVerified": bool(safe),
+               "requestedPath": arguments.get("path"), "expectedPath": fixture,
+               "contentMatchesNonce": arguments.get("content", "").strip() == nonce,
+               "contentLength": len(arguments.get("content", "")), "expectedContentLength": len(nonce)}
     evidence.setdefault("permissions", []).append(pending)
     assert safe, "Permission request exceeded the exact temporary file operation"
     options = request.get("options", [
@@ -126,7 +116,8 @@ async def approve_fixture_request(page, event, fixture, nonce, evidence, phase, 
     )
     await expect(option).to_have_count(1)
     card = option.locator("..").locator("..")
-    assert fixture in await card.inner_text(), "The visible permission card belongs to another operation"
+    expected_operation = "pwd -P" if phase == "workspace" else fixture
+    assert expected_operation in await card.inner_text(), "The visible permission card belongs to another operation"
     await option.click()
     pending.update(optionId=choice["optionId"], approvedThroughUi=True)
 
@@ -229,6 +220,16 @@ async def main(args):
             evidence.setdefault("chatSockets", []).append(urlparse(socket.url).path)
             socket.on("framereceived", lambda raw: frames.append(raw))
 
+    def observe_workspace_request(request, phase):
+        parsed = urlparse(request.url)
+        session = evidence.get("sessionId")
+        if (session and parsed.netloc == urlparse(origin).netloc
+                and parsed.path.startswith("/api/conversations/" + session + "/workspace/")):
+            evidence.setdefault("workspaceNetwork", []).append({
+                "phase": phase, "path": parsed.path, "method": request.method,
+                "timing": request.timing, "failure": request.failure,
+            })
+
     try:
         owned = browser_start(headless=True, temp=True, reuse="none", silent_stderr=True,
                               match_proxy=False, extra_args=browser_arguments)
@@ -241,6 +242,8 @@ async def main(args):
         web.on("websocket", socket_open)
         await login(web, origin + "/#/login", labels, config)
         control = await context.new_page()
+        control.on("requestfinished", lambda request: observe_workspace_request(request, "finished"))
+        control.on("requestfailed", lambda request: observe_workspace_request(request, "failed"))
         health = await control.goto(origin + "/health/live", wait_until="domcontentloaded")
         assert health and health.status == 200
         response = await api(
@@ -256,10 +259,21 @@ async def main(args):
         await expect(web.locator("textarea").first).to_be_visible(timeout=30_000)
         base = "/api/conversations/" + quote(session, safe="") + "/workspace"
         evidence["toolCalls"] = []
+        tools, results = await web_turn(
+            web, 'Use bash with exactly these JSON arguments: {"command":"pwd -P"}. '
+            'Do not modify any files. Report the current workspace.',
+            frames, evidence, "workspace", fixture, nonce, args.locale,
+        )
+        probes = [(key, call) for key, call in tools.items()
+                  if call.get("name") == "bash" and tool_arguments(call.get("input")).get("command") == "pwd -P"]
+        assert len(tools) == len(probes) == 1, "Require only the real read-only workspace probe"
+        probe_id, _ = probes[0]
+        evidence["workspaceRootFromTool"] = workspace_from_result(results[probe_id], session)
+        evidence["toolCalls"].append({"phase": "workspace", "id": probe_id, "name": "bash"})
         prompts = [
-            ("create", f"Use write_file with the relative path {fixture} to create only this temporary workspace file "
-             f"with exactly this content: {nonce}. Keep it for the next turn. "
-             "Do not modify any other file. Reply with its filename."),
+            ("create", "Use write_file with exactly these JSON arguments: "
+             + json.dumps({"path": fixture, "content": nonce})
+             + ". Keep it for the next turn. Do not modify any other file. Reply with its filename."),
             ("read", f"Use read_file with the relative path {fixture}. Report its filename and exact content. "
              "Keep the file for the next turn. Do not modify any file."),
             ("delete", f"Use bash to run exactly: rm -- {fixture}. Do not modify any other file. "
