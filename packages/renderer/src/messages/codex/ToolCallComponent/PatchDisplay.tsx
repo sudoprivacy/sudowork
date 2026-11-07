@@ -4,11 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Tag } from '@arco-design/web-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { CodexToolCallUpdate } from '@sudowork/common/chatLib';
-import BaseToolCallDisplay from './BaseToolCallDisplay';
+import ToolFrame, { ToolBadge } from '../../tools/ToolFrame';
 
 type PatchUpdate = Extract<CodexToolCallUpdate, { subtype: 'patch_apply_begin' | 'patch_apply_end' }>;
 
@@ -31,7 +30,7 @@ const PatchDisplay: React.FC<{ content: PatchUpdate }> = ({ content }) => {
 
   const getAdditionalTags = () => {
     if (subtype === 'patch_apply_begin' && 'auto_approved' in data && data.auto_approved !== undefined) {
-      return <Tag color={data.auto_approved ? 'green' : 'orange'}>{data.auto_approved ? t('tools.labels.auto_approved') : t('tools.labels.manual_approval')}</Tag>;
+      return <ToolBadge tone={data.auto_approved ? 'success' : 'warning'}>{data.auto_approved ? t('tools.labels.auto_approved') : t('tools.labels.manual_approval')}</ToolBadge>;
     }
     return null;
   };
@@ -59,7 +58,7 @@ const PatchDisplay: React.FC<{ content: PatchUpdate }> = ({ content }) => {
   const changeSummary = getChangeSummary();
 
   return (
-    <BaseToolCallDisplay toolCallId={toolCallId} title={getDisplayTitle()} status={status} description={description} icon='📝' additionalTags={getAdditionalTags()}>
+    <ToolFrame toolCallId={toolCallId} title={getDisplayTitle()} status={status} description={description} icon='📝' additionalTags={getAdditionalTags()}>
       {/* Display file changes if available */}
       {changeSummary && changeSummary.length > 0 && (
         <div className='text-sm mb-2'>
@@ -67,16 +66,14 @@ const PatchDisplay: React.FC<{ content: PatchUpdate }> = ({ content }) => {
           <div className='bg-1 p-2 rounded text-sm'>
             {changeSummary.map(({ file, action }, index) => (
               <div key={index} className='flex items-center gap-2'>
-                <Tag size='small' color={action === 'create' ? 'green' : action === 'delete' ? 'red' : 'blue'}>
-                  {t(`tools.actions.${action}`, { defaultValue: action })}
-                </Tag>
+                <ToolBadge tone={action === 'create' ? 'success' : action === 'delete' ? 'danger' : 'info'}>{t(`tools.actions.${action}`, { defaultValue: action })}</ToolBadge>
                 <span className='font-mono text-xs'>{file}</span>
               </div>
             ))}
           </div>
         </div>
       )}
-    </BaseToolCallDisplay>
+    </ToolFrame>
   );
 };
 

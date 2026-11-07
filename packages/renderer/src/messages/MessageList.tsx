@@ -11,9 +11,10 @@ import React, { createContext, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Virtuoso } from 'react-virtuoso';
 import { IconCopy } from '@arco-design/web-react/icon';
-import type { CodexToolCallUpdate, IMessageAcpToolCall, IMessageToolGroup, TMessage, TurnTokenUsage } from '@sudowork/common/chatLib';
-import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
+import type { TMessage } from '@sudowork/common/chatLib';
 import { NEXUS_FILES_MARKER } from '@sudowork/common/constants';
+import { stripThinkTags, hasThinkTags } from '@sudowork/common/thinkTagFilter';
+import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { useConversationContextSafe } from '@renderer/context/ConversationContext';
 import { CHAT_MESSAGE_JUMP_EVENT, type ChatMessageJumpDetail } from '@renderer/utils/chatMinimapEvents';
 import MessageAcpPermission from '@renderer/messages/acp/MessageAcpPermission';
@@ -23,13 +24,10 @@ import MessageAgentStatus from '@renderer/messages/MessageAgentStatus';
 import ContextMenu, { type ContextMenuItem } from '@renderer/components/ContextMenu';
 import { copyText } from '@renderer/utils/clipboard';
 import { useShowToolCalls } from '@renderer/hooks/useShowToolCalls';
-import { shouldShowTimeSeparator } from '@renderer/utils/messageTime';
-import { uuid } from '../utils';
+import { areTurnActionsEqual, buildMessagePresentation, type MessagePresentation, type TurnActionsPresentation } from './messagePresentation';
 import HOC from '../utils/HOC';
-import { stripThinkTags, hasThinkTags } from '@sudowork/common/thinkTagFilter';
 import MessageCodexToolCall from './codex/MessageCodexToolCall';
-import type { FileChangeInfo } from './codex/MessageFileChanges';
-import MessageFileChanges, { parseDiff } from './codex/MessageFileChanges';
+import MessageFileChanges from './codex/MessageFileChanges';
 import MessageFileSend from './MessageFileSend';
 import { useMessageList } from './hooks';
 import MessagePlan from './MessagePlan';
@@ -41,41 +39,23 @@ import MessageToolGroupSummary from './MessageToolGroupSummary';
 import MessageText from './MessagetText';
 import TurnActions from './TurnActions';
 import { ShareoneCliStatusProvider } from './ShareoneCliStatusContext';
-import type { WriteFileResult } from './types';
 import { BOTTOM_BUFFER_PX, useAutoScroll } from './useAutoScroll';
 import MessageTimeSeparator from './MessageTimeSeparator';
 import MessageLoadingIndicator from './MessageLoadingIndicator';
 
-type TurnDiffContent = Extract<CodexToolCallUpdate, { subtype: 'turn_diff' }>;
-
-type IMessageVO =
-  | TMessage
-  | { type: 'file_summary'; id: string; diffs: FileChangeInfo[] }
-  | {
-      type: 'tool_summary';
-      id: string;
-      messages: Array<IMessageToolGroup | IMessageAcpToolCall>;
-    }
-  | { type: 'turn_actions'; id: string; turnTexts: string[]; turnTextsRaw: string[]; conversationId?: string; tokenUsage?: TurnTokenUsage }
-  | { type: 'time_separator'; id: string; timestamp: number }
-  | { type: 'loading_indicator'; id: string };
+type IMessageVO = MessagePresentation;
 
 // Image preview context
 export const ImagePreviewContext = createContext<{ inPreviewGroup: boolean }>({ inPreviewGroup: false });
-
-const isUserFacingAcpToolCall = (message: IMessageAcpToolCall): boolean => {
-  const title = message.content?.update?.title;
-  return title === 'AskUserQuestion' || title === 'SendUserMessage';
-};
 
 interface IMessageQuestionCallbacks {
   onTeamAnswerQuestion?: (params: { conversationId: string; toolCallId: string; answers: Array<{ id: string; value: string; label?: string }> }) => Promise<{ success: boolean; msg?: string } | void>;
   onTeamQuestionFallbackSend?: (params: { input: string; msg_id: string }) => Promise<{ success: boolean; msg?: string } | void>;
 }
 
-const MessageItem: React.FC<{ message: TMessage; isStreaming?: boolean; footer?: React.ReactNode } & IMessageQuestionCallbacks> = React.memo(
+export const MessageItem: React.FC<IMessageItemProps> = React.memo(
   HOC((props) => {
-    const { message } = props as { message: TMessage; footer?: React.ReactNode } & IMessageQuestionCallbacks;
+    const { message } = props as IMessageItemProps;
     const isAiMessage = message.position === 'left';
 
     return (
@@ -91,8 +71,9 @@ const MessageItem: React.FC<{ message: TMessage; isStreaming?: boolean; footer?:
         <div className={classNames('min-w-0', isAiMessage ? 'w-full' : 'flex-none w-fit')}>{props.children}</div>
       </div>
     );
-  })(({ message, isStreaming, footer, onTeamAnswerQuestion, onTeamQuestionFallbackSend }) => {
+  })(({ message, isStreaming, turnActions, isTokenUsageBadgeVisible, onTeamAnswerQuestion, onTeamQuestionFallbackSend }: IMessageItemProps) => {
     const { t } = useTranslation();
+    const footer = turnActions ? <TurnActions {...turnActions} showTokenUsageBadge={isTokenUsageBadgeVisible} /> : undefined;
     switch (message.type) {
       case 'text':
         return <MessageText message={message} isStreaming={isStreaming} footer={footer}></MessageText>;
@@ -133,16 +114,11 @@ const MessageItem: React.FC<{ message: TMessage; isStreaming?: boolean; footer?:
     prev.message.position === next.message.position &&
     prev.message.type === next.message.type &&
     prev.isStreaming === next.isStreaming &&
+    prev.isTokenUsageBadgeVisible === next.isTokenUsageBadgeVisible &&
+    areTurnActionsEqual(prev.turnActions, next.turnActions) &&
     prev.onTeamAnswerQuestion === next.onTeamAnswerQuestion &&
     prev.onTeamQuestionFallbackSend === next.onTeamQuestionFallbackSend
 );
-
-interface IMessageListProps extends IMessageQuestionCallbacks {
-  className?: string;
-  aiProcessing?: boolean; // AI processing state
-  emptyState?: React.ReactNode;
-  isEmptyStateReady?: boolean;
-}
 
 const MessageList: React.FC<IMessageListProps> = ({ className, aiProcessing = false, emptyState, isEmptyStateReady = false, onTeamAnswerQuestion, onTeamQuestionFallbackSend }) => {
   const list = useMessageList();
@@ -270,158 +246,7 @@ const MessageList: React.FC<IMessageListProps> = ({ className, aiProcessing = fa
   }, [list, aiProcessing]);
 
   // Pre-process message list to group Codex turn_diff messages and add turn-level copy actions
-  const processedList = useMemo(() => {
-    const result: Array<IMessageVO> = [];
-    let diffsChanges: FileChangeInfo[] = [];
-    let toolList: Array<IMessageToolGroup | IMessageAcpToolCall> = [];
-    let turnTexts: string[] = [];
-    let turnTextsRaw: string[] = [];
-    let turnTokenUsage: TurnTokenUsage | undefined;
-    let lastAiTextId = '';
-
-    const flushTurnActions = () => {
-      if (turnTexts.length > 0) {
-        result.push({ type: 'turn_actions', id: `turn-actions-${lastAiTextId}`, turnTexts, turnTextsRaw, conversationId: conversationContext?.conversationId, tokenUsage: turnTokenUsage });
-        turnTexts = [];
-        turnTextsRaw = [];
-        turnTokenUsage = undefined;
-        lastAiTextId = '';
-      }
-    };
-
-    const pushFileDffChanges = (changes: FileChangeInfo) => {
-      if (!diffsChanges.length) {
-        result.push({ type: 'file_summary', id: `summary-${uuid()}`, diffs: diffsChanges });
-      }
-      diffsChanges.push(changes);
-      toolList = [];
-    };
-    const pushToolList = (message: IMessageToolGroup | IMessageAcpToolCall) => {
-      if (!toolList.length) {
-        // Generate unique id for tool_summary using first message's id
-        const firstMsg = message;
-        const summaryId = firstMsg.type === 'tool_group' ? firstMsg.content[0]?.callId : firstMsg.content.update?.toolCallId || `tool-${uuid()}`;
-        result.push({ type: 'tool_summary', id: `tool-summary-${summaryId}`, messages: toolList });
-      }
-      toolList.push(message);
-      diffsChanges = [];
-    };
-
-    for (let i = 0, len = list.length; i < len; i++) {
-      const message = list[i];
-      // Skip available_commands messages
-      if (message.type === 'available_commands') continue;
-      // Permission prompts render in ConversationChatConfirm, outside the list.
-      if (message.type === 'codex_permission') continue;
-      // Hide agent_status badges from chat — shown via AgentStatusBanner instead
-      if (message.type === 'agent_status') continue;
-      // Hide gateway-disconnected tips from chat
-      if (message.type === 'tips' && typeof message.content?.content === 'string' && message.content.content.startsWith('Gateway disconnected:')) continue;
-      // Hide transient Sudoclaw recovery tip from chat after the reconnecting banner is cleared
-      if (message.type === 'tips' && message.content?.content === '已连接到 Sudoclaw') continue;
-
-      // Flush turn actions before a user message
-      if (message.position === 'right') {
-        flushTurnActions();
-      }
-
-      // Collect AI text content for turn-level copy
-      if (message.type === 'text' && message.position === 'left') {
-        const rawContent = message.content.content;
-        if (message.content.tokenUsage) {
-          turnTokenUsage = message.content.tokenUsage;
-        }
-        if (typeof rawContent === 'string' && rawContent.trim()) {
-          let cleaned = hasThinkTags(rawContent) ? stripThinkTags(rawContent) : rawContent;
-          const markerIdx = cleaned.indexOf(NEXUS_FILES_MARKER);
-          if (markerIdx !== -1) cleaned = cleaned.slice(0, markerIdx).trimEnd();
-          // Keep raw markdown with images for sharing
-          const rawCleaned = cleaned;
-          // Strip image syntax for plain text copy
-          cleaned = cleaned.replace(/!\[[^\]]*\]\(([^)]+)\)/g, '$1');
-          if (cleaned.trim()) {
-            turnTexts.push(cleaned);
-            turnTextsRaw.push(rawCleaned);
-            lastAiTextId = message.id;
-          }
-        }
-      }
-
-      if (message.type === 'codex_tool_call' && message.content.subtype === 'turn_diff') {
-        pushFileDffChanges(parseDiff((message.content as TurnDiffContent).data.unified_diff));
-        continue;
-      }
-      // 关闭"显示工具调用"时隐藏工具消息（文件变更摘要与用户交互消息保留）
-      // Hide tool messages when "show tool calls" is off (file-change summaries
-      // and user-facing prompts stay visible)
-      if (!showToolCalls && (message.type === 'tool_call' || message.type === 'codex_tool_call')) {
-        continue;
-      }
-      if (message.type === 'tool_group') {
-        if (message.content.length === 1) {
-          const writeFileResults = message.content.filter((item) => item.name === 'WriteFile' && item.resultDisplay && typeof item.resultDisplay === 'object' && 'fileDiff' in item.resultDisplay).map((item) => item.resultDisplay as WriteFileResult);
-          if (writeFileResults.length && writeFileResults[0].fileDiff) {
-            pushFileDffChanges(parseDiff(writeFileResults[0].fileDiff, writeFileResults[0].fileName));
-            continue;
-          }
-        }
-        if (!showToolCalls) continue;
-        pushToolList(message);
-        continue;
-      }
-      if (message.type === 'acp_tool_call') {
-        if (isUserFacingAcpToolCall(message)) {
-          toolList = [];
-          diffsChanges = [];
-          continue;
-        }
-        if (!showToolCalls) continue;
-        pushToolList(message);
-        continue;
-      }
-      toolList = [];
-      diffsChanges = [];
-      result.push(message);
-    }
-    // Only expose turn actions after the AI stream finishes.
-    if (!aiProcessing) {
-      flushTurnActions();
-    }
-
-    // Insert time separators between messages with significant time gaps
-    // 在时间间隔较大的消息之间插入时间分隔符
-    const withTimeSeparators: Array<IMessageVO> = [];
-    let prevTimestamp: number | undefined;
-
-    for (const item of result) {
-      // Get timestamp from TMessage items (they have createdAt)
-      const currentTimestamp = 'createdAt' in item ? (item as TMessage).createdAt : undefined;
-
-      if (currentTimestamp && shouldShowTimeSeparator(prevTimestamp, currentTimestamp)) {
-        withTimeSeparators.push({
-          type: 'time_separator',
-          id: `time-sep-${currentTimestamp}`,
-          timestamp: currentTimestamp,
-        });
-      }
-
-      withTimeSeparators.push(item);
-
-      if (currentTimestamp) {
-        prevTimestamp = currentTimestamp;
-      }
-    }
-
-    const shouldShowLoading = aiProcessing && list.length > 0;
-    if (shouldShowLoading) {
-      withTimeSeparators.push({
-        type: 'loading_indicator',
-        id: 'temp-loading-indicator',
-      });
-    }
-
-    return withTimeSeparators;
-  }, [list, aiProcessing, showToolCalls]);
+  const processedList = useMemo(() => buildMessagePresentation(list, { isProcessing: aiProcessing, isToolCallsVisible: showToolCalls, conversationId: conversationContext?.conversationId }), [list, aiProcessing, showToolCalls, conversationContext?.conversationId]);
 
   // Actions render inside the preceding message. A null virtual row at the
   // initial scroll target prevents Virtuoso from measuring the chat history.
@@ -534,7 +359,7 @@ const MessageList: React.FC<IMessageListProps> = ({ className, aiProcessing = fa
       return null;
     }
     const message = item as TMessage;
-    return <MessageItem message={message} key={message.id} isStreaming={message.id === lastAiMessageId} footer={turnActionsNode} onTeamAnswerQuestion={onTeamAnswerQuestion} onTeamQuestionFallbackSend={onTeamQuestionFallbackSend}></MessageItem>;
+    return <MessageItem message={message} key={message.id} isStreaming={message.id === lastAiMessageId} turnActions={nextItem} isTokenUsageBadgeVisible={showTokenUsageBadges} onTeamAnswerQuestion={onTeamAnswerQuestion} onTeamQuestionFallbackSend={onTeamQuestionFallbackSend}></MessageItem>;
   };
 
   return (
@@ -598,3 +423,17 @@ const MessageList: React.FC<IMessageListProps> = ({ className, aiProcessing = fa
 };
 
 export default MessageList;
+
+interface IMessageItemProps extends IMessageQuestionCallbacks {
+  message: TMessage;
+  isStreaming?: boolean;
+  turnActions?: TurnActionsPresentation;
+  isTokenUsageBadgeVisible?: boolean;
+}
+
+interface IMessageListProps extends IMessageQuestionCallbacks {
+  className?: string;
+  aiProcessing?: boolean; // AI processing state
+  emptyState?: React.ReactNode;
+  isEmptyStateReady?: boolean;
+}

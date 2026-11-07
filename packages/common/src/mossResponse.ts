@@ -25,6 +25,7 @@
 
 import { appendGeneratedFilesMarker, extractExtension } from './generatedFiles.js';
 import type { IConfirmation, IResponseMessage } from './chatTypes.js';
+import { thinkingBlockToResponse } from './thought.js';
 
 export interface MossResponseCtx {
   /** moss session id, stamped onto emitted `acp_tool_call` updates as `sessionId`. */
@@ -279,17 +280,10 @@ export function mossFrameToResponses(frame: any, ctx: MossResponseCtx): IRespons
 
     const contentArray = frame.message?.content;
     if (Array.isArray(contentArray)) {
-      for (const block of contentArray) {
+      for (const [blockIndex, block] of contentArray.entries()) {
         if (block?.type === 'thinking') {
-          const thinkingContent = block.thinking || block.text || '';
-          if (thinkingContent && thinkingContent.trim()) {
-            out.push({
-              type: 'thought',
-              msg_id: `${frame.uuid || ctx.nextMsgId()}-thought`,
-              conversation_id: conversationId,
-              data: { subject: 'Thinking', description: thinkingContent },
-            });
-          }
+          const response = thinkingBlockToResponse(block, frame.uuid || ctx.nextMsgId(), blockIndex, conversationId);
+          if (response) out.push(response);
         } else if (block?.type === 'text') {
           const textContent = block.text || '';
           if (textContent && (frame.delta === true || textContent.trim()) && !isAbortRelatedText(textContent)) {

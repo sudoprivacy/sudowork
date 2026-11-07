@@ -18,7 +18,7 @@ describe('shared ACP projection in a browser client', () => {
     const reasoning = thought('Consider ');
     const moreReasoning = thought('the file');
     expect(moreReasoning.msg_id).toBe(reasoning.msg_id);
-    expect(moreReasoning.content).toMatchObject({ content: 'Consider the file' });
+    expect(moreReasoning.content).toMatchObject({ subject: 'Thinking', description: 'Consider the file' });
     const afterThought = text('I will read it.');
     expect(afterThought.msg_id).not.toBe(first.msg_id);
 
@@ -31,7 +31,7 @@ describe('shared ACP projection in a browser client', () => {
       content: { sessionId: 'native-session', update: { rawInput: { path: 'README.md' }, status: 'completed' } },
     });
     expect(text('Read complete.').msg_id).not.toBe(afterThought.msg_id);
-    expect(thought('Next step').content).toMatchObject({ content: 'Next step' });
+    expect(thought('Next step').content).toMatchObject({ subject: 'Thinking', description: 'Next step' });
   });
 
   it('isolates projection state between concurrent remote sessions', () => {

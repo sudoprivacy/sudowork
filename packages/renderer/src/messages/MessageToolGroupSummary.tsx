@@ -7,6 +7,10 @@
 import { IconDown } from '@arco-design/web-react/icon';
 import classNames from 'classnames';
 import React, { useMemo, useRef, useCallback, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
+import CodeView from '@renderer/components/CodeView';
+import ToolContentView, { ToolOutput } from './tools/ToolContentView';
+import { formatToolValue, isToolActive, isToolFinished, normalizeToolState, projectAcpToolContent, type ToolContent } from './tools/toolPresentation';
 import type { IMessageAcpToolCall, IMessageToolGroup } from '@sudowork/common/chatLib';
 import './MessageToolGroupSummary.css';
 
@@ -19,15 +23,12 @@ type ToolItem = {
   status: ToolStatus;
   input?: string;
   output?: string;
+  contents?: ToolContent[];
 };
 
-const formatValue = (value: unknown): string => {
-  if (typeof value === 'string') return value;
-  try {
-    return JSON.stringify(value, null, 2);
-  } catch {
-    return String(value);
-  }
+const stepState = (status: string): ToolStatus => {
+  const state = normalizeToolState(status);
+  return state === 'pending' || state === 'running' ? 'running' : state === 'success' || state === 'error' ? state : 'default';
 };
 
 const getResultDisplayText = (resultDisplay: IMessageToolGroup['content'][0]['resultDisplay']): string | undefined => {
@@ -51,14 +52,14 @@ const ToolGroupMapper = (m: IMessageToolGroup): ToolItem[] => {
     let input: string | undefined;
     if (confirmationDetails) {
       const { title: _title, type: _type, ...rest } = confirmationDetails;
-      if (Object.keys(rest).length) input = formatValue(rest);
+      if (Object.keys(rest).length) input = formatToolValue(rest);
     } else if (description) {
       input = description;
     }
 
     const output = getResultDisplayText(resultDisplay);
 
-    const mappedStatus: ToolStatus = status === 'Success' ? 'success' : status === 'Error' ? 'error' : status === 'Canceled' ? 'default' : 'running';
+    const mappedStatus: ToolStatus = stepState(status);
 
     return {
       key: callId,
@@ -75,7 +76,7 @@ const ToolAcpMapper = (message: IMessageAcpToolCall): ToolItem | undefined => {
   const update = message.content.update;
   if (!update) return;
 
-  const input = update.rawInput ? formatValue(update.rawInput) : undefined;
+  const input = update.rawInput ? formatToolValue(update.rawInput) : undefined;
 
   let output: string | undefined;
   if (update.content?.length) {
@@ -89,7 +90,7 @@ const ToolAcpMapper = (message: IMessageAcpToolCall): ToolItem | undefined => {
       .join('\n');
   }
 
-  const mappedStatus: ToolStatus = update.status === 'completed' ? 'success' : update.status === 'failed' ? 'error' : 'running';
+  const mappedStatus: ToolStatus = stepState(update.status);
 
   return {
     key: update.toolCallId,
@@ -98,6 +99,7 @@ const ToolAcpMapper = (message: IMessageAcpToolCall): ToolItem | undefined => {
     status: mappedStatus,
     input,
     output,
+    contents: projectAcpToolContent(update.content),
   };
 };
 
@@ -133,6 +135,7 @@ const StatusIcon: React.FC<{ status: ToolStatus }> = ({ status }) => {
 
 // ——— Step row ———
 const ToolItemDetail: React.FC<{ item: ToolItem }> = ({ item }) => {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = React.useState(false);
   const hasDetail = Boolean(item.input || item.output);
   const itemRef = React.useRef<HTMLDivElement>(null);
@@ -215,14 +218,14 @@ const ToolItemDetail: React.FC<{ item: ToolItem }> = ({ item }) => {
         <div className='tool-detail-panel' onClick={(e) => e.stopPropagation()}>
           {item.input && (
             <div className='tool-detail-section'>
-              <div className='tool-detail-label'>Input</div>
-              <pre className='tool-detail-content'>{item.input}</pre>
+              <div className='tool-detail-label'>{t('tools.labels.arguments')}</div>
+              <CodeView source={item.input} isCollapsible={false} />
             </div>
           )}
-          {item.output && (
+          {(item.output || Boolean(item.contents?.length)) && (
             <div className='tool-detail-section'>
-              <div className='tool-detail-label'>Output</div>
-              <pre className='tool-detail-content'>{item.output}</pre>
+              <div className='tool-detail-label'>{t('tools.labels.result')}</div>
+              {item.contents?.length ? item.contents.map((content, index) => <ToolContentView key={index} content={content} />) : <ToolOutput text={item.output || ''} />}
             </div>
           )}
         </div>
@@ -240,6 +243,7 @@ interface MessageToolGroupSummaryProps {
 }
 
 const MessageToolGroupSummary: React.FC<MessageToolGroupSummaryProps> = ({ messages, summaryId, isExpanded, onToggle, isStreaming }) => {
+  const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLDivElement>(null);
   const prevMessagesRef = useRef(messages);
@@ -250,27 +254,27 @@ const MessageToolGroupSummary: React.FC<MessageToolGroupSummaryProps> = ({ messa
     const prevMessages = prevMessagesRef.current;
     const wasInProgress = prevMessages.some((m) => {
       if (m.type === 'tool_group') {
-        return m.content.some((t) => t.status !== 'Success' && t.status !== 'Error' && t.status !== 'Canceled');
+        return m.content.some((t) => isToolActive(t.status));
       }
       if (m.type === 'acp_tool_call') {
-        return m.content.update.status !== 'completed' && m.content.update.status !== 'failed';
+        return isToolActive(m.content.update.status);
       }
       return true;
     });
 
     const allCompleted = messages.every((m) => {
       if (m.type === 'tool_group') {
-        return m.content.every((t) => t.status === 'Success' || t.status === 'Error' || t.status === 'Canceled');
+        return m.content.every((t) => isToolFinished(t.status));
       }
       if (m.type === 'acp_tool_call') {
-        return m.content.update.status === 'completed' || m.content.update.status === 'failed';
+        return isToolFinished(m.content.update.status);
       }
       return true;
     });
 
     const hasErrors = messages.some((m) => {
-      if (m.type === 'tool_group') return m.content.some((t) => t.status === 'Error');
-      if (m.type === 'acp_tool_call') return m.content.update.status === 'failed';
+      if (m.type === 'tool_group') return m.content.some((t) => normalizeToolState(t.status) === 'error');
+      if (m.type === 'acp_tool_call') return normalizeToolState(m.content.update.status) === 'error';
       return false;
     });
 
@@ -361,7 +365,7 @@ const MessageToolGroupSummary: React.FC<MessageToolGroupSummaryProps> = ({ messa
 
   const isRunning = !!isStreaming || overallStatus === 'running';
 
-  const headerLabel = isRunning ? '执行中...' : overallStatus === 'success' || overallStatus === 'error' ? '执行完成' : '查看步骤';
+  const headerLabel = isRunning ? t('tools.status.executing') : overallStatus === 'success' ? t('tools.status.success') : overallStatus === 'error' ? t('tools.status.error') : t('tools.labels.tool_details');
 
   return (
     <div ref={containerRef} className='tool-steps-card' onClick={(e) => e.stopPropagation()}>

@@ -7,6 +7,7 @@
 import type { IFileSendData, IResponseMessage, TMessage } from './chatTypes.js';
 import { mossFrameToResponses } from './mossResponse.js';
 import { uuid } from './utils.js';
+import { mergeThoughtContent, thinkingBlockToResponse } from './thought.js';
 
 // The pure message/confirmation type surface (TMessage and its whole union tree,
 // IConfirmation, AcpQuestionData, CodexToolCallUpdate, …) lives in @sudowork/common
@@ -290,9 +291,11 @@ export const convertMossMessagesToTMessages = (allMessages: any[], conversationI
     }
 
     if (msgRole === 'assistant' && Array.isArray(contentArray)) {
-      for (const block of contentArray) {
+      for (const [blockIndex, block] of contentArray.entries()) {
         if (block?.type === 'thinking') {
-          // thinking content is not displayed in UI
+          const response = thinkingBlockToResponse(block, msg.uuid || `${conversationId}-${messageIndex}`, blockIndex, conversationId);
+          const thought = response && transformMessage(response);
+          if (thought) messages.push({ ...thought, id: `${conversationId}-${messageIndex++}`, createdAt: timestamp, status: finishedMessageStatus });
         } else if (block?.type === 'text') {
           const textContent = block.text || '';
           if (textContent && textContent.trim()) {
@@ -537,8 +540,8 @@ export const transformMessage = (message: IResponseMessage): TMessage => {
       };
     }
     case 'thought': {
-      const data = message.data as { subject?: string; description?: string } | null;
-      if (!data?.description?.trim()) break;
+      const data = message.data as Partial<import('./thought.js').ThoughtContent> | null;
+      if (!data?.description) break;
       return {
         id: uuid(),
         type: 'thought',
@@ -548,6 +551,7 @@ export const transformMessage = (message: IResponseMessage): TMessage => {
         content: {
           subject: data.subject || '',
           description: data.description,
+          ...(data.descriptionMode ? { descriptionMode: data.descriptionMode } : {}),
         },
       };
     }
@@ -659,16 +663,16 @@ export const composeMessage = (message: TMessage | undefined, list: TMessage[] |
     return pushMessage(message);
   }
 
-  // Thought emissions carry the full accumulated reasoning text for a block,
-  // so merge by msg_id replacing content in place (not appending)
+  // Stored thoughts are snapshots; explicitly marked wire deltas share the
+  // same merger and keep the original row identity.
   if (message.type === 'thought' && message.msg_id) {
     for (let i = 0, len = list.length; i < len; i++) {
       const msg = list[i];
       if (msg.type === 'thought' && msg.msg_id === message.msg_id) {
-        return updateMessage(i, { ...msg, ...message, content: message.content });
+        return updateMessage(i, { ...msg, content: mergeThoughtContent(msg.content, message.content) });
       }
     }
-    return pushMessage(message);
+    return pushMessage({ ...message, content: mergeThoughtContent(undefined, message.content) });
   }
 
   // Handle codex_tool_call message merging

@@ -41,6 +41,25 @@
   --text-xl: 18px; /* 超大文字 - 次级标题 */
   --text-2xl: 24px; /* 特大文字 - 主标题 */
 
+  /* Prose and code tokens also inherit into isolated Markdown surfaces. */
+  --prose-link: #5b63cf;
+  --prose-link-hover: #464fc0;
+  --prose-link-visited: #7a63b0;
+  --prose-heading-1: var(--brand);
+  --prose-heading-2: var(--color-primary);
+  --prose-heading-3: var(--aou-6);
+  --prose-heading-4: var(--success);
+  --prose-heading-5: #465881;
+  --code-keyword: #0000ff;
+  --code-string: #a31515;
+  --code-number: #098658;
+  --code-comment: #008000;
+  --code-title: #795e26;
+  --code-attribute: #0451a5;
+  --code-type: #267f99;
+  --info-soft: color-mix(in srgb, var(--info) 12%, var(--bg-base));
+  --info-line: color-mix(in srgb, var(--info) 40%, var(--border-light));
+
   /* ---------- Shadow / 阴影系统 ---------- */
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08); /* 小阴影 - 按钮、小组件 */
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1); /* 中阴影 - 卡片、下拉菜单 */
@@ -172,6 +191,17 @@
 
 /* ===================== Dark Mode ===================== */
 [data-theme='dark'] {
+  --prose-link: #cfe0ff;
+  --prose-link-hover: #e7efff;
+  --prose-link-visited: #d4c6fa;
+  --prose-heading-5: #7a90c8;
+  --code-keyword: #569cd6;
+  --code-string: #ce9178;
+  --code-number: #b5cea8;
+  --code-comment: #89a77b;
+  --code-title: #dcdcaa;
+  --code-attribute: #9cdcfe;
+  --code-type: #4ec9b0;
   /* ---------- UI Accent ---------- */
   --ui-border-strong: color-mix(in srgb, var(--border-default) 82%, var(--text-secondary));
 

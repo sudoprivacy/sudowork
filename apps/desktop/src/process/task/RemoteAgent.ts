@@ -1474,15 +1474,15 @@ class RemoteAgent extends BaseAgent<RemoteAgentData> {
           content: { content: msg.data as string, type: 'error' },
         } as any;
       case 'thought': {
-        const data = msg.data as { subject?: string; description?: string } | null;
-        if (!data?.description?.trim()) return null;
+        const data = msg.data as Partial<import('@sudowork/common/thought').ThoughtContent> | null;
+        if (!data?.description) return null;
         return {
           id: uuid(),
           type: 'thought',
           msg_id: msg.msg_id,
           position: 'left',
           conversation_id: msg.conversation_id,
-          content: { subject: data.subject || '', description: data.description },
+          content: { subject: data.subject || '', description: data.description, ...(data.descriptionMode ? { descriptionMode: data.descriptionMode } : {}) },
         } as any;
       }
       default:

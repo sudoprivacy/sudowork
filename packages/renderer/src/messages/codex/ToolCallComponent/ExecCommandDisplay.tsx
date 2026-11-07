@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Tag } from '@arco-design/web-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { CodexToolCallUpdate } from '@sudowork/common/chatLib';
-import BaseToolCallDisplay from './BaseToolCallDisplay';
+import ToolFrame, { ToolBadge } from '../../tools/ToolFrame';
+import { ToolOutput } from '../../tools/ToolContentView';
 
 type ExecCommandUpdate = Extract<CodexToolCallUpdate, { subtype: 'exec_command_begin' | 'exec_command_output_delta' | 'exec_command_end' }>;
 
@@ -38,9 +38,9 @@ const ExecCommandDisplay: React.FC<{ content: ExecCommandUpdate }> = ({ content 
     const tags = [];
     if (subtype === 'exec_command_end' && 'exit_code' in data && data.exit_code !== undefined) {
       tags.push(
-        <Tag key='exit-code' color={data.exit_code === 0 ? 'green' : 'red'}>
+        <ToolBadge key='exit-code' tone={data.exit_code === 0 ? 'success' : 'danger'}>
           {t('tools.labels.exit_code', { code: data.exit_code })}
-        </Tag>
+        </ToolBadge>
       );
     }
     if (subtype === 'exec_command_end' && 'duration' in data && data.duration) {
@@ -49,16 +49,16 @@ const ExecCommandDisplay: React.FC<{ content: ExecCommandUpdate }> = ({ content 
       const formattedDuration = totalSeconds < 1 ? `${Math.round(totalSeconds * 1000)}ms` : `${totalSeconds.toFixed(2)}s`;
 
       tags.push(
-        <Tag key='duration' color='blue'>
+        <ToolBadge key='duration' tone='info'>
           {t('tools.labels.duration', { seconds: formattedDuration })}
-        </Tag>
+        </ToolBadge>
       );
     }
     return tags.length > 0 ? <>{tags}</> : null;
   };
 
   return (
-    <BaseToolCallDisplay toolCallId={toolCallId} title={getDisplayTitle()} status={status} description={description} icon='🔧' additionalTags={getAdditionalTags()}>
+    <ToolFrame toolCallId={toolCallId} title={getDisplayTitle()} status={status} description={description} icon='🔧' additionalTags={getAdditionalTags()}>
       {/* Display command if available 显示命令 */}
       {subtype === 'exec_command_begin' && 'command' in data && data.command && Array.isArray(data.command) && data.command.length > 0 && (
         <div className='text-sm mb-2'>
@@ -82,16 +82,14 @@ const ExecCommandDisplay: React.FC<{ content: ExecCommandUpdate }> = ({ content 
             <div key={index}>
               {content.type === 'output' && content.output && (
                 <div className='mt-3'>
-                  <div className='bg-2 p-3 rounded border font-mono text-sm overflow-x-auto max-h-60 overflow-y-auto'>
-                    <pre className='whitespace-pre-wrap break-words text-foreground'>{content.output}</pre>
-                  </div>
+                  <ToolOutput text={content.output} />
                 </div>
               )}
             </div>
           ))}
         </div>
       )}
-    </BaseToolCallDisplay>
+    </ToolFrame>
   );
 };
 

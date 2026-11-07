@@ -7,7 +7,6 @@
 import { Tag, Spin } from '@arco-design/web-react';
 import React, { useMemo, useEffect, useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useThemeContext } from '@renderer/context/ThemeContext';
 
 export interface ThoughtData {
   subject: string;
@@ -24,10 +23,6 @@ interface ThoughtDisplayProps {
   startTime?: number;
 }
 
-// 背景渐变常量 Background gradient constants
-const GRADIENT_DARK = 'linear-gradient(135deg, #464767 0%, #323232 100%)';
-const GRADIENT_LIGHT = 'linear-gradient(90deg, #F0F3FF 0%, #F2F2F2 100%)';
-
 // 格式化时间 Format elapsed time
 const formatElapsedTime = (seconds: number): string => {
   if (seconds < 60) {
@@ -39,14 +34,13 @@ const formatElapsedTime = (seconds: number): string => {
 };
 
 const ThoughtDisplay: React.FC<ThoughtDisplayProps> = ({ thought, style = 'default', running = false, state = 'processing', onStop: _onStop, startTime }) => {
-  const { theme } = useThemeContext();
   const { t } = useTranslation();
   const [elapsedTime, setElapsedTime] = useState(0);
   const startTimeRef = useRef<number>(0);
 
   // 计时器 Timer for elapsed time
   useEffect(() => {
-    if (!running && !thought?.subject) {
+    if (!running || state === 'waiting') {
       setElapsedTime(0);
       return;
     }
@@ -65,11 +59,11 @@ const ThoughtDisplay: React.FC<ThoughtDisplayProps> = ({ thought, style = 'defau
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [running, thought?.subject, startTime]);
+  }, [running, state, startTime]);
 
   // 根据主题和样式计算最终样式 Calculate final style based on theme and style prop
   const containerStyle = useMemo(() => {
-    const background = theme === 'dark' ? GRADIENT_DARK : GRADIENT_LIGHT;
+    const background = 'var(--bg-subtle)';
 
     if (style === 'compact') {
       return {
@@ -85,7 +79,7 @@ const ThoughtDisplay: React.FC<ThoughtDisplayProps> = ({ thought, style = 'defau
       marginBottom: '-14px',
       zIndex: 1,
     };
-  }, [theme, style]);
+  }, [style]);
 
   // 如果没有 thought 且不在运行中，不显示
   if (state !== 'waiting' && !thought?.subject && !running) {
@@ -124,7 +118,7 @@ const ThoughtDisplay: React.FC<ThoughtDisplayProps> = ({ thought, style = 'defau
       <div className='flex items-center gap-2'>
         {running && <Spin size={14} />}
         <Tag color='arcoblue' size='small'>
-          {thought.subject}
+          {thought.subject === 'Thinking' ? t('messages.thinkingProcess') : thought.subject}
         </Tag>
         {showDescription && <span className='flex-1 truncate'>{thought.description}</span>}
         {running && <span className='text-tertiary text-12px whitespace-nowrap'>({formatElapsedTime(elapsedTime)})</span>}

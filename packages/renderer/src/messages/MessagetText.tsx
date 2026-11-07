@@ -50,11 +50,11 @@ export const stripInjectedUserPrompt = (content: string): string => {
 const useFormatContent = (content: string) => {
   return useMemo(() => {
     try {
-      const json = JSON.parse(content);
-      const isJson = typeof json === 'object';
+      const parsed = JSON.parse(content);
+      const isJson = parsed !== null && typeof parsed === 'object';
       return {
         json: isJson,
-        data: isJson ? json : content,
+        data: content,
       };
     } catch {
       return { data: content };
@@ -128,7 +128,7 @@ const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean; foot
   const proseHasContent = !!text.trim();
 
   const handleCopy = () => {
-    const rawBase = json ? JSON.stringify(data, null, 2) : text;
+    const rawBase = text;
     // Strip markdown image syntax ![alt](path) → path
     const baseText = rawBase.replace(/!\[[^\]]*\]\(([^)]+)\)/g, '$1');
     // Only copy message content, exclude files and skills
@@ -194,7 +194,7 @@ const MessageText: React.FC<{ message: IMessageText; isStreaming?: boolean; foot
             {/* JSON 内容使用折叠组件 Use CollapsibleContent for JSON content */}
             {json ? (
               <CollapsibleContent maxHeight={200} defaultCollapsed={true}>
-                <MarkdownView codeStyle={{ marginTop: 4, marginBlock: 4 }}>{`\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\``}</MarkdownView>
+                <MarkdownView codeStyle={{ marginTop: 4, marginBlock: 4 }}>{`\`\`\`json\n${data}\n\`\`\``}</MarkdownView>
               </CollapsibleContent>
             ) : (
               <MarkdownView codeStyle={{ marginTop: 4, marginBlock: 4 }}>{data}</MarkdownView>

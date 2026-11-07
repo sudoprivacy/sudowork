@@ -7,7 +7,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { CodexToolCallUpdate } from '@sudowork/common/chatLib';
-import BaseToolCallDisplay from './BaseToolCallDisplay';
+import ToolFrame from '../../tools/ToolFrame';
 
 type WebSearchUpdate = Extract<CodexToolCallUpdate, { subtype: 'web_search_begin' | 'web_search_end' }>;
 
@@ -29,7 +29,7 @@ const WebSearchDisplay: React.FC<{ content: WebSearchUpdate }> = ({ content }) =
   };
 
   return (
-    <BaseToolCallDisplay toolCallId={toolCallId} title={getDisplayTitle()} status={status} description={description} icon='🔍'>
+    <ToolFrame toolCallId={toolCallId} title={getDisplayTitle()} status={status} description={description} icon='🔍'>
       {/* Display query if available 显示搜索查询 */}
       {subtype === 'web_search_end' && 'query' in data && data.query && (
         <div className='text-sm mb-2'>
@@ -39,7 +39,7 @@ const WebSearchDisplay: React.FC<{ content: WebSearchUpdate }> = ({ content }) =
           </div>
         </div>
       )}
-    </BaseToolCallDisplay>
+    </ToolFrame>
   );
 };
 

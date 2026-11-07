@@ -1,0 +1,91 @@
+/* Scoped to the isolated Markdown surface; colors inherit from the app palette. */
+:host {
+  display: block;
+  min-width: 0;
+}
+.markdown-shadow-body {
+  color: var(--foreground);
+  font-size: var(--text-lg);
+  line-height: 1.625;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.markdown-shadow-body > :first-child {
+  margin-top: 0;
+}
+.markdown-shadow-body > :last-child {
+  margin-bottom: 0;
+}
+.markdown-shadow-body > .code-view {
+  margin-block: var(--space-2);
+}
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+pre {
+  margin: 0;
+}
+h1 {
+  font-size: var(--text-2xl);
+  line-height: 1.333;
+}
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-size: var(--text-lg);
+  margin-block: var(--space-2);
+}
+ol,
+ul {
+  padding-inline-start: var(--space-5);
+}
+a {
+  cursor: pointer;
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+pre {
+  max-width: 100%;
+  overflow-x: auto;
+}
+code {
+  font-size: var(--text-base);
+}
+img {
+  max-width: 100%;
+}
+table {
+  border-collapse: collapse;
+  min-width: 100%;
+}
+th,
+td {
+  border: 1px solid var(--border-default);
+  padding: var(--space-2);
+}
+th {
+  background: var(--bg-subtle);
+  font-weight: bold;
+}
+td {
+  min-width: 120px;
+}
+.markdown-table {
+  overflow-x: auto;
+  max-width: 100%;
+}
+.katex,
+.katex * {
+  line-height: normal;
+}
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-block: var(--space-2);
+}

@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { IResponseMessage } from '@sudowork/host-bridge/ipcBridge';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import { transformMessage, type TMessage } from '@sudowork/common/chatLib';
 import type { TokenUsageData } from '@sudowork/common/storage';
-import type { ThoughtData } from '@renderer/components/ThoughtDisplay';
+import type { ThoughtContent } from '@sudowork/common/thought';
+import { useThoughtPreview } from '@renderer/hooks/useThoughtPreview';
 import { useAddOrUpdateMessage, useUpdateMessageList } from '@renderer/messages/hooks';
 import { emitter } from '@renderer/utils/emitter';
 import { shouldCancelAcpFinishTimeout } from './acpFinishTimeout';
@@ -18,10 +19,7 @@ export function useAcpMessage(conversation_id: string) {
   const addOrUpdateMessage = useAddOrUpdateMessage();
   const updateMessageList = useUpdateMessageList();
   const [running, setRunning] = useState(false);
-  const [thought, setThought] = useState<ThoughtData>({
-    description: '',
-    subject: '',
-  });
+  const { thought, onThought: throttledSetThought, onReset: resetThought } = useThoughtPreview(conversation_id);
   const [acpStatus, setAcpStatus] = useState<'connecting' | 'connected' | 'authenticated' | 'session_active' | 'disconnected' | 'error' | null>(null);
   const [aiProcessing, setAiProcessing] = useState(false); // New loading state for AI response
   const [tokenUsage, setTokenUsage] = useState<TokenUsageData | null>(null);
@@ -49,52 +47,6 @@ export function useAcpMessage(conversation_id: string) {
     modelId: string;
     sessionMode?: string;
   } | null>(null);
-
-  // Think 消息节流：限制更新频率，减少渲染次数
-  // Throttle thought updates to reduce render frequency. Think deltas arrive
-  // incrementally, so pending accumulates description (subject follows the
-  // latest delta) and each flush appends to the current thought state.
-  const thoughtThrottleRef = useRef<{
-    lastUpdate: number;
-    pending: ThoughtData | null;
-    timer: ReturnType<typeof setTimeout> | null;
-  }>({ lastUpdate: 0, pending: null, timer: null });
-
-  const throttledSetThought = useMemo(() => {
-    const THROTTLE_MS = 50;
-    const flush = () => {
-      const ref = thoughtThrottleRef.current;
-      const pending = ref.pending;
-      ref.pending = null;
-      ref.lastUpdate = Date.now();
-      if (pending) {
-        setThought((prev) => ({ subject: pending.subject, description: (prev.description || '') + pending.description }));
-      }
-    };
-    return (data: ThoughtData) => {
-      const now = Date.now();
-      const ref = thoughtThrottleRef.current;
-      ref.pending = ref.pending ? { subject: data.subject, description: ref.pending.description + data.description } : { subject: data.subject, description: data.description };
-      if (now - ref.lastUpdate >= THROTTLE_MS) {
-        if (ref.timer) {
-          clearTimeout(ref.timer);
-          ref.timer = null;
-        }
-        flush();
-      } else if (!ref.timer) {
-        ref.timer = setTimeout(flush, THROTTLE_MS - (now - ref.lastUpdate));
-      }
-    };
-  }, []);
-
-  // 清理节流定时器
-  useEffect(() => {
-    return () => {
-      if (thoughtThrottleRef.current.timer) {
-        clearTimeout(thoughtThrottleRef.current.timer);
-      }
-    };
-  }, []);
 
   // 添加一个 ref 来跟踪组件是否已挂载
   const isMountedRef = useRef(true);
@@ -168,7 +120,7 @@ export function useAcpMessage(conversation_id: string) {
             setAiProcessing(true);
             aiProcessingRef.current = true;
           }
-          throttledSetThought(message.data as ThoughtData);
+          throttledSetThought(message.data as ThoughtContent, message.msg_id);
           // Also stream the reasoning block into the message list (collapsed display)
           // 同时把思考内容写入消息列表（折叠展示）
           if (transformedMessage) {
@@ -203,7 +155,7 @@ export function useAcpMessage(conversation_id: string) {
                 runningRef.current = false;
                 setAiProcessing(false);
                 aiProcessingRef.current = false;
-                setThought({ subject: '', description: '' });
+                resetThought();
                 setProcessingStartTime(undefined);
               }
               finishTimeoutRef.current = undefined;
@@ -222,7 +174,7 @@ export function useAcpMessage(conversation_id: string) {
             runningRef.current = false;
             setAiProcessing(false);
             aiProcessingRef.current = false;
-            setThought({ subject: '', description: '' });
+            resetThought();
             setProcessingStartTime(undefined);
             activeTurnStartTimeRef.current = undefined;
             hasContentInTurnRef.current = false;
@@ -245,7 +197,7 @@ export function useAcpMessage(conversation_id: string) {
             aiProcessingRef.current = true;
           }
           // Clear thought when final answer arrives
-          setThought({ subject: '', description: '' });
+          resetThought();
           addOrUpdateMessage(transformedMessage);
           break;
         case 'agent_status': {
@@ -325,7 +277,7 @@ export function useAcpMessage(conversation_id: string) {
             aiProcessingRef.current = false;
             setProcessingStartTime(undefined);
             activeTurnStartTimeRef.current = undefined;
-            setThought({ subject: '', description: '' });
+            resetThought();
           }
           addOrUpdateMessage(transformedMessage);
           // Log request error
@@ -347,7 +299,7 @@ export function useAcpMessage(conversation_id: string) {
           break;
       }
     },
-    [conversation_id, addOrUpdateMessage, throttledSetThought, setThought, setRunning, setAiProcessing, setAcpStatus, setTokenUsage, setContextLimit, isMountedRef]
+    [conversation_id, addOrUpdateMessage, throttledSetThought, resetThought, setRunning, setAiProcessing, setAcpStatus, setTokenUsage, setContextLimit, isMountedRef]
   );
 
   useEffect(() => {
@@ -363,7 +315,7 @@ export function useAcpMessage(conversation_id: string) {
       finishTimeoutRef.current = undefined;
     }
 
-    setThought({ subject: '', description: '' });
+    resetThought();
     setAcpStatus(null);
     setTokenUsage(null);
     setContextLimit(0);
@@ -425,11 +377,11 @@ export function useAcpMessage(conversation_id: string) {
     runningRef.current = false;
     setAiProcessing(false);
     aiProcessingRef.current = false;
-    setThought({ subject: '', description: '' });
+    resetThought();
     setProcessingStartTime(undefined);
     activeTurnStartTimeRef.current = undefined;
     hasContentInTurnRef.current = false;
-  }, []);
+  }, [resetThought]);
 
   const resetState = useCallback(() => {
     clearRuntimeState();

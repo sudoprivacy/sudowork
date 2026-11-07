@@ -21,6 +21,7 @@ import { useSkillSelectorController, type SkillSelectorItem, stripAtQuery, repla
 import type { WorkspaceFileItem } from '@renderer/hooks/useWorkspaceFiles';
 import { usePreviewContext } from '@renderer/pages/conversation/preview';
 import ContextMenu, { type ContextMenuItem } from '@renderer/components/ContextMenu';
+import { ComposerQueue, ComposerKeyHints, type QueuedComposerInput } from './ComposerStatus';
 import ActionChip from '@renderer/components/ui/ActionChip';
 import { isElectronDesktop, isWebBridgeAvailable } from '@renderer/utils/platform';
 import { resolveSkillIcon, getInstalledSkillDisplay } from '@renderer/utils/skillDisplay';
@@ -614,21 +615,12 @@ function SendBox({
             </div>
           )}
         </div>
+        <ComposerQueue inputs={queuedInputs} />
         <div className={isSingleLine ? 'flex items-center gap-2 w-full min-w-0 overflow-hidden' : 'w-full overflow-hidden'}>
           {isSingleLine && (
             <div className='flex-shrink-0 sendbox-tools flex items-center'>
               {tools}
               {skillTriggerButton}
-            </div>
-          )}
-          {(queuedInputs ?? []).length > 0 && (
-            <div className='flex flex-wrap gap-2 mb-2'>
-              {(queuedInputs ?? []).map((q) => (
-                <span key={q.id} data-testid='queued-input-chip' title={q.preview} className='inline-flex items-center max-w-220px px-8px py-2px rd-10px bg-2 text-12px text-t-secondary truncate'>
-                  {q.delivery && <span className='mr-1 font-medium'>{t(`messages.inputDelivery.${q.delivery}`)} · </span>}
-                  {q.preview}
-                </span>
-              ))}
             </div>
           )}
           <Input.TextArea
@@ -727,11 +719,6 @@ function SendBox({
             </div>
           )}
         </div>
-        {isInputDeliveryEnabled && (loading || Boolean(queuedInputs?.length)) && (
-          <div className='text-12px text-t-secondary mt-1' data-testid='input-delivery-hint'>
-            {t('messages.inputDelivery.keys')} · {t(queuedInputs?.length ? 'messages.inputDelivery.flushHint' : 'messages.inputDelivery.cancelHint')}
-          </div>
-        )}
         {!isSingleLine && (
           <div className='sendbox-actions flex items-center justify-between gap-2 w-full'>
             <div className='sendbox-tools flex items-center'>
@@ -745,6 +732,7 @@ function SendBox({
           </div>
         )}
       </div>
+      <ComposerKeyHints isEnabled={isInputDeliveryEnabled} isRunning={Boolean(loading)} isAnsweringQuestion={isAnsweringQuestion} isQueuePending={Boolean(queuedInputs?.length)} />
     </div>
   );
 }
@@ -779,7 +767,7 @@ interface ISendBoxProps {
   /** Allow submitting while a turn is running (interrupt/queue enabled). Decision is the coordinator's. */
   allowSubmitWhileRunning?: boolean;
   /** Pending inputs held by the coordinator, reflected here for the queue chips. */
-  queuedInputs?: Array<{ id: string; preview: string; delivery?: InputDelivery }>;
+  queuedInputs?: QueuedComposerInput[];
   /** Pull the last queued input back into the editor (Up-arrow). */
   onDequeueLast?: () => void | Promise<void>;
   isInputDeliveryEnabled?: boolean;
