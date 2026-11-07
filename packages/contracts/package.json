@@ -48,6 +48,6 @@
   },
   "dependencies": {
     "zod": "3.25.76",
-    "@sudo/contracts": "github:sudoprivacy/sudostack#273fd4097cbc33c1c049c39bb1fb60cef2663e2b"
+    "@sudo/contracts": "https://codeload.github.com/sudoprivacy/sudostack/legacy.tar.gz/273fd4097cbc33c1c049c39bb1fb60cef2663e2b"
   }
 }
