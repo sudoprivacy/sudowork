@@ -1,6 +1,22 @@
 """Open the shared browser panel through its normal workspace controls."""
 
 
+def direct_browser_arguments(origin, address=None):
+    """Use the HTTPS origin directly, with an optional public DNS answer."""
+    import ipaddress
+    import re
+    from urllib.parse import urlsplit
+
+    parsed = urlsplit(origin)
+    assert parsed.scheme == "https" and parsed.hostname and not parsed.username and not parsed.password
+    arguments = ["--no-proxy-server"]
+    if address:
+        target = ipaddress.IPv4Address(address)
+        assert target.is_global and re.fullmatch(r"[a-zA-Z0-9.-]+", parsed.hostname)
+        arguments.append(f"--host-resolver-rules=MAP {parsed.hostname} {target}")
+    return arguments
+
+
 async def open_browser_panel(page, browser_tab_name):
     tab = page.get_by_role("tab", name=browser_tab_name, exact=True)
     is_reachable = await tab.count() > 0 and await tab.evaluate(
@@ -101,9 +117,10 @@ async def interrupt_shared_browser(page, panel, labels):
     await expect(panel.get_by_label(labels["text"], exact=True)).to_be_visible()
 
 
-async def continue_from_conversation(page, text):
+async def continue_from_conversation(page, text, *, is_foreground=True):
     """Use the ordinary authenticated chat send, with no browser business buttons."""
-    await page.bring_to_front()
+    if is_foreground:
+        await page.bring_to_front()
     editor = page.locator("textarea").first
     await editor.fill(text)
     await editor.press("Enter")

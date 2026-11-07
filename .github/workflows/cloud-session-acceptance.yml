@@ -1,0 +1,100 @@
+name: Published cloud session acceptance
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main, dev]
+    paths:
+      - .github/workflows/cloud-session-acceptance.yml
+      - apps/webui/tests/e2e/live_cross_client_session.py
+      - apps/webui/tests/e2e/live_browser_ui.py
+      - apps/webui/tests/e2e/run_published_cross_client.py
+      - apps/webui/tests/e2e/fixture_workspace.py
+      - apps/webui/tests/e2e/test_fixture_workspace.py
+      - apps/webui/tests/e2e/workspace_requests.py
+      - apps/webui/tests/e2e/test_workspace_requests.py
+  release:
+    types: [published]
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      release:
+        description: Published Desktop tag (empty selects the latest stable release)
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: published-cloud-session-acceptance
+  cancel-in-progress: false
+
+jobs:
+  published-cross-client:
+    if: >-
+      (github.event_name != 'release' || !github.event.release.prerelease) &&
+      (github.event_name != 'pull_request' ||
+       (!github.event.pull_request.draft &&
+        github.event.pull_request.head.repo.full_name == github.repository))
+    name: Public WebUI and verified Windows Desktop
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Verify live fixture boundaries and directory request evidence
+        run: python -m unittest discover -s apps/webui/tests/e2e -p 'test_*workspace*.py'
+      - uses: browser-actions/setup-chrome@v2
+        id: chrome
+        with:
+          chrome-version: stable
+      - name: Install the public browser SDK
+        shell: pwsh
+        run: |
+          $version = bun -e "import { BROWSER_WORKER_VERSION } from './apps/desktop/src/process/services/python/browserRuntimeVersion.ts'; console.log(BROWSER_WORKER_VERSION)"
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot read the browser SDK version' }
+          python -m pip --isolated install --index-url https://pypi.org/simple "ai-dev-browser[remote]==$version" playwright
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot install the public browser SDK' }
+      - name: Run the real cloud conversation through both clients
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AI_DEV_BROWSER_CHROME: ${{ steps.chrome.outputs.chrome-path }}
+          CLOUD_ACCEPTANCE_KEY: ${{ secrets.SUDOROUTER_CI_API_KEY }}
+          REQUESTED_RELEASE: ${{ inputs.release }}
+        run: |
+          if (-not $env:CLOUD_ACCEPTANCE_KEY) { throw 'SUDOROUTER_CI_API_KEY is required' }
+          $config = Join-Path $env:RUNNER_TEMP 'cloud-session-credentials.json'
+          @{ origin = 'https://webui.sudoprivacy.com'; apiKey = $env:CLOUD_ACCEPTANCE_KEY } |
+            ConvertTo-Json | Set-Content -LiteralPath $config -Encoding utf8NoBOM
+          $release = $env:REQUESTED_RELEASE
+          if (-not $release) {
+            $release = gh release view --repo sudoprivacy/sudowork --json tagName --jq .tagName
+            if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve the published Desktop' }
+          }
+          python apps/webui/tests/e2e/run_published_cross_client.py --release $release --config $config --output "$env:RUNNER_TEMP/cloud-session-acceptance"
+          if ($LASTEXITCODE -ne 0) { throw 'The published cross-client journey failed' }
+      - name: Remove the private login configuration
+        if: always()
+        shell: pwsh
+        run: |
+          $config = Join-Path $env:RUNNER_TEMP 'cloud-session-credentials.json'
+          if (Test-Path -LiteralPath $config) { Remove-Item -LiteralPath $config -Force }
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: published-cloud-session-evidence
+          path: |
+            ${{ runner.temp }}/cloud-session-acceptance/journey/evidence.json
+            ${{ runner.temp }}/cloud-session-acceptance/journey/*.png
+            ${{ runner.temp }}/cloud-session-acceptance/desktop-proof.json
+            ${{ runner.temp }}/cloud-session-acceptance/desktop-retirement.json
+            ${{ runner.temp }}/cloud-session-acceptance/release-asset.json
+          if-no-files-found: error
