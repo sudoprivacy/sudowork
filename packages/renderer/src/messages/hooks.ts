@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import * as ipcBridge from '@sudowork/host-bridge/ipcBridge';
 import type { TMessage } from '@sudowork/common/chatLib';
 import { composeMessage } from '@sudowork/common/chatLib';
+import { mergeThoughtContent } from '@sudowork/common/thought';
 import { createContext } from '../utils/createContext';
 import { addEventListener } from '../utils/emitter';
 
@@ -68,13 +69,9 @@ function getOrBuildIndex(list: TMessage[]): MessageIndex {
 // Index-optimized message compose function
 export function composeMessageWithIndex(message: TMessage, list: TMessage[], index: MessageIndex): TMessage[] {
   if (!message) return list || [];
-  if (!list?.length) {
-    // Update index when adding first message
-    if (message.msg_id) {
-      index.msgIdIndex.set(message.msg_id, 0);
-    }
-    return [message];
-  }
+  // Empty lists use the same insertion path, including every protocol's index.
+  // A separate fast path used to omit call IDs and duplicate the first tool.
+  list ||= [];
 
   // 对于 tool_group 类型，使用原始的 composeMessage（因为涉及内部数组匹配）
   // For tool_group type, use original composeMessage (involves inner array matching)
@@ -211,8 +208,7 @@ export function composeMessageWithIndex(message: TMessage, list: TMessage[], ind
     return list.concat(message);
   }
 
-  // thought: streaming think deltas arrive incrementally — append description,
-  // subject follows the latest full-text first line from the emitter.
+  // Thought snapshots and explicit wire deltas use the same canonical merger.
   if (message.type === 'thought' && message.msg_id) {
     const existingIdx = index.msgIdIndex.get(message.msg_id);
     if (existingIdx !== undefined && existingIdx < list.length) {
@@ -221,15 +217,13 @@ export function composeMessageWithIndex(message: TMessage, list: TMessage[], ind
         const newList = list.slice();
         newList[existingIdx] = {
           ...existingMsg,
-          content: {
-            subject: message.content.subject,
-            description: (existingMsg.content.description || '') + (message.content.description || ''),
-          },
+          content: mergeThoughtContent(existingMsg.content, message.content),
         } as TMessage;
         return newList;
       }
     }
-    // Not found / type mismatch: fall through to the generic insert below.
+    // Normalize the first delta into a snapshot before storing the row.
+    message = { ...message, content: mergeThoughtContent(undefined, message.content) };
   }
 
   // agent_status / tips / plan and other msg_id-based messages:
@@ -251,7 +245,7 @@ export function composeMessageWithIndex(message: TMessage, list: TMessage[], ind
   // Other types: fallback to last message check
   // 其他类型: 回退到检查最后一条消息
   const last = list[list.length - 1];
-  if (last.msg_id !== message.msg_id || last.type !== message.type) {
+  if (!last || last.msg_id !== message.msg_id || last.type !== message.type) {
     // Add new message and update index
     const newIdx = list.length;
     if (message.msg_id) index.msgIdIndex.set(message.msg_id, newIdx);

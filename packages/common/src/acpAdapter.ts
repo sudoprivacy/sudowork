@@ -185,11 +185,11 @@ export class AcpAdapter {
         msg_id: this.currentThoughtMsgId,
         conversation_id: this.conversationId,
         createdAt: Date.now(),
-        position: 'center' as const,
-        type: 'tips',
+        position: 'left' as const,
+        type: 'thought',
         content: {
-          content: this.currentThoughtText,
-          type: 'warning',
+          subject: 'Thinking',
+          description: this.currentThoughtText,
         },
       };
     }

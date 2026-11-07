@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Button } from '@arco-design/web-react';
 import { IconDown, IconRight } from '@arco-design/web-react/icon';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -19,17 +20,17 @@ export default function MessageThought({ message }: IMessageThoughtProps) {
     return null;
   }
 
-  const showSubject = Boolean(subject) && subject !== 'Thinking' && subject !== description;
+  const isSubjectVisible = Boolean(subject) && subject !== 'Thinking' && subject !== description;
 
   return (
     <div className='w-full min-w-0'>
-      <div className='flex items-center gap-6px color-#86909C cursor-pointer select-none' onClick={() => setIsExpanded(!isExpanded)}>
+      <Button type='text' className='!text-secondary !px-0 max-w-full' aria-expanded={isExpanded} onClick={() => setIsExpanded(!isExpanded)}>
         <span className='flex-none'>{t('messages.thinkingProcess')}</span>
-        {showSubject && <span className='truncate min-w-0 opacity-80'>{subject}</span>}
+        {isSubjectVisible && <span className='truncate min-w-0'>{subject}</span>}
         {isExpanded ? <IconDown className='flex-none' /> : <IconRight className='flex-none' />}
-      </div>
+      </Button>
       {isExpanded && (
-        <div className='p-l-16px pt-4px b-l-2px b-l-solid b-l-[rgba(134,144,156,0.3)] color-#86909C text-13px [&_p]:color-#86909C [&_li]:color-#86909C'>
+        <div className='pl-4 pt-1 border-l-2 border-l-solid border-[var(--border-default)] text-secondary'>
           <MarkdownView>{description}</MarkdownView>
         </div>
       )}

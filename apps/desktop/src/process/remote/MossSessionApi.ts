@@ -5,6 +5,7 @@
  */
 
 import WebSocket from 'ws';
+import { thinkingBlockToResponse } from '@sudowork/common/thought';
 import type { IResponseMessage, MossSessionAvailableSkill, MossWorkspaceFilePreview, MossWorkspaceNode } from '@sudowork/host-bridge/ipcBridge';
 import { BrowserOwnerInfoSchema, BrowserSessionActionSchema, BrowserSessionReplySchema, type BrowserOwnerInfo, type BrowserSessionAction, type BrowserSessionReply } from '@sudowork/contracts/browser-session';
 import { changeMossBrowserConversation, uploadBrowserFile, downloadBrowserFile, upgradeMossRuntime, MossHttpError, isMossRuntimeUpdateRequired, createMossOntologyPort, mossRequest } from '@sudowork/moss-client';
@@ -1102,17 +1103,10 @@ export class MossSessionApi {
 
       const contentArray = msg.message?.content;
       if (Array.isArray(contentArray)) {
-        for (const block of contentArray) {
+        for (const [blockIndex, block] of contentArray.entries()) {
           if (block?.type === 'thinking') {
-            const thinkingContent = block.thinking || block.text || '';
-            if (thinkingContent && thinkingContent.trim()) {
-              onMessage({
-                type: 'thought',
-                msg_id: `${msg.uuid || uuid(36)}-thought`,
-                conversation_id: '',
-                data: { subject: 'Thinking', description: thinkingContent },
-              });
-            }
+            const response = thinkingBlockToResponse(block, msg.uuid || uuid(36), blockIndex, '');
+            if (response) onMessage(response);
           } else if (block?.type === 'text') {
             const textContent = block.text || '';
             // Skip abort-related text messages

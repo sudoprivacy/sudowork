@@ -4,11 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Tag } from '@arco-design/web-react';
 import React from 'react';
+import CodeView from '@renderer/components/CodeView';
+import { ToolOutput } from '../../tools/ToolContentView';
+import { formatToolValue } from '../../tools/toolPresentation';
 import { useTranslation } from 'react-i18next';
 import type { CodexToolCallUpdate } from '@sudowork/common/chatLib';
-import BaseToolCallDisplay from './BaseToolCallDisplay';
+import ToolFrame, { ToolBadge } from '../../tools/ToolFrame';
 
 type McpToolUpdate = Extract<CodexToolCallUpdate, { subtype: 'mcp_tool_call_begin' | 'mcp_tool_call_end' }>;
 
@@ -45,22 +47,20 @@ const McpToolDisplay: React.FC<{ content: McpToolUpdate }> = ({ content }) => {
   const toolDetails = getToolDetails();
 
   return (
-    <BaseToolCallDisplay toolCallId={toolCallId} title={getDisplayTitle()} status={status} description={description} icon='🔌'>
+    <ToolFrame toolCallId={toolCallId} title={getDisplayTitle()} status={status} description={description} icon='🔌'>
       {/* Display tool details if available 显示工具详情 */}
       {toolDetails && (
         <div className='text-sm mb-2'>
           <div className='text-xs text-secondary mb-1'>{t('tools.labels.tool_details')}</div>
           <div className='bg-1 p-2 rounded text-sm border'>
             <div className='flex items-center gap-2'>
-              <Tag size='small' color='purple'>
-                {t('tools.labels.tool')}
-              </Tag>
+              <ToolBadge tone='info'>{t('tools.labels.tool')}</ToolBadge>
               <span className='font-mono text-xs text-foreground'>{toolDetails.toolName}</span>
             </div>
             {toolDetails.arguments && (
               <div className='mt-2'>
                 <div className='text-xs text-secondary mb-1'>{t('tools.labels.arguments')}</div>
-                <pre className='text-xs bg-2 p-2 rounded border overflow-x-auto text-foreground'>{JSON.stringify(toolDetails.arguments, null, 2)}</pre>
+                <CodeView source={formatToolValue(toolDetails.arguments)} language='json' />
               </div>
             )}
           </div>
@@ -72,11 +72,11 @@ const McpToolDisplay: React.FC<{ content: McpToolUpdate }> = ({ content }) => {
         <div className='text-sm mb-2'>
           <div className='text-xs text-secondary mb-1'>{t('tools.labels.result')}</div>
           <div className='bg-1 p-2 rounded text-sm max-h-40 overflow-y-auto border'>
-            <pre className='text-xs whitespace-pre-wrap text-foreground'>{typeof data.result === 'string' ? data.result : JSON.stringify(data.result, null, 2)}</pre>
+            <ToolOutput text={formatToolValue(data.result)} />
           </div>
         </div>
       )}
-    </BaseToolCallDisplay>
+    </ToolFrame>
   );
 };
 

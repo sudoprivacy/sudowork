@@ -116,16 +116,10 @@ export type IMessageTips = IMessage<
 >;
 
 /**
- * Model reasoning (thinking) content. Each emission carries the FULL accumulated
- * text for one reasoning block, so merging replaces content instead of appending.
+ * Model reasoning content. Stored messages are full snapshots; incremental wire
+ * updates declare descriptionMode explicitly so live and restored text share one merger.
  */
-export type IMessageThought = IMessage<
-  'thought',
-  {
-    subject: string;
-    description: string;
-  }
->;
+export type IMessageThought = IMessage<'thought', import('./thought.js').ThoughtContent>;
 
 export type IMessageToolCall = IMessage<
   'tool_call',

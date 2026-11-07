@@ -112,8 +112,8 @@
 }
 
 .tool-steps-card__count--running {
-  background: rgba(22, 93, 255, 0.12);
-  color: rgb(var(--primary-6, 22 93 255));
+  background: var(--info-soft);
+  color: var(--info);
 }
 
 .tool-steps-card__count--error {
@@ -146,7 +146,7 @@
 }
 
 .tool-steps-status-dot--running {
-  background: rgb(var(--primary-6, 22 93 255));
+  background: var(--info);
 }
 
 .tool-steps-status-dot--running::after {
@@ -154,7 +154,7 @@
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  background: rgb(var(--primary-6, 22 93 255));
+  background: var(--info);
   opacity: 0.6;
   animation: tool-steps-ping 1.4s cubic-bezier(0, 0, 0.2, 1) infinite;
 }
@@ -269,8 +269,8 @@
 }
 
 .tool-step-row__status--running {
-  background: rgba(22, 93, 255, 0.12);
-  color: rgb(var(--primary-6, 22 93 255));
+  background: var(--info-soft);
+  color: var(--info);
 }
 
 .tool-step-row__status--default {

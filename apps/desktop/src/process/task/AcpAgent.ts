@@ -3755,15 +3755,15 @@ This identity statement takes priority over the default identity in USER.md.
    * DB receives the FULL accumulated text (replace-merge via composeMessage,
    * unchanged — shared with RemoteAgent). IPC receives only the per-call DELTA
    * (append-merge in the renderer) so long reasoning is O(n) over IPC instead
-   * of re-sending the full text every chunk. subject is derived from `full` and
-   * shared by both paths. Also marks the turn as having visible assistant output
+   * of re-sending the full text every chunk. Both paths keep the same generic
+   * subject; the renderer supplies its localized label. Also marks the turn as having visible assistant output
    * so a pure-think reply no longer trips the "no summary" fallback.
    */
   private emitThoughtMessage(thoughtMsgId: string, delta: string, full: string): void {
-    if (!delta.trim()) return;
+    if (!delta) return;
     this.turnHadVisibleAssistantContent = true;
     this.lastVisibleAssistantContentSequence = ++this.turnEventSequence;
-    const subject = this.extractThoughtSubject(full);
+    const subject = 'Thinking';
     const dbMessage = {
       type: 'thought',
       msg_id: thoughtMsgId,
@@ -3778,7 +3778,7 @@ This identity statement takes priority over the default identity in USER.md.
       type: 'thought',
       msg_id: thoughtMsgId,
       conversation_id: this.conversation_id,
-      data: { subject, description: delta },
+      data: { subject, description: delta, descriptionMode: 'delta' },
     } as IResponseMessage;
     ipcBridge.acpConversation.responseStream.emit(ipcMessage);
     channelEventBus.emitAgentMessage(this.conversation_id, { ...ipcMessage, conversation_id: this.conversation_id });
@@ -4063,20 +4063,18 @@ This identity statement takes priority over the default identity in USER.md.
         responseMessage.type = 'acp_question';
         responseMessage.data = message.content;
         break;
+      case 'thought': {
+        const thoughtMsgId = message.msg_id || message.id;
+        const full = message.content.description;
+        const previous = this.thoughtFullTextByMsgId.get(thoughtMsgId) || '';
+        const delta = full.startsWith(previous) ? full.slice(previous.length) : full;
+        this.thoughtFullTextByMsgId.set(thoughtMsgId, full);
+        this.emitThoughtMessage(thoughtMsgId, delta, full);
+        return;
+      }
       case 'tips': {
-        const content = message.content as { type?: string; content: string };
-        if (content.type === 'warning' && message.position === 'center') {
-          const thoughtMsgId = message.msg_id || message.id;
-          const full = content.content;
-          const previous = this.thoughtFullTextByMsgId.get(thoughtMsgId) || '';
-          const delta = full.startsWith(previous) ? full.slice(previous.length) : full;
-          this.thoughtFullTextByMsgId.set(thoughtMsgId, full);
-          this.emitThoughtMessage(thoughtMsgId, delta, full);
-          return;
-        } else {
-          responseMessage.type = 'error';
-          responseMessage.data = content.content;
-        }
+        responseMessage.type = 'error';
+        responseMessage.data = message.content.content;
         break;
       }
       case 'acp_tool_call':
@@ -4094,17 +4092,6 @@ This identity statement takes priority over the default identity in USER.md.
         responseMessage.data = typeof message.content === 'string' ? message.content : JSON.stringify(message.content);
     }
     this.handleStreamEvent(responseMessage);
-  }
-
-  private extractThoughtSubject(content: string): string {
-    const lines = content.split('\n');
-    const firstLine = lines[0].trim();
-    const subjectMatch = firstLine.match(/^\*\*(.+?)\*\*$/);
-    if (subjectMatch) return subjectMatch[1];
-    if (firstLine.length < 80 && !firstLine.endsWith('.')) return firstLine;
-    const firstSentence = content.split('.')[0];
-    if (firstSentence.length < 100) return firstSentence;
-    return 'Thinking';
   }
 
   /**

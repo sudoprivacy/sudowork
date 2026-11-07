@@ -1,14 +1,22 @@
 ﻿import React from 'react';
-import { render, screen, cleanup } from '@testing-library/react';
+import { act, render, screen, cleanup, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { TMessage } from '@sudowork/common/chatLib';
-const state = vi.hoisted(() => ({ messages: [] as TMessage[], rows: [] as TMessage[], initialIndex: -1 }));
+const state = vi.hoisted(() => ({ messages: [] as TMessage[], rows: [] as TMessage[], initialIndex: -1, onBadges: undefined as ((value: { enabled: boolean }) => void) | undefined }));
 vi.mock('@renderer/messages/hooks', () => ({ useMessageList: () => state.messages }));
 vi.mock('@renderer/context/ConversationContext', () => ({ useConversationContextSafe: () => ({ conversationId: 'test' }) }));
 vi.mock('@renderer/hooks/useShowToolCalls', () => ({ useShowToolCalls: () => true }));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock('@sudowork/host-bridge/ipcBridge', () => ({
-  systemSettings: { getShowTokenUsageBadges: { invoke: async () => false }, showTokenUsageBadgesChanged: { on: () => () => {} } },
+  systemSettings: {
+    getShowTokenUsageBadges: { invoke: async () => false },
+    showTokenUsageBadgesChanged: {
+      on: (onChange: (value: { enabled: boolean }) => void) => {
+        state.onBadges = onChange;
+        return () => {};
+      },
+    },
+  },
   shareoneCli: { checkInstalled: { invoke: async () => ({ success: true, data: { installed: false } }) }, installResult: { on: () => () => {} } },
 }));
 vi.mock('@renderer/messages/MessagetText', () => ({
@@ -19,7 +27,13 @@ vi.mock('@renderer/messages/MessagetText', () => ({
     </div>
   ),
 }));
-vi.mock('@renderer/messages/TurnActions', () => ({ default: () => <div>Turn actions</div> }));
+vi.mock('@renderer/messages/TurnActions', () => ({
+  default: ({ showTokenUsageBadge }: { showTokenUsageBadge?: boolean }) => (
+    <div data-testid='turn-footer' data-usage-visible={Boolean(showTokenUsageBadge)}>
+      Turn actions
+    </div>
+  ),
+}));
 vi.mock('@renderer/messages/MessageFileChanges', () => ({ default: () => null, parseDiff: () => [] }));
 vi.mock('@renderer/messages/acp/MessageAcpPermission', () => ({ default: () => null }));
 vi.mock('@renderer/messages/acp/MessageAcpQuestion', () => ({ default: () => null }));
@@ -51,6 +65,13 @@ import MessageList from '@renderer/messages/MessageList';
 const message = (id: string, position: 'left' | 'right', content: string): TMessage => ({ id, msg_id: id, conversation_id: 'test', type: 'text', position, content: { content } });
 afterEach(cleanup);
 describe('chat virtual rows', () => {
+  it('updates footer settings even when the message body stays unchanged', async () => {
+    state.messages = [message('answer', 'left', 'Same body')];
+    render(<MessageList />);
+    await waitFor(() => expect(screen.getByTestId('turn-footer').getAttribute('data-usage-visible')).toBe('false'));
+    act(() => state.onBadges?.({ enabled: true }));
+    expect(screen.getByTestId('turn-footer').getAttribute('data-usage-visible')).toBe('true');
+  });
   it('omits permission prompts rendered outside the virtual list', () => {
     state.messages = [
       message('user', 'right', 'Run a command'),

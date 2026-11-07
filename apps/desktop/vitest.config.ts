@@ -339,6 +339,11 @@ export default defineConfig({
         'src/common/tokenUsage.ts',
         'src/common/update/models/VersionInfo.ts',
         'src/common/types/conversion.ts',
+        '../../packages/common/src/thought.ts',
+        '../../packages/renderer/src/components/{CodeView,Markdown,MarkdownSurface,ComposerStatus}.tsx',
+        '../../packages/renderer/src/hooks/useThoughtPreview.ts',
+        '../../packages/renderer/src/messages/messagePresentation.ts',
+        '../../packages/renderer/src/messages/tools/**/*.{ts,tsx}',
         // Renderer utils
         '../../packages/renderer/src/components/HubEmptyState.tsx',
         '../../packages/renderer/src/hooks/useAvailableModels.ts',

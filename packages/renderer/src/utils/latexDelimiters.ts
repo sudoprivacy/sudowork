@@ -13,10 +13,12 @@
  *
  * Content inside fenced code blocks (``` or ~~~) and inline code spans (`)
  * is preserved unchanged.
+ * An optional prose normalizer shares the same code boundaries.
  */
-export function convertLatexDelimiters(text: string): string {
+export function convertLatexDelimiters(text: string, normalizeProse?: (prose: string) => string): string {
   const segments: string[] = [];
   let pos = 0;
+  const transform = normalizeProse ? (prose: string) => replaceDelimiters(normalizeProse(prose)) : replaceDelimiters;
 
   // Match fenced code blocks (``` or ~~~) and inline code spans
   const codeRegex = /(```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`\n]+`)/g;
@@ -25,7 +27,7 @@ export function convertLatexDelimiters(text: string): string {
   while ((match = codeRegex.exec(text)) !== null) {
     // Process text before this code segment
     if (match.index > pos) {
-      segments.push(replaceDelimiters(text.slice(pos, match.index)));
+      segments.push(transform(text.slice(pos, match.index)));
     }
     // Keep code segment unchanged
     segments.push(match[0]);
@@ -34,7 +36,7 @@ export function convertLatexDelimiters(text: string): string {
 
   // Process remaining text after last code segment
   if (pos < text.length) {
-    segments.push(replaceDelimiters(text.slice(pos)));
+    segments.push(transform(text.slice(pos)));
   }
 
   return segments.join('');
