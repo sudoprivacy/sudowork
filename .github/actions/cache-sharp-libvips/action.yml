@@ -7,6 +7,9 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Verify native download recovery and integrity failures
+      shell: bash
+      run: node .github/scripts/verify-sharp-download-recovery.mjs
     - uses: actions/cache@v4
       with:
         path: |
