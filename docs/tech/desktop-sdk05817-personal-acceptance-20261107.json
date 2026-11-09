@@ -1,0 +1,60 @@
+{
+  "recordedAt": "2026-11-06T16:36:49.544083+00:00",
+  "scope": "Locally packaged Windows Desktop, existing isolated personal Chrome",
+  "officialPublishedArtifact": false,
+  "artifact": {
+    "asarSha256": "51d75cdcb5e9c6c97c0b1c58f43ad86a39cc0a3b05eb18e19668f195f2f028ba",
+    "modifiedAfterPackaging": false,
+    "bundledScodeVersion": "0.2.40",
+    "includesPendingMcpBudgetFix": false
+  },
+  "model": "gpt-6-luna",
+  "mockedModelOrBrowser": false,
+  "manualAssistance": false,
+  "publicSdkVersion": "0.58.17",
+  "extensionVersion": "0.4.9",
+  "browser": {
+    "distribution": "Chrome for Testing",
+    "version": "156.0.8078.47",
+    "everydayUserProfileUsed": false
+  },
+  "publicWheelSha256": "265d24a6d108507e1c1aba99dd25358ff2fd86ca8d6a0b37decd88edee9236f3",
+  "installedPublicWheelFilesMatch": 205,
+  "durationSeconds": 251.26,
+  "firstUseRuntimeReadyMs": 130932.39,
+  "normalLocalEntryAndModelSettings": true,
+  "localCliSeeded": false,
+  "modelCredentialSeeded": false,
+  "normalOfflineReloadAcknowledged": true,
+  "physicalWindowsMouse": true,
+  "nativeChromeAndEmbeddedPanel": true,
+  "exactSelectionCopied": true,
+  "realMultilineClipboardPaste": true,
+  "chromiumCompositionNotPhysicalOsIme": true,
+  "imeConfirmationDidNotSubmit": true,
+  "nativeQuestionCancelledAndPersisted": true,
+  "conversationInterruptAndContinue": true,
+  "noBrowserHandoffButtons": true,
+  "oneTrustedUnicodeSubmission": true,
+  "exactModelReadback": true,
+  "consecutiveStatusCommandsMs": [681.33, 650.2, 673.84],
+  "existingChromeAndCookiesPreserved": true,
+  "normalOwnedServicesShutdown": true,
+  "temporaryModelConfigRemoved": true,
+  "receiptsSha256": {
+    "runner": "8fb23ca309cb8c33bdb18b02238706c66d852a8a92d2c5ef58f61495c96fc8aa",
+    "journey": "0b57bdcfd572a0c9b730c4a8294b245ddf39eb46e6ec0713a31d5df7a8cfcefc",
+    "runtime": "4d513ac15a86d0050f44ce16e85dbb0d901db18ebc12da1862ae57740fe3ff12"
+  },
+  "reproductionInputs": {
+    "apps/desktop/tests/e2e/live_shared_browser.py": "b003422280af8913a8661c2d0c448cb62a82f3b73eb59c1e305b8ac5e32434e9",
+    "apps/desktop/tests/e2e/read_owned_taskbar.ps1": "25d8869afb509621c73be25d54f6b9e2c1ad4fbc5221631afe1f0e4c5e8baf2f"
+  },
+  "coverageLimits": [
+    "This package predates the pending per-server MCP cold-start timeout change; that change requires a rebuilt package and new acceptance.",
+    "Standalone Chrome cold first-use remains failed: dependency installation exceeded the existing engine 60-second tool-call budget.",
+    "Earlier foreground and startup fixture failures are retained; one successful journey does not establish a reliability percentile.",
+    "Does not qualify an official new release, physical OS IME, macOS, iPhone, public WAN graph interaction, joint comments or production promotion."
+  ],
+  "reproduction": "apps/desktop/tests/e2e/README.md"
+}

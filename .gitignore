@@ -214,6 +214,9 @@ resources/nexusd
 resources/nexusd.exe
 resources/v*-nexusd-cluster-*
 resources/v*-nexus-vault-*
+# Versioned Sudo Code release archives are downloaded by the build.
+**/resources/v*-scode-*.zip
+**/resources/v*-scode-*.tar.gz
 resources/claude-code.tgz
 resources/gemini-cli.tgz
 resources/node-*.tar.gz

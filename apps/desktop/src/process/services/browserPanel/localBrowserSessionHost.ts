@@ -69,15 +69,26 @@ export async function connectLocalBrowserMcp(conversationId: string): Promise<Cl
   return client;
 }
 
-export async function getLocalBrowserMcpConfig(conversationId: string, isHttp: boolean) {
+// First use can include the app-owned venv (120 s), package installation
+// (300 s), verification, worker startup and the actual browser request.
+export const LOCAL_BROWSER_TOOL_CALL_TIMEOUT_MS = 600_000;
+
+export async function getLocalBrowserMcpConfig(conversationId: string, isHttp: boolean, isTimeoutSupported = false) {
   const http = await getLocalBrowserSessions().mcpConfig(conversationId);
-  if (isHttp) return http;
+  const metadata = isTimeoutSupported ? { _meta: { sudocode: { toolCallTimeoutMs: LOCAL_BROWSER_TOOL_CALL_TIMEOUT_MS } } } : {};
+  if (isHttp) return { ...http, ...metadata };
   const candidate = getNodeBinaryPath();
   const node = existsSync(candidate) ? candidate : undefined;
   return {
     name: http.name,
     command: node || process.execPath,
     args: [getMcpScriptPath('shared')],
-    env: [{ name: 'SUDOWORK_BROWSER_MCP_URL', value: http.url }, { name: 'SUDOWORK_BROWSER_MCP_TOKEN', value: http.headers[0].value.slice('Bearer '.length) }, ...(!node ? [{ name: 'ELECTRON_RUN_AS_NODE', value: '1' }] : [])],
+    env: [
+      { name: 'SUDOWORK_BROWSER_MCP_URL', value: http.url },
+      { name: 'SUDOWORK_BROWSER_MCP_TOKEN', value: http.headers[0].value.slice('Bearer '.length) },
+      { name: 'SUDOWORK_BROWSER_MCP_TOOL_TIMEOUT_MS', value: String(LOCAL_BROWSER_TOOL_CALL_TIMEOUT_MS) },
+      ...(!node ? [{ name: 'ELECTRON_RUN_AS_NODE', value: '1' }] : []),
+    ],
+    ...metadata,
   };
 }

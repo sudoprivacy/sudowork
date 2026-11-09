@@ -344,7 +344,7 @@ export async function sendConversationInput({ conversation_id, files, ...other }
     if (teamGuardData?.type === 'acp') browserAdmission = await getLocalBrowserSessions().prepareUserMessage(conversation_id, !!delivery);
     else if (teamGuardData?.type === 'remote-agent') {
       const { extra, mossSessionId, pending } = getRemoteConversationSession(conversation_id);
-      if (!pending && mossSessionId) await getRemoteConversationMossApi(extra).changeBrowserConversation(mossSessionId, 'continue');
+      if (!delivery && !pending && mossSessionId) await getRemoteConversationMossApi(extra).changeBrowserConversation(mossSessionId, 'continue');
     }
     getProviderForConversation(conversation_id);
     task = (await WorkerManage.getTaskByIdRollbackBuild(conversation_id)) as AcpAgent | import('../task/RemoteAgent').default | undefined;

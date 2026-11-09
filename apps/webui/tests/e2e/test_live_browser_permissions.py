@@ -9,9 +9,7 @@ from live_browser_permissions import approve_browser_permission
 class BrowserPermissionTest(unittest.IsolatedAsyncioTestCase):
     def page(self):
         page = MagicMock()
-        choice = (
-            page.get_by_text.return_value.locator.return_value.get_by_text.return_value
-        )
+        choice = page.get_by_role.return_value.get_by_text.return_value
         choice.click = AsyncMock()
         return page, choice.click
 

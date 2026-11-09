@@ -22,7 +22,14 @@ function fixture(isAsyncStore = false) {
   const inputClaims = new Map<string, string>();
   const deliveryClaims = new Set<string>();
   const threadReplies: Array<{ id: string; content: string; author_role: string }> = [];
-  const controls = { failAccept: false, failReply: false, account: 'account-one', key: 'private-existing-key', events: [{ id: 'event-one', share_id: SHARE, comment_id: 'thread-one', parent_id: null, actor_role: 'owner', event_type: 'comment.created' }] as IReviewInboxItem['event'][] };
+  const controls = {
+    isDeliveryAllowed: true,
+    failAccept: false,
+    failReply: false,
+    account: 'account-one',
+    key: 'private-existing-key',
+    events: [{ id: 'event-one', share_id: SHARE, comment_id: 'thread-one', parent_id: null, actor_role: 'owner', event_type: 'comment.created' }] as IReviewInboxItem['event'][],
+  };
   const database = {
     getHostValue: (key: string) => values.get(key) ?? null,
     setHostValue: (key: string, value: unknown) => values.set(key, value),
@@ -108,6 +115,7 @@ function fixture(isAsyncStore = false) {
       setKey,
       authorize,
       head,
+      isDeliveryAllowed: () => controls.isDeliveryAllowed,
       recover,
       deliver,
       messageExists: () => false,
@@ -121,6 +129,27 @@ function fixture(isAsyncStore = false) {
 
 it('refuses a host store that cannot durably reserve dispatch', () => {
   expect(() => new SudographReviewComments({ database: {} } as unknown as ConstructorParameters<typeof SudographReviewComments>[0])).toThrow('atomic durable claimReviewDelivery is required');
+});
+
+it('keeps an acknowledged notification unclaimed while human control is held, then delivers once after continuation', async () => {
+  const state = fixture(true);
+  state.controls.isDeliveryAllowed = false;
+  await service.prepare('project', 'conversation');
+  await vi.advanceTimersByTimeAsync(0);
+  expect(state.order.slice(0, 2)).toEqual(['durable', 'ack']);
+  expect([...state.inbox.values()][0].status).toBe('pending');
+  expect(state.deliveryClaims.size).toBe(0);
+  expect(state.deliver).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(4000);
+  expect(state.deliveryClaims.size).toBe(0);
+  expect(state.deliver).not.toHaveBeenCalled();
+  state.controls.isDeliveryAllowed = true;
+  await vi.advanceTimersByTimeAsync(2000);
+  expect(state.deliver).toHaveBeenCalledTimes(1);
+  expect(state.deliver.mock.calls[0][0]).toMatchObject({ conversationId: 'conversation', content: 'Field label\n\nPlease clarify this field.' });
+  expect([...state.inbox.values()][0].status).toBe('delivered');
+  await vi.advanceTimersByTimeAsync(2000);
+  expect(state.deliver).toHaveBeenCalledTimes(1);
 });
 
 it('admits one turn when independent controllers poll the same event concurrently', async () => {

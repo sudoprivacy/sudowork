@@ -324,6 +324,51 @@ if(response.ok){clearInterval(ticker);document.body.style.background='rgb(0,128,
                 evidence["consoleErrors"] = []
                 evidence["failedRequests"] = []
                 evidence["assetResponses"] = []
+                evidence["httpErrors"] = []
+
+                async def capture_http_error(response):
+                    path = urlparse(response.url).path
+                    if response.status < 400 or not path.startswith("/api/"):
+                        return
+                    try:
+                        # Diagnostics must not hold the normal Stop/cleanup path
+                        # open for an error response whose body never finishes.
+                        reading = asyncio.create_task(response.text())
+                        # Keep the transport wait alive until context closure;
+                        # cancellation can strand Playwright's reply future.
+                        reading.add_done_callback(
+                            lambda task: (
+                                task.exception() if not task.cancelled() else None
+                            )
+                        )
+                        body = await asyncio.wait_for(
+                            asyncio.shield(reading), timeout=5
+                        )
+                    except Exception as error:
+                        body = (
+                            "Response body unavailable: "
+                            + type(error).__name__
+                            + ": "
+                            + str(error)
+                        )
+                    for secret in (config.get("apiKey"), config.get("password")):
+                        if secret:
+                            body = body.replace(secret, "[redacted]")
+                    evidence["httpErrors"].append(
+                        {
+                            "path": path,
+                            "method": response.request.method,
+                            "status": response.status,
+                            "body": body[:2000],
+                        }
+                    )
+
+                page.on(
+                    "response",
+                    lambda response: tasks.append(
+                        asyncio.create_task(capture_http_error(response))
+                    ),
+                )
                 page.on(
                     "pageerror", lambda error: evidence["pageErrors"].append(str(error))
                 )
@@ -934,8 +979,11 @@ if(response.ok){clearInterval(ticker);document.body.style.background='rgb(0,128,
                     await continue_from_conversation(
                         chat,
                         "Observe the current browser page through its browser tools. "
-                        "Report the exact text of #result and #identity. Do not navigate, "
-                        "click or submit. Keep this browser open.",
+                        "Use browser_observe on this same session and reply inline "
+                        "with only the exact text of #result and #identity. This is "
+                        "not a file or artifact task: do not create or declare files "
+                        "or artifacts. Do not navigate, click or submit. "
+                        "Keep this browser open.",
                     )
                     deadline = time.monotonic() + 180
                     assistant = ""
@@ -945,6 +993,7 @@ if(response.ok){clearInterval(ticker);document.body.style.background='rgb(0,128,
                     last_tool = None
                     approved_ids = set()
                     approvals = []
+                    evidence["observationApprovals"] = approvals
                     while not is_finished:
                         for payload in observations[processed:]:
                             processed += 1
@@ -1098,102 +1147,107 @@ if(response.ok){clearInterval(ticker);document.body.style.background='rgb(0,128,
                             await require_status(stopped, "Stop owned browser")
                         evidence["ownedBrowserStopped"] = True
                         evidence["humanLeaseReturned"] = False
-                        assert not evidence.get("conversationRejection"), (
-                            "The browser is stopped; its human lease remains pending after the recorded conversation rejection. No second send attempted."
-                        )
-                        assert not evidence.get("modelFailure"), (
-                            "No additional model send after the recorded failed completion; inspect the retained lease state."
-                        )
-                        # A persistent browser's human lease can outlive a
-                        # conversation. Explicitly return the stopped browser
-                        # before ending this fixture, and verify its normal
-                        # real-model continuation instead of leaving it held.
-                        chat = await context.new_page()
-
-                        def stream(socket):
-                            if "/ws/conversations/" + session_id in socket.url:
-                                socket.on(
-                                    "framereceived",
-                                    lambda payload: model_events.append(payload),
-                                )
-
-                        chat.on("websocket", stream)
-                        await chat.goto(
-                            origin + "/#/conversation/" + session_id,
-                            wait_until="domcontentloaded",
-                        )
-                        await expect(chat.locator("textarea").first).to_be_visible(
-                            timeout=30000
-                        )
-                        current = await context.request.post(
-                            origin + "/api/conversations/" + session_id + "/browser",
-                            headers={"Origin": origin},
-                            data={"kind": "state"},
-                        )
-                        await require_status(
-                            current, "Read stopped fixture before Return"
-                        )
-                        state = (await current.json())["session"]
-                        marker = "VIEW_CLEANUP_" + nonce
-                        await continue_from_conversation(
-                            chat,
-                            "The isolated browser fixture is finished. Keep Chrome stopped. Do not use tools or restart the browser. Reply exactly "
-                            + marker,
-                        )
-                        deadline = time.monotonic() + 180
-                        assistant = ""
-                        result = None
-                        processed = 0
-                        while result is None:
-                            for payload in model_events[processed:]:
-                                processed += 1
-                                event = read_conversation_event(
-                                    payload, evidence, "cleanup"
-                                )
-                                if event is None:
-                                    continue
-                                if event.get("type") == "assistant":
-                                    content = event.get("message", {}).get(
-                                        "content", []
-                                    )
-                                    assistant += (
-                                        content
-                                        if isinstance(content, str)
-                                        else "".join(
-                                            block.get("text", "")
-                                            for block in content
-                                            if isinstance(block, dict)
-                                        )
-                                    )
-                                if (
-                                    event.get("type") == "result"
-                                    and marker in assistant
-                                ):
-                                    result = event
-                            assert time.monotonic() < deadline, (
-                                "The real model did not acknowledge the user's return note"
+                        if evidence.get("workflowFailure"):
+                            # Stop and terminate the owned failed fixture without
+                            # another model send masking its original failure.
+                            evidence["returnSkippedAfterWorkflowFailure"] = True
+                        else:
+                            assert not evidence.get("conversationRejection"), (
+                                "The browser is stopped; its human lease remains pending after the recorded conversation rejection. No second send attempted."
                             )
-                            if result is None:
-                                await asyncio.sleep(0.25)
-                        assert not result.get("is_error") and result.get("status") in (
-                            None,
-                            "success",
-                        )
-                        evidence["realModelReturnAcknowledged"] = True
-                        evidence["returnUsage"] = result.get("usage")
-                        returned = await context.request.post(
-                            origin + "/api/conversations/" + session_id + "/browser",
-                            headers={"Origin": origin},
-                            data={"kind": "state"},
-                        )
-                        await require_status(
-                            returned,
-                            "Verify human lease after conversation continuation",
-                        )
-                        assert (await returned.json())["session"][
-                            "isHumanControlHeld"
-                        ] is False
-                        evidence["humanLeaseReturned"] = True
+                            assert not evidence.get("modelFailure"), (
+                                "No additional model send after the recorded failed completion; inspect the retained lease state."
+                            )
+                            # A persistent browser's human lease can outlive a
+                            # conversation. Explicitly return the stopped browser
+                            # before ending this fixture, and verify its normal
+                            # real-model continuation instead of leaving it held.
+                            chat = await context.new_page()
+
+                            def stream(socket):
+                                if "/ws/conversations/" + session_id in socket.url:
+                                    socket.on(
+                                        "framereceived",
+                                        lambda payload: model_events.append(payload),
+                                    )
+
+                            chat.on("websocket", stream)
+                            await chat.goto(
+                                origin + "/#/conversation/" + session_id,
+                                wait_until="domcontentloaded",
+                            )
+                            await expect(chat.locator("textarea").first).to_be_visible(
+                                timeout=30000
+                            )
+                            current = await context.request.post(
+                                origin + "/api/conversations/" + session_id + "/browser",
+                                headers={"Origin": origin},
+                                data={"kind": "state"},
+                            )
+                            await require_status(
+                                current, "Read stopped fixture before Return"
+                            )
+                            state = (await current.json())["session"]
+                            marker = "VIEW_CLEANUP_" + nonce
+                            await continue_from_conversation(
+                                chat,
+                                "The isolated browser fixture is finished. Keep Chrome stopped. Do not use tools or restart the browser. Reply exactly "
+                                + marker,
+                            )
+                            deadline = time.monotonic() + 180
+                            assistant = ""
+                            result = None
+                            processed = 0
+                            while result is None:
+                                for payload in model_events[processed:]:
+                                    processed += 1
+                                    event = read_conversation_event(
+                                        payload, evidence, "cleanup"
+                                    )
+                                    if event is None:
+                                        continue
+                                    if event.get("type") == "assistant":
+                                        content = event.get("message", {}).get(
+                                            "content", []
+                                        )
+                                        assistant += (
+                                            content
+                                            if isinstance(content, str)
+                                            else "".join(
+                                                block.get("text", "")
+                                                for block in content
+                                                if isinstance(block, dict)
+                                            )
+                                        )
+                                    if (
+                                        event.get("type") == "result"
+                                        and marker in assistant
+                                    ):
+                                        result = event
+                                assert time.monotonic() < deadline, (
+                                    "The real model did not acknowledge the user's return note"
+                                )
+                                if result is None:
+                                    await asyncio.sleep(0.25)
+                            assert not result.get("is_error") and result.get("status") in (
+                                None,
+                                "success",
+                            )
+                            evidence["realModelReturnAcknowledged"] = True
+                            evidence["returnUsage"] = result.get("usage")
+                            returned = await context.request.post(
+                                origin + "/api/conversations/" + session_id + "/browser",
+                                headers={"Origin": origin},
+                                data={"kind": "state"},
+                            )
+                            await require_status(
+                                returned,
+                                "Verify human lease after conversation continuation",
+                            )
+                            assert (await returned.json())["session"][
+                                "isHumanControlHeld"
+                            ] is False
+                            evidence["humanLeaseReturned"] = True
                     await terminate_owned_session()
                 await context.close()
     except BaseException as error:
