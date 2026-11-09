@@ -31,6 +31,18 @@ const nativeArchives = {
     "O1d4m5C4TfU4mpP0Ow5al5+CyP1qNnjf3TKYOgQTC3T8gj4KEdSXDq4SsehsX2b7qNee7cuMBukYL6zqe/PmrA==",
 };
 
+// Immutable asset identities from the same pinned official releases. The API
+// download path avoids a failing browser-download gateway without a mirror.
+const libvipsAssetIds = {
+  "darwin-arm64v8": 126621404,
+  "darwin-x64": 126621508,
+  "linux-arm64v8": 126620583,
+  "win32-arm64v8": 126619375,
+  "win32-x64": 126619488,
+  "linux-x64": 126620878,
+};
+const nativeAssetIds = { "linux-x64": 126626396, "win32-x64": 126626740 };
+
 export async function cacheSharpLibvips({
   platform = process.platform,
   arch = process.arch,
@@ -49,6 +61,7 @@ export async function cacheSharpLibvips({
     name,
     integrity,
     url: `https://github.com/lovell/sharp-libvips/releases/download/v8.14.5/${name}`,
+    apiUrl: `https://api.github.com/repos/lovell/sharp-libvips/releases/assets/${libvipsAssetIds[target]}`,
   });
 }
 
@@ -73,15 +86,17 @@ export async function cacheSharpNativePrebuild({
     name: `${prefix}-${archive.replace(/[^a-zA-Z0-9.]+/g, "-")}`,
     integrity,
     url,
+    apiUrl: `https://api.github.com/repos/lovell/sharp/releases/assets/${nativeAssetIds[target]}`,
   });
 }
 
-async function cacheVerifiedArchive({
+export async function cacheVerifiedArchive({
   cacheRoot,
   directoryName,
   name,
   integrity,
   url,
+  apiUrl,
 }) {
   const directory = join(cacheRoot, directoryName);
   const destination = join(directory, name);
@@ -99,31 +114,52 @@ async function cacheVerifiedArchive({
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
     try {
-      const result = spawnSync(
-        process.platform === "win32" ? "curl.exe" : "curl",
-        [
-          "--fail",
-          "--location",
-          "--silent",
-          "--show-error",
-          "--connect-timeout",
-          "15",
-          "--max-time",
-          "60",
-          "--retry",
-          "3",
-          "--retry-all-errors",
-          "--retry-max-time",
-          "180",
-          "--output",
-          temporary,
-          url,
-        ],
-        { stdio: "inherit" },
-      );
+      const download = (source, headers = []) =>
+        spawnSync(
+          process.platform === "win32" ? "curl.exe" : "curl",
+          [
+            "--fail",
+            "--location",
+            "--silent",
+            "--show-error",
+            "--connect-timeout",
+            "15",
+            "--max-time",
+            "60",
+            "--retry",
+            "3",
+            "--retry-max-time",
+            "180",
+            "--output",
+            temporary,
+            "--write-out",
+            "%{http_code}",
+            ...headers,
+            source,
+          ],
+          { stdio: ["ignore", "pipe", "inherit"], encoding: "utf8" },
+        );
+      let result = download(url);
+      const status = result.stdout?.trim();
+      if (
+        !result.error &&
+        result.status === 22 &&
+        ["502", "503", "504"].includes(status) &&
+        apiUrl
+      ) {
+        console.log(
+          `Release download returned HTTP ${status}; requesting the same pinned asset through GitHub's public API`,
+        );
+        result = download(apiUrl, [
+          "--header",
+          "Accept: application/octet-stream",
+        ]);
+      }
       if (result.error) throw result.error;
       if (result.status !== 0)
-        throw new Error(`libvips download failed (${result.status})`);
+        throw new Error(
+          `Native dependency download failed for ${name} (${result.status}, HTTP ${result.stdout?.trim() || "unavailable"})`,
+        );
       await verify(temporary);
       await rename(temporary, destination);
       console.log(`Downloaded and verified ${name}`);
