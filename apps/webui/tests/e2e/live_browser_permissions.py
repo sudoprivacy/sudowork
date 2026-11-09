@@ -43,10 +43,21 @@ async def approve_browser_permission(page, event, last_tool):
         None,
     )
     assert once is not None, "A normal one-time approval is required"
-    title = request.get("title") or request.get("tool_name") or "Permission Required"
-    card = page.get_by_text(title, exact=True).locator(
-        "xpath=ancestor::div[contains(@class,'max-w-800px')][1]"
+    title = (
+        request.get("title")
+        or request.get("tool_name")
+        or request.get("toolCall", {}).get("title")
+        or "Permission Required"
     )
-    await card.get_by_text(once["name"], exact=False).click(timeout=10000)
+    # The shared confirmation panel is a named section. Its visual width is
+    # implemented by CSS modules, so utility-class ancestry is not stable.
+    card = page.get_by_role("region", name=title, exact=True)
+    await card.get_by_text(once["name"], exact=True).click(timeout=10000)
     print(f"Approved the visible one-time {tool} request", flush=True)
-    return {"tool": tool, "requestId": event.get("request_id"), "source": source}
+    return {
+        "tool": tool,
+        "requestId": event.get("request_id"),
+        "source": source,
+        "visibleTitle": title,
+        "optionId": once["optionId"],
+    }
