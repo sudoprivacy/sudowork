@@ -75,28 +75,15 @@ export class LocalBrowserSessions {
 
   /** An ordinary authenticated chat send resumes the existing lease once. */
   async prepareUserMessage(conversationId: string, isReviewInput = false): Promise<number> {
+    // A notification never grants control of the user's browser or resumes
+    // paused agents. Its durable inbox waits for ordinary chat continuation.
+    if (isReviewInput) return this.options.control.assertCanPrompt();
     let host = this.options.control.status();
     if (host.owner && this.options.isConversationCurrent && !(await this.options.isConversationCurrent(host.owner))) {
       await this.options.control.retireAfterShutdown(() => this.close());
       host = this.options.control.status();
     }
     if (host.state === 'ai') return this.options.control.assertCanPrompt(host.epoch);
-    if (isReviewInput && host.state === 'human' && host.owner !== conversationId) {
-      const worker = await this.worker(conversationId);
-      await this.options.control.take(
-        conversationId,
-        async () => {
-          const { session } = await this.state(worker);
-          if (session.state === 'stopped') throw new Error('Reopen the bound review before delivering its comments.');
-          if (session.state !== 'human' || !session.isController) {
-            const acquired = BrowserSessionReplySchema.parse(await worker.invoke({ kind: 'take', controlEpoch: session.controlEpoch, targetEpoch: session.targetEpoch }));
-            if (!acquired.session.isController) throw new Error('Review browser takeover was not acknowledged.');
-          }
-        },
-        true
-      );
-      host = this.options.control.status();
-    }
     // A new authenticated user task can finish the previous conversation's
     // human handoff. Return its own browser through the same observation and
     // engine barriers; the new conversation never inherits that browser.

@@ -3,6 +3,7 @@ import path from 'node:path';
 import { userInfo } from 'node:os';
 import { ProcessConfig } from '@process/initStorage';
 import { getShareoneApiKeyEnterprise, saveShareoneApiKeyEnterprise } from '../shareoneCli/shareoneCredentials';
+import { localAgentToolControl } from '../browserPanel/localToolControl';
 import type { OntologyStudioDatabase } from './OntologyStudioDatabase';
 import type { ISudographReviewHostOptions } from './SudographReviewHost';
 import { ShareoneReviewAssets } from './ShareoneReviewAssets';
@@ -37,6 +38,7 @@ export async function createSudographReviewProvider(options: IReviewProviderDepe
       await options.authorize(binding);
     },
     head: (workspaceId) => options.read(workspaceId, { operation: 'head' }) as Promise<{ revision: string; context_digest: string }>,
+    isDeliveryAllowed: () => localAgentToolControl.status().state === 'ai',
     messageExists: async (conversationId, messageId) => {
       // The existing message store, not a second chat transcript, proves admission.
       const { getDatabase } = await import('@process/database');

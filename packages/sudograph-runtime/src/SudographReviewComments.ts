@@ -28,6 +28,8 @@ export interface ISudographReviewCommentsOptions {
   setKey: (key: string | null) => Promise<void>;
   authorize: (binding: { workspaceId: string; conversationId: string }) => Promise<void>;
   head: (workspaceId: string, conversationId: string) => Promise<{ revision: string; context_digest: string }>;
+  /** Keep new notifications durable and unclaimed while the host's input barrier is held. */
+  isDeliveryAllowed?: (binding: { workspaceId: string; conversationId: string }) => boolean | Promise<boolean>;
   deliver: (input: { conversationId: string; messageId: string; content: string; agentContent: string }, hooks: { onStarted: () => Promise<void>; onCompleted: (text: string, error?: string) => Promise<void> }) => Promise<{ success: boolean; msg?: string }>;
   messageExists: (conversationId: string, messageId: string) => boolean | Promise<boolean>;
   /** Inspect the existing conversation without submitting another input. Unknown outcomes require review. */
@@ -250,6 +252,10 @@ export class SudographReviewComments {
         const result = await this.options.database.getHostValue<{ text: string; error?: string }>('review-result:' + item.id);
         if (result) {
           await this.respond(item, result.text, result.error);
+          this.active.delete(item.id);
+          continue;
+        }
+        if (this.options.isDeliveryAllowed && !(await this.options.isDeliveryAllowed(item.subscription))) {
           this.active.delete(item.id);
           continue;
         }

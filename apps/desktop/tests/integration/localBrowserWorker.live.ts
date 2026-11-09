@@ -172,6 +172,16 @@ try {
   }
   await worker.invoke({ kind: 'input', input: { kind: 'click', x: 80, y: 40 }, ...epochs(held) });
   await worker.invoke({ kind: 'input', input: { kind: 'text', text: 'Desktop human 中文' }, ...epochs(held) });
+  if (host) {
+    const beforeNotification = await host.invoke(binding.sessionId, { kind: 'state' });
+    await assert.rejects(host.prepareUserMessage(binding.sessionId, true), /held by the user/);
+    await assert.rejects(host.prepareUserMessage('another-review-conversation', true), /held by the user/);
+    const afterNotification = await host.invoke(binding.sessionId, { kind: 'state' });
+    assert.equal(afterNotification.session.controlEpoch, beforeNotification.session.controlEpoch);
+    assert.equal(afterNotification.session.targetEpoch, beforeNotification.session.targetEpoch);
+    assert.equal(afterNotification.session.isHumanControlHeld, true);
+    assert.equal(control.status().owner, binding.sessionId);
+  }
   if (host) await host.prepareUserMessage(binding.sessionId);
   const returned = ((await worker.invoke(host ? { kind: 'state' } : { kind: 'return', note: 'Read the edited field before continuing', ...epochs(held) })) as { session: typeof held }).session;
   assert.equal(returned.browserSessionId, initial.browserSessionId);

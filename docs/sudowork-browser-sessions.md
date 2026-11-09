@@ -181,6 +181,13 @@ another process, or use the user-send path that implicitly continues browser
 control. Host routing and the live ShareOne receiver are still implementation
 and acceptance work; this section does not claim that they are deployed.
 
+While Desktop's human-control barrier is held, newly received comments stay in
+the durable inbox without reserving an agent dispatch. A normal message in the
+original conversation continues the existing handoff; the comment consumer can
+then process the pending input. Receiving a comment never releases that browser
+lease, switches its controlling conversation, or resumes paused agents. An
+uncertain dispatch remains reserved for recovery and is never blindly replayed.
+
 ### Canonical model and context
 
 Reuse [Sudograph's context design](https://github.com/sudoprivacy/sudograph/blob/main/docs/agent-context.md)
