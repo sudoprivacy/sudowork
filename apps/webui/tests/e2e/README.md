@@ -1,5 +1,66 @@
 # Live shared-browser acceptance
 
+## Cloud conversation across WebUI and Desktop
+
+`run_published_cross_client.py` downloads a stable Windows Desktop release,
+verifies its GitHub asset digest, and launches it with a dedicated home and
+profile. An isolation bootstrap loads the unchanged product ASAR. The test uses
+the normal login and real cloud model through both clients.
+
+In WebUI, a real `bash` `pwd -P` result binds approvals to the current session's
+workspace. Relative paths and the exact absolute fixture path share that scope;
+other paths, extra shell commands and sandbox overrides fail the approval check.
+Separate turns then create, read and delete one randomly named fixture.
+Successful tool results are matched to their calls, and the workspace API
+independently verifies the actual file bytes and subsequent removal. After the
+read turn, the test clicks the file in the real workspace tree, verifies its
+authenticated preview response and visible contents, and closes the preview
+before continuing the delete turn. The refreshed tree must remove the file.
+
+Desktop then opens the same conversation and recalls the unpredictable filename and
+content from context; its prompt contains neither value. A WebUI reload must
+restore the same assistant message ID. Cleanup closes the viewers before
+terminating the fixture-created sessions, including unexpected replacements.
+Tool lifecycle updates share one ACP call identity; completion retains the
+original input, and changed inputs or conflicting final results fail acceptance.
+
+Chrome traces the fixture's root directory requests in the UI and independent
+control page. Evidence records request intervals, send queue timings and the
+maximum number of pending root reads for each page and for both together. The
+[live journey](live_cross_client_session.py) checks that concurrency after both
+pages close, using Chrome's event timestamps across the two pages.
+[Collector and interval tests](test_workspace_requests.py) protect fixture
+scoping and concurrency accounting in the same workflow.
+
+The `Published cloud session acceptance` workflow runs this journey for stable
+releases, daily, and when its acceptance code changes. Its dedicated
+`CLOUD_SESSION_ACCEPTANCE_API_KEY` secret holds a Moss-issued identity key for
+the acceptance account. Moss manages that account's model credential.
+Evidence includes screenshots, tool identities, session IDs, release hashes
+and cleanup results. The private login file and Desktop profile remain
+outside the uploaded artifacts.
+
+Use a private JSON config containing `origin`, either `apiKey` or
+`username`/`password`, and optional `modelId`:
+
+```sh
+python apps/webui/tests/e2e/run_published_cross_client.py \
+  --release v0.2.42 --config /private/cloud-session.json \
+  --output /private/evidence/cloud-session-001
+```
+
+Pass `--archive /path/to/Sudowork-0.2.42-win-x64.zip` to reuse a downloaded
+release. The launcher verifies the archive against the public release digest
+and size before extracting it.
+
+`live_cross_client_session.py` also accepts `--desktop-proof` for an already
+launched dedicated release fixture. Its receipt must bind the running profile,
+product version and archive hash, using the same shape as the release launcher.
+Both viewers connect directly over HTTPS. A private configuration may supply
+`directAddress`, a verified public IPv4 DNS answer for the configured origin,
+when the local resolver returns a proxy address. The URL and TLS hostname remain
+the configured origin.
+
 ## Browser startup and profile ownership
 
 `live_browser_view_performance.py` reads profile ownership before opening its
