@@ -324,6 +324,51 @@ if(response.ok){clearInterval(ticker);document.body.style.background='rgb(0,128,
                 evidence["consoleErrors"] = []
                 evidence["failedRequests"] = []
                 evidence["assetResponses"] = []
+                evidence["httpErrors"] = []
+
+                async def capture_http_error(response):
+                    path = urlparse(response.url).path
+                    if response.status < 400 or not path.startswith("/api/"):
+                        return
+                    try:
+                        # Diagnostics must not hold the normal Stop/cleanup path
+                        # open for an error response whose body never finishes.
+                        reading = asyncio.create_task(response.text())
+                        # Keep the transport wait alive until context closure;
+                        # cancellation can strand Playwright's reply future.
+                        reading.add_done_callback(
+                            lambda task: (
+                                task.exception() if not task.cancelled() else None
+                            )
+                        )
+                        body = await asyncio.wait_for(
+                            asyncio.shield(reading), timeout=5
+                        )
+                    except Exception as error:
+                        body = (
+                            "Response body unavailable: "
+                            + type(error).__name__
+                            + ": "
+                            + str(error)
+                        )
+                    for secret in (config.get("apiKey"), config.get("password")):
+                        if secret:
+                            body = body.replace(secret, "[redacted]")
+                    evidence["httpErrors"].append(
+                        {
+                            "path": path,
+                            "method": response.request.method,
+                            "status": response.status,
+                            "body": body[:2000],
+                        }
+                    )
+
+                page.on(
+                    "response",
+                    lambda response: tasks.append(
+                        asyncio.create_task(capture_http_error(response))
+                    ),
+                )
                 page.on(
                     "pageerror", lambda error: evidence["pageErrors"].append(str(error))
                 )
