@@ -5,7 +5,7 @@
 `run_published_cross_client.py` downloads a stable Windows Desktop release,
 verifies its GitHub asset digest, and launches it with a dedicated home and
 profile. An isolation bootstrap loads the unchanged product ASAR. The test uses
-the normal API-key login and real cloud model through both clients.
+the normal login and real cloud model through both clients.
 
 In WebUI, a real `bash` `pwd -P` result binds approvals to the current session's
 workspace. Relative paths and the exact absolute fixture path share that scope;
@@ -33,21 +33,23 @@ pages close, using Chrome's event timestamps across the two pages.
 scoping and concurrency accounting in the same workflow.
 
 The `Published cloud session acceptance` workflow runs this journey for stable
-releases, daily, and when its acceptance code changes. It uses the dedicated
-`SUDOROUTER_CI_API_KEY`. Evidence includes screenshots, tool identities, session
-IDs, release hashes and cleanup results. The private login file and Desktop
-profile remain outside the uploaded artifacts.
+releases, daily, and when its acceptance code changes. Its dedicated
+`CLOUD_SESSION_ACCEPTANCE_API_KEY` secret holds a Moss-issued identity key for
+the acceptance account. Moss manages that account's model credential.
+Evidence includes screenshots, tool identities, session IDs, release hashes
+and cleanup results. The private login file and Desktop profile remain
+outside the uploaded artifacts.
 
 Use a private JSON config containing `origin`, either `apiKey` or
 `username`/`password`, and optional `modelId`:
 
 ```sh
 python apps/webui/tests/e2e/run_published_cross_client.py \
-  --release v0.2.41 --config /private/cloud-session.json \
+  --release v0.2.42 --config /private/cloud-session.json \
   --output /private/evidence/cloud-session-001
 ```
 
-Pass `--archive /path/to/Sudowork-0.2.41-win-x64.zip` to reuse a downloaded
+Pass `--archive /path/to/Sudowork-0.2.42-win-x64.zip` to reuse a downloaded
 release. The launcher verifies the archive against the public release digest
 and size before extracting it.
 

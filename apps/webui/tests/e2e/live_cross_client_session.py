@@ -24,6 +24,8 @@ def tool_message_ids(messages):
 
 
 async def login(page, url, labels, credentials):
+    is_web = urlparse(url).scheme == "https"
+    assert is_web or urlparse(url).scheme == "file", "Require public WebUI or the published Desktop"
     await page.goto(url, wait_until="domcontentloaded")
     if credentials.get("apiKey"):
         await page.get_by_text(labels["apiKeyTab"], exact=True).click()
@@ -32,8 +34,23 @@ async def login(page, url, labels, credentials):
         await page.get_by_text(labels["passwordTab"], exact=True).click()
         await page.get_by_placeholder(labels["pwdAccountPlaceholder"], exact=True).fill(credentials["username"])
         await page.get_by_placeholder(labels["pwdPasswordPlaceholder"], exact=True).fill(credentials["password"])
-    await page.get_by_role("button", name=labels["pwdLoginTab"], exact=True).click()
-    await page.wait_for_url(lambda value: "/login" not in value, timeout=30_000)
+    endpoint = "/api/auth/login/" + ("api-key" if credentials.get("apiKey") else "password")
+    if is_web:
+        async with page.expect_response(
+            lambda response: response.request.method == "POST"
+            and urlparse(response.url).netloc == urlparse(url).netloc
+            and urlparse(response.url).path == endpoint,
+            timeout=30_000,
+        ) as authentication:
+            await page.get_by_role("button", name=labels["pwdLoginTab"], exact=True).click()
+        response = await authentication.value
+        assert response.status == 200, f"WebUI login refused {endpoint}: HTTP {response.status}"
+    else:
+        # The published Desktop authenticates through its native IPC bridge.
+        await page.get_by_role("button", name=labels["pwdLoginTab"], exact=True).click()
+    await page.wait_for_url(
+        lambda value: "/login" not in value, wait_until="domcontentloaded", timeout=30_000,
+    )
 
 
 async def api(page, path, method="GET", data=None, params=None):

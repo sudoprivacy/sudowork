@@ -67,10 +67,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           AI_DEV_BROWSER_CHROME: ${{ steps.chrome.outputs.chrome-path }}
-          CLOUD_ACCEPTANCE_KEY: ${{ secrets.SUDOROUTER_CI_API_KEY }}
+          CLOUD_ACCEPTANCE_KEY: ${{ secrets.CLOUD_SESSION_ACCEPTANCE_API_KEY }}
           REQUESTED_RELEASE: ${{ inputs.release }}
         run: |
-          if (-not $env:CLOUD_ACCEPTANCE_KEY) { throw 'SUDOROUTER_CI_API_KEY is required' }
+          if (-not $env:CLOUD_ACCEPTANCE_KEY) { throw 'CLOUD_SESSION_ACCEPTANCE_API_KEY must contain a Moss-issued acceptance key' }
           $config = Join-Path $env:RUNNER_TEMP 'cloud-session-credentials.json'
           @{ origin = 'https://webui.sudoprivacy.com'; apiKey = $env:CLOUD_ACCEPTANCE_KEY } |
             ConvertTo-Json | Set-Content -LiteralPath $config -Encoding utf8NoBOM
