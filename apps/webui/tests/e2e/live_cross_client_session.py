@@ -129,11 +129,12 @@ async def approve_fixture_request(page, event, fixture, nonce, evidence, phase, 
                 translated = translated.get(part, {}) if isinstance(translated, dict) else {}
             if isinstance(translated, str):
                 label = translated
-    option = page.locator("div.cursor-pointer:visible").filter(
-        has_text=re.compile(r"^(?:Enter|Y|[1-9])\s*" + re.escape(label) + r"$")
+    card = page.get_by_role("region", name=tool, exact=True)
+    await expect(card).to_be_visible()
+    option = card.get_by_role(
+        "button", name=re.compile(r"^(?:Enter|Y|[1-9])\s*" + re.escape(label) + r"$")
     )
     await expect(option).to_have_count(1)
-    card = option.locator("..").locator("..")
     expected_operation = "pwd -P" if phase == "workspace" else fixture
     assert expected_operation in await card.inner_text(), "The visible permission card belongs to another operation"
     await option.click()
