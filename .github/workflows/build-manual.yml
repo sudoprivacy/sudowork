@@ -94,7 +94,7 @@ jobs:
     environment: release
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Test release validation
         run: python3 apps/desktop/scripts/test-release-verification.py
       - name: Download and verify the selected release

@@ -14,11 +14,11 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           repository: sudoprivacy/sudograph
           ref: 635f222b8430b9a0ace4c17169fa8c582f61deea

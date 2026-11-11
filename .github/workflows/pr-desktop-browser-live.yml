@@ -23,10 +23,10 @@ jobs:
       matrix:
         os: [windows-latest, ubuntu-latest]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       # Pin the compiler source and use the production installer's public SDK
       # version, so review acceptance cannot depend on a candidate-only worker.
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           repository: sudoprivacy/sudograph
           ref: 635f222b8430b9a0ace4c17169fa8c582f61deea # Sudograph compiler 0.1.0.
@@ -112,7 +112,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Checkout the pinned public browser core
         run: git submodule update --init vendor/ai-dev-browser
       - uses: actions/setup-node@v6
@@ -212,7 +212,7 @@ jobs:
       matrix:
         os: [windows-latest, ubuntu-latest]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Checkout public browser SDK
         run: git submodule update --init vendor/ai-dev-browser
       - uses: actions/setup-node@v6
